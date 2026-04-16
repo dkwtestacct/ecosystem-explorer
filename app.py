@@ -6,8 +6,8 @@ import rasterio
 from skimage.transform import resize
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-DATA_DIR_FLOOD   = '/Users/dkw-testing/Downloads/UFR_sample_data_MN'
-DATA_DIR_COOLING = '/Users/dkw-testing/Downloads/UrbanCooling_sample_data/UrbanCooling'
+DATA_DIR_FLOOD   = 'data/flood'
+DATA_DIR_COOLING = 'data/cooling'
 
 BASELINE_CN = 75.7   # Mean curve number for current Minneapolis land cover
 BASELINE_HM = 0.2719 # Mean heat mitigation index for current Minneapolis land cover
