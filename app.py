@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.patches import Patch
+import plotly.graph_objects as go
 import rasterio
 from skimage.transform import resize
 from sklearn.ensemble import RandomForestRegressor
@@ -69,10 +70,8 @@ def load_data():
     with rasterio.open(f'{DATA_DIR_COOLING}/land_use_2021.tif') as src:
         cooling_lulc = src.read(1)
 
-    # Pre-compute developed pixel locations (used in every scenario evaluation)
     developed_pixels = np.argwhere(np.isin(cooling_lulc, DEVELOPED_CODES))
 
-    # ── CN lookup: fast array indexed by [lucode_idx, soil_group] ──────────────
     cn_by_soil = {
         row['lucode']: {1: row['CN_A'], 2: row['CN_B'], 3: row['CN_C'], 4: row['CN_D']}
         for _, row in bio.iterrows()
@@ -84,7 +83,6 @@ def load_data():
         for sg, cn_val in soils.items():
             cn_table[lucode_to_idx[lc], sg] = cn_val
 
-    # Fast lucode→index array (avoids dict lookup per pixel)
     max_lucode = max(lucode_to_idx.keys())
     lucode_idx_arr = np.zeros(max_lucode + 1, dtype=np.int32)
     for lc, idx in lucode_to_idx.items():
@@ -92,7 +90,6 @@ def load_data():
 
     soil_resized = resize(soil, lulc.shape, order=0, preserve_range=True).astype(int)
 
-    # ── HM lookup: fast array indexed by lucode ────────────────────────────────
     cooling_bio['HM'] = (cooling_bio['shade'] + cooling_bio['kc']) / 2
     hm_lookup = dict(zip(cooling_bio['lucode'], cooling_bio['HM']))
     max_hm_lucode = max(hm_lookup.keys())
@@ -113,7 +110,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct, 
     """
     Convert a random sample of developed pixels to the specified land use mix,
     then compute flood risk, urban cooling, and food production.
-    All raster lookups use fast numpy array indexing — no Python loops per pixel.
+    All raster lookups use fast numpy array indexing.
     """
     pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
@@ -139,19 +136,16 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct, 
         p = pixels_to_convert[n_wet + n_for:]
         scenario_lulc[p[:, 0], p[:, 1]] = CODE_HIGH_DENSITY
 
-    # Flood risk: fast CN lookup via pre-built arrays
     lulc_idx = lucode_idx_arr[np.clip(scenario_lulc, 0, max_lucode)]
     soil_clamped = np.clip(soil_resized, 1, 4)
     cn_scenario = cn_table[lulc_idx, soil_clamped]
     mean_cn = float(cn_scenario[cn_scenario > 0].mean().round(2))
 
-    # Cooling: fast HM lookup via pre-built array
     hm_map = hm_arr[np.clip(scenario_lulc, 0, max_hm_lucode)].astype(float)
     hm_map[scenario_lulc > max_hm_lucode] = np.nan
     valid_hm = hm_map[~np.isnan(hm_map) & (scenario_lulc != NODATA)]
     mean_hm = float(valid_hm.mean().round(4))
 
-    # Food production: count food forest pixels
     n_food_pixels = int((scenario_lulc == CODE_FOOD_FOREST).sum())
     food_mln_lbs = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
 
@@ -273,7 +267,16 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000)
     return pareto.sort_values('score', ascending=False).head(5).drop(columns='score')
 
 
-# ── Plotting ───────────────────────────────────────────────────────────────────
+# ── Plotting helpers ───────────────────────────────────────────────────────────
+def render_matplotlib(fig):
+    """Render a matplotlib figure in Streamlit and always close it to prevent memory leaks."""
+    try:
+        st.pyplot(fig, use_container_width=True)
+    finally:
+        plt.close(fig)
+
+
+# ── Matplotlib plots ───────────────────────────────────────────────────────────
 def plot_bars(results):
     """Three bar charts: flood risk, cooling, food production vs baseline."""
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 4))
@@ -302,70 +305,6 @@ def plot_bars(results):
     return fig
 
 
-def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
-    """Flood vs cooling scatter plot. Bubble size encodes food production."""
-    fig, ax = plt.subplots(figsize=(9, 6))
-    max_food = scenario_df['food_mln_lbs'].max()
-
-    def food_to_size(food_vals, base=20, scale=300):
-        if max_food > 0:
-            return base + scale * (food_vals / max_food)
-        return base
-
-    ax.scatter(scenario_df['flood_reduction'], scenario_df['mean_hm'],
-               alpha=0.2, color='lightgray',
-               s=food_to_size(scenario_df['food_mln_lbs']), zorder=1)
-
-    for name, ref in REF_SCENARIOS.items():
-        ax.scatter(ref['flood'], ref['cooling'], color=ref['color'], s=100, zorder=5)
-        ax.annotate(name, (ref['flood'], ref['cooling']),
-                    textcoords="offset points", xytext=(6, 4), fontsize=9)
-
-    if saved:
-        df_saved = pd.DataFrame(saved)
-        ax.scatter(df_saved['flood_reduction'], df_saved['mean_hm'],
-                   color='purple', alpha=0.5,
-                   s=food_to_size(df_saved['food_mln_lbs']), zorder=4, label='Saved')
-        pareto_df = compute_pareto(df_saved)
-        ax.scatter(pareto_df['flood_reduction'], pareto_df['mean_hm'],
-                   color='gold', s=120, edgecolor='black', zorder=5, label='Pareto optimal')
-        pareto_sorted = pareto_df.sort_values('flood_reduction')
-        ax.plot(pareto_sorted['flood_reduction'], pareto_sorted['mean_hm'],
-                color='gold', linestyle='--', linewidth=1)
-        for _, row in df_saved.iterrows():
-            ax.annotate(row['scenario_name'], (row['flood_reduction'], row['mean_hm']),
-                        textcoords="offset points", xytext=(5, 3), fontsize=7, alpha=0.7)
-
-    if optimized is not None and len(optimized) > 0:
-        ax.scatter(optimized['flood_reduction'], optimized['mean_hm'],
-                   color='orange', s=120, edgecolor='black', zorder=6,
-                   marker='D', label='Optimized suggestions')
-
-    current_size = float(food_to_size(pd.Series([results['food_mln_lbs']]))[0])
-    ax.scatter(results['flood_reduction'], results['mean_hm'],
-               color='purple', s=max(current_size, 150), zorder=7,
-               marker='*', label='This scenario')
-    ax.axvline(results['flood_reduction'], linestyle=':', alpha=0.3, color='purple')
-    ax.axhline(results['mean_hm'], linestyle=':', alpha=0.3, color='purple')
-    ax.annotate('This Scenario', (results['flood_reduction'], results['mean_hm']),
-                textcoords="offset points", xytext=(8, 5), fontsize=10, fontweight='bold')
-
-    if max_food > 0:
-        for fv, lbl in [(0, '0M lbs'), (max_food * 0.5, f'{max_food*0.5:.1f}M'), (max_food, f'{max_food:.1f}M')]:
-            ax.scatter([], [], color='gray', alpha=0.4,
-                       s=food_to_size(pd.Series([fv]))[0], label=f'Food: {lbl}')
-
-    ax.set_xlabel('Flood Risk Reduction (higher = better)')
-    ax.set_ylabel('Heat Mitigation Index (higher = better)')
-    ax.set_title('Tradeoff Space  —  bubble size = food production')
-    ax.set_xlim(0, 100)
-    ax.set_ylim(0, 1.1)
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc='lower right', fontsize=8)
-    plt.tight_layout()
-    return fig
-
-
 def plot_spatial_map(scenario_lulc, baseline_lulc):
     """Show which pixels changed and what they changed to."""
     h, w = scenario_lulc.shape
@@ -390,6 +329,129 @@ def plot_spatial_map(scenario_lulc, baseline_lulc):
         Patch(facecolor=CHANGE_COLORS['High Density'],         label='→ High Density'),
     ], loc='lower right', fontsize=9, framealpha=0.9)
     plt.tight_layout()
+    return fig
+
+
+# ── Plotly tradeoff plot ───────────────────────────────────────────────────────
+def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
+    """Interactive Plotly bubble chart: flood vs cooling, bubble size = food production."""
+    max_food = scenario_df['food_mln_lbs'].max()
+
+    def food_to_size(food_vals, base=8, scale=40):
+        if max_food > 0:
+            return base + scale * (food_vals / max_food)
+        return base
+
+    fig = go.Figure()
+
+    # Background scenario grid
+    fig.add_trace(go.Scatter(
+        x=scenario_df['flood_reduction'],
+        y=scenario_df['mean_hm'],
+        mode='markers',
+        marker=dict(size=food_to_size(scenario_df['food_mln_lbs']), color='lightgray', opacity=0.4),
+        text=scenario_df.apply(
+            lambda r: (f"GI {r.green_infrastructure_pct:.0f}% / FF {r.food_forest_pct:.0f}% / "
+                       f"{r.pct_converted:.0f}% converted<br>"
+                       f"Flood: {r.flood_reduction:.1f} | Cooling: {r.mean_hm:.3f} | "
+                       f"Food: {r.food_mln_lbs:.2f}M lbs"), axis=1),
+        hoverinfo='text',
+        name='Scenario grid',
+    ))
+
+    # Named reference scenarios
+    for name, ref in REF_SCENARIOS.items():
+        fig.add_trace(go.Scatter(
+            x=[ref['flood']], y=[ref['cooling']],
+            mode='markers+text',
+            marker=dict(size=12, color=ref['color']),
+            text=[name], textposition='top right',
+            textfont=dict(size=10),
+            hovertemplate=f"{name}<br>Flood: {ref['flood']} | Cooling: {ref['cooling']:.4f}<extra></extra>",
+            name=name,
+        ))
+
+    # Saved scenarios
+    if saved:
+        df_saved = pd.DataFrame(saved)
+        fig.add_trace(go.Scatter(
+            x=df_saved['flood_reduction'],
+            y=df_saved['mean_hm'],
+            mode='markers',
+            marker=dict(size=food_to_size(df_saved['food_mln_lbs']),
+                        color='purple', opacity=0.6),
+            text=df_saved.apply(
+                lambda r: (f"{r.scenario_name}<br>"
+                           f"Flood: {r.flood_reduction:.1f} | Cooling: {r.mean_hm:.4f} | "
+                           f"Food: {r.food_mln_lbs:.3f}M lbs"), axis=1),
+            hoverinfo='text',
+            name='Saved scenarios',
+        ))
+
+        pareto_df = compute_pareto(df_saved).sort_values('flood_reduction')
+        fig.add_trace(go.Scatter(
+            x=pareto_df['flood_reduction'],
+            y=pareto_df['mean_hm'],
+            mode='markers+lines',
+            marker=dict(size=14, color='gold', symbol='circle',
+                        line=dict(color='black', width=1)),
+            line=dict(color='gold', dash='dash', width=1),
+            text=pareto_df.apply(
+                lambda r: (f"Pareto optimal<br>{r.scenario_name}<br>"
+                           f"Flood: {r.flood_reduction:.1f} | Cooling: {r.mean_hm:.4f}"), axis=1),
+            hoverinfo='text',
+            name='Pareto optimal',
+        ))
+
+    # Optimized suggestions
+    if optimized is not None and len(optimized) > 0:
+        fig.add_trace(go.Scatter(
+            x=optimized['flood_reduction'],
+            y=optimized['mean_hm'],
+            mode='markers',
+            marker=dict(size=14, color='orange', symbol='diamond',
+                        line=dict(color='black', width=1)),
+            text=optimized.apply(
+                lambda r: (f"Optimized<br>{r.scenario_name}<br>"
+                           f"Flood: {r.flood_reduction:.1f} | Cooling: {r.mean_hm:.4f} | "
+                           f"Food: {r.food_mln_lbs:.3f}M lbs"), axis=1),
+            hoverinfo='text',
+            name='Optimized suggestions',
+        ))
+
+    # Current scenario
+    fig.add_trace(go.Scatter(
+        x=[results['flood_reduction']],
+        y=[results['mean_hm']],
+        mode='markers+text',
+        marker=dict(size=20, color='purple', symbol='star',
+                    line=dict(color='white', width=1)),
+        text=['This Scenario'],
+        textposition='top right',
+        textfont=dict(size=11, color='purple'),
+        hovertemplate=(
+            f"<b>This Scenario</b><br>"
+            f"Flood reduction: {results['flood_reduction']:.1f}<br>"
+            f"Cooling: {results['mean_hm']:.4f}<br>"
+            f"Food: {results['food_mln_lbs']:.3f}M lbs<extra></extra>"
+        ),
+        name='This scenario',
+    ))
+
+    fig.add_hline(y=results['mean_hm'], line_dash='dot', line_color='purple', opacity=0.3)
+    fig.add_vline(x=results['flood_reduction'], line_dash='dot', line_color='purple', opacity=0.3)
+
+    fig.update_layout(
+        title='Tradeoff Space  —  bubble size = food production',
+        xaxis_title='Flood Risk Reduction (higher = better)',
+        yaxis_title='Heat Mitigation Index (higher = better)',
+        xaxis=dict(range=[0, 100]),
+        yaxis=dict(range=[0, 1.1]),
+        height=500,
+        legend=dict(orientation='v', x=1.02, y=1),
+        hovermode='closest',
+    )
+
     return fig
 
 
@@ -471,26 +533,21 @@ tab1, tab2, tab3 = st.tabs(["📊 Scenario", "🔀 Tradeoff Analysis", "🗺️ 
 
 with tab1:
     st.subheader("Outcome Comparison")
-    bars_fig = plot_bars(results)
-    st.pyplot(bars_fig, use_container_width=True)
-    plt.close(bars_fig)
+    render_matplotlib(plot_bars(results))
 
 with tab2:
     st.subheader("Tradeoff Space")
-    tradeoff_fig = plot_tradeoff(
+    st.plotly_chart(plot_tradeoff(
         results, scenario_df,
         saved=st.session_state.saved_scenarios,
         optimized=st.session_state.optimized_results
-    )
-    st.pyplot(tradeoff_fig, use_container_width=True)
-    plt.close(tradeoff_fig)
+    ), use_container_width=True)
 
     if st.button("💾 Save this scenario"):
         saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
         st.session_state.saved_scenarios.append(saved)
         st.success(f"Saved: {results['scenario_name']}")
 
-    # Optimizer results
     if st.session_state.optimized_results is not None:
         st.divider()
         st.subheader("🔍 Optimized Scenario Suggestions")
@@ -519,7 +576,6 @@ with tab2:
                 f"food **{best.food_mln_lbs:.3f}M lbs/yr**"
             )
 
-    # Saved scenarios in expander
     if st.session_state.saved_scenarios:
         st.divider()
         with st.expander(f"📋 Saved Scenarios ({len(st.session_state.saved_scenarios)})", expanded=False):
@@ -535,9 +591,7 @@ with tab2:
 
 with tab3:
     st.subheader("Where Changes Happen")
-    map_fig = plot_spatial_map(results['scenario_lulc'], cooling_lulc)
-    st.pyplot(map_fig, use_container_width=True)
-    plt.close(map_fig)
+    render_matplotlib(plot_spatial_map(results['scenario_lulc'], cooling_lulc))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
         "White = outside city boundary."

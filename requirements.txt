@@ -5,3 +5,5 @@ matplotlib
 rasterio
 scikit-image
 scikit-learn
+plotly
+plotly
