@@ -4,3 +4,4 @@ pandas
 matplotlib
 rasterio
 scikit-image
+scikit-learn
