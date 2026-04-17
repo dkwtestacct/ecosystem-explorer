@@ -69,32 +69,55 @@ def load_data():
     with rasterio.open(f'{DATA_DIR_COOLING}/land_use_2021.tif') as src:
         cooling_lulc = src.read(1)
 
+    # Pre-compute developed pixel locations (used in every scenario evaluation)
+    developed_pixels = np.argwhere(np.isin(cooling_lulc, DEVELOPED_CODES))
+
+    # ── CN lookup: fast array indexed by [lucode_idx, soil_group] ──────────────
     cn_by_soil = {
         row['lucode']: {1: row['CN_A'], 2: row['CN_B'], 3: row['CN_C'], 4: row['CN_D']}
         for _, row in bio.iterrows()
     }
+    all_lucodes = sorted(cn_by_soil.keys())
+    lucode_to_idx = {lc: i for i, lc in enumerate(all_lucodes)}
+    cn_table = np.zeros((len(all_lucodes), 5), dtype=np.float32)
+    for lc, soils in cn_by_soil.items():
+        for sg, cn_val in soils.items():
+            cn_table[lucode_to_idx[lc], sg] = cn_val
+
+    # Fast lucode→index array (avoids dict lookup per pixel)
+    max_lucode = max(lucode_to_idx.keys())
+    lucode_idx_arr = np.zeros(max_lucode + 1, dtype=np.int32)
+    for lc, idx in lucode_to_idx.items():
+        lucode_idx_arr[lc] = idx
+
     soil_resized = resize(soil, lulc.shape, order=0, preserve_range=True).astype(int)
+
+    # ── HM lookup: fast array indexed by lucode ────────────────────────────────
     cooling_bio['HM'] = (cooling_bio['shade'] + cooling_bio['kc']) / 2
     hm_lookup = dict(zip(cooling_bio['lucode'], cooling_bio['HM']))
+    max_hm_lucode = max(hm_lookup.keys())
+    hm_arr = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
+    for lc, hm in hm_lookup.items():
+        hm_arr[lc] = hm
 
-    return lulc, soil_resized, cooling_lulc, cn_by_soil, hm_lookup
+    return (lulc, soil_resized, cooling_lulc, developed_pixels,
+            cn_table, lucode_idx_arr, hm_arr, max_lucode, max_hm_lucode)
 
 
-lulc, soil_resized, cooling_lulc, cn_by_soil, hm_lookup = load_data()
-
-
-def get_cn(lucode, soil_group):
-    return cn_by_soil.get(lucode, {}).get(soil_group, 0)
-
-get_cn_vec = np.vectorize(get_cn)
+(lulc, soil_resized, cooling_lulc, developed_pixels,
+ cn_table, lucode_idx_arr, hm_arr, max_lucode, max_hm_lucode) = load_data()
 
 
 # ── Scenario evaluation ────────────────────────────────────────────────────────
 def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct, seed=42):
+    """
+    Convert a random sample of developed pixels to the specified land use mix,
+    then compute flood risk, urban cooling, and food production.
+    All raster lookups use fast numpy array indexing — no Python loops per pixel.
+    """
     pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
     scenario_lulc = cooling_lulc.copy()
-    developed_pixels = np.argwhere(np.isin(cooling_lulc, DEVELOPED_CODES))
     n_convert = int(len(developed_pixels) * pct_converted / 100)
 
     rng = np.random.default_rng(seed)
@@ -116,13 +139,19 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct, 
         p = pixels_to_convert[n_wet + n_for:]
         scenario_lulc[p[:, 0], p[:, 1]] = CODE_HIGH_DENSITY
 
-    cn_scenario = get_cn_vec(scenario_lulc, soil_resized)
+    # Flood risk: fast CN lookup via pre-built arrays
+    lulc_idx = lucode_idx_arr[np.clip(scenario_lulc, 0, max_lucode)]
+    soil_clamped = np.clip(soil_resized, 1, 4)
+    cn_scenario = cn_table[lulc_idx, soil_clamped]
     mean_cn = float(cn_scenario[cn_scenario > 0].mean().round(2))
 
-    hm_map = np.vectorize(hm_lookup.get)(scenario_lulc, np.nan)
+    # Cooling: fast HM lookup via pre-built array
+    hm_map = hm_arr[np.clip(scenario_lulc, 0, max_hm_lucode)].astype(float)
+    hm_map[scenario_lulc > max_hm_lucode] = np.nan
     valid_hm = hm_map[~np.isnan(hm_map) & (scenario_lulc != NODATA)]
     mean_hm = float(valid_hm.mean().round(4))
 
+    # Food production: count food forest pixels
     n_food_pixels = int((scenario_lulc == CODE_FOOD_FOREST).sum())
     food_mln_lbs = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
 
@@ -140,7 +169,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct, 
     }
 
 
-# ── Scenario grid ──────────────────────────────────────────────────────────────
+# ── Scenario grid and lookup table ─────────────────────────────────────────────
 @st.cache_data
 def compute_scenario_grid():
     rows = [
@@ -153,7 +182,21 @@ def compute_scenario_grid():
     return pd.DataFrame(rows)
 
 
+@st.cache_data
+def compute_lookup_table():
+    """Pre-compute results for every valid slider position (step=5) for instant response."""
+    table = {}
+    for pct in range(0, 51, 5):
+        for gi in range(0, 101, 5):
+            for ff in range(0, 101, 5):
+                if gi + ff <= 100:
+                    r = evaluate_scenario(pct, gi, ff, seed=42)
+                    table[(pct, gi, ff)] = {k: v for k, v in r.items() if k != 'scenario_lulc'}
+    return table
+
+
 def compute_pareto(df):
+    """Return Pareto-efficient rows (maximize flood_reduction, mean_hm, food_mln_lbs)."""
     cols = [c for c in ['flood_reduction', 'mean_hm', 'food_mln_lbs'] if c in df.columns]
     points = df[cols].values
     is_efficient = np.ones(points.shape[0], dtype=bool)
@@ -168,7 +211,8 @@ def compute_pareto(df):
 
 
 with st.spinner("Loading data and pre-computing scenarios..."):
-    scenario_df = compute_scenario_grid()
+    scenario_df  = compute_scenario_grid()
+    lookup_table = compute_lookup_table()
 
 MAX_FOOD  = float(scenario_df['food_mln_lbs'].max())
 MAX_FLOOD = 100.0
@@ -178,6 +222,7 @@ MAX_COOL  = 1.1
 # ── Surrogate model ────────────────────────────────────────────────────────────
 @st.cache_resource
 def train_surrogate(_scenario_df):
+    """Train a Random Forest surrogate on the pre-computed scenario grid."""
     X = _scenario_df[['pct_converted', 'green_infrastructure_pct', 'food_forest_pct']]
     y = _scenario_df[['flood_reduction', 'mean_hm', 'food_mln_lbs']]
     model = RandomForestRegressor(n_estimators=100, random_state=42)
@@ -189,6 +234,7 @@ surrogate = train_surrogate(scenario_df)
 
 
 def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000):
+    """Use the surrogate to find Pareto-optimal scenarios meeting the given constraints."""
     rng = np.random.default_rng(42)
     pct_converted = rng.integers(0, 51, n_samples)
     gi_pct        = rng.integers(0, 101, n_samples)
@@ -210,21 +256,26 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000)
         'mean_hm':                  preds[meets, 1].round(4),
         'food_mln_lbs':             preds[meets, 2].round(3),
     })
-    candidates['pct_highdensity'] = 100 - candidates['green_infrastructure_pct'] - candidates['food_forest_pct']
+    candidates['pct_highdensity'] = (
+        100 - candidates['green_infrastructure_pct'] - candidates['food_forest_pct']
+    )
     candidates['scenario_name'] = candidates.apply(
         lambda r: f"{int(r.pct_converted)}% converted — GI {int(r.green_infrastructure_pct)}% / FF {int(r.food_forest_pct)}%",
         axis=1
     )
 
     pareto = compute_pareto(candidates).copy()
-    pareto['score'] = (pareto['flood_reduction'] / MAX_FLOOD +
-                       pareto['mean_hm'] / MAX_COOL +
-                       pareto['food_mln_lbs'] / (MAX_FOOD if MAX_FOOD > 0 else 1))
+    pareto['score'] = (
+        pareto['flood_reduction'] / MAX_FLOOD +
+        pareto['mean_hm'] / MAX_COOL +
+        pareto['food_mln_lbs'] / (MAX_FOOD if MAX_FOOD > 0 else 1)
+    )
     return pareto.sort_values('score', ascending=False).head(5).drop(columns='score')
 
 
 # ── Plotting ───────────────────────────────────────────────────────────────────
 def plot_bars(results):
+    """Three bar charts: flood risk, cooling, food production vs baseline."""
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 4))
 
     ax1.bar(['Baseline', 'This Scenario'], [BASELINE_CN, results['mean_cn']],
@@ -252,9 +303,8 @@ def plot_bars(results):
 
 
 def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
-    """Scatter plot: flood vs cooling, bubble size = food production."""
+    """Flood vs cooling scatter plot. Bubble size encodes food production."""
     fig, ax = plt.subplots(figsize=(9, 6))
-
     max_food = scenario_df['food_mln_lbs'].max()
 
     def food_to_size(food_vals, base=20, scale=300):
@@ -262,24 +312,20 @@ def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
             return base + scale * (food_vals / max_food)
         return base
 
-    # Background scenario grid
     ax.scatter(scenario_df['flood_reduction'], scenario_df['mean_hm'],
                alpha=0.2, color='lightgray',
                s=food_to_size(scenario_df['food_mln_lbs']), zorder=1)
 
-    # Reference scenarios (fixed size — no food data for these)
     for name, ref in REF_SCENARIOS.items():
         ax.scatter(ref['flood'], ref['cooling'], color=ref['color'], s=100, zorder=5)
         ax.annotate(name, (ref['flood'], ref['cooling']),
                     textcoords="offset points", xytext=(6, 4), fontsize=9)
 
-    # Saved scenarios
     if saved:
         df_saved = pd.DataFrame(saved)
         ax.scatter(df_saved['flood_reduction'], df_saved['mean_hm'],
                    color='purple', alpha=0.5,
-                   s=food_to_size(df_saved['food_mln_lbs']),
-                   zorder=4, label='Saved')
+                   s=food_to_size(df_saved['food_mln_lbs']), zorder=4, label='Saved')
         pareto_df = compute_pareto(df_saved)
         ax.scatter(pareto_df['flood_reduction'], pareto_df['mean_hm'],
                    color='gold', s=120, edgecolor='black', zorder=5, label='Pareto optimal')
@@ -290,13 +336,11 @@ def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
             ax.annotate(row['scenario_name'], (row['flood_reduction'], row['mean_hm']),
                         textcoords="offset points", xytext=(5, 3), fontsize=7, alpha=0.7)
 
-    # Optimized suggestions
     if optimized is not None and len(optimized) > 0:
         ax.scatter(optimized['flood_reduction'], optimized['mean_hm'],
                    color='orange', s=120, edgecolor='black', zorder=6,
                    marker='D', label='Optimized suggestions')
 
-    # Current scenario
     current_size = float(food_to_size(pd.Series([results['food_mln_lbs']]))[0])
     ax.scatter(results['flood_reduction'], results['mean_hm'],
                color='purple', s=max(current_size, 150), zorder=7,
@@ -306,11 +350,10 @@ def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
     ax.annotate('This Scenario', (results['flood_reduction'], results['mean_hm']),
                 textcoords="offset points", xytext=(8, 5), fontsize=10, fontweight='bold')
 
-    # Bubble size legend
     if max_food > 0:
-        for food_val, label in [(0, '0M lbs'), (max_food * 0.5, f'{max_food*0.5:.1f}M lbs'), (max_food, f'{max_food:.1f}M lbs')]:
+        for fv, lbl in [(0, '0M lbs'), (max_food * 0.5, f'{max_food*0.5:.1f}M'), (max_food, f'{max_food:.1f}M')]:
             ax.scatter([], [], color='gray', alpha=0.4,
-                       s=food_to_size(pd.Series([food_val]))[0], label=f'Food: {label}')
+                       s=food_to_size(pd.Series([fv]))[0], label=f'Food: {lbl}')
 
     ax.set_xlabel('Flood Risk Reduction (higher = better)')
     ax.set_ylabel('Heat Mitigation Index (higher = better)')
@@ -319,12 +362,12 @@ def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
     ax.set_ylim(0, 1.1)
     ax.grid(True, alpha=0.3)
     ax.legend(loc='lower right', fontsize=8)
-
     plt.tight_layout()
     return fig
 
 
 def plot_spatial_map(scenario_lulc, baseline_lulc):
+    """Show which pixels changed and what they changed to."""
     h, w = scenario_lulc.shape
     rgb = np.full((h, w, 3), mcolors.to_rgb(CHANGE_COLORS['Unchanged']))
 
@@ -398,7 +441,14 @@ st.sidebar.caption(
 )
 
 # ── Main panel ─────────────────────────────────────────────────────────────────
-results = evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct)
+lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
+if lookup_key in lookup_table:
+    results = lookup_table[lookup_key].copy()
+    results['scenario_lulc'] = evaluate_scenario(
+        pct_converted, green_infrastructure_pct, food_forest_pct
+    )['scenario_lulc']
+else:
+    results = evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct)
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Flood Risk Reduction", f"{results['flood_reduction']:.1f}",
@@ -417,7 +467,6 @@ st.caption(
 )
 st.divider()
 
-# Row 1: Bar charts (full width)
 st.subheader("Outcome Comparison")
 bars_fig = plot_bars(results)
 st.pyplot(bars_fig, use_container_width=True)
@@ -425,7 +474,6 @@ plt.close(bars_fig)
 
 st.divider()
 
-# Row 2: Tradeoff scatter (left) + Spatial map (right)
 left_col, right_col = st.columns([3, 2])
 
 with left_col:
