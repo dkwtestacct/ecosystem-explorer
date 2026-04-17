@@ -467,16 +467,15 @@ st.caption(
 )
 st.divider()
 
-st.subheader("Outcome Comparison")
-bars_fig = plot_bars(results)
-st.pyplot(bars_fig, use_container_width=True)
-plt.close(bars_fig)
+tab1, tab2, tab3 = st.tabs(["📊 Scenario", "🔀 Tradeoff Analysis", "🗺️ Map View"])
 
-st.divider()
+with tab1:
+    st.subheader("Outcome Comparison")
+    bars_fig = plot_bars(results)
+    st.pyplot(bars_fig, use_container_width=True)
+    plt.close(bars_fig)
 
-left_col, right_col = st.columns([3, 2])
-
-with left_col:
+with tab2:
     st.subheader("Tradeoff Space")
     tradeoff_fig = plot_tradeoff(
         results, scenario_df,
@@ -486,56 +485,60 @@ with left_col:
     st.pyplot(tradeoff_fig, use_container_width=True)
     plt.close(tradeoff_fig)
 
-with right_col:
+    if st.button("💾 Save this scenario"):
+        saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
+        st.session_state.saved_scenarios.append(saved)
+        st.success(f"Saved: {results['scenario_name']}")
+
+    # Optimizer results
+    if st.session_state.optimized_results is not None:
+        st.divider()
+        st.subheader("🔍 Optimized Scenario Suggestions")
+        opt = st.session_state.optimized_results
+        if opt is None or len(opt) == 0:
+            st.warning("No scenarios found meeting those constraints. Try lowering the targets.")
+        else:
+            st.caption(
+                f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool:.2f}, "
+                f"food ≥ {min_food:.3f}M lbs — ranked by balanced score. "
+                "Surrogate model predictions — verify with the sliders above."
+            )
+            st.dataframe(
+                opt[['scenario_name', 'pct_converted', 'green_infrastructure_pct',
+                     'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs']],
+                use_container_width=True
+            )
+            best = opt.iloc[0]
+            st.info(
+                f"**Best balanced scenario:** Convert {int(best.pct_converted)}% of developed land — "
+                f"{int(best.green_infrastructure_pct)}% Green Infrastructure, "
+                f"{int(best.food_forest_pct)}% Food Forest, "
+                f"{int(best.pct_highdensity)}% High Density.  \n"
+                f"Predicted: flood reduction **{best.flood_reduction:.1f}** · "
+                f"cooling **{best.mean_hm:.4f}** · "
+                f"food **{best.food_mln_lbs:.3f}M lbs/yr**"
+            )
+
+    # Saved scenarios in expander
+    if st.session_state.saved_scenarios:
+        st.divider()
+        with st.expander(f"📋 Saved Scenarios ({len(st.session_state.saved_scenarios)})", expanded=False):
+            df_saved = pd.DataFrame(st.session_state.saved_scenarios)
+            st.dataframe(
+                df_saved[['scenario_name', 'pct_converted', 'green_infrastructure_pct',
+                          'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs']],
+                use_container_width=True
+            )
+            if st.button("🗑 Clear saved scenarios"):
+                st.session_state.saved_scenarios = []
+                st.rerun()
+
+with tab3:
     st.subheader("Where Changes Happen")
     map_fig = plot_spatial_map(results['scenario_lulc'], cooling_lulc)
     st.pyplot(map_fig, use_container_width=True)
     plt.close(map_fig)
-
-if st.button("💾 Save this scenario"):
-    saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
-    st.session_state.saved_scenarios.append(saved)
-    st.success(f"Saved: {results['scenario_name']}")
-
-# ── Optimizer results ──────────────────────────────────────────────────────────
-if st.session_state.optimized_results is not None:
-    st.divider()
-    st.subheader("🔍 Optimized Scenario Suggestions")
-    opt = st.session_state.optimized_results
-    if opt is None or len(opt) == 0:
-        st.warning("No scenarios found meeting those constraints. Try lowering the targets.")
-    else:
-        st.caption(
-            f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool:.2f}, "
-            f"food ≥ {min_food:.3f}M lbs — ranked by balanced score. "
-            "Surrogate model predictions — verify with the sliders above."
-        )
-        st.dataframe(
-            opt[['scenario_name', 'pct_converted', 'green_infrastructure_pct',
-                 'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs']],
-            use_container_width=True
-        )
-        best = opt.iloc[0]
-        st.info(
-            f"**Best balanced scenario:** Convert {int(best.pct_converted)}% of developed land — "
-            f"{int(best.green_infrastructure_pct)}% Green Infrastructure, "
-            f"{int(best.food_forest_pct)}% Food Forest, "
-            f"{int(best.pct_highdensity)}% High Density.  \n"
-            f"Predicted: flood reduction **{best.flood_reduction:.1f}** · "
-            f"cooling **{best.mean_hm:.4f}** · "
-            f"food **{best.food_mln_lbs:.3f}M lbs/yr**"
-        )
-
-# ── Saved scenarios ────────────────────────────────────────────────────────────
-if st.session_state.saved_scenarios:
-    st.divider()
-    st.subheader("Saved Scenarios")
-    df_saved = pd.DataFrame(st.session_state.saved_scenarios)
-    st.dataframe(
-        df_saved[['scenario_name', 'pct_converted', 'green_infrastructure_pct',
-                  'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs']],
-        use_container_width=True
+    st.caption(
+        "Gray = unchanged developed land. Colors show where conversions occur. "
+        "White = outside city boundary."
     )
-    if st.button("🗑 Clear saved scenarios"):
-        st.session_state.saved_scenarios = []
-        st.rerun()
