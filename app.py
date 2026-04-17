@@ -12,22 +12,19 @@ from sklearn.ensemble import RandomForestRegressor
 DATA_DIR_FLOOD   = 'data/flood'
 DATA_DIR_COOLING = 'data/cooling'
 
-BASELINE_CN = 75.7
-BASELINE_HM = 0.2719
-BASELINE_FOOD_MLN_LBS = 0.0  # No food production in baseline land cover
+BASELINE_CN           = 75.7
+BASELINE_HM           = 0.2719
+BASELINE_FOOD_MLN_LBS = 0.0
 
-# Pixel area and food yield constants
-PIXEL_AREA_ACRES      = 0.222          # 30m x 30m pixel = ~0.222 acres
-FOOD_FOREST_LBS_ACRE  = 11_500         # lbs/acre/year (San Antonio NatCap report estimate)
+PIXEL_AREA_ACRES     = 0.222
+FOOD_FOREST_LBS_ACRE = 11_500
 
-# Land cover codes (NLCD)
 DEVELOPED_CODES   = [21, 22, 23]
 CODE_GREEN_INFRA  = 90
 CODE_FOOD_FOREST  = 41
 CODE_HIGH_DENSITY = 24
 NODATA            = -128
 
-# Colors for spatial map
 CHANGE_COLORS = {
     'Unchanged':            '#d3d3d3',
     'Green Infrastructure': '#2196a0',
@@ -35,7 +32,6 @@ CHANGE_COLORS = {
     'High Density':         '#e53935',
 }
 
-# Named reference scenarios
 REF_SCENARIOS = {
     'Baseline':             {'flood': 24.3, 'cooling': 0.2719, 'color': 'steelblue'},
     'Food Forest':          {'flood': 29.9, 'cooling': 0.8284, 'color': 'green'},
@@ -49,8 +45,8 @@ st.title("🌿 Urban Ecosystem Tradeoff Explorer")
 st.markdown(
     "Explore how converting developed land into green infrastructure or food forests "
     "changes **flood risk**, **urban cooling**, and **food production** across the city.  \n"
-    "_Prototype using Minneapolis, MN data. Food yield is estimated from San Antonio NatCap "
-    "report benchmarks (~11,500 lbs/acre/year for food forests). San Antonio scenarios coming soon._"
+    "_Prototype using Minneapolis, MN data. Food yield estimated from San Antonio NatCap "
+    "benchmarks (~11,500 lbs/acre/year for food forests). San Antonio scenarios coming soon._"
 )
 
 # ── Session state ──────────────────────────────────────────────────────────────
@@ -95,10 +91,6 @@ get_cn_vec = np.vectorize(get_cn)
 
 # ── Scenario evaluation ────────────────────────────────────────────────────────
 def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct, seed=42):
-    """
-    Convert a random sample of developed pixels to the specified land use mix,
-    then compute flood risk, urban cooling, and food production.
-    """
     pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
     scenario_lulc = cooling_lulc.copy()
@@ -124,19 +116,15 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct, 
         p = pixels_to_convert[n_wet + n_for:]
         scenario_lulc[p[:, 0], p[:, 1]] = CODE_HIGH_DENSITY
 
-    # Flood risk
     cn_scenario = get_cn_vec(scenario_lulc, soil_resized)
     mean_cn = float(cn_scenario[cn_scenario > 0].mean().round(2))
 
-    # Cooling
     hm_map = np.vectorize(hm_lookup.get)(scenario_lulc, np.nan)
     valid_hm = hm_map[~np.isnan(hm_map) & (scenario_lulc != NODATA)]
     mean_hm = float(valid_hm.mean().round(4))
 
-    # Food production: count food forest pixels, convert to lbs
     n_food_pixels = int((scenario_lulc == CODE_FOOD_FOREST).sum())
-    food_lbs = n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE
-    food_mln_lbs = round(food_lbs / 1_000_000, 3)
+    food_mln_lbs = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
 
     return {
         'pct_converted':            pct_converted,
@@ -166,7 +154,6 @@ def compute_scenario_grid():
 
 
 def compute_pareto(df):
-    """Return Pareto-efficient rows (maximize flood_reduction, mean_hm, and food_mln_lbs)."""
     cols = [c for c in ['flood_reduction', 'mean_hm', 'food_mln_lbs'] if c in df.columns]
     points = df[cols].values
     is_efficient = np.ones(points.shape[0], dtype=bool)
@@ -183,8 +170,7 @@ def compute_pareto(df):
 with st.spinner("Loading data and pre-computing scenarios..."):
     scenario_df = compute_scenario_grid()
 
-# Compute max food
-MAX_FOOD = scenario_df['food_mln_lbs'].max()
+MAX_FOOD  = float(scenario_df['food_mln_lbs'].max())
 MAX_FLOOD = 100.0
 MAX_COOL  = 1.1
 
@@ -192,11 +178,6 @@ MAX_COOL  = 1.1
 # ── Surrogate model ────────────────────────────────────────────────────────────
 @st.cache_resource
 def train_surrogate(_scenario_df):
-    """
-    Train a Random Forest surrogate on the pre-computed scenario grid.
-    Inputs: pct_converted, green_infrastructure_pct, food_forest_pct
-    Outputs: flood_reduction, mean_hm, food_mln_lbs
-    """
     X = _scenario_df[['pct_converted', 'green_infrastructure_pct', 'food_forest_pct']]
     y = _scenario_df[['flood_reduction', 'mean_hm', 'food_mln_lbs']]
     model = RandomForestRegressor(n_estimators=100, random_state=42)
@@ -208,9 +189,6 @@ surrogate = train_surrogate(scenario_df)
 
 
 def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000):
-    """
-    Use the surrogate to find Pareto-optimal scenarios meeting the given constraints.
-    """
     rng = np.random.default_rng(42)
     pct_converted = rng.integers(0, 51, n_samples)
     gi_pct        = rng.integers(0, 101, n_samples)
@@ -219,9 +197,7 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000)
     valid = gi_pct + ff_pct <= 100
     pct_converted, gi_pct, ff_pct = pct_converted[valid], gi_pct[valid], ff_pct[valid]
 
-    X = np.column_stack([pct_converted, gi_pct, ff_pct])
-    preds = surrogate.predict(X)
-
+    preds = surrogate.predict(np.column_stack([pct_converted, gi_pct, ff_pct]))
     meets = (preds[:, 0] >= min_flood) & (preds[:, 1] >= min_cool) & (preds[:, 2] >= min_food)
     if not meets.any():
         return None
@@ -243,13 +219,12 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000)
     pareto = compute_pareto(candidates).copy()
     pareto['score'] = (pareto['flood_reduction'] / MAX_FLOOD +
                        pareto['mean_hm'] / MAX_COOL +
-                       pareto['food_mln_lbs'] / MAX_FOOD)
+                       pareto['food_mln_lbs'] / (MAX_FOOD if MAX_FOOD > 0 else 1))
     return pareto.sort_values('score', ascending=False).head(5).drop(columns='score')
 
 
 # ── Plotting ───────────────────────────────────────────────────────────────────
 def plot_bars(results):
-    """Three bar charts: flood risk, cooling, and food production."""
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 4))
 
     ax1.bar(['Baseline', 'This Scenario'], [BASELINE_CN, results['mean_cn']],
@@ -275,20 +250,24 @@ def plot_bars(results):
     plt.tight_layout()
     return fig
 
+
 def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
-    """
-    Scatter plot showing flood vs cooling tradeoff space.
-    Bubble size encodes food production.
-    """
+    """Scatter plot: flood vs cooling, bubble size = food production."""
     fig, ax = plt.subplots(figsize=(9, 6))
 
-    # Background: full scenario grid — bubble size = food production
     max_food = scenario_df['food_mln_lbs'].max()
-    bubble_size = 20 + 200 * (scenario_df['food_mln_lbs'] / max_food if max_food > 0 else 0)
-    ax.scatter(scenario_df['flood_reduction'], scenario_df['mean_hm'],
-               alpha=0.2, color='lightgray', s=bubble_size, zorder=1)
 
-    # Named reference scenarios
+    def food_to_size(food_vals, base=20, scale=300):
+        if max_food > 0:
+            return base + scale * (food_vals / max_food)
+        return base
+
+    # Background scenario grid
+    ax.scatter(scenario_df['flood_reduction'], scenario_df['mean_hm'],
+               alpha=0.2, color='lightgray',
+               s=food_to_size(scenario_df['food_mln_lbs']), zorder=1)
+
+    # Reference scenarios (fixed size — no food data for these)
     for name, ref in REF_SCENARIOS.items():
         ax.scatter(ref['flood'], ref['cooling'], color=ref['color'], s=100, zorder=5)
         ax.annotate(name, (ref['flood'], ref['cooling']),
@@ -297,9 +276,10 @@ def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
     # Saved scenarios
     if saved:
         df_saved = pd.DataFrame(saved)
-        saved_sizes = 20 + 200 * (df_saved['food_mln_lbs'] / max_food if max_food > 0 else 0)
         ax.scatter(df_saved['flood_reduction'], df_saved['mean_hm'],
-                   color='purple', alpha=0.5, s=saved_sizes, zorder=4, label='Saved')
+                   color='purple', alpha=0.5,
+                   s=food_to_size(df_saved['food_mln_lbs']),
+                   zorder=4, label='Saved')
         pareto_df = compute_pareto(df_saved)
         ax.scatter(pareto_df['flood_reduction'], pareto_df['mean_hm'],
                    color='gold', s=120, edgecolor='black', zorder=5, label='Pareto optimal')
@@ -316,14 +296,21 @@ def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
                    color='orange', s=120, edgecolor='black', zorder=6,
                    marker='D', label='Optimized suggestions')
 
-    # Current scenario — bubble size reflects food production
-    current_size = 20 + 200 * (results['food_mln_lbs'] / max_food if max_food > 0 else 0)
+    # Current scenario
+    current_size = float(food_to_size(pd.Series([results['food_mln_lbs']]))[0])
     ax.scatter(results['flood_reduction'], results['mean_hm'],
-               color='purple', s=max(current_size, 150), zorder=7, marker='*', label='This scenario')
+               color='purple', s=max(current_size, 150), zorder=7,
+               marker='*', label='This scenario')
     ax.axvline(results['flood_reduction'], linestyle=':', alpha=0.3, color='purple')
     ax.axhline(results['mean_hm'], linestyle=':', alpha=0.3, color='purple')
     ax.annotate('This Scenario', (results['flood_reduction'], results['mean_hm']),
                 textcoords="offset points", xytext=(8, 5), fontsize=10, fontweight='bold')
+
+    # Bubble size legend
+    if max_food > 0:
+        for food_val, label in [(0, '0M lbs'), (max_food * 0.5, f'{max_food*0.5:.1f}M lbs'), (max_food, f'{max_food:.1f}M lbs')]:
+            ax.scatter([], [], color='gray', alpha=0.4,
+                       s=food_to_size(pd.Series([food_val]))[0], label=f'Food: {label}')
 
     ax.set_xlabel('Flood Risk Reduction (higher = better)')
     ax.set_ylabel('Heat Mitigation Index (higher = better)')
@@ -331,7 +318,7 @@ def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 1.1)
     ax.grid(True, alpha=0.3)
-    ax.legend(loc='lower right', fontsize=9)
+    ax.legend(loc='lower right', fontsize=8)
 
     plt.tight_layout()
     return fig
@@ -349,7 +336,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc):
         mcolors.to_rgb(CHANGE_COLORS['High Density'])
     rgb[baseline_lulc == NODATA] = (1.0, 1.0, 1.0)
 
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(8, 8))
     ax.imshow(rgb)
     ax.axis('off')
     ax.set_title('Land Use Changes', fontsize=12)
@@ -358,7 +345,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc):
         Patch(facecolor=CHANGE_COLORS['Green Infrastructure'], label='→ Green Infrastructure'),
         Patch(facecolor=CHANGE_COLORS['Food Forest'],          label='→ Food Forest'),
         Patch(facecolor=CHANGE_COLORS['High Density'],         label='→ High Density'),
-    ], loc='lower right', fontsize=8, framealpha=0.9)
+    ], loc='lower right', fontsize=9, framealpha=0.9)
     plt.tight_layout()
     return fig
 
@@ -392,7 +379,6 @@ if st.sidebar.button("🏙 High Density Development"):
     food_forest_pct = 0
 
 st.sidebar.divider()
-
 st.sidebar.subheader("🔍 Find Best Scenario")
 st.sidebar.caption("Set minimum targets and let the surrogate model find optimal inputs.")
 min_flood = st.sidebar.slider("Min flood reduction", 0, 90, 30, 5)
@@ -401,7 +387,8 @@ min_food  = st.sidebar.slider("Min food production (M lbs)", 0.0, float(max(MAX_
 
 if st.sidebar.button("Optimize"):
     with st.spinner("Searching for optimal scenarios..."):
-        st.session_state.optimized_results = optimize_scenario(surrogate, min_flood, min_cool, min_food)
+        st.session_state.optimized_results = optimize_scenario(
+            surrogate, min_flood, min_cool, min_food)
 
 st.sidebar.divider()
 st.sidebar.caption(
@@ -410,8 +397,7 @@ st.sidebar.caption(
     "**High Density** = paved development — worst for all three."
 )
 
-Rather than regenerating the whole file, here's just the main panel section to replace in your app.py — everything from # ── Main panel to the end. Find that comment in VS Code and replace everything below it with this:
-python# ── Main panel ─────────────────────────────────────────────────────────────────
+# ── Main panel ─────────────────────────────────────────────────────────────────
 results = evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct)
 
 col1, col2, col3, col4 = st.columns(4)
@@ -439,12 +425,16 @@ plt.close(bars_fig)
 
 st.divider()
 
-# Row 2: Tradeoff scatter (left) + (right)
-left_col, right_col = st.columns([2, 1])
+# Row 2: Tradeoff scatter (left) + Spatial map (right)
+left_col, right_col = st.columns([3, 2])
 
 with left_col:
-    st.subheader("Flood vs. Cooling Tradeoff Space")
-    tradeoff_fig = plot_tradeoff(...)
+    st.subheader("Tradeoff Space")
+    tradeoff_fig = plot_tradeoff(
+        results, scenario_df,
+        saved=st.session_state.saved_scenarios,
+        optimized=st.session_state.optimized_results
+    )
     st.pyplot(tradeoff_fig, use_container_width=True)
     plt.close(tradeoff_fig)
 
@@ -453,14 +443,6 @@ with right_col:
     map_fig = plot_spatial_map(results['scenario_lulc'], cooling_lulc)
     st.pyplot(map_fig, use_container_width=True)
     plt.close(map_fig)
-
-st.divider()
-
-# Row 3: Spatial map (centered, not too wide)
-st.subheader("Where Changes Happen")
-map_fig = plot_spatial_map(results['scenario_lulc'], cooling_lulc)
-st.pyplot(map_fig, use_container_width=True)
-plt.close(map_fig)
 
 if st.button("💾 Save this scenario"):
     saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
@@ -477,8 +459,8 @@ if st.session_state.optimized_results is not None:
     else:
         st.caption(
             f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool:.2f}, "
-            f"food ≥ {min_food:.3f}M lbs — ranked by balanced score across all three services. "
-            "These are surrogate model predictions — verify by setting the sliders above."
+            f"food ≥ {min_food:.3f}M lbs — ranked by balanced score. "
+            "Surrogate model predictions — verify with the sliders above."
         )
         st.dataframe(
             opt[['scenario_name', 'pct_converted', 'green_infrastructure_pct',
