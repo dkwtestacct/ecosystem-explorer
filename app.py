@@ -183,7 +183,7 @@ def compute_pareto(df):
 with st.spinner("Loading data and pre-computing scenarios..."):
     scenario_df = compute_scenario_grid()
 
-# Compute max food for normalizing radar chart
+# Compute max food
 MAX_FOOD = scenario_df['food_mln_lbs'].max()
 MAX_FLOOD = 100.0
 MAX_COOL  = 1.1
@@ -275,53 +275,31 @@ def plot_bars(results):
     plt.tight_layout()
     return fig
 
-
-def plot_radar(results):
-    """Radar chart showing all three services normalized 0-1."""
-    categories = ['Flood\nReduction', 'Urban\nCooling', 'Food\nProduction']
-    n = len(categories)
-
-    # Normalize each service to 0-1
-    flood_norm = results['flood_reduction'] / MAX_FLOOD
-    cool_norm  = results['mean_hm'] / MAX_COOL
-    food_norm  = results['food_mln_lbs'] / MAX_FOOD if MAX_FOOD > 0 else 0
-
-    values = [flood_norm, cool_norm, food_norm]
-    values += values[:1]  # close the polygon
-
-    angles = [n / float(n) * 2 * np.pi * i for i in range(n)]
-    angles += angles[:1]
-
-    fig, ax = plt.subplots(figsize=(5, 5), subplot_kw=dict(polar=True))
-    ax.plot(angles, values, color='purple', linewidth=2)
-    ax.fill(angles, values, color='purple', alpha=0.25)
-    ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(categories, fontsize=10)
-    ax.set_ylim(0, 1)
-    ax.set_yticks([0.25, 0.5, 0.75, 1.0])
-    ax.set_yticklabels(['25%', '50%', '75%', '100%'], fontsize=7)
-    ax.set_title('Service Performance\n(relative to max)', pad=15, fontsize=11)
-    ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    return fig
-
-
 def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
+    """
+    Scatter plot showing flood vs cooling tradeoff space.
+    Bubble size encodes food production.
+    """
     fig, ax = plt.subplots(figsize=(9, 6))
 
+    # Background: full scenario grid — bubble size = food production
+    max_food = scenario_df['food_mln_lbs'].max()
+    bubble_size = 20 + 200 * (scenario_df['food_mln_lbs'] / max_food if max_food > 0 else 0)
     ax.scatter(scenario_df['flood_reduction'], scenario_df['mean_hm'],
-               alpha=0.2, color='lightgray', s=30, zorder=1)
+               alpha=0.2, color='lightgray', s=bubble_size, zorder=1)
 
+    # Named reference scenarios
     for name, ref in REF_SCENARIOS.items():
         ax.scatter(ref['flood'], ref['cooling'], color=ref['color'], s=100, zorder=5)
         ax.annotate(name, (ref['flood'], ref['cooling']),
                     textcoords="offset points", xytext=(6, 4), fontsize=9)
 
+    # Saved scenarios
     if saved:
         df_saved = pd.DataFrame(saved)
+        saved_sizes = 20 + 200 * (df_saved['food_mln_lbs'] / max_food if max_food > 0 else 0)
         ax.scatter(df_saved['flood_reduction'], df_saved['mean_hm'],
-                   color='purple', alpha=0.5, s=60, zorder=4, label='Saved')
+                   color='purple', alpha=0.5, s=saved_sizes, zorder=4, label='Saved')
         pareto_df = compute_pareto(df_saved)
         ax.scatter(pareto_df['flood_reduction'], pareto_df['mean_hm'],
                    color='gold', s=120, edgecolor='black', zorder=5, label='Pareto optimal')
@@ -332,13 +310,16 @@ def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
             ax.annotate(row['scenario_name'], (row['flood_reduction'], row['mean_hm']),
                         textcoords="offset points", xytext=(5, 3), fontsize=7, alpha=0.7)
 
+    # Optimized suggestions
     if optimized is not None and len(optimized) > 0:
         ax.scatter(optimized['flood_reduction'], optimized['mean_hm'],
                    color='orange', s=120, edgecolor='black', zorder=6,
                    marker='D', label='Optimized suggestions')
 
+    # Current scenario — bubble size reflects food production
+    current_size = 20 + 200 * (results['food_mln_lbs'] / max_food if max_food > 0 else 0)
     ax.scatter(results['flood_reduction'], results['mean_hm'],
-               color='purple', s=250, zorder=7, marker='*', label='This scenario')
+               color='purple', s=max(current_size, 150), zorder=7, marker='*', label='This scenario')
     ax.axvline(results['flood_reduction'], linestyle=':', alpha=0.3, color='purple')
     ax.axhline(results['mean_hm'], linestyle=':', alpha=0.3, color='purple')
     ax.annotate('This Scenario', (results['flood_reduction'], results['mean_hm']),
@@ -346,7 +327,7 @@ def plot_tradeoff(results, scenario_df, saved=None, optimized=None):
 
     ax.set_xlabel('Flood Risk Reduction (higher = better)')
     ax.set_ylabel('Heat Mitigation Index (higher = better)')
-    ax.set_title('Tradeoff Space (Flood vs. Cooling)')
+    ax.set_title('Tradeoff Space  —  bubble size = food production')
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 1.1)
     ax.grid(True, alpha=0.3)
@@ -368,7 +349,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc):
         mcolors.to_rgb(CHANGE_COLORS['High Density'])
     rgb[baseline_lulc == NODATA] = (1.0, 1.0, 1.0)
 
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(10, 10))
     ax.imshow(rgb)
     ax.axis('off')
     ax.set_title('Land Use Changes', fontsize=12)
@@ -429,7 +410,8 @@ st.sidebar.caption(
     "**High Density** = paved development — worst for all three."
 )
 
-# ── Main panel ─────────────────────────────────────────────────────────────────
+Rather than regenerating the whole file, here's just the main panel section to replace in your app.py — everything from # ── Main panel to the end. Find that comment in VS Code and replace everything below it with this:
+python# ── Main panel ─────────────────────────────────────────────────────────────────
 results = evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct)
 
 col1, col2, col3, col4 = st.columns(4)
@@ -449,34 +431,36 @@ st.caption(
 )
 st.divider()
 
-# ── Charts layout ──────────────────────────────────────────────────────────────
-left_col, right_col = st.columns([3, 1])
+# Row 1: Bar charts (full width)
+st.subheader("Outcome Comparison")
+bars_fig = plot_bars(results)
+st.pyplot(bars_fig, use_container_width=True)
+plt.close(bars_fig)
+
+st.divider()
+
+# Row 2: Tradeoff scatter (left) + (right)
+left_col, right_col = st.columns([2, 1])
 
 with left_col:
-    st.subheader("Outcome Comparison")
-    bars_fig = plot_bars(results)
-    st.pyplot(bars_fig, use_container_width=True)
-    plt.close(bars_fig)
-
     st.subheader("Flood vs. Cooling Tradeoff Space")
-    tradeoff_fig = plot_tradeoff(
-        results, scenario_df,
-        saved=st.session_state.saved_scenarios,
-        optimized=st.session_state.optimized_results
-    )
+    tradeoff_fig = plot_tradeoff(...)
     st.pyplot(tradeoff_fig, use_container_width=True)
     plt.close(tradeoff_fig)
 
 with right_col:
-    st.subheader("Service Balance")
-    radar_fig = plot_radar(results)
-    st.pyplot(radar_fig, use_container_width=True)
-    plt.close(radar_fig)
-
     st.subheader("Where Changes Happen")
     map_fig = plot_spatial_map(results['scenario_lulc'], cooling_lulc)
     st.pyplot(map_fig, use_container_width=True)
     plt.close(map_fig)
+
+st.divider()
+
+# Row 3: Spatial map (centered, not too wide)
+st.subheader("Where Changes Happen")
+map_fig = plot_spatial_map(results['scenario_lulc'], cooling_lulc)
+st.pyplot(map_fig, use_container_width=True)
+plt.close(map_fig)
 
 if st.button("💾 Save this scenario"):
     saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
