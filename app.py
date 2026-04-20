@@ -47,10 +47,10 @@ CHANGE_COLORS = {
 }
 
 REF_SCENARIOS = {
-    'Baseline':             {'flood': 24.3, 'cooling': 0.2719, 'color': 'steelblue'},
-    'Food Forest':          {'flood': 29.9, 'cooling': 0.8284, 'color': 'green'},
-    'Green Infrastructure': {'flood': 83.0, 'cooling': 0.8633, 'color': 'teal'},
-    'High Density':         {'flood': 18.8, 'cooling': 0.1923, 'color': 'red'},
+    'Baseline':                     {'flood': 24.3,  'cooling': 0.2719, 'color': 'steelblue'},
+    'All Food Forest (NLCD 41)':    {'flood': 29.9,  'cooling': 0.8284, 'color': 'green'},
+    'All Green Infra (NLCD 90)':    {'flood': 83.0,  'cooling': 0.8633, 'color': 'teal'},
+    'All High Density (NLCD 24)':   {'flood': 18.8,  'cooling': 0.1923, 'color': 'red'},
 }
 
 # ── Page setup ─────────────────────────────────────────────────────────────────
@@ -61,6 +61,13 @@ st.markdown(
     "changes **flood risk**, **urban cooling**, and **food production** across the city.  \n"
     "_Prototype using Minneapolis, MN data. Food yield estimated from San Antonio NatCap "
     "benchmarks (~11,500 lbs/acre/year for food forests). San Antonio scenarios coming soon._"
+)
+st.info(
+    "Use the sliders to create a scenario, then explore tradeoffs across flood reduction, "
+    "cooling, and food production. **Green Infrastructure** converts developed land to woody wetlands "
+    "(NLCD code 90) — best for flood retention. **Food Forest** converts to deciduous forest "
+    "(NLCD code 41, used as a food production proxy) — best for cooling and food. "
+    "**High Density** adds impervious development — worst for all three."
 )
 
 # ── Session state ──────────────────────────────────────────────────────────────
@@ -618,12 +625,12 @@ pct_converted = st.sidebar.slider(
     key="slider_pct_converted"
 )
 green_infrastructure_pct = st.sidebar.slider(
-    "% → Green Infrastructure (wetlands)", 0, 100,
+    "% → Green Infrastructure (woody wetlands)", 0, 100,
     st.session_state.apply_gi_pct, 5,
     key="slider_gi_pct"
 )
 food_forest_pct = st.sidebar.slider(
-    "% → Food Forest (trees)", 0, 100,
+    "% → Food Forest (deciduous forest proxy)", 0, 100,
     st.session_state.apply_ff_pct, 5,
     key="slider_ff_pct"
 )
@@ -651,7 +658,7 @@ cost_gi = st.sidebar.slider("Green Infrastructure ($/acre)", 5_000, 150_000,
 cost_ff = st.sidebar.slider("Food Forest ($/acre)", 1_000, 50_000,
                               DEFAULT_COST_FF, 1_000,
                               help="Typical range: $5k–$20k/acre for food forest establishment")
-cost_hd = st.sidebar.slider("High Density Dev ($/acre)", 1_000, 50_000,
+cost_hd = st.sidebar.slider("High Density Infill ($/acre)", 1_000, 50_000,
                               DEFAULT_COST_HD, 1_000,
                               help="Marginal cost of additional impervious development")
 
@@ -664,7 +671,7 @@ use_equity = st.sidebar.toggle(
     value=False,
     help=(
         "When ON, conversions are weighted toward higher-intensity developed land "
-        "(proxy for lower-income / higher heat-burden areas). "
+        "(proxy for higher heat-burden areas). "
         "TODO: replace proxy with real census tract equity data."
     )
 )
@@ -677,12 +684,13 @@ if use_equity:
 st.sidebar.divider()
 
 st.sidebar.subheader("Example Scenarios")
-if st.sidebar.button("🌳 Tree Planting (Cooling Focus)"):
+
+if st.sidebar.button("🌳 Food Forest (Cooling + Food Focus)"):
     st.session_state.apply_pct_converted = 10
     st.session_state.apply_gi_pct = 0
     st.session_state.apply_ff_pct = 100
     st.rerun()
-if st.sidebar.button("🌊 Flood Mitigation (Wetlands)"):
+if st.sidebar.button("🌊 Green Infrastructure (Flood Mitigation)"):
     st.session_state.apply_pct_converted = 10
     st.session_state.apply_gi_pct = 100
     st.session_state.apply_ff_pct = 0
@@ -707,9 +715,9 @@ if st.sidebar.button("Optimize"):
 
 st.sidebar.divider()
 st.sidebar.caption(
-    "**Green Infrastructure** = woody wetlands — best for flood retention.  \n"
-    "**Food Forest** = deciduous trees — best for cooling + food.  \n"
-    "**High Density** = paved development — worst for all three."
+    "**Green Infrastructure** = woody wetlands (NLCD 90) — best for flood retention.  \n"
+    "**Food Forest** = deciduous forest (NLCD 41, food production proxy) — best for cooling + food.  \n"
+    "**High Density** = paved development (NLCD 24) — worst for all three."
 )
 
 # ── Main panel ─────────────────────────────────────────────────────────────────
@@ -768,10 +776,27 @@ col5.metric(
 )
 
 st.caption(
+    "Flood reduction is derived from curve number, cooling from a heat mitigation index, "
+    "and food production from a food-forest yield benchmark. Use these as comparative indicators."
+)
+
+st.caption(
     "Higher is better for flood, cooling, and food metrics. "
     "Cooling °F is approximate (±2°F). Runoff uses a 2-inch design storm. "
     "Cost is order-of-magnitude — adjust $/acre sliders in sidebar."
 )
+
+with st.expander("Assumptions and limitations"):
+    st.markdown(
+        "- **Green Infrastructure** is modeled as woody wetlands (NLCD code 90).\n"
+        "- **Food Forest** is modeled as deciduous forest (NLCD code 41) as a proxy "
+        "for food-producing tree cover; yield estimated at 11,500 lbs/acre/year.\n"
+        "- Land conversion is stylized rather than policy-constrained.\n"
+        "- Food production uses a benchmark yield estimate and should be treated as directional.\n"
+        "- Spatial placement is simplified and not yet corridor- or parcel-specific.\n"
+        "- Optimized results come from a surrogate model and should be verified."
+    )
+
 st.divider()
 
 tab1, tab2, tab3 = st.tabs(["📊 Scenario", "🔀 Tradeoff Analysis", "🗺️ Map View"])
