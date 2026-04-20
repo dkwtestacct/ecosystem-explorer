@@ -76,12 +76,12 @@ if "saved_scenarios" not in st.session_state:
 if "optimized_results" not in st.session_state:
     st.session_state.optimized_results = None
 # Slider apply state — used by "Apply" button from optimizer
-if "apply_pct_converted" not in st.session_state:
-    st.session_state.apply_pct_converted = 10
-if "apply_gi_pct" not in st.session_state:
-    st.session_state.apply_gi_pct = 0
-if "apply_ff_pct" not in st.session_state:
-    st.session_state.apply_ff_pct = 0
+if "slider_pct_converted" not in st.session_state:
+    st.session_state.slider_pct_converted = 10
+if "slider_gi_pct" not in st.session_state:
+    st.session_state.slider_gi_pct = 0
+if "slider_ff_pct" not in st.session_state:
+    st.session_state.slider_ff_pct = 0
 
 # ── Data loading ───────────────────────────────────────────────────────────────
 @st.cache_data
@@ -460,7 +460,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc):
 
 
 # ── Plotly tradeoff plot ───────────────────────────────────────────────────────
-def food_to_size(food_vals, max_food, base=8, scale=90):
+def food_to_size(food_vals, max_food, base=5, scale=120):
     food_vals = np.atleast_1d(np.asarray(food_vals, dtype=float))
     if max_food > 0:
         return base + scale * np.sqrt(food_vals / max_food)
@@ -578,12 +578,11 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             name='Optimized suggestions',
         ))
 
-    current_size = float(food_to_size(np.array([results['food_mln_lbs']]), max_food)[0])
     fig.add_trace(go.Scatter(
         x=[results['flood_reduction']],
         y=[results['mean_hm']],
         mode='markers+text',
-        marker=dict(size=max(current_size, 18), color='purple', symbol='star',
+        marker=dict(size=20, color='purple', symbol='star',   # fixed size
                     line=dict(color='white', width=1.5)),
         text=['This Scenario'],
         textposition='top right',
@@ -603,7 +602,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     fig.add_vline(x=results['flood_reduction'], line_dash='dot', line_color='purple', opacity=0.25)
 
     fig.update_layout(
-        title='Tradeoff Space  —  bubble size = food production (larger = more food)',
+        title='Tradeoff Space  —  bubble size = food production (saved/optimized scenarios only)',
         xaxis_title='Flood Risk Reduction (higher = better)',
         yaxis_title='Heat Mitigation Index (higher = better)',
         xaxis=dict(range=[0, 100]),
@@ -620,31 +619,32 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 st.sidebar.header("Land Use Scenario")
 
 pct_converted = st.sidebar.slider(
-    "% of developed land converted", 0, 50,
-    st.session_state.apply_pct_converted, 5,
+    "% of developed land converted", 0, 50, 
     key="slider_pct_converted"
 )
 green_infrastructure_pct = st.sidebar.slider(
     "% → Green Infrastructure (woody wetlands)", 0, 100,
-    st.session_state.apply_gi_pct, 5,
     key="slider_gi_pct"
 )
 food_forest_pct = st.sidebar.slider(
     "% → Food Forest (deciduous forest proxy)", 0, 100,
-    st.session_state.apply_ff_pct, 5,
     key="slider_ff_pct"
 )
+
 pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
 if green_infrastructure_pct + food_forest_pct > 100:
     st.sidebar.error("⚠️ Green Infrastructure + Food Forest exceeds 100%")
     st.stop()
 
-if pct_highdensity > 0:
+if pct_highdensity > 0 and pct_converted > 0:
     st.sidebar.info(
-        f"**→ High Density: {pct_highdensity}%** of converted land will become high-density "
-        f"development — the remainder after Green Infrastructure and Food Forest allocations."
+        f"**→ High Density: {pct_highdensity}%** of converted land will become "
+        f"high-density development — the remainder after Green Infrastructure "
+        f"and Food Forest allocations."
     )
+elif pct_converted == 0:
+    pass  # nothing to say
 else:
     st.sidebar.success("✅ 100% of converted land allocated to green uses.")
 
@@ -686,19 +686,21 @@ st.sidebar.divider()
 st.sidebar.subheader("Example Scenarios")
 
 if st.sidebar.button("🌳 Food Forest (Cooling + Food Focus)"):
-    st.session_state.apply_pct_converted = 10
-    st.session_state.apply_gi_pct = 0
-    st.session_state.apply_ff_pct = 100
+    st.session_state.slider_pct_converted = 10
+    st.session_state.slider_gi_pct = 0
+    st.session_state.slider_ff_pct = 100
     st.rerun()
+
 if st.sidebar.button("🌊 Green Infrastructure (Flood Mitigation)"):
-    st.session_state.apply_pct_converted = 10
-    st.session_state.apply_gi_pct = 100
-    st.session_state.apply_ff_pct = 0
+    st.session_state.slider_pct_converted = 10
+    st.session_state.slider_gi_pct = 100
+    st.session_state.slider_ff_pct = 0
     st.rerun()
-if st.sidebar.button("🏙 High Density Development"):
-    st.session_state.apply_pct_converted = 10
-    st.session_state.apply_gi_pct = 0
-    st.session_state.apply_ff_pct = 0
+
+if st.sidebar.button("🏙️ High Density Development"):
+    st.session_state.slider_pct_converted = 10
+    st.session_state.slider_gi_pct = 0
+    st.session_state.slider_ff_pct = 0
     st.rerun()
 
 st.sidebar.divider()
@@ -849,15 +851,15 @@ with tab2:
             apply_col, info_col = st.columns([1, 3])
             with apply_col:
                 if st.button("▶️ Apply best to sliders", type="primary"):
-                    st.session_state.apply_pct_converted = int(
+                    st.session_state.slider_pct_converted = int(
                         round(best.pct_converted / 5) * 5)
-                    st.session_state.apply_gi_pct = int(
+                    st.session_state.slider_gi_pct = int(
                         round(best.green_infrastructure_pct / 5) * 5)
-                    st.session_state.apply_ff_pct = int(
+                    st.session_state.slider_ff_pct = int(
                         round(best.food_forest_pct / 5) * 5)
                     # Clamp to valid range
-                    if st.session_state.apply_gi_pct + st.session_state.apply_ff_pct > 100:
-                        st.session_state.apply_ff_pct = 100 - st.session_state.apply_gi_pct
+                    if st.session_state.slider_gi_pct + st.session_state.slider_ff_pct > 100:
+                        st.session_state.slider_ff_pct = 100 - st.session_state.slider_gi_pct
                     st.rerun()
             with info_col:
                 flood_unc = f" [{best.flood_lower:.1f}–{best.flood_upper:.1f}]" if 'flood_lower' in best else ""
@@ -881,14 +883,14 @@ with tab2:
                     with btn_cols[i]:
                         label = f"#{i+1}: {int(row.pct_converted)}% conv"
                         if st.button(label, key=f"apply_opt_{i}"):
-                            st.session_state.apply_pct_converted = int(
+                            st.session_state.slider_pct_converted = int(
                                 round(row.pct_converted / 5) * 5)
-                            st.session_state.apply_gi_pct = int(
+                            st.session_state.slider_gi_pct = int(
                                 round(row.green_infrastructure_pct / 5) * 5)
-                            st.session_state.apply_ff_pct = int(
+                            st.session_state.slider_ff_pct = int(
                                 round(row.food_forest_pct / 5) * 5)
-                            if st.session_state.apply_gi_pct + st.session_state.apply_ff_pct > 100:
-                                st.session_state.apply_ff_pct = 100 - st.session_state.apply_gi_pct
+                            if st.session_state.slider_gi_pct + st.session_state.slider_ff_pct > 100:
+                                st.session_state.slider_ff_pct = 100 - st.session_state.slider_gi_pct
                             st.rerun()
 
     if st.session_state.saved_scenarios:
