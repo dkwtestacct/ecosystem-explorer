@@ -83,6 +83,12 @@ if "slider_gi_pct" not in st.session_state:
 if "slider_ff_pct" not in st.session_state:
     st.session_state.slider_ff_pct = 0
 
+# Apply any pending slider values before sliders are rendered
+if "_pending_pct" in st.session_state:
+    st.session_state.slider_pct_converted = st.session_state.pop("_pending_pct")
+    st.session_state.slider_gi_pct        = st.session_state.pop("_pending_gi")
+    st.session_state.slider_ff_pct        = st.session_state.pop("_pending_ff")
+
 # ── Data loading ───────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
@@ -686,21 +692,21 @@ st.sidebar.divider()
 st.sidebar.subheader("Example Scenarios")
 
 if st.sidebar.button("🌳 Food Forest (Cooling + Food Focus)"):
-    st.session_state.slider_pct_converted = 10
-    st.session_state.slider_gi_pct = 0
-    st.session_state.slider_ff_pct = 100
+    st.session_state._pending_pct = 10
+    st.session_state._pending_gi = 0
+    st.session_state._pending_ff = 100
     st.rerun()
 
 if st.sidebar.button("🌊 Green Infrastructure (Flood Mitigation)"):
-    st.session_state.slider_pct_converted = 10
-    st.session_state.slider_gi_pct = 100
-    st.session_state.slider_ff_pct = 0
+    st.session_state._pending_pct = 10
+    st.session_state._pending_gi = 100
+    st.session_state._pending_ff = 0
     st.rerun()
 
 if st.sidebar.button("🏙️ High Density Development"):
-    st.session_state.slider_pct_converted = 10
-    st.session_state.slider_gi_pct = 0
-    st.session_state.slider_ff_pct = 0
+    st.session_state._pending_pct = 10
+    st.session_state._pending_gi = 0
+    st.session_state._pending_ff = 0
     st.rerun()
 
 st.sidebar.divider()
@@ -851,16 +857,13 @@ with tab2:
             apply_col, info_col = st.columns([1, 3])
             with apply_col:
                 if st.button("▶️ Apply best to sliders", type="primary"):
-                    st.session_state.slider_pct_converted = int(
-                        round(best.pct_converted / 5) * 5)
-                    st.session_state.slider_gi_pct = int(
-                        round(best.green_infrastructure_pct / 5) * 5)
-                    st.session_state.slider_ff_pct = int(
-                        round(best.food_forest_pct / 5) * 5)
-                    # Clamp to valid range
-                    if st.session_state.slider_gi_pct + st.session_state.slider_ff_pct > 100:
-                        st.session_state.slider_ff_pct = 100 - st.session_state.slider_gi_pct
+                    st.session_state._pending_pct = int(round(best.pct_converted / 5) * 5)
+                    st.session_state._pending_gi  = int(round(best.green_infrastructure_pct / 5) * 5)
+                    st.session_state._pending_ff  = int(round(best.food_forest_pct / 5) * 5)
+                    if st.session_state._pending_gi + st.session_state._pending_ff > 100:
+                        st.session_state._pending_ff = 100 - st.session_state._pending_gi
                     st.rerun()
+
             with info_col:
                 flood_unc = f" [{best.flood_lower:.1f}–{best.flood_upper:.1f}]" if 'flood_lower' in best else ""
                 hm_unc    = f" [{best.hm_lower:.4f}–{best.hm_upper:.4f}]"       if 'hm_lower'    in best else ""
@@ -883,14 +886,11 @@ with tab2:
                     with btn_cols[i]:
                         label = f"#{i+1}: {int(row.pct_converted)}% conv"
                         if st.button(label, key=f"apply_opt_{i}"):
-                            st.session_state.slider_pct_converted = int(
-                                round(row.pct_converted / 5) * 5)
-                            st.session_state.slider_gi_pct = int(
-                                round(row.green_infrastructure_pct / 5) * 5)
-                            st.session_state.slider_ff_pct = int(
-                                round(row.food_forest_pct / 5) * 5)
-                            if st.session_state.slider_gi_pct + st.session_state.slider_ff_pct > 100:
-                                st.session_state.slider_ff_pct = 100 - st.session_state.slider_gi_pct
+                            st.session_state._pending_pct = int(round(row.pct_converted / 5) * 5)
+                            st.session_state._pending_gi  = int(round(row.green_infrastructure_pct / 5) * 5)
+                            st.session_state._pending_ff  = int(round(row.food_forest_pct / 5) * 5)
+                            if st.session_state._pending_gi + st.session_state._pending_ff > 100:
+                                st.session_state._pending_ff = 100 - st.session_state._pending_gi
                             st.rerun()
 
     if st.session_state.saved_scenarios:
