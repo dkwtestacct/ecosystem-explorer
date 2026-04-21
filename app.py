@@ -132,7 +132,7 @@ def load_data():
         hm_arr[lc] = hm
 
     # ── Equity proxy raster ────────────────────────────────────────────────────
-    # TODO: replace with real equity raster (income/heat vulnerability/flood risk by census tract).
+    # TODO: replace with real heat vulnerability index (e.g. CDC/ATSDR HVI by census tract)
     # For now: weight developed pixels by land-use intensity as a rough proxy —
     # high-intensity developed (code 23) scores 1.0, medium (22) scores 0.6, low (21) scores 0.3.
     equity_weights = np.zeros(cooling_lulc.shape, dtype=np.float32)
@@ -349,6 +349,26 @@ def predict_with_uncertainty(model, X):
     upper = np.percentile(tree_preds, 90, axis=0)
     return mean, lower, upper
 
+def plot_feature_importance(model):
+    """Bar chart of RF feature importances across all three output metrics."""
+    feature_names = ['% Converted', 'Green Infra %', 'Food Forest %']
+    metric_names  = ['Flood Reduction', 'Cooling (HM)', 'Food Production']
+    
+    # Each estimator in a MultiOutputRegressor-style RF predicts all outputs
+    # feature_importances_ is averaged across all trees
+    importances = model.feature_importances_  # shape (n_features,)
+    
+    fig, ax = plt.subplots(figsize=(5, 2.5))
+    colors = ['#2196a0', '#4caf50', '#e53935']
+    bars = ax.barh(feature_names, importances, color=colors)
+    ax.set_xlabel('Relative Importance', fontsize=9)
+    ax.set_title('What drives outcomes most?', fontsize=10)
+    ax.set_xlim(0, max(importances) * 1.3)
+    for bar, val in zip(bars, importances):
+        ax.text(val + 0.005, bar.get_y() + bar.get_height()/2,
+                f'{val:.2f}', va='center', fontsize=9)
+    plt.tight_layout()
+    return fig
 
 def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000):
     """Use the surrogate to find Pareto-optimal scenarios meeting the given constraints."""
@@ -519,7 +539,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             name=name,
         ))
 
-    if saved:
+    if saved is not None and len(saved) > 0:
         df_saved = pd.DataFrame(saved)
         sizes = food_to_size(df_saved['food_mln_lbs'].values, max_food)
         fig.add_trace(go.Scatter(
@@ -671,20 +691,20 @@ cost_hd = st.sidebar.slider("High Density Infill ($/acre)", 1_000, 50_000,
 st.sidebar.divider()
 
 # ── Equity toggle ─────────────────────────────────────────────────────────────
-st.sidebar.subheader("⚖️ Equity-Weighted Conversion")
+st.sidebar.subheader("🌡️ Heat Vulnerability-Weighted Conversion")
 use_equity = st.sidebar.toggle(
-    "Prioritize high-need areas",
+    "Prioritize high heat-burden areas",
     value=False,
     help=(
         "When ON, conversions are weighted toward higher-intensity developed land "
-        "(proxy for higher heat-burden areas). "
-        "TODO: replace proxy with real census tract equity data."
+        "(proxy for heat exposure — NLCD codes 23 > 22 > 21). "
+        "TODO: replace proxy with real heat vulnerability index by census tract."
     )
 )
 if use_equity:
     st.sidebar.caption(
-        "🟡 **Equity mode active** — conversions skewed toward high-intensity developed pixels "
-        "(code 23 > 22 > 21 as need proxy). Results may differ from the random baseline."
+        "🌡️ **Heat vulnerability mode active** — conversions skewed toward high-intensity "
+        "developed pixels (code 23 > 22 > 21 as heat exposure proxy)."
     )
 
 st.sidebar.divider()
@@ -712,6 +732,12 @@ if st.sidebar.button("🏙️ High Density Development"):
 st.sidebar.divider()
 st.sidebar.subheader("🔍 Find Best Scenario")
 st.sidebar.caption("Set minimum targets and let the surrogate model find optimal inputs.")
+
+st.sidebar.caption(
+    "Optimization currently targets flood, cooling, and food only. "
+    "Cost and equity mode are not yet included in the surrogate."
+)
+
 min_flood = st.sidebar.slider("Min flood reduction", 0, 90, 30, 5)
 min_cool  = st.sidebar.slider("Min cooling (HM)", 0.0, 1.0, 0.3, 0.05)
 min_food  = st.sidebar.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01)
@@ -783,6 +809,14 @@ col5.metric(
     help="Total cost based on $/acre sliders × converted acreage. Rough order-of-magnitude only."
 )
 
+mode_text = "using equity-weighted targeting" if use_equity else "using random targeting"
+
+st.write(
+    f"This scenario converts **{pct_converted}%** of developed land, allocating "
+    f"**{green_infrastructure_pct}%** to green infrastructure, "
+    f"**{food_forest_pct}%** to food forest, and **{pct_highdensity}%** "
+    f"to high-density development, {mode_text}."
+)
 st.caption(
     "Flood reduction is derived from curve number, cooling from a heat mitigation index, "
     "and food production from a food-forest yield benchmark. Use these as comparative indicators."
@@ -824,6 +858,10 @@ with tab2:
 
     if st.button("💾 Save this scenario"):
         saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
+        saved["use_equity"] = use_equity
+        saved["cost_gi"] = cost_gi
+        saved["cost_ff"] = cost_ff
+        saved["cost_hd"] = cost_hd
         st.session_state.saved_scenarios.append(saved)
         st.success(f"Saved: {results['scenario_name']}")
 
@@ -850,6 +888,9 @@ with tab2:
             with st.expander("Show uncertainty bands", expanded=False):
                 st.dataframe(opt[display_cols + unc_cols], use_container_width=True)
             st.dataframe(opt[display_cols], use_container_width=True)
+
+            st.caption("**Influence Map** — which input drives outcomes most according to the surrogate model:")
+            render_matplotlib(plot_feature_importance(surrogate))
 
             best = opt.iloc[0]
 
@@ -897,10 +938,24 @@ with tab2:
         st.divider()
         with st.expander(f"📋 Saved Scenarios ({len(st.session_state.saved_scenarios)})", expanded=False):
             df_saved = pd.DataFrame(st.session_state.saved_scenarios)
-            show_cols = [c for c in ['scenario_name', 'pct_converted', 'green_infrastructure_pct',
-                                     'food_forest_pct', 'flood_reduction', 'cooling_f',
-                                     'runoff_acre_feet', 'mean_hm', 'food_mln_lbs',
-                                     'people_fed', 'total_cost_mln'] if c in df_saved.columns]
+            show_cols = [c for c in [
+                'scenario_name',
+                'pct_converted',
+                'green_infrastructure_pct',
+                'food_forest_pct',
+                'use_equity',
+                'flood_reduction',
+                'cooling_f',
+                'runoff_acre_feet',
+                'mean_hm',
+                'food_mln_lbs',
+                'people_fed',
+                'total_cost_mln',
+                'cost_gi',
+                'cost_ff',
+                'cost_hd'
+            ] if c in df_saved.columns]
+
             st.dataframe(df_saved[show_cols], use_container_width=True)
             if st.button("🗑 Clear saved scenarios"):
                 st.session_state.saved_scenarios = []
@@ -910,9 +965,10 @@ with tab3:
     st.subheader("Where Changes Happen")
     if use_equity:
         st.info(
-            "⚖️ **Equity mode active** — conversions concentrated in higher-intensity "
-            "developed areas. Notice the spatial pattern shift vs. random allocation."
+        "🌡️ **Heat vulnerability mode active** — conversions concentrated in higher-intensity "
+        "developed areas. Notice the spatial pattern shift vs. random allocation."
         )
+
     render_matplotlib(plot_spatial_map(results['scenario_lulc'], cooling_lulc))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
