@@ -664,15 +664,12 @@ pct_converted = st.sidebar.slider(
 
 st.sidebar.subheader("Conversion Mix")
 st.sidebar.caption(
-    "Allocate converted land across three uses. "
-    "Green Infrastructure = woody wetlands. "
-    "Food Forest = deciduous forest proxy. "
-    "High Density = impervious development. "
-    "Must sum to 100%."
+    "Allocate converted land across three uses — must sum to 100%. "
+    "High Density auto-fills as the remainder but can be adjusted."
 )
 
 green_infrastructure_pct = st.sidebar.number_input(
-    "Green Infrastructure %", 0, 100, 
+    "Green Infrastructure %", 0, 100,
     value=st.session_state.get("slider_gi_pct", 0),
     step=5, key="slider_gi_pct"
 )
@@ -681,18 +678,24 @@ food_forest_pct = st.sidebar.number_input(
     value=st.session_state.get("slider_ff_pct", 0),
     step=5, key="slider_ff_pct"
 )
-pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
-if pct_highdensity < 0:
-    st.sidebar.error(
-        f"⚠️ Total exceeds 100% by {-pct_highdensity}% — "
-        f"reduce Green Infrastructure or Food Forest."
-    )
+auto_hd = 100 - green_infrastructure_pct - food_forest_pct
+pct_highdensity = st.sidebar.number_input(
+    "High Density %", 0, 100,
+    value=max(0, auto_hd),
+    step=5
+)
+
+total = green_infrastructure_pct + food_forest_pct + pct_highdensity
+
+if total < 100:
+    st.sidebar.warning(f"⚠️ Total is {total}% — must equal 100%.")
     st.stop()
-elif pct_highdensity == 0:
-    st.sidebar.success("✅ 100% green — no high density development.")
+elif total > 100:
+    st.sidebar.error(f"⚠️ Total is {total}% — reduce one of the values.")
+    st.stop()
 else:
-    st.sidebar.info(f"**High Density: {pct_highdensity}%** (remainder)")
+    st.sidebar.success("✅ Mix sums to 100%.")
 
 st.sidebar.divider()
 
