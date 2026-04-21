@@ -419,8 +419,15 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000)
         pareto['mean_hm'] / MAX_COOL +
         pareto['food_mln_lbs'] / (MAX_FOOD if MAX_FOOD > 0 else 1)
     )
-    return pareto.sort_values('score', ascending=False).head(5).drop(columns='score')
-
+    pareto = pareto.sort_values('score', ascending=False)
+    
+    # Drop near-duplicates in tradeoff space before returning
+    pareto['flood_rounded'] = pareto['flood_reduction'].round(0)
+    pareto['hm_rounded']    = pareto['mean_hm'].round(2)
+    pareto = pareto.drop_duplicates(subset=['flood_rounded', 'hm_rounded'])
+    pareto = pareto.drop(columns=['flood_rounded', 'hm_rounded', 'score'])
+    
+    return pareto.head(5)
 
 # ── Plotting helpers ───────────────────────────────────────────────────────────
 def render_matplotlib(fig):
