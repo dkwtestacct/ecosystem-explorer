@@ -584,7 +584,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         ))
 
     if optimized is not None and len(optimized) > 0:
-        opt_sizes = food_to_size(optimized['food_mln_lbs'].values, max_food)
+        opt_sizes = np.clip(food_to_size(optimized['food_mln_lbs'].values, max_food), 5, 30)
         # Error bars from uncertainty bands
         flood_err_minus = (optimized['flood_reduction'] - optimized['flood_lower']).values
         flood_err_plus  = (optimized['flood_upper']     - optimized['flood_reduction']).values
@@ -597,11 +597,11 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             marker=dict(size=opt_sizes, color='orange', symbol='diamond',
                         line=dict(color='black', width=1.5)),
             error_x=dict(type='data', symmetric=False,
-                         array=flood_err_plus, arrayminus=flood_err_minus,
-                         color='rgba(255,165,0,0.4)', thickness=1.5),
+                    array=flood_err_plus, arrayminus=flood_err_minus,
+                    color='rgba(255,165,0,0.2)', thickness=1, width=4),
             error_y=dict(type='data', symmetric=False,
-                         array=hm_err_plus, arrayminus=hm_err_minus,
-                         color='rgba(255,165,0,0.4)', thickness=1.5),
+                    array=hm_err_plus, arrayminus=hm_err_minus,
+                    color='rgba(255,165,0,0.2)', thickness=1, width=4),
             text=optimized.apply(
                 lambda r: (
                     f"<b>Optimized suggestion</b><br>{r.scenario_name}<br>"
