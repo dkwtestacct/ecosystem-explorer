@@ -658,34 +658,41 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 st.sidebar.header("Land Use Scenario")
 
 pct_converted = st.sidebar.slider(
-    "% of developed land converted", 0, 50, 
+    "% of developed land to convert", 0, 50,
     key="slider_pct_converted"
 )
-green_infrastructure_pct = st.sidebar.slider(
-    "% → Green Infrastructure (woody wetlands)", 0, 100,
-    key="slider_gi_pct"
-)
-food_forest_pct = st.sidebar.slider(
-    "% → Food Forest (deciduous forest proxy)", 0, 100,
-    key="slider_ff_pct"
+
+st.sidebar.subheader("Conversion Mix")
+st.sidebar.caption(
+    "Allocate converted land across three uses. "
+    "Green Infrastructure = woody wetlands. "
+    "Food Forest = deciduous forest proxy. "
+    "High Density = impervious development. "
+    "Must sum to 100%."
 )
 
+green_infrastructure_pct = st.sidebar.number_input(
+    "Green Infrastructure %", 0, 100, 
+    value=st.session_state.get("slider_gi_pct", 0),
+    step=5, key="slider_gi_pct"
+)
+food_forest_pct = st.sidebar.number_input(
+    "Food Forest %", 0, 100,
+    value=st.session_state.get("slider_ff_pct", 0),
+    step=5, key="slider_ff_pct"
+)
 pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
-if green_infrastructure_pct + food_forest_pct > 100:
-    st.sidebar.error("⚠️ Green Infrastructure + Food Forest exceeds 100%")
-    st.stop()
-
-if pct_highdensity > 0 and pct_converted > 0:
-    st.sidebar.info(
-        f"**→ High Density: {pct_highdensity}%** of converted land will become "
-        f"high-density development — the remainder after Green Infrastructure "
-        f"and Food Forest allocations."
+if pct_highdensity < 0:
+    st.sidebar.error(
+        f"⚠️ Total exceeds 100% by {-pct_highdensity}% — "
+        f"reduce Green Infrastructure or Food Forest."
     )
-elif pct_converted == 0:
-    pass  # nothing to say
+    st.stop()
+elif pct_highdensity == 0:
+    st.sidebar.success("✅ 100% green — no high density development.")
 else:
-    st.sidebar.success("✅ 100% of converted land allocated to green uses.")
+    st.sidebar.info(f"**High Density: {pct_highdensity}%** (remainder)")
 
 st.sidebar.divider()
 
