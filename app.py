@@ -192,7 +192,7 @@ def compute_cost(n_wet_pixels, n_for_pixels, n_hd_pixels,
 
 # ── Scenario evaluation ────────────────────────────────────────────────────────
 def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
-                      seed=42, use_equity=False,
+                      seed=42, use_heat_priority=False,
                       cost_gi=DEFAULT_COST_GI,
                       cost_ff=DEFAULT_COST_FF,
                       cost_hd=DEFAULT_COST_HD):
@@ -207,7 +207,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 
     rng = np.random.default_rng(seed)
 
-    if use_equity and n_convert > 0:
+    if use_heat_priority and n_convert > 0:
         # Weight sampling toward high-need pixels using equity proxy
         weights = equity_weights[developed_pixels[:, 0], developed_pixels[:, 1]].astype(float)
         weight_sum = weights.sum()
@@ -523,13 +523,22 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     if hull_tr:
         fig.add_trace(hull_tr)
 
+    TEXT_POSITIONS = {
+        'Baseline':                   None,              # too crowded — use legend/hover
+        'All Food Forest (NLCD 41)':  'top left',
+        'All Green Infra (NLCD 90)':  'top right',
+        'All High Density (NLCD 24)': None,              # too crowded — use legend/hover
+    }
+
     for name, ref in REF_SCENARIOS.items():
+        text_pos = TEXT_POSITIONS.get(name, 'top right')
         fig.add_trace(go.Scatter(
             x=[ref['flood']], y=[ref['cooling']],
-            mode='markers+text',
+            mode='markers+text' if text_pos else 'markers',
             marker=dict(size=13, color=ref['color'], opacity=0.85,
                         line=dict(color='white', width=1)),
-            text=[name], textposition='top right',
+            text=[name] if text_pos else None,
+            textposition=text_pos,
             textfont=dict(size=10),
             hovertemplate=(
                 f"<b>{name}</b> (reference benchmark)<br>"
@@ -607,12 +616,9 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     fig.add_trace(go.Scatter(
         x=[results['flood_reduction']],
         y=[results['mean_hm']],
-        mode='markers+text',
-        marker=dict(size=20, color='purple', symbol='star',   # fixed size
+        mode='markers',
+        marker=dict(size=20, color='purple', symbol='star',
                     line=dict(color='white', width=1.5)),
-        text=['This Scenario'],
-        textposition='top right',
-        textfont=dict(size=11, color='purple'),
         hovertemplate=(
             f"<b>This Scenario</b><br>"
             f"Flood reduction: {results['flood_reduction']:.1f}<br>"
@@ -692,16 +698,18 @@ st.sidebar.divider()
 
 # ── Equity toggle ─────────────────────────────────────────────────────────────
 st.sidebar.subheader("🌡️ Heat Vulnerability-Weighted Conversion")
-use_equity = st.sidebar.toggle(
+use_heat_priority = st.sidebar.toggle(
     "Prioritize high heat-burden areas",
     value=False,
+
     help=(
         "When ON, conversions are weighted toward higher-intensity developed land "
-        "(proxy for heat exposure — NLCD codes 23 > 22 > 21). "
-        "TODO: replace proxy with real heat vulnerability index by census tract."
+        "(NLCD codes 23 > 22 > 21) as a proxy for heat exposure. "
+        "This is a simplified approximation — not a measured temperature or vulnerability index."
     )
+
 )
-if use_equity:
+if use_heat_priority:
     st.sidebar.caption(
         "🌡️ **Heat vulnerability mode active** — conversions skewed toward high-intensity "
         "developed pixels (code 23 > 22 > 21 as heat exposure proxy)."
@@ -756,12 +764,12 @@ st.sidebar.caption(
 
 # ── Main panel ─────────────────────────────────────────────────────────────────
 lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
-if lookup_key in lookup_table and not use_equity:
+if lookup_key in lookup_table and not use_heat_priority:
     # Lookup table was computed without equity weighting — only use it in standard mode
     results = lookup_table[lookup_key].copy()
     results['scenario_lulc'] = evaluate_scenario(
         pct_converted, green_infrastructure_pct, food_forest_pct,
-        use_equity=False, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd
+        use_heat_priority=False, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd
     )['scenario_lulc']
     # Recompute cost with current cost sliders (lookup table used default costs)
     results['total_cost_mln'] = compute_cost(
@@ -771,7 +779,7 @@ if lookup_key in lookup_table and not use_equity:
 else:
     results = evaluate_scenario(
         pct_converted, green_infrastructure_pct, food_forest_pct,
-        use_equity=use_equity, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd
+        use_heat_priority=use_heat_priority, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd
     )
 
 # ── Top metric cards ───────────────────────────────────────────────────────────
@@ -809,7 +817,7 @@ col5.metric(
     help="Total cost based on $/acre sliders × converted acreage. Rough order-of-magnitude only."
 )
 
-mode_text = "using equity-weighted targeting" if use_equity else "using random targeting"
+mode_text = "prioritizing hotter areas" if use_heat_priority else "using random placement"
 
 st.write(
     f"This scenario converts **{pct_converted}%** of developed land, allocating "
@@ -858,7 +866,7 @@ with tab2:
 
     if st.button("💾 Save this scenario"):
         saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
-        saved["use_equity"] = use_equity
+        saved["heat_priority"] = use_heat_priority
         saved["cost_gi"] = cost_gi
         saved["cost_ff"] = cost_ff
         saved["cost_hd"] = cost_hd
@@ -943,7 +951,7 @@ with tab2:
                 'pct_converted',
                 'green_infrastructure_pct',
                 'food_forest_pct',
-                'use_equity',
+                'heat_priority',
                 'flood_reduction',
                 'cooling_f',
                 'runoff_acre_feet',
@@ -963,7 +971,7 @@ with tab2:
 
 with tab3:
     st.subheader("Where Changes Happen")
-    if use_equity:
+    if use_heat_priority:
         st.info(
         "🌡️ **Heat vulnerability mode active** — conversions concentrated in higher-intensity "
         "developed areas. Notice the spatial pattern shift vs. random allocation."
