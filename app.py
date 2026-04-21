@@ -754,6 +754,15 @@ if st.sidebar.button("Optimize"):
     with st.spinner("Searching for optimal scenarios..."):
         st.session_state.optimized_results = optimize_scenario(
             surrogate, min_flood, min_cool, min_food)
+        
+if st.sidebar.button("Optimize"):
+    with st.spinner("Searching for optimal scenarios..."):
+        st.session_state.optimized_results = optimize_scenario(
+            surrogate, min_flood, min_cool, min_food)
+    if st.session_state.optimized_results is None:
+        st.sidebar.warning("Optimizer returned None — no scenarios met constraints.")
+    else:
+        st.sidebar.success(f"Found {len(st.session_state.optimized_results)} scenarios.")
 
 st.sidebar.divider()
 st.sidebar.caption(
