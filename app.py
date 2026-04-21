@@ -749,11 +749,6 @@ st.sidebar.caption(
 min_flood = st.sidebar.slider("Min flood reduction", 0, 90, 30, 5)
 min_cool  = st.sidebar.slider("Min cooling (HM)", 0.0, 1.0, 0.3, 0.05)
 min_food  = st.sidebar.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01)
-
-if st.sidebar.button("Optimize"):
-    with st.spinner("Searching for optimal scenarios..."):
-        st.session_state.optimized_results = optimize_scenario(
-            surrogate, min_flood, min_cool, min_food)
         
 if st.sidebar.button("Optimize"):
     with st.spinner("Searching for optimal scenarios..."):
