@@ -557,7 +557,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 
     if saved is not None and len(saved) > 0:
         df_saved = pd.DataFrame(saved)
-        sizes = food_to_size(df_saved['food_mln_lbs'].values, max_food)
+        sizes = np.clip(food_to_size(df_saved['food_mln_lbs'].values, max_food), 5, 30)
         fig.add_trace(go.Scatter(
             x=df_saved['flood_reduction'],
             y=df_saved['mean_hm'],
@@ -665,7 +665,7 @@ pct_converted = st.sidebar.slider(
 st.sidebar.subheader("Conversion Mix")
 st.sidebar.caption(
     "Allocate converted land across three uses — must sum to 100%. "
-    "High Density auto-fills as the remainder but can be adjusted."
+    "High Density auto-fills as the remainder, but it can also be explicitly adjusted."
 )
 
 green_infrastructure_pct = st.sidebar.number_input(
@@ -846,6 +846,11 @@ st.write(
     f"**{food_forest_pct}%** to food forest, and **{pct_highdensity}%** "
     f"to high-density development, {mode_text}."
 )
+
+st.caption(
+    "Prototype tool for exploring tradeoffs — outputs are directional and intended for comparison, not precise prediction."
+)
+
 st.caption(
     "Flood reduction is derived from curve number, cooling from a heat mitigation index, "
     "and food production from a food-forest yield benchmark. Use these as comparative indicators."
