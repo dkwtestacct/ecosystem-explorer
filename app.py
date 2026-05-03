@@ -190,6 +190,36 @@ def compute_cost(n_wet_pixels, n_for_pixels, n_hd_pixels,
     return round(total / 1_000_000, 2)   # return in $M
 
 
+def compute_cost_effectiveness(results, baseline_runoff_acft):
+    """Return $/unit ratios vs baseline; None where denominator is zero or negative."""
+    cost = results['total_cost_mln'] * 1_000_000
+    if cost <= 0:
+        return {'cost_per_acft': None, 'cost_per_degf': None, 'cost_per_1k_people': None}
+
+    runoff_prevented = baseline_runoff_acft - results['runoff_acre_feet']
+    cost_per_acft = round(cost / runoff_prevented) if runoff_prevented > 0 else None
+
+    cooling_f = results['cooling_f']
+    cost_per_degf = round(cost / cooling_f) if cooling_f > 0 else None
+
+    people_fed = results['people_fed']
+    cost_per_1k_people = round(cost / (people_fed / 1000)) if people_fed > 0 else None
+
+    return {
+        'cost_per_acft':       cost_per_acft,
+        'cost_per_degf':       cost_per_degf,
+        'cost_per_1k_people':  cost_per_1k_people,
+    }
+
+
+def _fmt_ce(val):
+    if val is None:
+        return "N/A"
+    if val >= 1_000_000:
+        return f"${val / 1_000_000:.1f}M"
+    return f"${val:,.0f}"
+
+
 # ── Scenario evaluation ────────────────────────────────────────────────────────
 def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
                       seed=42, use_heat_priority=False,
@@ -322,6 +352,10 @@ with st.spinner("Loading data and pre-computing scenarios..."):
 MAX_FOOD  = float(scenario_df['food_mln_lbs'].max())
 MAX_FLOOD = 100.0
 MAX_COOL  = 1.1
+
+BASELINE_RUNOFF_ACRE_FEET = cn_to_runoff_acre_feet(
+    BASELINE_CN, len(developed_pixels) * PIXEL_AREA_ACRES
+)
 
 # ── Surrogate model ────────────────────────────────────────────────────────────
 @st.cache_resource
@@ -838,6 +872,27 @@ col5.metric(
     help="Total cost based on $/acre sliders × converted acreage. Rough order-of-magnitude only."
 )
 
+ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
+ce_col1, ce_col2, ce_col3 = st.columns(3)
+ce_col1.metric(
+    "Cost / Acre-Foot Prevented",
+    _fmt_ce(ce['cost_per_acft']),
+    delta=None,
+    help=f"Implementation cost divided by runoff reduction vs baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario increases runoff or has no cost."
+)
+ce_col2.metric(
+    "Cost / °F Cooling",
+    _fmt_ce(ce['cost_per_degf']),
+    delta=None,
+    help="Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement."
+)
+ce_col3.metric(
+    "Cost / 1,000 People Fed",
+    _fmt_ce(ce['cost_per_1k_people']),
+    delta=None,
+    help="Implementation cost divided by (people fed ÷ 1,000). N/A if no food production."
+)
+
 mode_text = "prioritizing hotter areas" if use_heat_priority else "using random placement"
 
 st.write(
@@ -896,6 +951,10 @@ with tab2:
         saved["cost_gi"] = cost_gi
         saved["cost_ff"] = cost_ff
         saved["cost_hd"] = cost_hd
+        _ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
+        saved["cost_per_acft"]      = _ce['cost_per_acft']
+        saved["cost_per_degf"]      = _ce['cost_per_degf']
+        saved["cost_per_1k_people"] = _ce['cost_per_1k_people']
         st.session_state.saved_scenarios.append(saved)
         st.success(f"Saved: {results['scenario_name']}")
 
@@ -985,6 +1044,9 @@ with tab2:
                 'food_mln_lbs',
                 'people_fed',
                 'total_cost_mln',
+                'cost_per_acft',
+                'cost_per_degf',
+                'cost_per_1k_people',
                 'cost_gi',
                 'cost_ff',
                 'cost_hd'
