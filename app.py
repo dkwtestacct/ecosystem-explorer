@@ -17,6 +17,12 @@ CITIES = {
         'baseline_cn':      75.7,
         'baseline_hm':      0.2719,
         'available':        True,
+        'ref_scenarios': {
+            'Baseline':                     {'flood': 24.3,  'cooling': 0.2719, 'color': 'steelblue'},
+            'All Food Forest (NLCD 41)':    {'flood': 29.9,  'cooling': 0.8284, 'color': 'green'},
+            'All Green Infra (NLCD 90)':    {'flood': 83.0,  'cooling': 0.8633, 'color': 'teal'},
+            'All High Density (NLCD 24)':   {'flood': 18.8,  'cooling': 0.1923, 'color': 'red'},
+        },
     },
     'San Antonio, TX': {
         'data_dir_flood':   'data/sa/flood',
@@ -24,6 +30,7 @@ CITIES = {
         'baseline_cn':      None,
         'baseline_hm':      None,
         'available':        False,
+        'ref_scenarios':    {},
     },
 }
 
@@ -56,13 +63,6 @@ CHANGE_COLORS = {
     'Green Infrastructure': '#2196a0',
     'Food Forest':          '#4caf50',
     'High Density':         '#e53935',
-}
-
-REF_SCENARIOS = {
-    'Baseline':                     {'flood': 24.3,  'cooling': 0.2719, 'color': 'steelblue'},
-    'All Food Forest (NLCD 41)':    {'flood': 29.9,  'cooling': 0.8284, 'color': 'green'},
-    'All Green Infra (NLCD 90)':    {'flood': 83.0,  'cooling': 0.8633, 'color': 'teal'},
-    'All High Density (NLCD 24)':   {'flood': 18.8,  'cooling': 0.1923, 'color': 'red'},
 }
 
 # ── Page setup ─────────────────────────────────────────────────────────────────
@@ -115,6 +115,7 @@ DATA_DIR_FLOOD   = city_cfg['data_dir_flood']
 DATA_DIR_COOLING = city_cfg['data_dir_cooling']
 BASELINE_CN      = city_cfg['baseline_cn']
 BASELINE_HM      = city_cfg['baseline_hm']
+REF_SCENARIOS    = city_cfg['ref_scenarios']
 
 st.markdown(
     "Explore how converting developed land into green infrastructure or food forests "
@@ -278,14 +279,18 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     rng = np.random.default_rng(seed)
 
     if use_heat_priority and n_convert > 0:
-        # Weight sampling toward high-need pixels using equity proxy
+        # Pull weights specifically for the developed pixels
         weights = equity_weights[developed_pixels[:, 0], developed_pixels[:, 1]].astype(float)
+
+        # Robustness check: Ensure no negative or NaN weights
+        weights = np.maximum(weights, 0)
         weight_sum = weights.sum()
+
         if weight_sum > 0:
             weights /= weight_sum
+            chosen_idx = rng.choice(len(developed_pixels), size=n_convert, replace=False, p=weights)
         else:
-            weights = None
-        chosen_idx = rng.choice(len(developed_pixels), size=n_convert, replace=False, p=weights)
+            chosen_idx = rng.choice(len(developed_pixels), size=n_convert, replace=False)
     else:
         chosen_idx = rng.choice(len(developed_pixels), size=n_convert, replace=False)
 
@@ -787,24 +792,13 @@ cost_hd = st.sidebar.slider("High Density Infill ($/acre)", 1_000, 50_000,
 
 st.sidebar.divider()
 
-# ── Equity toggle ─────────────────────────────────────────────────────────────
-st.sidebar.subheader("🌡️ Heat Vulnerability-Weighted Conversion")
+# ── Spatial priority ──────────────────────────────────────────────────────────
+st.sidebar.subheader("Heat-Weighted Conversion")
 use_heat_priority = st.sidebar.toggle(
-    "Prioritize high heat-burden areas",
+    "Target High Heat-Exposure Areas",
     value=False,
-
-    help=(
-        "When ON, conversions are weighted toward higher-intensity developed land "
-        "(NLCD codes 23 > 22 > 21) as a proxy for heat exposure. "
-        "This is a simplified approximation — not a measured temperature or vulnerability index."
-    )
-
+    help="When enabled, the model prioritizes converting land in areas with higher heat-exposure intensity."
 )
-if use_heat_priority:
-    st.sidebar.caption(
-        "🌡️ **Heat vulnerability mode active** — conversions skewed toward high-intensity "
-        "developed pixels (code 23 > 22 > 21 as heat exposure proxy)."
-    )
 
 st.sidebar.divider()
 
@@ -834,13 +828,25 @@ st.sidebar.caption("Set minimum targets and let the surrogate model find optimal
 
 st.sidebar.caption(
     "Optimization currently targets flood, cooling, and food only. "
-    "Cost and equity mode are not yet included in the surrogate."
+    "Cost and heat-exposure mode are not yet included in the surrogate."
 )
 
-min_flood = st.sidebar.slider("Min flood reduction", 0, 90, 30, 5)
-min_cool  = st.sidebar.slider("Min cooling (HM)", 0.0, 1.0, 0.3, 0.05)
-min_food  = st.sidebar.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01)
-        
+min_flood  = st.sidebar.slider("Min flood reduction", 0, 90, 30, 5)
+min_cool_f = st.sidebar.slider(
+    "Min cooling (°F vs baseline)",
+    min_value=-1.0, max_value=round((1.0 - BASELINE_HM) * HM_TO_FAHRENHEIT, 1),
+    value=0.1, step=0.1,
+    help="Minimum temperature improvement vs baseline. Converted to HM units internally."
+)
+min_cool   = BASELINE_HM + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
+min_food   = st.sidebar.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01)
+
+st.sidebar.caption(
+    "💡 The optimizer uses a surrogate model — a fast digital twin trained on pre-computed "
+    "scenarios — to search 10,000 candidate strategies instantly. Results are predictions, "
+    "not full simulations; verify promising scenarios using the main sliders."
+)
+
 if st.sidebar.button("Optimize"):
     with st.spinner("Searching for optimal scenarios..."):
         st.session_state.optimized_results = optimize_scenario(
@@ -856,6 +862,13 @@ st.sidebar.caption(
     "**Food Forest** = deciduous forest (NLCD 41, food production proxy) — best for cooling + food.  \n"
     "**High Density** = paved development (NLCD 24) — worst for all three."
 )
+
+with st.sidebar.expander("📖 Methodology & Data Sources"):
+    try:
+        with open("REFERENCE.md", "r") as f:
+            st.markdown(f.read())
+    except FileNotFoundError:
+        st.caption("Reference documentation not found.")
 
 # ── Main panel ─────────────────────────────────────────────────────────────────
 lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
@@ -913,11 +926,22 @@ row1_col2.metric(
     delta=f"HM {results['mean_hm']:.4f} vs {BASELINE_HM}",
     help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
+_runoff_prevented = BASELINE_RUNOFF_ACRE_FEET - results['runoff_acre_feet']
+_runoff_delta_str = (
+    f"-{_fmt_runoff(-_runoff_prevented)} added vs baseline"
+    if _runoff_prevented < 0
+    else f"{_fmt_runoff(_runoff_prevented)} prevented vs baseline"
+)
 row1_col3.metric(
-    "Runoff Prevented",
+    "Runoff Volume",
     _fmt_runoff(results['runoff_acre_feet']),
-    delta=None,
-    help=f"Acre-feet of runoff from a {DESIGN_STORM_INCHES}-inch design storm across all developed land."
+    delta=_runoff_delta_str,
+    delta_color="normal",
+    help=(
+        f"Acre-feet of runoff generated by a {DESIGN_STORM_INCHES}-inch design storm. "
+        f"Delta shows reduction vs baseline ({_fmt_runoff(BASELINE_RUNOFF_ACRE_FEET)}). "
+        "Lower volume = more retention."
+    )
 )
 
 row2_col1, row2_col2 = st.columns(2)
@@ -955,7 +979,7 @@ ce_col3.metric(
     help="Implementation cost divided by (people fed ÷ 1,000). N/A if no food production."
 )
 
-mode_text = "prioritizing hotter areas" if use_heat_priority else "using random placement"
+mode_text = "prioritizing high heat-exposure areas" if use_heat_priority else "using random placement"
 
 st.write(
     f"This scenario converts **{pct_converted}%** of developed land, allocating "
@@ -986,7 +1010,7 @@ with st.expander("Assumptions and limitations"):
         "for food-producing tree cover; yield estimated at 11,500 lbs/acre/year.\n"
         "- Land conversion is stylized rather than policy-constrained.\n"
         "- Food production uses a benchmark yield estimate and should be treated as directional.\n"
-        "- Spatial placement is simplified and not yet corridor- or parcel-specific.\n"
+        "- Spatial placement is stylized (random or heat-weighted), not based on real siting constraints or corridors.\n"
         "- Optimized results come from a surrogate model and should be verified."
     )
 
@@ -1028,7 +1052,7 @@ with tab2:
             st.warning("No scenarios found meeting those constraints. Try lowering the targets.")
         else:
             st.caption(
-                f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool:.2f}, "
+                f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
                 f"food ≥ {min_food:.3f}M lbs — ranked by balanced score. "
                 "Numbers are surrogate model predictions with 10th–90th percentile uncertainty bands."
             )
@@ -1123,7 +1147,7 @@ with tab3:
     st.subheader("Where Changes Happen")
     if use_heat_priority:
         st.info(
-        "🌡️ **Heat vulnerability mode active** — conversions concentrated in higher-intensity "
+        "🌡️ **Heat-exposure mode active** — conversions concentrated in higher-intensity "
         "developed areas. Notice the spatial pattern shift vs. random allocation."
         )
 
@@ -1131,4 +1155,16 @@ with tab3:
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
         "White = outside city boundary."
+    )
+
+with st.expander("Intended Use", expanded=False):
+    st.markdown(
+        "**This tool is designed for:**\n"
+        "- Comparing alternative land-use allocation strategies\n"
+        "- Exploring tradeoffs across multiple ecosystem services\n"
+        "- Identifying candidate scenarios for deeper analysis\n\n"
+        "**It is not intended for:**\n"
+        "- Parcel-level siting decisions\n"
+        "- Precise impact prediction\n"
+        "- Final policy or investment decisions without further analysis"
     )
