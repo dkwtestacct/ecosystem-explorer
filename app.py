@@ -34,8 +34,6 @@ CITIES = {
     },
 }
 
-BASELINE_FOOD_MLN_LBS = 0.0
-
 PIXEL_AREA_ACRES     = 0.222
 FOOD_FOREST_LBS_ACRE = 11_500
 
@@ -189,6 +187,8 @@ def load_data(data_dir_flood, data_dir_cooling):
 (lulc, soil_resized, cooling_lulc, developed_pixels,
  cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
  equity_weights) = load_data(DATA_DIR_FLOOD, DATA_DIR_COOLING)
+
+BASELINE_FOOD_MLN_LBS = 0.0
 
 
 # ── Metric translation helpers ─────────────────────────────────────────────────
@@ -519,26 +519,29 @@ def render_matplotlib(fig):
 # ── Matplotlib plots ───────────────────────────────────────────────────────────
 def plot_bars(results):
     """Three bar charts: flood risk, cooling, food production vs baseline."""
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 4))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
 
     ax1.bar(['Baseline', 'This Scenario'], [BASELINE_CN, results['mean_cn']],
             color=['steelblue', 'purple'])
     ax1.axhline(BASELINE_CN, color='gray', linestyle='--', alpha=0.5)
-    ax1.set_ylabel('Mean Curve Number (lower = less runoff)')
-    ax1.set_title(f'Flood Risk  —  CN = {results["mean_cn"]}')
+    ax1.set_ylabel('Mean Curve Number (lower = less runoff)', fontsize=11)
+    ax1.set_title(f'Flood Risk  —  CN = {results["mean_cn"]}', fontsize=12)
+    ax1.tick_params(labelsize=10)
     ax1.set_ylim(0, 100)
 
     ax2.bar(['Baseline', 'This Scenario'], [BASELINE_HM, results['mean_hm']],
             color=['steelblue', 'purple'])
     ax2.axhline(BASELINE_HM, color='gray', linestyle='--', alpha=0.5)
-    ax2.set_ylabel('Heat Mitigation Index (higher = more cooling)')
-    ax2.set_title(f'Urban Cooling  —  HM = {results["mean_hm"]}')
+    ax2.set_ylabel('Heat Mitigation Index (higher = more cooling)', fontsize=11)
+    ax2.set_title(f'Urban Cooling  —  HM = {results["mean_hm"]}', fontsize=12)
+    ax2.tick_params(labelsize=10)
     ax2.set_ylim(0, 1.1)
 
     ax3.bar(['Baseline', 'This Scenario'], [BASELINE_FOOD_MLN_LBS, results['food_mln_lbs']],
             color=['steelblue', 'purple'])
-    ax3.set_ylabel('Food Production (million lbs/year)')
-    ax3.set_title(f'Food Production  —  {results["food_mln_lbs"]:.3f}M lbs/yr')
+    ax3.set_ylabel('Food Production (million lbs/year)', fontsize=11)
+    ax3.set_title(f'Food Production  —  {results["food_mln_lbs"]:.3f}M lbs/yr', fontsize=12)
+    ax3.tick_params(labelsize=10)
     ax3.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
 
     plt.tight_layout()
@@ -842,9 +845,9 @@ min_cool   = BASELINE_HM + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrog
 min_food   = st.sidebar.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01)
 
 st.sidebar.caption(
-    "💡 The optimizer uses a surrogate model — a fast digital twin trained on pre-computed "
-    "scenarios — to search 10,000 candidate strategies instantly. Results are predictions, "
-    "not full simulations; verify promising scenarios using the main sliders."
+    "💡 The optimizer uses a surrogate model — a fast approximation trained on pre-computed "
+    "scenarios — to search 10,000 candidate strategies in seconds. Results are approximate; "
+    "verify promising scenarios using the main sliders."
 )
 
 if st.sidebar.button("Optimize"):
@@ -920,10 +923,12 @@ _cooling_label = (
     else f"≈{-_cooling_f:.1f}°F warmer" if _cooling_f < 0
     else "0.0°F change"
 )
+_hm_delta = results['mean_hm'] - BASELINE_HM
 row1_col2.metric(
     "Temperature Change",
     _cooling_label,
-    delta=f"HM {results['mean_hm']:.4f} vs {BASELINE_HM}",
+    delta=round(_hm_delta, 4),
+    delta_color="normal",
     help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
 _runoff_prevented = BASELINE_RUNOFF_ACRE_FEET - results['runoff_acre_feet']
@@ -949,7 +954,7 @@ row2_col1.metric(
     "Food Production",
     _fmt_food(results['food_mln_lbs']),
     delta=_fmt_people(results['people_fed']),
-    help="Estimated yield from food forest pixels at 11,500 lbs/acre/year (San Antonio NatCap benchmark)."
+    help="Estimated yield from food forest pixels at 11,500 lbs/acre/year (San Antonio NatCap benchmark). Counts only food forest pixels created by this scenario, not pre-existing deciduous forest in the baseline land cover."
 )
 row2_col2.metric(
     "Est. Implementation Cost",
