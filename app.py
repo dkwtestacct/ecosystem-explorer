@@ -861,9 +861,15 @@ row1_col1.metric(
     delta_color="normal",
     help="SCS Curve Number based. Higher = less runoff."
 )
+_cooling_f = results['cooling_f']
+_cooling_label = (
+    f"≈{_cooling_f:.1f}°F cooler" if _cooling_f > 0
+    else f"≈{-_cooling_f:.1f}°F warmer" if _cooling_f < 0
+    else "0.0°F change"
+)
 row1_col2.metric(
     "Urban Cooling",
-    f"≈{results['cooling_f']:+.1f}°F",
+    _cooling_label,
     delta=f"HM {results['mean_hm']:.4f} vs {BASELINE_HM}",
     help="Approximate temperature difference vs baseline, based on Heat Mitigation Index (calibration factor 4°F/HM unit)."
 )
