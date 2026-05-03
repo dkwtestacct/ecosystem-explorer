@@ -9,12 +9,24 @@ import rasterio
 from skimage.transform import resize
 from sklearn.ensemble import RandomForestRegressor
 
-# ── Configuration ──────────────────────────────────────────────────────────────
-DATA_DIR_FLOOD   = 'data/flood'
-DATA_DIR_COOLING = 'data/cooling'
+# ── City configuration ─────────────────────────────────────────────────────────
+CITIES = {
+    'Minneapolis, MN': {
+        'data_dir_flood':   'data/flood',
+        'data_dir_cooling': 'data/cooling',
+        'baseline_cn':      75.7,
+        'baseline_hm':      0.2719,
+        'available':        True,
+    },
+    'San Antonio, TX': {
+        'data_dir_flood':   'data/sa/flood',
+        'data_dir_cooling': 'data/sa/cooling',
+        'baseline_cn':      None,
+        'baseline_hm':      None,
+        'available':        False,
+    },
+}
 
-BASELINE_CN           = 75.7
-BASELINE_HM           = 0.2719
 BASELINE_FOOD_MLN_LBS = 0.0
 
 PIXEL_AREA_ACRES     = 0.222
@@ -55,20 +67,6 @@ REF_SCENARIOS = {
 
 # ── Page setup ─────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Ecosystem Explorer", layout="wide")
-st.title("🌿 Urban Ecosystem Tradeoff Explorer")
-st.markdown(
-    "Explore how converting developed land into green infrastructure or food forests "
-    "changes **flood risk**, **urban cooling**, and **food production** across the city.  \n"
-    "_Prototype using Minneapolis, MN data. Food yield estimated from San Antonio NatCap "
-    "benchmarks (~11,500 lbs/acre/year for food forests). San Antonio scenarios coming soon._"
-)
-st.info(
-    "Use the sliders to create a scenario, then explore tradeoffs across flood reduction, "
-    "cooling, and food production. **Green Infrastructure** converts developed land to woody wetlands "
-    "(NLCD code 90) — best for flood retention. **Food Forest** converts to deciduous forest "
-    "(NLCD code 41, used as a food production proxy) — best for cooling and food. "
-    "**High Density** adds impervious development — worst for all three."
-)
 
 # ── Session state ──────────────────────────────────────────────────────────────
 if "saved_scenarios" not in st.session_state:
@@ -89,18 +87,60 @@ if "_pending_pct" in st.session_state:
     st.session_state.slider_gi_pct        = st.session_state.pop("_pending_gi")
     st.session_state.slider_ff_pct        = st.session_state.pop("_pending_ff")
 
+# ── City selection ─────────────────────────────────────────────────────────────
+_city_names  = list(CITIES.keys())
+_city_labels = [
+    name if CITIES[name]['available'] else f"{name} (coming soon)"
+    for name in _city_names
+]
+_selected_label = st.sidebar.selectbox("City", _city_labels, index=0)
+selected_city   = _city_names[_city_labels.index(_selected_label)]
+city_cfg        = CITIES[selected_city]
+st.sidebar.divider()
+
+# ── City-aware header ──────────────────────────────────────────────────────────
+st.title("🌿 Urban Ecosystem Tradeoff Explorer")
+st.subheader(f"📍 {selected_city}")
+
+if not city_cfg['available']:
+    st.warning(
+        f"**{selected_city}** data is not yet available. "
+        "Select Minneapolis, MN to explore scenarios."
+    )
+    st.sidebar.info(f"{selected_city} data coming soon — currently showing Minneapolis results.")
+    st.stop()
+
+# Runtime constants derived from selected city — functions reference these as globals
+DATA_DIR_FLOOD   = city_cfg['data_dir_flood']
+DATA_DIR_COOLING = city_cfg['data_dir_cooling']
+BASELINE_CN      = city_cfg['baseline_cn']
+BASELINE_HM      = city_cfg['baseline_hm']
+
+st.markdown(
+    "Explore how converting developed land into green infrastructure or food forests "
+    "changes **flood risk**, **urban cooling**, and **food production** across the city.  \n"
+    "_Food yield estimated from NatCap benchmarks (~11,500 lbs/acre/year for food forests)._"
+)
+st.info(
+    "Use the sliders to create a scenario, then explore tradeoffs across flood reduction, "
+    "cooling, and food production. **Green Infrastructure** converts developed land to woody wetlands "
+    "(NLCD code 90) — best for flood retention. **Food Forest** converts to deciduous forest "
+    "(NLCD code 41, used as a food production proxy) — best for cooling and food. "
+    "**High Density** adds impervious development — worst for all three."
+)
+
 # ── Data loading ───────────────────────────────────────────────────────────────
 @st.cache_data
-def load_data():
-    bio = pd.read_csv(f'{DATA_DIR_FLOOD}/UFR_biophysical_table_MN.csv')
+def load_data(data_dir_flood, data_dir_cooling):
+    bio = pd.read_csv(f'{data_dir_flood}/UFR_biophysical_table_MN.csv')
 
-    with rasterio.open(f'{DATA_DIR_FLOOD}/LULC_NLCD_2021_MN.tif') as src:
+    with rasterio.open(f'{data_dir_flood}/LULC_NLCD_2021_MN.tif') as src:
         lulc = src.read(1)
-    with rasterio.open(f'{DATA_DIR_FLOOD}/soil_group_MN.tif') as src:
+    with rasterio.open(f'{data_dir_flood}/soil_group_MN.tif') as src:
         soil = src.read(1)
 
-    cooling_bio = pd.read_csv(f'{DATA_DIR_COOLING}/biophysical_table_urban_cooling.csv')
-    with rasterio.open(f'{DATA_DIR_COOLING}/land_use_2021.tif') as src:
+    cooling_bio = pd.read_csv(f'{data_dir_cooling}/biophysical_table_urban_cooling.csv')
+    with rasterio.open(f'{data_dir_cooling}/land_use_2021.tif') as src:
         cooling_lulc = src.read(1)
 
     developed_pixels = np.argwhere(np.isin(cooling_lulc, DEVELOPED_CODES))
@@ -147,7 +187,7 @@ def load_data():
 
 (lulc, soil_resized, cooling_lulc, developed_pixels,
  cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
- equity_weights) = load_data()
+ equity_weights) = load_data(DATA_DIR_FLOOD, DATA_DIR_COOLING)
 
 
 # ── Metric translation helpers ─────────────────────────────────────────────────
@@ -689,15 +729,6 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
-CITY_OPTIONS = [
-    "Minneapolis, MN",
-    "San Antonio, TX (coming soon)",
-]
-selected_city = st.sidebar.selectbox("City", CITY_OPTIONS, index=0)
-if selected_city != CITY_OPTIONS[0]:
-    st.sidebar.info("San Antonio data coming soon — currently showing Minneapolis results.")
-st.sidebar.divider()
-
 st.sidebar.header("Land Use Scenario")
 
 pct_converted = st.sidebar.slider(
