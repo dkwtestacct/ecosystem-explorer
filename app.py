@@ -868,10 +868,10 @@ _cooling_label = (
     else "0.0°F change"
 )
 row1_col2.metric(
-    "Urban Cooling",
+    "Temperature Change",
     _cooling_label,
     delta=f"HM {results['mean_hm']:.4f} vs {BASELINE_HM}",
-    help="Approximate temperature difference vs baseline, based on Heat Mitigation Index (calibration factor 4°F/HM unit)."
+    help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
 row1_col3.metric(
     "Runoff Prevented",
