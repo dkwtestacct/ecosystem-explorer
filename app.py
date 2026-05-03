@@ -689,6 +689,15 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
+CITY_OPTIONS = [
+    "Minneapolis, MN",
+    "San Antonio, TX (coming soon)",
+]
+selected_city = st.sidebar.selectbox("City", CITY_OPTIONS, index=0)
+if selected_city != CITY_OPTIONS[0]:
+    st.sidebar.info("San Antonio data coming soon — currently showing Minneapolis results.")
+st.sidebar.divider()
+
 st.sidebar.header("Land Use Scenario")
 
 pct_converted = st.sidebar.slider(
