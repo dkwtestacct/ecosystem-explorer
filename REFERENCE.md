@@ -22,7 +22,7 @@ Every visible element in the app, what it means, and how it is computed.
 
 | Field | Detail |
 |-------|--------|
-| **Represents** | Approximate air-temperature change vs the unmodified baseline; positive = cooler, negative = warmer. |
+| **Represents** | Approximate air-temperature difference vs the unmodified baseline, expressed as a direction and magnitude (e.g. "1.2°F cooler" or "0.8°F warmer"). |
 | **Formula** | `ΔHM × 4.0 °F`, where `ΔHM = mean_HM_scenario − BASELINE_HM (0.2719)` and `HM = (shade + kc) / 2` averaged over all pixels. |
 | **Data source** | `biophysical_table_urban_cooling.csv` (shade and kc columns per NLCD lucode). |
 | **Delta** | Raw HM values for the scenario and baseline shown side-by-side (e.g. "HM 0.3142 vs 0.2719"). |
