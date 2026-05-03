@@ -838,34 +838,50 @@ else:
     )
 
 # ── Top metric cards ───────────────────────────────────────────────────────────
-col1, col2, col3, col4, col5 = st.columns(5)
+def _fmt_runoff(af):
+    if af >= 1_000:
+        return f"{af / 1_000:.1f}K ac-ft"
+    return f"{af:.0f} ac-ft"
 
-col1.metric(
+def _fmt_food(mln_lbs):
+    if mln_lbs >= 1:
+        return f"{mln_lbs:.2f}M lbs/yr"
+    return f"{mln_lbs * 1_000:.1f}K lbs/yr"
+
+def _fmt_people(n):
+    if n >= 1_000:
+        return f"~{n // 1_000}K people"
+    return f"~{n} people"
+
+row1_col1, row1_col2, row1_col3 = st.columns(3)
+row1_col1.metric(
     "Flood Risk Reduction",
     f"{results['flood_reduction']:.1f}",
     delta=f"{results['flood_reduction'] - (100 - BASELINE_CN):.1f} vs baseline",
     delta_color="normal",
     help="SCS Curve Number based. Higher = less runoff."
 )
-col2.metric(
+row1_col2.metric(
     "Urban Cooling",
     f"≈{results['cooling_f']:+.1f}°F",
-    delta=f"HM {results['mean_hm']:.4f} vs baseline {BASELINE_HM}",
+    delta=f"HM {results['mean_hm']:.4f} vs {BASELINE_HM}",
     help="Approximate temperature difference vs baseline, based on Heat Mitigation Index (calibration factor 4°F/HM unit)."
 )
-col3.metric(
+row1_col3.metric(
     "Runoff Prevented",
-    f"{results['runoff_acre_feet']:,.0f} ac-ft",
+    _fmt_runoff(results['runoff_acre_feet']),
     delta=None,
     help=f"Acre-feet of runoff from a {DESIGN_STORM_INCHES}-inch design storm across all developed land."
 )
-col4.metric(
+
+row2_col1, row2_col2 = st.columns(2)
+row2_col1.metric(
     "Food Production",
-    f"{results['food_mln_lbs']:.3f}M lbs/yr",
-    delta=f"feeds ~{results['people_fed']:,} people",
+    _fmt_food(results['food_mln_lbs']),
+    delta=_fmt_people(results['people_fed']),
     help="Estimated yield from food forest pixels at 11,500 lbs/acre/year (San Antonio NatCap benchmark)."
 )
-col5.metric(
+row2_col2.metric(
     "Est. Implementation Cost",
     f"${results['total_cost_mln']:.1f}M",
     delta=None,
