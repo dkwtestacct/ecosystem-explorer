@@ -605,7 +605,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc):
 
 
 # ── Plotly tradeoff plot ───────────────────────────────────────────────────────
-def food_to_size(food_vals, max_food, base=5, scale=80):
+def food_to_size(food_vals, max_food, base=5, scale=60):
     food_vals = np.atleast_1d(np.asarray(food_vals, dtype=float))
     if max_food > 0:
         return base + scale * np.sqrt(food_vals / max_food)
@@ -643,13 +643,14 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         fig.add_trace(hull_tr)
 
     TEXT_POSITIONS = {
-        'Baseline':                   'bottom left',
-        'All Food Forest (NLCD 41)':  'top left',
+        'Baseline':                   'bottom right',
+        'All Food Forest (NLCD 41)':  'middle left',
         'All Green Infra (NLCD 90)':  'top left',
-        'All High Density (NLCD 24)': None,              # too crowded — use legend/hover
+        'All High Density (NLCD 24)': None,
     }
     MARKER_OVERRIDES = {
-        'Baseline': dict(size=14, opacity=0.9),
+        'Baseline': dict(size=16, color='steelblue', opacity=1.0,
+                         line=dict(color='black', width=2)),
     }
 
     for name, ref in REF_SCENARIOS.items():
@@ -658,12 +659,14 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         fig.add_trace(go.Scatter(
             x=[ref['flood']], y=[ref['cooling']],
             mode='markers+text' if text_pos else 'markers',
-            marker=dict(size=m_override.get('size', 10),
-                        color=ref['color'],
-                        opacity=m_override.get('opacity', 0.6),
-                        line=dict(color='white', width=1)),
+            marker=dict(
+                size=m_override.get('size', 10),
+                color=m_override.get('color', ref['color']),
+                opacity=m_override.get('opacity', 0.6),
+                line=m_override.get('line', dict(color='white', width=1)),
+            ),
             text=[name] if text_pos else None,
-            textposition=text_pos,
+            textposition=text_pos if text_pos else None,
             textfont=dict(size=9),
             hovertemplate=(
                 f"<b>{name}</b> (reference benchmark)<br>"
@@ -709,7 +712,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         ))
 
     if optimized is not None and len(optimized) > 0:
-        opt_sizes = np.clip(food_to_size(optimized['food_mln_lbs'].values, max_food), 8, 22)
+        opt_sizes = np.clip(food_to_size(optimized['food_mln_lbs'].values, max_food), 6, 18)
         # Error bars from uncertainty bands
         flood_err_minus = (optimized['flood_reduction'] - optimized['flood_lower']).values
         flood_err_plus  = (optimized['flood_upper']     - optimized['flood_reduction']).values
@@ -765,8 +768,9 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         xaxis=dict(range=[0, 100]),
         yaxis=dict(range=[0, 1.1]),
         height=520,
-        margin=dict(l=60, r=160, t=60, b=60),
-        legend=dict(orientation='v', x=1.02, y=1,
+        margin=dict(l=60, r=200, t=80, b=60),
+        legend=dict(orientation='v', x=1.02, y=1, xanchor='left', yanchor='top',
+                    tracegroupgap=4, font=dict(size=11), itemsizing='constant',
                     bordercolor='rgba(0,0,0,0.1)', borderwidth=1),
         hovermode='closest',
     )
