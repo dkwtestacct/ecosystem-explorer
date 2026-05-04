@@ -71,6 +71,8 @@ if "saved_scenarios" not in st.session_state:
     st.session_state.saved_scenarios = []
 if "optimized_results" not in st.session_state:
     st.session_state.optimized_results = None
+if "active_example_scenario" not in st.session_state:
+    st.session_state.active_example_scenario = None
 # Slider apply state — used by "Apply" button from optimizer
 if "slider_pct_converted" not in st.session_state:
     st.session_state.slider_pct_converted = 10
@@ -84,6 +86,7 @@ if "_pending_pct" in st.session_state:
     st.session_state.slider_pct_converted = st.session_state.pop("_pending_pct")
     st.session_state.slider_gi_pct        = st.session_state.pop("_pending_gi")
     st.session_state.slider_ff_pct        = st.session_state.pop("_pending_ff")
+    # active_example_scenario is set by the button handler before _pending_ keys are written
 
 # ── City selection ─────────────────────────────────────────────────────────────
 _city_names  = list(CITIES.keys())
@@ -120,14 +123,20 @@ st.markdown(
     "changes **flood risk**, **urban cooling**, and **food production** across the city.  \n"
     "_Food yield estimated from NatCap benchmarks (~11,500 lbs/acre/year for food forests)._"
 )
-st.info(
-    "Use the controls to create a scenario — adjust the conversion slider and allocation inputs, "
-    "then explore tradeoffs across flood reduction, cooling, and food production. "
-    "**Green Infrastructure** converts developed land to woody wetlands "
-    "(NLCD code 90) — best for flood retention. **Food Forest** converts to deciduous forest "
-    "(NLCD code 41, used as a food production proxy) — best for cooling and food. "
-    "**High Density** adds impervious development — worst for all three."
+st.markdown(
+    "🌊 **Green Infrastructure** — best for flood &nbsp;&nbsp; "
+    "🌳 **Food Forest** — best for cooling + food &nbsp;&nbsp; "
+    "🏙 **High Density** — worst for all three"
 )
+
+with st.expander("What do these land uses mean?"):
+    st.markdown(
+        "**Green Infrastructure** converts developed land to woody wetlands "
+        "(NLCD code 90) — best for flood retention.  \n"
+        "**Food Forest** converts to deciduous forest (NLCD code 41, used as a "
+        "food production proxy) — best for cooling and food.  \n"
+        "**High Density** adds impervious development — worst for all three."
+    )
 
 # ── Data loading ───────────────────────────────────────────────────────────────
 @st.cache_data
@@ -439,8 +448,9 @@ def plot_feature_importance(model):
     importances = model.feature_importances_  # shape (n_features,)
     
     fig, ax = plt.subplots(figsize=(5, 2.5))
-    colors = ['#2196a0', '#4caf50', '#e53935']
+    colors = ['#2196a0', '#2196a0', '#4caf50']
     bars = ax.barh(feature_names, importances, color=colors)
+    ax.invert_yaxis()  # % Converted at top, matching sidebar control order
     ax.set_xlabel('Relative Importance', fontsize=9)
     ax.set_title('What drives outcomes most?', fontsize=10)
     ax.set_xlim(0, max(importances) * 1.3)
@@ -502,8 +512,8 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000)
     pareto = pareto.sort_values('score', ascending=False)
     
     # Drop near-duplicates in tradeoff space before returning
-    pareto['flood_rounded'] = pareto['flood_reduction'].round(0)
-    pareto['hm_rounded']    = pareto['mean_hm'].round(2)
+    pareto['flood_rounded'] = pareto['flood_reduction'].round(-1)
+    pareto['hm_rounded']    = pareto['mean_hm'].round(1)
     pareto = pareto.drop_duplicates(subset=['flood_rounded', 'hm_rounded'])
     pareto = pareto.drop(columns=['flood_rounded', 'hm_rounded', 'score'])
     
@@ -597,9 +607,9 @@ def convex_hull_trace(df):
             x=hull_pts[:, 0],
             y=hull_pts[:, 1],
             mode='lines',
-            line=dict(color='rgba(180,180,180,0.5)', width=1.5, dash='dot'),
+            line=dict(color='rgba(180,180,180,0.25)', width=1.5, dash='dot'),
             fill='toself',
-            fillcolor='rgba(200,200,200,0.08)',
+            fillcolor='rgba(200,200,200,0.04)',
             hoverinfo='skip',
             name='Feasible space',
             showlegend=True,
@@ -629,11 +639,11 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         fig.add_trace(go.Scatter(
             x=[ref['flood']], y=[ref['cooling']],
             mode='markers+text' if text_pos else 'markers',
-            marker=dict(size=13, color=ref['color'], opacity=0.85,
+            marker=dict(size=10, color=ref['color'], opacity=0.6,
                         line=dict(color='white', width=1)),
             text=[name] if text_pos else None,
             textposition=text_pos,
-            textfont=dict(size=10),
+            textfont=dict(size=9),
             hovertemplate=(
                 f"<b>{name}</b> (reference benchmark)<br>"
                 f"Flood reduction: {ref['flood']} | Cooling HM: {ref['cooling']:.4f}"
@@ -811,24 +821,46 @@ use_heat_priority = st.sidebar.toggle(
 
 st.sidebar.divider()
 
-st.sidebar.subheader("Example Scenarios")
+st.sidebar.subheader("⚡ Quick Start — Try a Scenario")
+st.sidebar.caption("Click any button to load a preset scenario instantly.")
 
-if st.sidebar.button("🌳 Food Forest (Cooling + Food Focus)"):
+# Clear active example if the user has manually changed any slider away from its values
+_EXAMPLE_VALUES = {
+    'food_forest':  (10,  0, 100),
+    'green_infra':  (10, 100,  0),
+    'high_density': (10,  0,   0),
+}
+_active = st.session_state.active_example_scenario
+if _active is not None:
+    _exp_pct, _exp_gi, _exp_ff = _EXAMPLE_VALUES[_active]
+    if (pct_converted != _exp_pct or
+            green_infrastructure_pct != _exp_gi or
+            food_forest_pct != _exp_ff):
+        st.session_state.active_example_scenario = None
+        _active = None
+
+if st.sidebar.button("🌳 Food Forest (Cooling + Food Focus)",
+                     type="primary" if _active == 'food_forest' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 0
     st.session_state._pending_ff = 100
+    st.session_state.active_example_scenario = 'food_forest'
     st.rerun()
 
-if st.sidebar.button("🌊 Green Infrastructure (Flood Mitigation)"):
+if st.sidebar.button("🌊 Green Infrastructure (Flood Mitigation)",
+                     type="primary" if _active == 'green_infra' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 100
     st.session_state._pending_ff = 0
+    st.session_state.active_example_scenario = 'green_infra'
     st.rerun()
 
-if st.sidebar.button("🏙️ High Density Development"):
+if st.sidebar.button("🏙️ High Density Development",
+                     type="primary" if _active == 'high_density' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 0
     st.session_state._pending_ff = 0
+    st.session_state.active_example_scenario = 'high_density'
     st.rerun()
 
 st.sidebar.divider()
@@ -860,10 +892,10 @@ if st.sidebar.button("Optimize"):
     with st.spinner("Searching for optimal scenarios..."):
         st.session_state.optimized_results = optimize_scenario(
             surrogate, min_flood, min_cool, min_food)
-    if st.session_state.optimized_results is None:
-        st.sidebar.warning("Optimizer returned None — no scenarios met constraints.")
+    if st.session_state.optimized_results is None or len(st.session_state.optimized_results) == 0:
+        st.sidebar.warning("No scenarios found — try lowering the targets.")
     else:
-        st.sidebar.success(f"Found {len(st.session_state.optimized_results)} scenarios.")
+        st.sidebar.success(f"Results ready — see Tradeoff Analysis tab ↓")
 
 st.sidebar.divider()
 
@@ -915,37 +947,46 @@ def _fmt_people(n):
     return f"~{n} people"
 
 _flood_delta = results['flood_reduction'] - (100 - BASELINE_CN)
-r1c1, r1c2, r1c3 = st.columns(3)
-r1c1.metric(
-    "Flood Risk Reduction",
-    f"{results['flood_reduction']:.1f}",
-    delta=f"{_flood_delta:.1f} vs baseline",
-    delta_color="normal" if abs(_flood_delta) >= 0.05 else "off",
-    help="SCS Curve Number based. Higher = less runoff."
+_flood_delta_str = (
+    "No change vs baseline" if abs(_flood_delta) < 0.1
+    else f"+{_flood_delta:.1f} vs baseline" if _flood_delta > 0
+    else f"{abs(_flood_delta):.1f} worse vs baseline"
 )
 _cooling_f = results['cooling_f']
 _cooling_label = (
-    f"≈{_cooling_f:.1f}°F cooler" if _cooling_f > 0
-    else f"≈{-_cooling_f:.1f}°F warmer" if _cooling_f < 0
-    else "0.0°F change"
+    "No change" if abs(_cooling_f) < 0.1
+    else f"+{_cooling_f:.1f}°F cooler" if _cooling_f > 0
+    else f"{abs(_cooling_f):.1f}°F warmer"
 )
 _hm_delta = results['mean_hm'] - BASELINE_HM
-r1c2.metric(
-    "Temperature Change",
-    _cooling_label,
-    delta=round(_hm_delta, 4),
-    delta_color="normal" if abs(_cooling_f) >= 0.05 else "off",
-    help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
-)
 _runoff_prevented = BASELINE_RUNOFF_ACRE_FEET - results['runoff_acre_feet']
 _runoff_negligible = abs(_runoff_prevented) < 1.0
 _runoff_delta_str = (
-    "0 ac-ft vs baseline" if _runoff_negligible
-    else f"-{_fmt_runoff(-_runoff_prevented)} added vs baseline" if _runoff_prevented < 0
-    else f"{_fmt_runoff(_runoff_prevented)} prevented vs baseline"
+    "No change vs baseline" if _runoff_negligible
+    else f"{_runoff_prevented:,.0f} ac-ft prevented" if _runoff_prevented > 0
+    else f"{abs(_runoff_prevented):,.0f} ac-ft added"
+)
+_people_fed = results['people_fed']
+_food_delta_str = f"feeds ~{_people_fed:,} people" if _people_fed > 0 else "—"
+
+st.markdown("#### 📊 Outcomes")
+r1c1, r1c2, r1c3 = st.columns(3)
+r1c1.metric(
+    "🟦 Flood Risk Reduction",
+    f"{results['flood_reduction']:.1f}",
+    delta=_flood_delta_str,
+    delta_color="normal" if abs(_flood_delta) >= 0.1 else "off",
+    help="SCS Curve Number based. Higher = less runoff."
+)
+r1c2.metric(
+    "🩵 Temperature Change",
+    _cooling_label,
+    delta=round(_hm_delta, 4),
+    delta_color="normal" if abs(_cooling_f) >= 0.1 else "off",
+    help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
 r1c3.metric(
-    "Runoff Volume",
+    "🟦 Runoff Volume",
     _fmt_runoff(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
     delta_color="off" if _runoff_negligible else "normal",
@@ -958,35 +999,36 @@ r1c3.metric(
 
 r2c1, r2c2 = st.columns(2)
 r2c1.metric(
-    "Food Production",
+    "🟩 Food Production",
     _fmt_food(results['food_mln_lbs']),
-    delta=_fmt_people(results['people_fed']) if results['people_fed'] > 0 else None,
-    delta_color="normal" if results['food_mln_lbs'] > 0.0 else "off",
+    delta=_food_delta_str,
+    delta_color="normal" if _people_fed > 0 else "off",
     help="Counts only food forest pixels created by this scenario (not pre-existing deciduous forest). Yield estimated at 11,500 lbs/acre/year based on NatCap food forest benchmarks — treat as directional only."
 )
 r2c2.metric(
-    "Est. Implementation Cost",
+    "⬜ Est. Implementation Cost",
     f"${results['total_cost_mln']:.1f}M",
     delta=None,
     help="Total cost based on $/acre sliders × converted acreage. Rough order-of-magnitude only."
 )
 
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
+st.markdown("##### 💰 Cost Effectiveness")
 r3c1, r3c2, r3c3 = st.columns(3)
 r3c1.metric(
-    "Cost / Acre-Foot Prevented",
+    "⬜ Cost / Acre-Foot Prevented",
     _fmt_ce(ce['cost_per_acft']),
     delta=None,
     help=f"Implementation cost divided by runoff reduction vs baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario increases runoff or has no cost."
 )
 r3c2.metric(
-    "Cost / °F Cooling",
+    "⬜ Cost / °F Cooling",
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
     help="Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement."
 )
 r3c3.metric(
-    "Cost / 1,000 People Fed",
+    "⬜ Cost / 1,000 People Fed",
     _fmt_ce(ce['cost_per_1k_people']),
     delta=None,
     help="Implementation cost divided by (people fed ÷ 1,000). N/A if no food production."
@@ -1037,6 +1079,7 @@ with tab1:
 
 with tab2:
     st.subheader("Tradeoff Space")
+    st.caption("💡 Better scenarios are toward the top-right — higher cooling and lower flood risk. Bubble size = food production.")
     st.plotly_chart(plot_tradeoff(
         results, scenario_df,
         lookup_table=lookup_table,
@@ -1059,7 +1102,8 @@ with tab2:
 
     if st.session_state.optimized_results is not None:
         st.divider()
-        st.subheader("🔍 Optimized Scenario Suggestions")
+        st.subheader("🎯 Optimized Scenario Suggestions")
+        st.caption("Scroll down to see suggestions and apply them to the sliders.")
         opt = st.session_state.optimized_results
         if opt is None or len(opt) == 0:
             st.warning("No scenarios found meeting those constraints. Try lowering the targets.")
@@ -1078,18 +1122,22 @@ with tab2:
                                     'food_lower', 'food_upper'] if c in opt.columns]
 
             with st.expander("Show uncertainty bands", expanded=False):
-                st.dataframe(opt[display_cols + unc_cols], use_container_width=True)
-            st.dataframe(opt[display_cols], use_container_width=True)
+                st.dataframe(opt[display_cols + unc_cols], use_container_width=True, hide_index=True)
+            st.dataframe(opt[display_cols], use_container_width=True, hide_index=True)
 
+            st.divider()
+            st.markdown("##### 📊 What drives these results?")
             st.caption("**Influence Map** — which input drives outcomes most according to the surrogate model:")
             render_matplotlib(plot_feature_importance(surrogate))
 
+            st.divider()
+            st.markdown("##### ▶️ Apply a scenario")
             best = opt.iloc[0]
 
             # ── Apply button: loads best scenario into sliders ─────────────────
             apply_col, info_col = st.columns([1, 3])
             with apply_col:
-                if st.button("▶️ Apply best to sliders", type="primary"):
+                if st.button("▶️ Apply best to sliders"):
                     st.session_state._pending_pct = int(round(best.pct_converted / 5) * 5)
                     st.session_state._pending_gi  = int(round(best.green_infrastructure_pct / 5) * 5)
                     st.session_state._pending_ff  = int(round(best.food_forest_pct / 5) * 5)
@@ -1126,6 +1174,8 @@ with tab2:
                                 st.session_state._pending_ff = 100 - st.session_state._pending_gi
                             st.rerun()
 
+            st.divider()
+
     if st.session_state.saved_scenarios:
         st.divider()
         with st.expander(f"📋 Saved Scenarios ({len(st.session_state.saved_scenarios)})", expanded=False):
@@ -1151,7 +1201,7 @@ with tab2:
                 'cost_hd'
             ] if c in df_saved.columns]
 
-            st.dataframe(df_saved[show_cols], use_container_width=True)
+            st.dataframe(df_saved[show_cols], use_container_width=True, hide_index=True)
             if st.button("🗑 Clear saved scenarios"):
                 st.session_state.saved_scenarios = []
                 st.rerun()
