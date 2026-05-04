@@ -322,7 +322,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     valid_hm = hm_map[~np.isnan(hm_map) & (scenario_lulc != NODATA)]
     mean_hm  = float(valid_hm.mean().round(4))
 
-    n_food_pixels = int((scenario_lulc == CODE_FOOD_FOREST).sum())
+    n_food_pixels = int(((scenario_lulc == CODE_FOOD_FOREST) & (cooling_lulc != CODE_FOOD_FOREST)).sum())
     food_mln_lbs  = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
 
     total_developed_acres = len(developed_pixels) * PIXEL_AREA_ACRES
@@ -519,13 +519,14 @@ def render_matplotlib(fig):
 # ── Matplotlib plots ───────────────────────────────────────────────────────────
 def plot_bars(results):
     """Three bar charts: flood risk, cooling, food production vs baseline."""
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5))
+    plt.rcParams.update({'font.size': 11})
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
 
     ax1.bar(['Baseline', 'This Scenario'], [BASELINE_CN, results['mean_cn']],
             color=['steelblue', 'purple'])
     ax1.axhline(BASELINE_CN, color='gray', linestyle='--', alpha=0.5)
     ax1.set_ylabel('Mean Curve Number (lower = less runoff)', fontsize=11)
-    ax1.set_title(f'Flood Risk  —  CN = {results["mean_cn"]}', fontsize=12)
+    ax1.set_title(f'Flood Risk  —  CN = {results["mean_cn"]:.2f}', fontsize=13)
     ax1.tick_params(labelsize=10)
     ax1.set_ylim(0, 100)
 
@@ -533,14 +534,14 @@ def plot_bars(results):
             color=['steelblue', 'purple'])
     ax2.axhline(BASELINE_HM, color='gray', linestyle='--', alpha=0.5)
     ax2.set_ylabel('Heat Mitigation Index (higher = more cooling)', fontsize=11)
-    ax2.set_title(f'Urban Cooling  —  HM = {results["mean_hm"]}', fontsize=12)
+    ax2.set_title(f'Urban Cooling  —  HM = {results["mean_hm"]}', fontsize=13)
     ax2.tick_params(labelsize=10)
     ax2.set_ylim(0, 1.1)
 
     ax3.bar(['Baseline', 'This Scenario'], [BASELINE_FOOD_MLN_LBS, results['food_mln_lbs']],
             color=['steelblue', 'purple'])
     ax3.set_ylabel('Food Production (million lbs/year)', fontsize=11)
-    ax3.set_title(f'Food Production  —  {results["food_mln_lbs"]:.3f}M lbs/yr', fontsize=12)
+    ax3.set_title(f'Food Production  —  {results["food_mln_lbs"]:.3f}M lbs/yr', fontsize=13)
     ax3.tick_params(labelsize=10)
     ax3.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
 
@@ -743,6 +744,10 @@ pct_converted = st.sidebar.slider(
     "% of developed land to convert", 0, 50,
     key="slider_pct_converted"
 )
+st.sidebar.caption(
+    "⚠️ Real conversions depend on land availability, ownership, "
+    "and existing uses — not all developed land is freely convertible."
+)
 
 st.sidebar.subheader("Conversion Mix")
 st.sidebar.caption(
@@ -785,13 +790,13 @@ st.sidebar.divider()
 st.sidebar.subheader("💰 Implementation Costs ($/acre)")
 cost_gi = st.sidebar.slider("Green Infrastructure ($/acre)", 5_000, 150_000,
                               DEFAULT_COST_GI, 5_000,
-                              help="Typical range: $20k–$100k/acre for constructed wetlands")
+                              help="Typical range: $20k–$100k/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.")
 cost_ff = st.sidebar.slider("Food Forest ($/acre)", 1_000, 50_000,
                               DEFAULT_COST_FF, 1_000,
-                              help="Typical range: $5k–$20k/acre for food forest establishment")
+                              help="Typical range: $5k–$20k/acre for food forest establishment. Default is an illustrative estimate — adjust to reflect local project costs.")
 cost_hd = st.sidebar.slider("High Density Infill ($/acre)", 1_000, 50_000,
                               DEFAULT_COST_HD, 1_000,
-                              help="Marginal cost of additional impervious development")
+                              help="Marginal cost of additional impervious development. Default is an illustrative estimate — adjust to reflect local project costs.")
 
 st.sidebar.divider()
 
@@ -954,7 +959,7 @@ row2_col1.metric(
     "Food Production",
     _fmt_food(results['food_mln_lbs']),
     delta=_fmt_people(results['people_fed']),
-    help="Estimated yield from food forest pixels at 11,500 lbs/acre/year (San Antonio NatCap benchmark). Counts only food forest pixels created by this scenario, not pre-existing deciduous forest in the baseline land cover."
+    help="Counts only food forest pixels created by this scenario (not pre-existing deciduous forest). Yield estimated at 11,500 lbs/acre/year based on NatCap food forest benchmarks — treat as directional only."
 )
 row2_col2.metric(
     "Est. Implementation Cost",
@@ -994,7 +999,7 @@ st.write(
 )
 
 st.caption(
-    "Prototype tool for exploring tradeoffs — outputs are directional and intended for comparison, not precise prediction."
+    "This is an exploratory tool — numbers are directional, not precise. Use them to compare strategies, not as final answers."
 )
 
 st.caption(
@@ -1013,7 +1018,7 @@ with st.expander("Assumptions and limitations"):
         "- **Green Infrastructure** is modeled as woody wetlands (NLCD code 90).\n"
         "- **Food Forest** is modeled as deciduous forest (NLCD code 41) as a proxy "
         "for food-producing tree cover; yield estimated at 11,500 lbs/acre/year.\n"
-        "- Land conversion is stylized rather than policy-constrained.\n"
+        "- Note: the model assumes all developed land is available for conversion — real projects would need site-by-site feasibility checks.\n"
         "- Food production uses a benchmark yield estimate and should be treated as directional.\n"
         "- Spatial placement is stylized (random or heat-weighted), not based on real siting constraints or corridors.\n"
         "- Optimized results come from a surrogate model and should be verified."
