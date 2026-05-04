@@ -845,24 +845,28 @@ if _active is not None:
         st.session_state.active_example_scenario = None
         _active = None
 
-if st.sidebar.button("🌳 Food Forest (Cooling + Food Focus)",
-                     type="primary" if _active == 'food_forest' else "secondary"):
+_food_forest_label  = ('✅ 🌳 Food Forest (Cooling + Food Focus)'    if _active == 'food_forest'
+                       else '🌳 Food Forest (Cooling + Food Focus)')
+_green_infra_label  = ('✅ 🌊 Green Infrastructure (Flood Mitigation)' if _active == 'green_infra'
+                       else '🌊 Green Infrastructure (Flood Mitigation)')
+_high_density_label = ('✅ 🏙️ High Density Development'               if _active == 'high_density'
+                       else '🏙️ High Density Development')
+
+if st.sidebar.button(_food_forest_label):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 0
     st.session_state._pending_ff = 100
     st.session_state.active_example_scenario = 'food_forest'
     st.rerun()
 
-if st.sidebar.button("🌊 Green Infrastructure (Flood Mitigation)",
-                     type="primary" if _active == 'green_infra' else "secondary"):
+if st.sidebar.button(_green_infra_label):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 100
     st.session_state._pending_ff = 0
     st.session_state.active_example_scenario = 'green_infra'
     st.rerun()
 
-if st.sidebar.button("🏙️ High Density Development",
-                     type="primary" if _active == 'high_density' else "secondary"):
+if st.sidebar.button(_high_density_label):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 0
     st.session_state._pending_ff = 0
