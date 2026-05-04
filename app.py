@@ -121,8 +121,9 @@ st.markdown(
     "_Food yield estimated from NatCap benchmarks (~11,500 lbs/acre/year for food forests)._"
 )
 st.info(
-    "Use the sliders to create a scenario, then explore tradeoffs across flood reduction, "
-    "cooling, and food production. **Green Infrastructure** converts developed land to woody wetlands "
+    "Use the controls to create a scenario — adjust the conversion slider and allocation inputs, "
+    "then explore tradeoffs across flood reduction, cooling, and food production. "
+    "**Green Infrastructure** converts developed land to woody wetlands "
     "(NLCD code 90) — best for flood retention. **Food Forest** converts to deciduous forest "
     "(NLCD code 41, used as a food production proxy) — best for cooling and food. "
     "**High Density** adds impervious development — worst for all three."
@@ -525,24 +526,24 @@ def plot_bars(results):
     ax1.bar(['Baseline', 'This Scenario'], [BASELINE_CN, results['mean_cn']],
             color=['steelblue', 'purple'])
     ax1.axhline(BASELINE_CN, color='gray', linestyle='--', alpha=0.5)
-    ax1.set_ylabel('Mean Curve Number (lower = less runoff)', fontsize=11)
-    ax1.set_title(f'Flood Risk  —  CN = {results["mean_cn"]:.2f}', fontsize=13)
-    ax1.tick_params(labelsize=10)
+    ax1.set_ylabel('Mean Curve Number (lower = less runoff)', fontsize=12)
+    ax1.set_title(f'Flood Risk  —  CN = {results["mean_cn"]:.2f}', fontsize=14)
+    ax1.tick_params(labelsize=11)
     ax1.set_ylim(0, 100)
 
     ax2.bar(['Baseline', 'This Scenario'], [BASELINE_HM, results['mean_hm']],
             color=['steelblue', 'purple'])
     ax2.axhline(BASELINE_HM, color='gray', linestyle='--', alpha=0.5)
-    ax2.set_ylabel('Heat Mitigation Index (higher = more cooling)', fontsize=11)
-    ax2.set_title(f'Urban Cooling  —  HM = {results["mean_hm"]}', fontsize=13)
-    ax2.tick_params(labelsize=10)
+    ax2.set_ylabel('Heat Mitigation Index (higher = more cooling)', fontsize=12)
+    ax2.set_title(f'Urban Cooling  —  HM = {results["mean_hm"]}', fontsize=14)
+    ax2.tick_params(labelsize=11)
     ax2.set_ylim(0, 1.1)
 
     ax3.bar(['Baseline', 'This Scenario'], [BASELINE_FOOD_MLN_LBS, results['food_mln_lbs']],
             color=['steelblue', 'purple'])
-    ax3.set_ylabel('Food Production (million lbs/year)', fontsize=11)
-    ax3.set_title(f'Food Production  —  {results["food_mln_lbs"]:.3f}M lbs/yr', fontsize=13)
-    ax3.tick_params(labelsize=10)
+    ax3.set_ylabel('Food Production (million lbs/year)', fontsize=12)
+    ax3.set_title(f'Food Production  —  {results["food_mln_lbs"]:.3f}M lbs/yr', fontsize=14)
+    ax3.tick_params(labelsize=11)
     ax3.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
 
     plt.tight_layout()
@@ -862,11 +863,6 @@ if st.sidebar.button("Optimize"):
         st.sidebar.success(f"Found {len(st.session_state.optimized_results)} scenarios.")
 
 st.sidebar.divider()
-st.sidebar.caption(
-    "**Green Infrastructure** = woody wetlands (NLCD 90) — best for flood retention.  \n"
-    "**Food Forest** = deciduous forest (NLCD 41, food production proxy) — best for cooling + food.  \n"
-    "**High Density** = paved development (NLCD 24) — worst for all three."
-)
 
 with st.sidebar.expander("📖 Methodology & Data Sources"):
     try:
