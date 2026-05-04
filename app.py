@@ -605,7 +605,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc):
 
 
 # ── Plotly tradeoff plot ───────────────────────────────────────────────────────
-def food_to_size(food_vals, max_food, base=5, scale=120):
+def food_to_size(food_vals, max_food, base=5, scale=80):
     food_vals = np.atleast_1d(np.asarray(food_vals, dtype=float))
     if max_food > 0:
         return base + scale * np.sqrt(food_vals / max_food)
@@ -645,7 +645,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     TEXT_POSITIONS = {
         'Baseline':                   'bottom left',
         'All Food Forest (NLCD 41)':  'top left',
-        'All Green Infra (NLCD 90)':  'top right',
+        'All Green Infra (NLCD 90)':  'top left',
         'All High Density (NLCD 24)': None,              # too crowded — use legend/hover
     }
     MARKER_OVERRIDES = {
@@ -709,7 +709,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         ))
 
     if optimized is not None and len(optimized) > 0:
-        opt_sizes = np.clip(food_to_size(optimized['food_mln_lbs'].values, max_food), 5, 30)
+        opt_sizes = np.clip(food_to_size(optimized['food_mln_lbs'].values, max_food), 8, 22)
         # Error bars from uncertainty bands
         flood_err_minus = (optimized['flood_reduction'] - optimized['flood_lower']).values
         flood_err_plus  = (optimized['flood_upper']     - optimized['flood_reduction']).values
@@ -765,6 +765,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         xaxis=dict(range=[0, 100]),
         yaxis=dict(range=[0, 1.1]),
         height=520,
+        margin=dict(l=60, r=160, t=60, b=60),
         legend=dict(orientation='v', x=1.02, y=1,
                     bordercolor='rgba(0,0,0,0.1)', borderwidth=1),
         hovermode='closest',
