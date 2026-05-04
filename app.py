@@ -628,18 +628,24 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         fig.add_trace(hull_tr)
 
     TEXT_POSITIONS = {
-        'Baseline':                   None,              # too crowded — use legend/hover
+        'Baseline':                   'bottom left',
         'All Food Forest (NLCD 41)':  'top left',
         'All Green Infra (NLCD 90)':  'top right',
         'All High Density (NLCD 24)': None,              # too crowded — use legend/hover
     }
+    MARKER_OVERRIDES = {
+        'Baseline': dict(size=14, opacity=0.9),
+    }
 
     for name, ref in REF_SCENARIOS.items():
         text_pos = TEXT_POSITIONS.get(name, 'top right')
+        m_override = MARKER_OVERRIDES.get(name, {})
         fig.add_trace(go.Scatter(
             x=[ref['flood']], y=[ref['cooling']],
             mode='markers+text' if text_pos else 'markers',
-            marker=dict(size=10, color=ref['color'], opacity=0.6,
+            marker=dict(size=m_override.get('size', 10),
+                        color=ref['color'],
+                        opacity=m_override.get('opacity', 0.6),
                         line=dict(color='white', width=1)),
             text=[name] if text_pos else None,
             textposition=text_pos,
@@ -867,35 +873,36 @@ st.sidebar.divider()
 st.sidebar.subheader("🔍 Find Best Scenario")
 st.sidebar.caption("Set minimum targets and let the surrogate model find optimal inputs.")
 
-st.sidebar.caption(
-    "Optimization currently targets flood, cooling, and food only. "
-    "Cost and heat-exposure mode are not yet included in the surrogate."
-)
+with st.sidebar.container(border=True):
+    st.caption(
+        "Optimization currently targets flood, cooling, and food only. "
+        "Cost and heat-exposure mode are not yet included in the surrogate."
+    )
 
-min_flood  = st.sidebar.slider("Min flood reduction", 0, 90, 30, 5)
-min_cool_f = st.sidebar.slider(
-    "Min cooling (°F vs baseline)",
-    min_value=-1.0, max_value=round((1.0 - BASELINE_HM) * HM_TO_FAHRENHEIT, 1),
-    value=0.1, step=0.1,
-    help="Minimum temperature improvement vs baseline. Converted to HM units internally."
-)
-min_cool   = BASELINE_HM + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
-min_food   = st.sidebar.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01)
+    min_flood  = st.slider("Min flood reduction", 0, 90, 30, 5)
+    min_cool_f = st.slider(
+        "Min cooling (°F vs baseline)",
+        min_value=-1.0, max_value=round((1.0 - BASELINE_HM) * HM_TO_FAHRENHEIT, 1),
+        value=0.1, step=0.1,
+        help="Minimum temperature improvement vs baseline. Converted to HM units internally."
+    )
+    min_cool   = BASELINE_HM + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
+    min_food   = st.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01)
 
-st.sidebar.caption(
-    "💡 The optimizer uses a surrogate model — a fast approximation trained on pre-computed "
-    "scenarios — to search 10,000 candidate strategies in seconds. Results are approximate; "
-    "verify promising scenarios using the main sliders."
-)
+    st.caption(
+        "💡 The optimizer uses a surrogate model — a fast approximation trained on pre-computed "
+        "scenarios — to search 10,000 candidate strategies in seconds. Results are approximate; "
+        "verify promising scenarios using the main sliders."
+    )
 
-if st.sidebar.button("Optimize"):
-    with st.spinner("Searching for optimal scenarios..."):
-        st.session_state.optimized_results = optimize_scenario(
-            surrogate, min_flood, min_cool, min_food)
-    if st.session_state.optimized_results is None or len(st.session_state.optimized_results) == 0:
-        st.sidebar.warning("No scenarios found — try lowering the targets.")
-    else:
-        st.sidebar.success(f"Results ready — see Tradeoff Analysis tab ↓")
+    if st.button("Optimize"):
+        with st.spinner("Searching for optimal scenarios..."):
+            st.session_state.optimized_results = optimize_scenario(
+                surrogate, min_flood, min_cool, min_food)
+        if st.session_state.optimized_results is None or len(st.session_state.optimized_results) == 0:
+            st.sidebar.warning("No scenarios found — try lowering the targets.")
+        else:
+            st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
 
 st.sidebar.divider()
 
@@ -978,10 +985,15 @@ r1c1.metric(
     delta_color="normal" if abs(_flood_delta) >= 0.1 else "off",
     help="SCS Curve Number based. Higher = less runoff."
 )
+_cooling_delta_str = (
+    "No change" if abs(_cooling_f) < 0.1
+    else f"+{_cooling_f:.1f}°F cooler" if _cooling_f > 0
+    else f"{abs(_cooling_f):.1f}°F warmer"
+)
 r1c2.metric(
     "🩵 Temperature Change",
     _cooling_label,
-    delta=round(_hm_delta, 4),
+    delta=_cooling_delta_str,
     delta_color="normal" if abs(_cooling_f) >= 0.1 else "off",
     help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
@@ -1013,7 +1025,10 @@ r2c2.metric(
 )
 
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
-st.markdown("##### 💰 Cost Effectiveness")
+st.subheader("💰 Cost Effectiveness",
+             help="Shows N/A when the scenario performs worse than the baseline on that metric, "
+                  "or when no land is converted. Try adding more green infrastructure or food "
+                  "forest to see values appear.")
 r3c1, r3c2, r3c3 = st.columns(3)
 r3c1.metric(
     "⬜ Cost / Acre-Foot Prevented",
@@ -1120,10 +1135,21 @@ with tab2:
             # Add uncertainty columns if present
             unc_cols = [c for c in ['flood_lower', 'flood_upper', 'hm_lower', 'hm_upper',
                                     'food_lower', 'food_upper'] if c in opt.columns]
+            _col_rename = {
+                'scenario_name':            'Scenario',
+                'pct_converted':            'Conv %',
+                'green_infrastructure_pct': 'GI %',
+                'food_forest_pct':          'FF %',
+                'flood_reduction':          'Flood Index',
+                'mean_hm':                  'Cooling HM',
+                'food_mln_lbs':             'Food (M lbs)',
+            }
 
             with st.expander("Show uncertainty bands", expanded=False):
-                st.dataframe(opt[display_cols + unc_cols], use_container_width=True, hide_index=True)
-            st.dataframe(opt[display_cols], use_container_width=True, hide_index=True)
+                st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
+                             use_container_width=True, hide_index=True)
+            st.dataframe(opt[display_cols].rename(columns=_col_rename),
+                         use_container_width=True, hide_index=True)
 
             st.divider()
             st.markdown("##### 📊 What drives these results?")
