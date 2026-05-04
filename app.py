@@ -135,11 +135,10 @@ REF_SCENARIOS    = city_cfg['ref_scenarios']
 
 st.markdown(
     "Explore how converting developed land into green infrastructure or food forests "
-    "changes **flood risk**, **urban cooling**, and **food production** across the city.  \n"
-    "_Food yield estimated from NatCap benchmarks (~11,500 lbs/acre/year for food forests)._"
+    "changes **flood risk**, **urban cooling**, and **food production** across the city."
 )
 st.markdown(
-    '🌊 **Green Infrastructure** — best for flood  \n'
+    '🌊 **Green Infrastructure (wetlands)** — best for flood  \n'
     '🌳 **Food Forest** — best for cooling + food  \n'
     '🏙️ **High Density** — worst for all three  \n'
 )
@@ -1096,9 +1095,8 @@ st.caption(
 
 with st.expander("Assumptions and limitations"):
     st.markdown(
-        "- **Green Infrastructure** is modeled as woody wetlands (NLCD code 90).\n"
-        "- **Food Forest** is modeled as deciduous forest (NLCD code 41) as a proxy "
-        "for food-producing tree cover; yield estimated at 11,500 lbs/acre/year.\n"
+        "- **Green Infrastructure** is modeled as woody wetlands (NLCD code 90). The broader category of green infrastructure includes many other interventions (rain gardens, bioswales, permeable pavement, green roofs, urban tree canopy) that are not modeled here. Each would have different curve numbers and heat mitigation values.\n"
+        "- **Food Forest** is modeled as deciduous forest (NLCD code 41) — the closest available NLCD class to a managed food-producing tree system. No NLCD class exists specifically for food forests or agroforestry. The yield benchmark of 11,500 lbs/acre/year assumes a mature, well-managed system at peak productivity. Newly established food forests will produce significantly less in early years. NLCD 41 covers any deciduous forest, so the tool models the ecological characteristics of mature deciduous canopy, not a precisely engineered food forest.\n"
         "- Note: the model assumes all developed land is available for conversion — real projects would need site-by-site feasibility checks.\n"
         "- Food production uses a benchmark yield estimate and should be treated as directional.\n"
         "- Spatial placement is stylized (random or heat-weighted), not based on real siting constraints or corridors.\n"
