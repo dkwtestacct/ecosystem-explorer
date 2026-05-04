@@ -124,9 +124,9 @@ st.markdown(
     "_Food yield estimated from NatCap benchmarks (~11,500 lbs/acre/year for food forests)._"
 )
 st.markdown(
-    "🌊 **Green Infrastructure** — best for flood &nbsp;&nbsp; "
-    "🌳 **Food Forest** — best for cooling + food &nbsp;&nbsp; "
-    "🏙 **High Density** — worst for all three"
+    '🌊 **Green Infrastructure** — best for flood  \n'
+    '🌳 **Food Forest** — best for cooling + food  \n'
+    '🏙️ **High Density** — worst for all three  \n'
 )
 
 with st.expander("How this prototype works", expanded=False):
@@ -962,7 +962,7 @@ _flood_delta_str = (
 _cooling_f = results['cooling_f']
 _cooling_label = (
     "No change" if abs(_cooling_f) < 0.1
-    else f"+{_cooling_f:.1f}°F cooler" if _cooling_f > 0
+    else f"{_cooling_f:.1f}°F cooler" if _cooling_f > 0
     else f"{abs(_cooling_f):.1f}°F warmer"
 )
 _hm_delta = results['mean_hm'] - BASELINE_HM
@@ -991,7 +991,7 @@ _cooling_delta_str = (
     else f"{abs(_cooling_f):.1f}°F warmer  (HM {results['mean_hm']:.4f} vs {BASELINE_HM})"
 )
 r1c2.metric(
-    "🩵 Temperature Change",
+    "🌡️ Temperature Change",
     _cooling_label,
     delta=_cooling_delta_str,
     delta_color="normal" if abs(_cooling_f) >= 0.1 else "off",
