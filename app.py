@@ -66,6 +66,21 @@ CHANGE_COLORS = {
 # ── Page setup ─────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Ecosystem Explorer", layout="wide")
 
+st.markdown('''
+<style>
+div[data-testid="stButton"] button[kind="primary"] {
+    background-color: #5b8db8;
+    border-color: #5b8db8;
+    color: white;
+}
+div[data-testid="stButton"] button[kind="primary"]:hover {
+    background-color: #4a7aa6;
+    border-color: #4a7aa6;
+    color: white;
+}
+</style>
+''', unsafe_allow_html=True)
+
 # ── Session state ──────────────────────────────────────────────────────────────
 if "saved_scenarios" not in st.session_state:
     st.session_state.saved_scenarios = []
@@ -845,28 +860,24 @@ if _active is not None:
         st.session_state.active_example_scenario = None
         _active = None
 
-_food_forest_label  = ('✅ 🌳 Food Forest (Cooling + Food Focus)'    if _active == 'food_forest'
-                       else '🌳 Food Forest (Cooling + Food Focus)')
-_green_infra_label  = ('✅ 🌊 Green Infrastructure (Flood Mitigation)' if _active == 'green_infra'
-                       else '🌊 Green Infrastructure (Flood Mitigation)')
-_high_density_label = ('✅ 🏙️ High Density Development'               if _active == 'high_density'
-                       else '🏙️ High Density Development')
-
-if st.sidebar.button(_food_forest_label):
+if st.sidebar.button("🌳 Food Forest (Cooling + Food Focus)",
+                     type="primary" if _active == 'food_forest' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 0
     st.session_state._pending_ff = 100
     st.session_state.active_example_scenario = 'food_forest'
     st.rerun()
 
-if st.sidebar.button(_green_infra_label):
+if st.sidebar.button("🌊 Green Infrastructure (Flood Mitigation)",
+                     type="primary" if _active == 'green_infra' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 100
     st.session_state._pending_ff = 0
     st.session_state.active_example_scenario = 'green_infra'
     st.rerun()
 
-if st.sidebar.button(_high_density_label):
+if st.sidebar.button("🏙️ High Density Development",
+                     type="primary" if _active == 'high_density' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 0
     st.session_state._pending_ff = 0
