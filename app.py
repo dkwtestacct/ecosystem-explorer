@@ -129,7 +129,7 @@ st.markdown(
     "🏙 **High Density** — worst for all three"
 )
 
-with st.expander("What do these land uses mean?"):
+with st.expander("How this prototype works", expanded=False):
     st.markdown(
         "**Green Infrastructure** converts developed land to woody wetlands "
         "(NLCD code 90) — best for flood retention.  \n"
@@ -448,7 +448,7 @@ def plot_feature_importance(model):
     importances = model.feature_importances_  # shape (n_features,)
     
     fig, ax = plt.subplots(figsize=(5, 2.5))
-    colors = ['#2196a0', '#2196a0', '#4caf50']
+    colors = ['#8e8e8e', '#2196a0', '#4caf50']
     bars = ax.barh(feature_names, importances, color=colors)
     ax.invert_yaxis()  # % Converted at top, matching sidebar control order
     ax.set_xlabel('Relative Importance', fontsize=9)
@@ -987,8 +987,8 @@ r1c1.metric(
 )
 _cooling_delta_str = (
     "No change" if abs(_cooling_f) < 0.1
-    else f"+{_cooling_f:.1f}°F cooler" if _cooling_f > 0
-    else f"{abs(_cooling_f):.1f}°F warmer"
+    else f"+{_cooling_f:.1f}°F cooler  (HM {results['mean_hm']:.4f} vs {BASELINE_HM})" if _cooling_f > 0
+    else f"{abs(_cooling_f):.1f}°F warmer  (HM {results['mean_hm']:.4f} vs {BASELINE_HM})"
 )
 r1c2.metric(
     "🩵 Temperature Change",
@@ -1040,6 +1040,7 @@ r3c2.metric(
     "⬜ Cost / °F Cooling",
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
+    delta_color="off" if _cooling_f <= 0 else "normal",
     help="Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement."
 )
 r3c3.metric(
@@ -1094,7 +1095,7 @@ with tab1:
 
 with tab2:
     st.subheader("Tradeoff Space")
-    st.caption("💡 Better scenarios are toward the top-right — higher cooling and lower flood risk. Bubble size = food production.")
+    st.caption("Each point is a scenario. Better flood/cooling outcomes move up and to the right; larger bubbles mean more food production.")
     st.plotly_chart(plot_tradeoff(
         results, scenario_df,
         lookup_table=lookup_table,
@@ -1137,33 +1138,32 @@ with tab2:
                                     'food_lower', 'food_upper'] if c in opt.columns]
             _col_rename = {
                 'scenario_name':            'Scenario',
-                'pct_converted':            'Conv %',
-                'green_infrastructure_pct': 'GI %',
-                'food_forest_pct':          'FF %',
+                'pct_converted':            'Total Conversion (%)',
+                'green_infrastructure_pct': 'Green Infra %',
+                'food_forest_pct':          'Food Forest %',
                 'flood_reduction':          'Flood Index',
                 'mean_hm':                  'Cooling HM',
                 'food_mln_lbs':             'Food (M lbs)',
             }
 
+            st.markdown("#### Candidate scenarios")
             with st.expander("Show uncertainty bands", expanded=False):
                 st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
                              use_container_width=True, hide_index=True)
             st.dataframe(opt[display_cols].rename(columns=_col_rename),
                          use_container_width=True, hide_index=True)
 
-            st.divider()
-            st.markdown("##### 📊 What drives these results?")
+            st.markdown("#### What drives the surrogate?")
             st.caption("**Influence Map** — which input drives outcomes most according to the surrogate model:")
             render_matplotlib(plot_feature_importance(surrogate))
 
-            st.divider()
-            st.markdown("##### ▶️ Apply a scenario")
+            st.markdown("#### Apply a suggestion")
             best = opt.iloc[0]
 
             # ── Apply button: loads best scenario into sliders ─────────────────
             apply_col, info_col = st.columns([1, 3])
             with apply_col:
-                if st.button("▶️ Apply best to sliders"):
+                if st.button("Use best scenario"):
                     st.session_state._pending_pct = int(round(best.pct_converted / 5) * 5)
                     st.session_state._pending_gi  = int(round(best.green_infrastructure_pct / 5) * 5)
                     st.session_state._pending_ff  = int(round(best.food_forest_pct / 5) * 5)
