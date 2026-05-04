@@ -742,11 +742,8 @@ st.sidebar.header("Land Use Scenario")
 
 pct_converted = st.sidebar.slider(
     "% of developed land to convert", 0, 50,
-    key="slider_pct_converted"
-)
-st.sidebar.caption(
-    "⚠️ Real conversions depend on land availability, ownership, "
-    "and existing uses — not all developed land is freely convertible."
+    key="slider_pct_converted",
+    help="⚠️ Real conversions depend on land availability, ownership, and existing uses — not all developed land is freely convertible."
 )
 
 st.sidebar.subheader("Conversion Mix")
