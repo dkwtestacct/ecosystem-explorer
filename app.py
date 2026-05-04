@@ -324,6 +324,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     mean_hm  = float(valid_hm.mean().round(4))
 
     n_food_pixels = int(((scenario_lulc == CODE_FOOD_FOREST) & (cooling_lulc != CODE_FOOD_FOREST)).sum())
+    st.write(f"DEBUG n_food_pixels={n_food_pixels}, n_for={n_for}, pct_converted={pct_converted}, food_forest_pct={food_forest_pct}")
     food_mln_lbs  = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
 
     total_developed_acres = len(developed_pixels) * PIXEL_AREA_ACRES
@@ -521,32 +522,35 @@ def render_matplotlib(fig):
 def plot_bars(results):
     """Three bar charts: flood risk, cooling, food production vs baseline."""
     plt.rcParams.update({'font.size': 12})
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 7))
 
     ax1.bar(['Baseline', 'This Scenario'], [BASELINE_CN, results['mean_cn']],
             color=['steelblue', 'purple'])
     ax1.axhline(BASELINE_CN, color='gray', linestyle='--', alpha=0.5)
-    ax1.set_ylabel('Mean Curve Number (lower = less runoff)', fontsize=12)
-    ax1.set_title(f'Flood Risk  —  CN = {results["mean_cn"]:.2f}', fontsize=15, fontweight='bold', pad=10)
+    ax1.set_ylabel('Mean Curve Number (lower = less runoff)', fontsize=13)
+    ax1.set_title('Flood Risk', fontsize=16, fontweight='bold', pad=12)
+    ax1.set_xlabel('')
     ax1.set_ylim(0, 100)
+    ax1.tick_params(axis='both', labelsize=12)
 
     ax2.bar(['Baseline', 'This Scenario'], [BASELINE_HM, results['mean_hm']],
             color=['steelblue', 'purple'])
     ax2.axhline(BASELINE_HM, color='gray', linestyle='--', alpha=0.5)
-    ax2.set_ylabel('Heat Mitigation Index (higher = more cooling)', fontsize=12)
-    ax2.set_title(f'Urban Cooling  —  HM = {results["mean_hm"]}', fontsize=15, fontweight='bold', pad=10)
+    ax2.set_ylabel('Heat Mitigation Index (higher = more cooling)', fontsize=13)
+    ax2.set_title('Urban Cooling', fontsize=16, fontweight='bold', pad=12)
+    ax2.set_xlabel('')
     ax2.set_ylim(0, 1.1)
+    ax2.tick_params(axis='both', labelsize=12)
 
     ax3.bar(['Baseline', 'This Scenario'], [BASELINE_FOOD_MLN_LBS, results['food_mln_lbs']],
             color=['steelblue', 'purple'])
-    ax3.set_ylabel('Food Production (million lbs/year)', fontsize=12)
-    ax3.set_title(f'Food Production  —  {results["food_mln_lbs"]:.3f}M lbs/yr', fontsize=15, fontweight='bold', pad=10)
+    ax3.set_ylabel('Food Production (million lbs/year)', fontsize=13)
+    ax3.set_title('Food Production', fontsize=16, fontweight='bold', pad=12)
+    ax3.set_xlabel('')
     ax3.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
+    ax3.tick_params(axis='both', labelsize=12)
 
-    ax1.tick_params(labelsize=11)
-    ax2.tick_params(labelsize=11)
-    ax3.tick_params(labelsize=11)
-    plt.tight_layout()
+    plt.tight_layout(pad=2.0)
     return fig
 
 
@@ -876,10 +880,14 @@ lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
 if lookup_key in lookup_table and not use_heat_priority:
     # Lookup table was computed without equity weighting — only use it in standard mode
     results = lookup_table[lookup_key].copy()
-    results['scenario_lulc'] = evaluate_scenario(
+    _fresh = evaluate_scenario(
         pct_converted, green_infrastructure_pct, food_forest_pct,
         use_heat_priority=False, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd
-    )['scenario_lulc']
+    )
+    results['scenario_lulc'] = _fresh['scenario_lulc']
+    # Food values are recomputed live — lookup table may predate the n_food_pixels fix
+    results['food_mln_lbs'] = _fresh['food_mln_lbs']
+    results['people_fed']   = _fresh['people_fed']
     # Recompute cost with current cost sliders (lookup table used default costs)
     results['total_cost_mln'] = compute_cost(
         results['n_wet'], results['n_for'], results['n_hd'],
@@ -907,8 +915,8 @@ def _fmt_people(n):
         return f"~{n // 1_000}K people"
     return f"~{n} people"
 
-mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-mc1.metric(
+r1c1, r1c2, r1c3 = st.columns(3)
+r1c1.metric(
     "Flood Risk Reduction",
     f"{results['flood_reduction']:.1f}",
     delta=f"{results['flood_reduction'] - (100 - BASELINE_CN):.1f} vs baseline",
@@ -922,7 +930,7 @@ _cooling_label = (
     else "0.0°F change"
 )
 _hm_delta = results['mean_hm'] - BASELINE_HM
-mc2.metric(
+r1c2.metric(
     "Temperature Change",
     _cooling_label,
     delta=round(_hm_delta, 4),
@@ -935,7 +943,7 @@ _runoff_delta_str = (
     if _runoff_prevented < 0
     else f"{_fmt_runoff(_runoff_prevented)} prevented vs baseline"
 )
-mc3.metric(
+r1c3.metric(
     "Runoff Volume",
     _fmt_runoff(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
@@ -946,13 +954,15 @@ mc3.metric(
         "Lower volume = more retention."
     )
 )
-mc4.metric(
+
+r2c1, r2c2 = st.columns(2)
+r2c1.metric(
     "Food Production",
     _fmt_food(results['food_mln_lbs']),
     delta=_fmt_people(results['people_fed']),
     help="Counts only food forest pixels created by this scenario (not pre-existing deciduous forest). Yield estimated at 11,500 lbs/acre/year based on NatCap food forest benchmarks — treat as directional only."
 )
-mc5.metric(
+r2c2.metric(
     "Est. Implementation Cost",
     f"${results['total_cost_mln']:.1f}M",
     delta=None,
@@ -960,20 +970,20 @@ mc5.metric(
 )
 
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
-ce_col1, ce_col2, ce_col3 = st.columns(3)
-ce_col1.metric(
+r3c1, r3c2, r3c3 = st.columns(3)
+r3c1.metric(
     "Cost / Acre-Foot Prevented",
     _fmt_ce(ce['cost_per_acft']),
     delta=None,
     help=f"Implementation cost divided by runoff reduction vs baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario increases runoff or has no cost."
 )
-ce_col2.metric(
+r3c2.metric(
     "Cost / °F Cooling",
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
     help="Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement."
 )
-ce_col3.metric(
+r3c3.metric(
     "Cost / 1,000 People Fed",
     _fmt_ce(ce['cost_per_1k_people']),
     delta=None,
