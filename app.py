@@ -520,32 +520,32 @@ def render_matplotlib(fig):
 # ── Matplotlib plots ───────────────────────────────────────────────────────────
 def plot_bars(results):
     """Three bar charts: flood risk, cooling, food production vs baseline."""
-    plt.rcParams.update({'font.size': 11})
+    plt.rcParams.update({'font.size': 12})
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
 
     ax1.bar(['Baseline', 'This Scenario'], [BASELINE_CN, results['mean_cn']],
             color=['steelblue', 'purple'])
     ax1.axhline(BASELINE_CN, color='gray', linestyle='--', alpha=0.5)
     ax1.set_ylabel('Mean Curve Number (lower = less runoff)', fontsize=12)
-    ax1.set_title(f'Flood Risk  —  CN = {results["mean_cn"]:.2f}', fontsize=14)
-    ax1.tick_params(labelsize=11)
+    ax1.set_title(f'Flood Risk  —  CN = {results["mean_cn"]:.2f}', fontsize=15, fontweight='bold', pad=10)
     ax1.set_ylim(0, 100)
 
     ax2.bar(['Baseline', 'This Scenario'], [BASELINE_HM, results['mean_hm']],
             color=['steelblue', 'purple'])
     ax2.axhline(BASELINE_HM, color='gray', linestyle='--', alpha=0.5)
     ax2.set_ylabel('Heat Mitigation Index (higher = more cooling)', fontsize=12)
-    ax2.set_title(f'Urban Cooling  —  HM = {results["mean_hm"]}', fontsize=14)
-    ax2.tick_params(labelsize=11)
+    ax2.set_title(f'Urban Cooling  —  HM = {results["mean_hm"]}', fontsize=15, fontweight='bold', pad=10)
     ax2.set_ylim(0, 1.1)
 
     ax3.bar(['Baseline', 'This Scenario'], [BASELINE_FOOD_MLN_LBS, results['food_mln_lbs']],
             color=['steelblue', 'purple'])
     ax3.set_ylabel('Food Production (million lbs/year)', fontsize=12)
-    ax3.set_title(f'Food Production  —  {results["food_mln_lbs"]:.3f}M lbs/yr', fontsize=14)
-    ax3.tick_params(labelsize=11)
+    ax3.set_title(f'Food Production  —  {results["food_mln_lbs"]:.3f}M lbs/yr', fontsize=15, fontweight='bold', pad=10)
     ax3.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
 
+    ax1.tick_params(labelsize=11)
+    ax2.tick_params(labelsize=11)
+    ax3.tick_params(labelsize=11)
     plt.tight_layout()
     return fig
 
@@ -788,10 +788,10 @@ st.sidebar.divider()
 st.sidebar.subheader("💰 Implementation Costs ($/acre)")
 cost_gi = st.sidebar.slider("Green Infrastructure ($/acre)", 5_000, 150_000,
                               DEFAULT_COST_GI, 5_000,
-                              help="Typical range: $20k–$100k/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.")
+                              help="Typical range: $20,000–$100,000/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.")
 cost_ff = st.sidebar.slider("Food Forest ($/acre)", 1_000, 50_000,
                               DEFAULT_COST_FF, 1_000,
-                              help="Typical range: $5k–$20k/acre for food forest establishment. Default is an illustrative estimate — adjust to reflect local project costs.")
+                              help="Typical range: $5,000–$20,000/acre for food forest establishment. Default is an illustrative estimate — adjust to reflect local project costs.")
 cost_hd = st.sidebar.slider("High Density Infill ($/acre)", 1_000, 50_000,
                               DEFAULT_COST_HD, 1_000,
                               help="Marginal cost of additional impervious development. Default is an illustrative estimate — adjust to reflect local project costs.")
@@ -907,8 +907,8 @@ def _fmt_people(n):
         return f"~{n // 1_000}K people"
     return f"~{n} people"
 
-row1_col1, row1_col2, row1_col3 = st.columns(3)
-row1_col1.metric(
+mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+mc1.metric(
     "Flood Risk Reduction",
     f"{results['flood_reduction']:.1f}",
     delta=f"{results['flood_reduction'] - (100 - BASELINE_CN):.1f} vs baseline",
@@ -922,7 +922,7 @@ _cooling_label = (
     else "0.0°F change"
 )
 _hm_delta = results['mean_hm'] - BASELINE_HM
-row1_col2.metric(
+mc2.metric(
     "Temperature Change",
     _cooling_label,
     delta=round(_hm_delta, 4),
@@ -935,7 +935,7 @@ _runoff_delta_str = (
     if _runoff_prevented < 0
     else f"{_fmt_runoff(_runoff_prevented)} prevented vs baseline"
 )
-row1_col3.metric(
+mc3.metric(
     "Runoff Volume",
     _fmt_runoff(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
@@ -946,15 +946,13 @@ row1_col3.metric(
         "Lower volume = more retention."
     )
 )
-
-row2_col1, row2_col2 = st.columns(2)
-row2_col1.metric(
+mc4.metric(
     "Food Production",
     _fmt_food(results['food_mln_lbs']),
     delta=_fmt_people(results['people_fed']),
     help="Counts only food forest pixels created by this scenario (not pre-existing deciduous forest). Yield estimated at 11,500 lbs/acre/year based on NatCap food forest benchmarks — treat as directional only."
 )
-row2_col2.metric(
+mc5.metric(
     "Est. Implementation Cost",
     f"${results['total_cost_mln']:.1f}M",
     delta=None,
