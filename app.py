@@ -1168,6 +1168,12 @@ with tab2:
                              use_container_width=True, hide_index=True)
             st.dataframe(opt[display_cols].rename(columns=_col_rename),
                          use_container_width=True, hide_index=True)
+            st.caption(
+                "⚠️ Suggestions showing small amounts of High Density development (e.g. 2–10%) "
+                "are likely surrogate model artifacts rather than genuinely optimal allocations. "
+                "When applying a suggestion, consider setting High Density to 0% and redistributing "
+                "to Green Infrastructure or Food Forest."
+            )
 
             st.markdown("#### What drives the surrogate?")
             st.caption("**Influence Map** — which input drives outcomes most according to the surrogate model:")
@@ -1259,7 +1265,11 @@ with tab3:
     render_matplotlib(plot_spatial_map(results['scenario_lulc'], cooling_lulc))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
-        "White = outside city boundary."
+        "White = outside city boundary.  \n"
+        "Converted pixels are selected randomly across all developed land (or weighted toward "
+        "high heat-exposure areas if that mode is on). Spatial placement does not reflect parcel "
+        "ownership, adjacency, corridors, or neighborhood targeting — real implementation would "
+        "require site-specific siting analysis."
     )
 
 with st.expander("Intended Use", expanded=False):
