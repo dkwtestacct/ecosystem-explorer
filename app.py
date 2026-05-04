@@ -762,7 +762,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     fig.add_vline(x=results['flood_reduction'], line_dash='dot', line_color='purple', opacity=0.25)
 
     fig.update_layout(
-        title='Tradeoff Space  —  bubble size = food production (saved/optimized scenarios only)',
+        title='Tradeoff Space',
         xaxis_title='Flood Risk Reduction (higher = better)',
         yaxis_title='Heat Mitigation Index (higher = better)',
         xaxis=dict(range=[0, 100]),
@@ -1115,7 +1115,7 @@ with tab1:
 
 with tab2:
     st.subheader("Tradeoff Space")
-    st.caption("Each point is a scenario. Better flood/cooling outcomes move up and to the right; larger bubbles mean more food production.")
+    st.caption("Each point is a scenario. Better outcomes are toward the top-right — higher cooling and lower flood risk. Bubble size shows food production for saved and optimized scenarios.")
     st.plotly_chart(plot_tradeoff(
         results, scenario_df,
         lookup_table=lookup_table,
