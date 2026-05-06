@@ -493,7 +493,12 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000)
         (mean_preds[:, 2] >= min_food)
     )
     if not meets.any():
-        return None
+        return {
+            'found': False,
+            'max_flood': round(float(mean_preds[:, 0].max()), 1),
+            'max_cool':  round(float(mean_preds[:, 1].max()), 4),
+            'max_food':  round(float(mean_preds[:, 2].max()), 3),
+        }
 
     candidates = pd.DataFrame({
         'pct_converted':            pct_converted[meets],
@@ -782,8 +787,8 @@ st.sidebar.header("Land Use Scenario")
 pct_converted = st.sidebar.slider(
     "% of developed land to convert", 0, 50,
     key="slider_pct_converted",
-    help="⚠️ Real conversions depend on land availability, ownership, and existing uses — not all developed land is freely convertible."
 )
+st.sidebar.caption("Note: real conversions depend on land availability and existing uses.")
 
 st.sidebar.subheader("Conversion Mix")
 st.sidebar.caption(
@@ -918,7 +923,8 @@ with st.sidebar.container(border=True):
         with st.spinner("Searching for optimal scenarios..."):
             st.session_state.optimized_results = optimize_scenario(
                 surrogate, min_flood, min_cool, min_food)
-        if st.session_state.optimized_results is None or len(st.session_state.optimized_results) == 0:
+        _opt_res = st.session_state.optimized_results
+        if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
             st.sidebar.warning("No scenarios found — try lowering the targets.")
         else:
             st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
@@ -1139,8 +1145,15 @@ with tab2:
         st.subheader("🎯 Optimized Scenario Suggestions")
         st.caption("Scroll down to see suggestions and apply them to the sliders.")
         opt = st.session_state.optimized_results
-        if opt is None or len(opt) == 0:
-            st.warning("No scenarios found meeting those constraints. Try lowering the targets.")
+        if isinstance(opt, dict) and not opt.get('found'):
+            st.warning(
+                f"No scenarios found meeting all three targets simultaneously.  \n"
+                f"Maximum achievable values across all candidates:  \n"
+                f"- Flood reduction: up to **{opt['max_flood']}** (your target: {min_flood})  \n"
+                f"- Cooling: up to **{opt['max_cool']:.4f} HM** (your target: {min_cool:.4f})  \n"
+                f"- Food: up to **{opt['max_food']:.3f}M lbs** (your target: {min_food:.3f})  \n"
+                f"Try lowering the target for whichever metric is furthest from its maximum."
+            )
         else:
             st.caption(
                 f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
