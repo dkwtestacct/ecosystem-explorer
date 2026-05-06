@@ -112,7 +112,9 @@ The metric cards are grouped into four labeled sections separated by horizontal 
 
 ---
 
-## 🌿 Ecological (four columns)
+## 🌿 Ecological (two rows)
+
+The Ecological section is laid out in two rows: a 3-column row with **Flood Risk Reduction**, **Temperature Change**, and **Runoff Volume**, followed by a 2-column row with **Carbon Sequestration** and a placeholder card reserved for a future metric.
 
 ### Flood Risk Reduction
 
@@ -158,6 +160,7 @@ The metric cards are grouped into four labeled sections separated by horizontal 
 | **Data source** | Provisional regional rates in `CARBON_SEQ_RATES` (`app.py`): Food Forest (41) = 3.5 tons CO2e/acre/yr, Green Infrastructure (90) = 2.0 tons CO2e/acre/yr, High Density (24) = 0.0 tons CO2e/acre/yr. Rates derived from USDA/IPCC temperate North America benchmarks. |
 | **Delta** | Baseline is **0** because only newly converted pixels are counted (consistent with the food production approach). The delta sub-label restates the value as `+N tons CO2e/yr vs base`. |
 | **Caveats** | Directional only — provisional regional rates not locally calibrated for Minneapolis; actual sequestration varies significantly by site conditions, vegetation age, soil, and management. Refine with locally calibrated values when available. |
+| **User overrides** | The sidebar `⚙️ Advanced Settings` expander exposes sliders for the Food Forest rate (0.5–18.0, default 3.5) and Green Infrastructure rate (0.5–5.0, default 2.0). Slider values flow into `evaluate_scenario` via `carbon_rate_ff` / `carbon_rate_gi` kwargs and override the `CARBON_SEQ_RATES` defaults for the live scenario. |
 
 ---
 
@@ -350,6 +353,25 @@ At optimization time, the app generates ~10,000 random candidate scenarios and e
 - **Key caveat:** The optimizer is intended to identify promising regions of the scenario space — the most efficient tradeoffs, not a single best answer. Always verify suggestions using the main sliders.
 - **High Density artifacts:** Suggestions containing small amounts of High Density development (e.g. 2–10%) may reflect surrogate approximation error rather than a genuine optimum — verify by setting High Density to 0% when applying suggestions.
 - **When to Verify:** Once you find a promising scenario in the optimizer, manually set the main sliders to those exact values. This runs the full pixel-by-pixel biophysical calculation — not the surrogate approximation — and gives you the full pixel-by-pixel model results rather than the surrogate approximation.
+
+---
+
+### Advanced Settings (expander)
+
+Collapsed by default. Contains input assumptions that most users will not need to adjust but that domain experts may want to customize.
+
+| Control | Detail |
+|---------|--------|
+| **Food Forest carbon rate (tons CO2e/acre/yr)** | Slider 0.5–18.0, default 3.5. Annual CO2e sequestration rate for food forest pixels. Published range is 1.76–18.2 tons CO2e/acre/yr for temperate managed food forests (USDA NRCS COMET-Planner 2022). Default of 3.5 is a conservative midpoint. |
+| **Green Infrastructure carbon rate (tons CO2e/acre/yr)** | Slider 0.5–5.0, default 2.0. Annual CO2e sequestration rate for woody wetland pixels. Based on IPCC temperate wetland estimates. |
+
+**Caveats:**
+- Both rates are in tons CO2e (already converted from carbon — multiply tons C by 3.667 to get tons CO2e).
+- Rates assume mature, well-established systems. Newly planted food forests and wetlands will sequester significantly less in early years.
+- Adjust these values to reflect locally calibrated data or to test sensitivity to rate assumptions.
+- Only converted pixels are counted — pre-existing land cover is not included.
+
+**Sources:** USDA NRCS COMET-Planner (2022); IPCC Land Use Land Use Change and Forestry guidelines; Udawatta & Jose (2012) Agroforestry Systems Vol. 86.
 
 ---
 
