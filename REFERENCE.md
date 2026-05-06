@@ -267,7 +267,7 @@ Buttons work by writing to `st.session_state` and calling `st.rerun()`.
 | **Min food production (M lbs)** | Slider 0.0–MAX_FOOD, step 0.01. Minimum acceptable food production. |
 | **Optimize button** | Samples ~10,000 random (pct, GI%, FF%) combinations, predicts outcomes with the RF surrogate, filters to those meeting all three minimums, computes the Pareto front, de-duplicates near-identical points, and returns up to 5 top suggestions ranked by a balanced score: `flood/100 + HM/1.1 + food/MAX_FOOD`. |
 
-Most slider interactions use a dense precomputed lookup table (2,541 entries) for near-instant response. The surrogate model is separate and is used specifically for the optimizer's rapid scenario search.
+All normal slider interactions use the dense precomputed lookup table (2,541 entries) for near-instant response. The surrogate model is only used when the user explicitly runs the optimizer.
 
 | Layer | Purpose | Scale |
 |-------|---------|-------|
