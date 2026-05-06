@@ -950,17 +950,17 @@ with st.sidebar.container(border=True):
         _opt_res = st.session_state.optimized_results
         if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
             st.sidebar.warning("No scenarios found — try lowering the targets.")
+            st.session_state.just_optimized = False
         else:
             st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
+            st.session_state.just_optimized = True
 
 st.sidebar.divider()
 
-with st.sidebar.expander("📖 Methodology & Data Sources"):
-    try:
-        with open("REFERENCE.md", "r") as f:
-            st.markdown(f.read())
-    except FileNotFoundError:
-        st.caption("Reference documentation not found.")
+st.sidebar.link_button(
+    "📖 Methodology & Data Sources",
+    "https://github.com/dkw-testing/ecosystem-explorer/blob/main/REFERENCE.md"
+)
 
 # ── Main panel ─────────────────────────────────────────────────────────────────
 lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
@@ -1025,23 +1025,23 @@ _runoff_delta_str = (
 _people_fed = results['people_fed']
 _food_delta_str = f"feeds ~{_people_fed:,} people" if _people_fed > 0 else "—"
 
-st.markdown("#### 📊 Outcomes")
-r1c1, r1c2, r1c3 = st.columns(3)
-r1c1.metric(
+st.markdown("#### 🌿 Ecological")
+eco1, eco2, eco3 = st.columns(3)
+eco1.metric(
     "Flood Risk Reduction",
     f"{results['flood_reduction']:.1f}",
     delta=_flood_delta_str,
     delta_color="normal" if abs(_flood_delta) >= 0.1 else "off",
     help="SCS Curve Number based. Higher = less runoff."
 )
-r1c2.metric(
+eco2.metric(
     "Temperature Change",
     _cooling_label,
     delta="cooler vs baseline" if _cooling_f > 0.1 else ("warmer than baseline" if _cooling_f < -0.1 else "no change"),
     delta_color="normal" if _cooling_f > 0.1 else ("inverse" if _cooling_f < -0.1 else "off"),
     help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
-r1c3.metric(
+eco3.metric(
     "Runoff Volume",
     _fmt_runoff(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
@@ -1053,41 +1053,56 @@ r1c3.metric(
     )
 )
 
-r2c1, r2c2 = st.columns(2)
-r2c1.metric(
+st.divider()
+
+st.markdown("#### 👥 Human & Social")
+hs1, hs2, hs3 = st.columns(3)
+hs1.metric("Nature Access", "Coming soon", help="Share of residents within walking distance of green space. Not yet modeled.")
+hs2.metric("Mental Health Index", "Coming soon", help="Composite indicator linking green space exposure to mental health outcomes. Not yet modeled.")
+hs3.metric("NDVI", "Coming soon", help="Normalized Difference Vegetation Index — satellite-derived greenness. Not yet modeled.")
+
+st.divider()
+
+st.markdown("#### 💵 Economic")
+econ1, econ2 = st.columns(2)
+econ1.metric(
     "Food Production",
     _fmt_food(results['food_mln_lbs']),
     delta=_food_delta_str,
     delta_color="normal" if _people_fed > 0 else "off",
     help="Counts only food forest pixels created by this scenario (not pre-existing deciduous forest). Yield estimated at 11,500 lbs/acre/year based on NatCap food forest benchmarks — treat as directional only."
 )
-r2c2.metric(
+econ2.metric(
     "Est. Implementation Cost",
     f"${results['total_cost_mln']:.1f}M",
     delta=None,
     help="Total cost based on $/acre sliders × converted acreage. Rough order-of-magnitude only."
 )
 
+st.divider()
+
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
-st.subheader("Cost Effectiveness",
-             help="Shows N/A when the scenario performs worse than the baseline on that metric, "
-                  "or when no land is converted. Try adding more green infrastructure or food "
-                  "forest to see values appear.")
-r3c1, r3c2, r3c3 = st.columns(3)
-r3c1.metric(
+st.markdown("#### 📊 Cost Effectiveness")
+st.caption(
+    "Shows N/A when the scenario performs worse than the baseline on that metric, "
+    "or when no land is converted. Try adding more green infrastructure or food "
+    "forest to see values appear."
+)
+ceff1, ceff2, ceff3 = st.columns(3)
+ceff1.metric(
     "Cost / Acre-Foot Prevented",
     _fmt_ce(ce['cost_per_acft']),
     delta=None,
     help=f"Implementation cost divided by runoff reduction vs baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario increases runoff or has no cost."
 )
-r3c2.metric(
+ceff2.metric(
     "Cost / °F Cooling",
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
     delta_color="off" if _cooling_f <= 0 else "normal",
     help="Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement."
 )
-r3c3.metric(
+ceff3.metric(
     "Cost / 1,000 People Fed",
     _fmt_ce(ce['cost_per_1k_people']),
     delta=None,
@@ -1130,6 +1145,15 @@ with st.expander("Assumptions and limitations"):
 
 st.divider()
 
+if st.session_state.get("just_optimized"):
+    banner_col, dismiss_col = st.columns([5, 1])
+    with banner_col:
+        st.success("✅ Optimization complete — open the Tradeoff Analysis tab to see results and apply a scenario.")
+    with dismiss_col:
+        if st.button("✕", key="dismiss_optimize_banner"):
+            st.session_state.just_optimized = False
+            st.rerun()
+
 tab1, tab2, tab3 = st.tabs(["📊 Scenario", "🔀 Tradeoff Analysis", "🗺️ Map View"])
 
 with tab1:
@@ -1137,6 +1161,8 @@ with tab1:
     render_matplotlib(plot_bars(results))
 
 with tab2:
+    if st.session_state.get('just_optimized'):
+        st.session_state.just_optimized = False
     st.subheader("Tradeoff Space")
     st.caption("Each point is a scenario. Better outcomes are toward the top-right — higher cooling and lower flood risk. Bubble size shows food production for saved and optimized scenarios.")
     st.plotly_chart(plot_tradeoff(
