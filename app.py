@@ -787,8 +787,8 @@ st.sidebar.header("Land Use Scenario")
 pct_converted = st.sidebar.slider(
     "% of developed land to convert", 0, 50,
     key="slider_pct_converted",
+    help="Note: real conversions depend on land availability and existing uses — not all developed land is freely convertible."
 )
-st.sidebar.caption("Note: real conversions depend on land availability and existing uses.")
 
 st.sidebar.subheader("Conversion Mix")
 st.sidebar.caption(
@@ -828,7 +828,7 @@ else:
 st.sidebar.divider()
 
 # ── Cost sliders ──────────────────────────────────────────────────────────────
-st.sidebar.subheader("💰 Implementation Costs ($/acre)")
+st.sidebar.subheader("Implementation Costs ($/acre)")
 cost_gi = st.sidebar.slider("Green Infrastructure ($/acre)", 5_000, 150_000,
                               DEFAULT_COST_GI, 5_000,
                               help="Typical range: $20,000–$100,000/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.")
@@ -894,14 +894,20 @@ if st.sidebar.button("🏙️ High Density Development",
     st.rerun()
 
 st.sidebar.divider()
-st.sidebar.subheader("🔍 Find Best Scenario")
-st.sidebar.caption("Set minimum targets and let the surrogate model find optimal inputs.")
+st.sidebar.subheader("🔍 Smart Scenario Search")
+
+st.sidebar.caption(
+    "Uses a surrogate model trained on ~10,000 precomputed full-resolution "
+    "scenarios to rapidly explore new land-use combinations and identify "
+    "promising tradeoff scenarios."
+)
+
+st.sidebar.caption(
+    "Optimization currently targets flood reduction, cooling, and food production. "
+    "Cost and heat-priority placement are not yet included in the surrogate."
+)
 
 with st.sidebar.container(border=True):
-    st.caption(
-        "Optimization currently targets flood, cooling, and food only. "
-        "Cost and heat-exposure mode are not yet included in the surrogate."
-    )
 
     min_flood  = st.slider("Min flood reduction", 0, 90, 30, 5)
     min_cool_f = st.slider(
@@ -917,6 +923,10 @@ with st.sidebar.container(border=True):
         "💡 The optimizer uses a surrogate model — a fast approximation trained on pre-computed "
         "scenarios — to search 10,000 candidate strategies in seconds. Results are approximate; "
         "verify promising scenarios using the main sliders."
+    )
+    st.sidebar.caption(
+        "💡 Slider results use a precomputed lookup table for instant response. "
+        "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
     )
 
     if st.button("Optimize"):
@@ -1004,7 +1014,7 @@ _food_delta_str = f"feeds ~{_people_fed:,} people" if _people_fed > 0 else "—"
 st.markdown("#### 📊 Outcomes")
 r1c1, r1c2, r1c3 = st.columns(3)
 r1c1.metric(
-    "🟦 Flood Risk Reduction",
+    "Flood Risk Reduction",
     f"{results['flood_reduction']:.1f}",
     delta=_flood_delta_str,
     delta_color="normal" if abs(_flood_delta) >= 0.1 else "off",
@@ -1016,14 +1026,14 @@ _cooling_delta_str = (
     else f"{abs(_cooling_f):.1f}°F warmer  (HM {results['mean_hm']:.4f} vs {BASELINE_HM})"
 )
 r1c2.metric(
-    "🌡️ Temperature Change",
+    "Temperature Change",
     _cooling_label,
     delta=_cooling_delta_str,
     delta_color="normal" if abs(_cooling_f) >= 0.1 else "off",
     help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
 r1c3.metric(
-    "🟦 Runoff Volume",
+    "Runoff Volume",
     _fmt_runoff(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
     delta_color="off" if _runoff_negligible else "normal",
@@ -1036,40 +1046,40 @@ r1c3.metric(
 
 r2c1, r2c2 = st.columns(2)
 r2c1.metric(
-    "🟩 Food Production",
+    "Food Production",
     _fmt_food(results['food_mln_lbs']),
     delta=_food_delta_str,
     delta_color="normal" if _people_fed > 0 else "off",
     help="Counts only food forest pixels created by this scenario (not pre-existing deciduous forest). Yield estimated at 11,500 lbs/acre/year based on NatCap food forest benchmarks — treat as directional only."
 )
 r2c2.metric(
-    "⬜ Est. Implementation Cost",
+    "Est. Implementation Cost",
     f"${results['total_cost_mln']:.1f}M",
     delta=None,
     help="Total cost based on $/acre sliders × converted acreage. Rough order-of-magnitude only."
 )
 
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
-st.subheader("💰 Cost Effectiveness",
+st.subheader("Cost Effectiveness",
              help="Shows N/A when the scenario performs worse than the baseline on that metric, "
                   "or when no land is converted. Try adding more green infrastructure or food "
                   "forest to see values appear.")
 r3c1, r3c2, r3c3 = st.columns(3)
 r3c1.metric(
-    "⬜ Cost / Acre-Foot Prevented",
+    "Cost / Acre-Foot Prevented",
     _fmt_ce(ce['cost_per_acft']),
     delta=None,
     help=f"Implementation cost divided by runoff reduction vs baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario increases runoff or has no cost."
 )
 r3c2.metric(
-    "⬜ Cost / °F Cooling",
+    "Cost / °F Cooling",
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
     delta_color="off" if _cooling_f <= 0 else "normal",
     help="Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement."
 )
 r3c3.metric(
-    "⬜ Cost / 1,000 People Fed",
+    "Cost / 1,000 People Fed",
     _fmt_ce(ce['cost_per_1k_people']),
     delta=None,
     help="Implementation cost divided by (people fed ÷ 1,000). N/A if no food production."
