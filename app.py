@@ -1095,6 +1095,14 @@ eco3.metric(
     )
 )
 
+mode_text = "prioritizing high heat-exposure areas" if use_heat_priority else "using random placement"
+st.write(
+    f"This scenario converts **{pct_converted}%** of developed land, allocating "
+    f"**{green_infrastructure_pct}%** to green infrastructure, "
+    f"**{food_forest_pct}%** to food forest, and **{pct_highdensity}%** "
+    f"to high-density development, {mode_text}."
+)
+
 st.divider()
 
 st.markdown("#### 👥 Human & Social")
@@ -1109,10 +1117,9 @@ hs3.metric(
     delta=_ndvi_delta_str,
     delta_color="normal" if abs(_ndvi_delta) >= 0.001 else "off",
     help=(
-        "City-wide mean synthetic NDVI averaged across all land cover pixels (0–1, higher = more vegetation). "
-        "Computed as a synthetic proxy from land cover types (not from satellite imagery): woody wetlands 0.70, "
-        "deciduous forest 0.75, developed 0.10–0.30, other natural 0.60. "
-        f"Baseline: {BASELINE_NDVI:.3f}. Treat as directional only until real NDVI rasters are integrated."
+        "Synthetic vegetation index (0–1) estimated from land cover type — not derived from satellite imagery. "
+        "Higher = more vegetation. Woody wetlands: 0.70, Food Forest: 0.75, High Density: 0.10–0.30. "
+        "Treat as directional only."
     )
 )
 
@@ -1162,15 +1169,6 @@ ceff3.metric(
     _fmt_ce(ce['cost_per_1k_people']),
     delta=None,
     help="Implementation cost divided by (people fed ÷ 1,000). N/A if no food production."
-)
-
-mode_text = "prioritizing high heat-exposure areas" if use_heat_priority else "using random placement"
-
-st.write(
-    f"This scenario converts **{pct_converted}%** of developed land, allocating "
-    f"**{green_infrastructure_pct}%** to green infrastructure, "
-    f"**{food_forest_pct}%** to food forest, and **{pct_highdensity}%** "
-    f"to high-density development, {mode_text}."
 )
 
 st.caption(
