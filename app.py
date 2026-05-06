@@ -430,7 +430,7 @@ BASELINE_RUNOFF_ACRE_FEET = cn_to_runoff_acre_feet(
 @st.cache_resource
 def train_surrogate(_scenario_df, data_dir_flood, data_dir_cooling):
     X = _scenario_df[['pct_converted', 'green_infrastructure_pct', 'food_forest_pct']]
-    y = _scenario_df[['flood_reduction', 'mean_hm', 'food_mln_lbs']]
+    y = _scenario_df[['flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet']]
     model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X, y)
     return model
@@ -443,7 +443,8 @@ def predict_with_uncertainty(model, X):
     """
     Return mean prediction and 10th/90th percentile bands across RF trees.
     X should be shape (n_samples, n_features).
-    Returns: mean (n,3), lower (n,3), upper (n,3)
+    Returns: mean (n,4), lower (n,4), upper (n,4)
+    Columns: [flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet]
     """
     tree_preds = np.array([tree.predict(X) for tree in model.estimators_])
     # tree_preds shape: (n_trees, n_samples, n_outputs)
@@ -474,7 +475,7 @@ def plot_feature_importance(model):
     plt.tight_layout()
     return fig
 
-def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000):
+def optimize_scenario(surrogate, min_flood, min_cool, min_food, max_runoff, n_samples=10000):
     """Use the surrogate to find efficient tradeoff scenarios meeting the given constraints."""
     rng = np.random.default_rng(42)
     pct_converted = rng.integers(0, 51, n_samples)
@@ -490,7 +491,8 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, n_samples=10000)
     meets = (
         (mean_preds[:, 0] >= min_flood) &
         (mean_preds[:, 1] >= min_cool)  &
-        (mean_preds[:, 2] >= min_food)
+        (mean_preds[:, 2] >= min_food)  &
+        (mean_preds[:, 3] <= max_runoff)
     )
     if not meets.any():
         return {
@@ -909,15 +911,27 @@ st.sidebar.caption(
 
 with st.sidebar.container(border=True):
 
-    min_flood  = st.slider("Min flood reduction", 0, 90, 30, 5)
+    min_flood  = st.slider("Min flood reduction", 0, 90, 30, 5,
+        help="Corresponds to the Flood Risk Reduction metric card. Baseline is 24.3. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.")
     min_cool_f = st.slider(
         "Min cooling (°F vs baseline)",
         min_value=-1.0, max_value=round((1.0 - BASELINE_HM) * HM_TO_FAHRENHEIT, 1),
         value=0.1, step=0.1,
-        help="Minimum temperature improvement vs baseline. Converted to HM units internally."
+        help="Corresponds to the Temperature Change metric card. Set to 0.1 for at least 0.1°F cooler than baseline."
     )
     min_cool   = BASELINE_HM + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
-    min_food   = st.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01)
+    min_food   = st.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01,
+        help="Corresponds directly to the Food Production metric card value in M lbs/yr.")
+    _runoff_min = float(scenario_df['runoff_acre_feet'].min())
+    _runoff_max = float(scenario_df['runoff_acre_feet'].max())
+    max_runoff = st.slider(
+        "Max allowable runoff (ac-ft)",
+        min_value=round(_runoff_min),
+        max_value=round(_runoff_max),
+        value=round(BASELINE_RUNOFF_ACRE_FEET),
+        step=100,
+        help=f"Scenarios must stay below this runoff volume. Baseline is approximately {BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft."
+    )
 
     st.caption(
         "💡 The optimizer uses a surrogate model — a fast approximation trained on pre-computed "
@@ -932,7 +946,7 @@ with st.sidebar.container(border=True):
     if st.button("Optimize"):
         with st.spinner("Searching for most efficient tradeoff scenarios..."):
             st.session_state.optimized_results = optimize_scenario(
-                surrogate, min_flood, min_cool, min_food)
+                surrogate, min_flood, min_cool, min_food, max_runoff)
         _opt_res = st.session_state.optimized_results
         if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
             st.sidebar.warning("No scenarios found — try lowering the targets.")
