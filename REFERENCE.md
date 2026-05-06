@@ -86,7 +86,14 @@ The app combines three computational layers to balance realism and responsivenes
 
 ---
 
-## Metric Cards — Row 1 (three columns)
+## Metric Cards
+
+The metric cards are grouped into four labeled sections separated by horizontal dividers:
+**🌿 Ecological**, **👥 Human & Social**, **💵 Economic**, and **📊 Cost Effectiveness**.
+
+---
+
+## 🌿 Ecological (three columns)
 
 ### Flood Risk Reduction
 
@@ -123,7 +130,19 @@ The app combines three computational layers to balance realism and responsivenes
 
 ---
 
-## Metric Cards — Row 2 (two columns)
+## 👥 Human & Social (three columns — placeholders)
+
+These cards are stubs for upcoming metrics; all currently display "Coming soon" with no underlying computation.
+
+| Card | Intended meaning |
+|------|------------------|
+| **Nature Access** | Share of residents within walking distance of green space. Not yet modeled. |
+| **Mental Health Index** | Composite indicator linking green-space exposure to mental health outcomes. Not yet modeled. |
+| **NDVI** | Normalized Difference Vegetation Index — satellite-derived greenness. Not yet modeled. |
+
+---
+
+## 💵 Economic (two columns)
 
 ### Food Production
 
@@ -149,7 +168,7 @@ The app combines three computational layers to balance realism and responsivenes
 
 ---
 
-## Metric Cards — Row 3: Cost-Effectiveness Ratios
+## 📊 Cost Effectiveness (three columns)
 
 All three ratios show **N/A** when the denominator is zero or negative (no improvement vs baseline) or when total cost is zero (no conversions).
 
@@ -269,7 +288,7 @@ Buttons work by writing to `st.session_state` and calling `st.rerun()`.
 | **Min flood reduction** | Slider 0–90, step 5. Minimum acceptable Flood Risk Reduction index. |
 | **Min cooling (°F vs baseline)** | Slider −1.0 to ~3.0°F, step 0.1, default 0.1°F. Minimum acceptable temperature improvement vs baseline. Converted to HM units internally via `BASELINE_HM + min_cool_f / 4.0` before being passed to the surrogate. Note: HM 0.30 ≈ 0.1°F cooler than baseline. |
 | **Min food production (M lbs)** | Slider 0.0–MAX_FOOD, step 0.01. Minimum acceptable food production. |
-| **Optimize button** | Samples ~10,000 random (pct, GI%, FF%) combinations, predicts outcomes with the RF surrogate, filters to those meeting all three minimums, computes the Pareto front, de-duplicates near-identical points, and returns up to 5 top suggestions ranked by a balanced score: `flood/100 + HM/1.1 + food/MAX_FOOD`. |
+| **Optimize button** | Samples ~10,000 random (pct, GI%, FF%) combinations, predicts outcomes with the RF surrogate, filters to those meeting all three minimums, computes the Pareto front, de-duplicates near-identical points, and returns up to 5 top suggestions ranked by a balanced score: `flood/100 + HM/1.1 + food/MAX_FOOD`. On success, a sidebar success message and a dismissible main-panel banner ("✅ Optimization complete — open the Tradeoff Analysis tab…") are shown until the user clicks the dismiss button or the Tradeoff Analysis tab renders. |
 
 All normal slider interactions use the dense precomputed lookup table (2,541 entries) for near-instant response. The surrogate model is only used when the user explicitly runs the optimizer.
 
