@@ -216,6 +216,35 @@ BASELINE_FOOD_MLN_LBS = 0.0
 
 
 # ── Metric translation helpers ─────────────────────────────────────────────────
+# NDVI proxy: synthetic per-NLCD greenness values (0–1, higher = denser vegetation).
+# Not derived from satellite imagery — assigned by land cover type as a placeholder
+# until real NDVI rasters are integrated.
+NDVI_PROXY = {
+    90: 0.70,  # woody wetlands (green infrastructure)
+    41: 0.75,  # deciduous forest (food forest proxy)
+    24: 0.10,  # developed, high intensity
+    23: 0.15,  # developed, medium intensity
+    22: 0.20,  # developed, low intensity
+    21: 0.30,  # developed, open space
+}
+NDVI_OTHER_DEVELOPED = 0.25  # any developed code not explicitly listed
+NDVI_OTHER_NATURAL   = 0.60  # any non-developed natural cover
+_DEVELOPED_ALL = {21, 22, 23, 24}
+
+
+def compute_mean_ndvi(lulc_array):
+    """Area-weighted mean NDVI proxy across all valid (non-NODATA) pixels."""
+    valid = lulc_array[lulc_array != NODATA]
+    if valid.size == 0:
+        return float('nan')
+    ndvi_map = np.full(valid.shape, NDVI_OTHER_NATURAL, dtype=np.float32)
+    for code in _DEVELOPED_ALL:
+        ndvi_map[valid == code] = NDVI_OTHER_DEVELOPED
+    for code, val in NDVI_PROXY.items():
+        ndvi_map[valid == code] = val
+    return float(round(ndvi_map.mean(), 4))
+
+
 def cn_to_runoff_acre_feet(mean_cn, total_developed_acres):
     """
     SCS curve number method: convert mean CN to direct runoff depth for a design storm,
@@ -365,6 +394,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'runoff_acre_feet':         cn_to_runoff_acre_feet(mean_cn, total_developed_acres),
         'mean_hm':                  mean_hm,
         'cooling_f':                hm_to_fahrenheit_cooling(mean_hm),
+        'mean_ndvi':                compute_mean_ndvi(scenario_lulc),
         'food_mln_lbs':             food_mln_lbs,
         'people_fed':               food_to_people_fed(food_mln_lbs),
         'total_cost_mln':           total_cost_mln,
@@ -425,6 +455,8 @@ MAX_COOL  = 1.1
 BASELINE_RUNOFF_ACRE_FEET = cn_to_runoff_acre_feet(
     BASELINE_CN, len(developed_pixels) * PIXEL_AREA_ACRES
 )
+
+BASELINE_NDVI = compute_mean_ndvi(cooling_lulc)
 
 # ── Surrogate model ────────────────────────────────────────────────────────────
 @st.cache_resource
@@ -1059,7 +1091,20 @@ st.markdown("#### 👥 Human & Social")
 hs1, hs2, hs3 = st.columns(3)
 hs1.metric("Nature Access", "—", help="Share of residents within walking distance of green space. Not yet modeled.")
 hs2.metric("Mental Health Index", "—", help="Composite indicator linking green space exposure to mental health outcomes. Not yet modeled.")
-hs3.metric("NDVI", "—", help="Normalized Difference Vegetation Index — a measure of vegetation density. Computed as a synthetic proxy from land cover types. Higher is better. Coming soon.")
+_ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
+_ndvi_delta_str = f"{_ndvi_delta:+.3f} vs baseline" if abs(_ndvi_delta) >= 0.001 else "no change"
+hs3.metric(
+    "NDVI",
+    f"{results['mean_ndvi']:.3f}",
+    delta=_ndvi_delta_str,
+    delta_color="normal" if abs(_ndvi_delta) >= 0.001 else "off",
+    help=(
+        "Normalized Difference Vegetation Index — a measure of vegetation density (0–1, higher = more vegetation). "
+        "Computed as a synthetic proxy from land cover types (not from satellite imagery): woody wetlands 0.70, "
+        "deciduous forest 0.75, developed 0.10–0.30, other natural 0.60. "
+        f"Baseline: {BASELINE_NDVI:.3f}. Treat as directional only until real NDVI rasters are integrated."
+    )
+)
 
 st.divider()
 
