@@ -198,7 +198,7 @@ A plain-language summary of the current scenario settings, displayed below the m
 | Field | Detail |
 |-------|--------|
 | **Type** | Number inputs, range 0–100, step 5; must sum to exactly 100 |
-| **Effect** | Splits the converted pixels into three groups. Green Infrastructure → NLCD 90 (woody wetlands). Food Forest → NLCD 41 (deciduous forest proxy). High Density → NLCD 24 (developed, high intensity). |
+| **Effect** | Splits the converted pixels into three groups. Green Infrastructure → NLCD 90 (woody wetlands). Food Forest → NLCD 41 (deciduous forest proxy). High Density → NLCD 24 (developed, high intensity). Note: Green Infrastructure here refers specifically to woody wetlands (NLCD 90), not the full range of GI interventions such as rain gardens, bioswales, permeable pavement, or green roofs. |
 | **Caveats** | High Density auto-fills as the remainder but can be manually overridden. The app shows a warning and stops if the three values do not sum to 100. |
 
 ---
@@ -244,19 +244,36 @@ Buttons work by writing to `st.session_state` and calling `st.rerun()`.
 | **Min food production (M lbs)** | Slider 0.0–MAX_FOOD, step 0.01. Minimum acceptable food production. |
 | **Optimize button** | Samples ~10,000 random (pct, GI%, FF%) combinations, predicts outcomes with the RF surrogate, filters to those meeting all three minimums, computes the Pareto front, de-duplicates near-identical points, and returns up to 5 top suggestions ranked by a balanced score: `flood/100 + HM/1.1 + food/MAX_FOOD`. |
 
+Most slider interactions use a dense precomputed lookup table (2,541 entries) for near-instant response. The surrogate model is separate and is used specifically for the optimizer's rapid scenario search.
+
+| Layer | Purpose | Scale |
+|-------|---------|-------|
+| Full raster simulations | Generate training data for the surrogate | 90 scenarios (6 conversion levels × 15 allocation combinations) |
+| Dense lookup table | Fast interactive slider response | 2,541 pre-computed entries |
+| RF surrogate + optimizer | Rapid scenario search at query time | Predicts ~10,000 random samples per search |
+
 **Why use a Surrogate? (The Speed Factor)**
-The full biophysical model examines every pixel in the city to calculate runoff and cooling. While accurate, this is too slow for real-time exploration. The surrogate is a fast-response approximation trained on 150 full simulations, learning the main relationships well enough to approximate outcomes for 10,000 candidate scenarios in under a second — enabling real-time scenario search.
+The surrogate model is trained on 90 full-resolution raster simulations spanning different land-use allocations. It learns how allocation choices affect flood runoff, cooling, and food production, then rapidly estimates outcomes for new combinations without rerunning the full pixel-by-pixel model each time. This enables fast exploration of the tradeoff space while remaining grounded in detailed simulations.
+
+The full biophysical model examines every pixel in the city to calculate runoff and cooling. While accurate, this is too slow for real-time exploration. The surrogate is a fast-response approximation trained on those simulations, learning the main relationships well enough to approximate outcomes for 10,000 candidate scenarios in under a second — enabling real-time scenario search.
+
+The 10,000-sample search size is a practical choice that provides good coverage of the three-dimensional input space at interactive speed, not a statistically derived figure. A larger sample would give marginally better coverage, but the surrogate approximation itself is the binding constraint on accuracy — the model can only be as accurate as the patterns it learned during training. Increasing the sample size beyond 10,000 would not meaningfully improve result quality.
 
 **How it thinks (Pattern Recognition)**
-The surrogate uses a Random Forest — an ensemble of 100 decision trees, each acting like an independent expert advisor. Each advisor examines your slider settings and makes a prediction based on patterns it observed during training.
+The surrogate uses a Random Forest regression model — an ensemble of many decision trees, which can be thought of as learned flowcharts built from approximately 90 precomputed full-resolution simulations spanning different land-use allocations. Each tree learns patterns in how land-use allocations affect runoff, cooling, and food production.
 
-- **The Prediction:** The average across all 100 advisors.
-- **The Uncertainty (Error Bars):** When all 100 advisors agree, error bars are small. When they disagree significantly, error bars grow — signalling that the model is extrapolating into territory it has seen little of during training.
+For a new scenario, each tree generates an independent estimate based on learned threshold rules (for example, how outcomes change when green infrastructure exceeds a certain percentage). The forest then combines those estimates into a final prediction and uncertainty range.
+
+The surrogate does not replace the underlying raster model; it approximates the relationships learned from those full-resolution simulations to enable rapid exploration of new scenarios.
+
+- **The Prediction:** The average across all trees.
+- **The Uncertainty (Error Bars):** When all trees agree, error bars are small. When they disagree significantly, error bars grow — signalling that the model is extrapolating into territory it has seen little of during training.
 
 **How to read the Optimizer results**
 - **The Diamonds:** The most likely outcome predicted by the surrogate for each suggested scenario.
 - **The Uncertainty Bars:** The spread of predictions from the model's internal decision trees. A wider bar means the model is less certain about that specific outcome. If a diamond appears to meet your minimum goals but its uncertainty bars cross the threshold line, there is a meaningful chance that scenario could underperform in a full simulation.
 - **Key caveat:** The optimizer is intended to identify promising regions of the scenario space rather than a single globally optimal solution. Always verify suggestions using the main sliders.
+- **High Density artifacts:** Suggestions containing small amounts of High Density development (e.g. 2–10%) may reflect surrogate approximation error rather than a genuine optimum — verify by setting High Density to 0% when applying suggestions.
 - **When to Verify:** Once you find a promising scenario in the optimizer, manually set the main sliders to those exact values. This runs the full pixel-by-pixel biophysical calculation — not the surrogate approximation — and gives you the full pixel-by-pixel model results rather than the surrogate approximation.
 
 ---
