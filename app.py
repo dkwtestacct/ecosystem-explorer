@@ -1007,6 +1007,7 @@ if lookup_key in lookup_table and not use_heat_priority:
     # Food values are recomputed live — lookup table may predate the n_food_pixels fix
     results['food_mln_lbs'] = _fresh['food_mln_lbs']
     results['people_fed']   = _fresh['people_fed']
+    results['mean_ndvi']    = _fresh['mean_ndvi']
     # Recompute cost with current cost sliders (lookup table used default costs)
     results['total_cost_mln'] = compute_cost(
         results['n_wet'], results['n_for'], results['n_hd'],
