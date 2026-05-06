@@ -1057,13 +1057,13 @@ st.divider()
 
 st.markdown("#### 👥 Human & Social")
 hs1, hs2, hs3 = st.columns(3)
-hs1.metric("Nature Access", "Coming soon", help="Share of residents within walking distance of green space. Not yet modeled.")
-hs2.metric("Mental Health Index", "Coming soon", help="Composite indicator linking green space exposure to mental health outcomes. Not yet modeled.")
-hs3.metric("NDVI", "Coming soon", help="Normalized Difference Vegetation Index — satellite-derived greenness. Not yet modeled.")
+hs1.metric("Nature Access", "—", help="Share of residents within walking distance of green space. Not yet modeled.")
+hs2.metric("Mental Health Index", "—", help="Composite indicator linking green space exposure to mental health outcomes. Not yet modeled.")
+hs3.metric("NDVI", "—", help="Normalized Difference Vegetation Index — a measure of vegetation density. Computed as a synthetic proxy from land cover types. Higher is better. Coming soon.")
 
 st.divider()
 
-st.markdown("#### 💵 Economic")
+st.markdown("#### 📈 Economic")
 econ1, econ2 = st.columns(2)
 econ1.metric(
     "Food Production",
