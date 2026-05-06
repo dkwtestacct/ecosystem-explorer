@@ -341,7 +341,9 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
                       seed=42, use_heat_priority=False,
                       cost_gi=DEFAULT_COST_GI,
                       cost_ff=DEFAULT_COST_FF,
-                      cost_hd=DEFAULT_COST_HD):
+                      cost_hd=DEFAULT_COST_HD,
+                      carbon_rate_ff=None,
+                      carbon_rate_gi=None):
     """
     Convert a random (or equity-weighted) sample of developed pixels to the specified
     land use mix, then compute flood risk, urban cooling, food production, and cost.
@@ -400,9 +402,11 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     n_food_pixels = int(((scenario_lulc == CODE_FOOD_FOREST) & (cooling_lulc != CODE_FOOD_FOREST)).sum())
     food_mln_lbs  = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
 
+    rate_ff = CARBON_SEQ_RATES[CODE_FOOD_FOREST] if carbon_rate_ff is None else carbon_rate_ff
+    rate_gi = CARBON_SEQ_RATES[CODE_GREEN_INFRA] if carbon_rate_gi is None else carbon_rate_gi
     carbon_tons_co2_yr = round(
-        n_for * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_FOOD_FOREST]
-        + n_wet * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_GREEN_INFRA]
+        n_for * PIXEL_AREA_ACRES * rate_ff
+        + n_wet * PIXEL_AREA_ACRES * rate_gi
         + n_hd  * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_HIGH_DENSITY], 1
     )
 
@@ -1018,6 +1022,27 @@ with st.sidebar.container(border=True):
 
 st.sidebar.divider()
 
+with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
+    st.slider(
+        "Food Forest carbon rate (tons CO2e/acre/yr)",
+        0.5, 18.0, 3.5, 0.5,
+        key="carbon_rate_ff",
+        help="Provisional range 1.76–18.2 (USDA NRCS 2022). Default 3.5 is conservative for a mature system."
+    )
+    st.slider(
+        "Green Infrastructure carbon rate (tons CO2e/acre/yr)",
+        0.5, 5.0, 2.0, 0.5,
+        key="carbon_rate_gi",
+        help="Provisional range for woody wetlands. Default 2.0 tons CO2e/acre/yr."
+    )
+    st.caption(
+        "These are provisional regional estimates. Adjust to reflect locally calibrated "
+        "values or sensitivity test assumptions. See Methodology & Data Sources for "
+        "sources and caveats."
+    )
+
+st.sidebar.divider()
+
 st.sidebar.link_button(
     "📖 Methodology & Data Sources",
     "https://github.com/dkw-testing/ecosystem-explorer/blob/main/REFERENCE.md"
@@ -1030,7 +1055,9 @@ if lookup_key in lookup_table and not use_heat_priority:
     results = lookup_table[lookup_key].copy()
     _fresh = evaluate_scenario(
         pct_converted, green_infrastructure_pct, food_forest_pct,
-        use_heat_priority=False, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd
+        use_heat_priority=False, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
+        carbon_rate_ff=st.session_state.carbon_rate_ff,
+        carbon_rate_gi=st.session_state.carbon_rate_gi,
     )
     results['scenario_lulc'] = _fresh['scenario_lulc']
     # Food values are recomputed live — lookup table may predate the n_food_pixels fix
@@ -1046,7 +1073,9 @@ if lookup_key in lookup_table and not use_heat_priority:
 else:
     results = evaluate_scenario(
         pct_converted, green_infrastructure_pct, food_forest_pct,
-        use_heat_priority=use_heat_priority, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd
+        use_heat_priority=use_heat_priority, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
+        carbon_rate_ff=st.session_state.carbon_rate_ff,
+        carbon_rate_gi=st.session_state.carbon_rate_gi,
     )
 
 # ── Top metric cards ───────────────────────────────────────────────────────────
@@ -1095,7 +1124,7 @@ _carbon_delta_str = (
 )
 
 st.markdown("#### 🌿 Ecological")
-eco1, eco2, eco3, eco4 = st.columns(4)
+eco1, eco2, eco3 = st.columns(3)
 eco1.metric(
     "Flood Risk Reduction",
     f"{results['flood_reduction']:.1f}",
@@ -1121,6 +1150,8 @@ eco3.metric(
         "Lower volume = more retention."
     )
 )
+
+eco4, eco5 = st.columns(2)
 eco4.metric(
     "Carbon Sequestration",
     f'{results["carbon_tons_co2_yr"]:,.0f} tons CO2e/yr',
@@ -1133,13 +1164,10 @@ eco4.metric(
         "Treat as directional only — refine with locally calibrated values."
     )
 )
-
-mode_text = "prioritizing high heat-exposure areas" if use_heat_priority else "using random placement"
-st.write(
-    f"This scenario converts **{pct_converted}%** of developed land, allocating "
-    f"**{green_infrastructure_pct}%** to green infrastructure, "
-    f"**{food_forest_pct}%** to food forest, and **{pct_highdensity}%** "
-    f"to high-density development, {mode_text}."
+eco5.metric(
+    "—",
+    "—",
+    help="Reserved for a future ecological metric."
 )
 
 st.divider()
@@ -1221,7 +1249,8 @@ with st.expander("Assumptions and limitations"):
         "- Note: the model assumes all developed land is available for conversion — real projects would need site-by-site feasibility checks.\n"
         "- Food production uses a benchmark yield estimate and should be treated as directional.\n"
         "- Spatial placement is stylized (random or heat-weighted), not based on real siting constraints or corridors.\n"
-        "- Optimized results come from a surrogate model and should be verified."
+        "- Optimized results come from a surrogate model and should be verified.\n"
+        "- Carbon sequestration rates are provisional regional estimates (USDA NRCS/IPCC). Adjust in Advanced Settings in the sidebar."
     )
 
 st.divider()
@@ -1234,6 +1263,14 @@ if st.session_state.get("just_optimized"):
         if st.button("✕", key="dismiss_optimize_banner"):
             st.session_state.just_optimized = False
             st.rerun()
+
+mode_text = "prioritizing high heat-exposure areas" if use_heat_priority else "using random placement"
+st.write(
+    f"This scenario converts **{pct_converted}%** of developed land, allocating "
+    f"**{green_infrastructure_pct}%** to green infrastructure, "
+    f"**{food_forest_pct}%** to food forest, and **{pct_highdensity}%** "
+    f"to high-density development, {mode_text}."
+)
 
 tab1, tab2, tab3 = st.tabs(["📊 Scenario", "🔀 Tradeoff Analysis", "🗺️ Map View"])
 
