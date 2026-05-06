@@ -1034,16 +1034,11 @@ r1c1.metric(
     delta_color="normal" if abs(_flood_delta) >= 0.1 else "off",
     help="SCS Curve Number based. Higher = less runoff."
 )
-_cooling_delta_str = (
-    "No change" if abs(_cooling_f) < 0.1
-    else f"+{_cooling_f:.1f}°F cooler  (HM {results['mean_hm']:.4f} vs {BASELINE_HM})" if _cooling_f > 0
-    else f"{abs(_cooling_f):.1f}°F warmer  (HM {results['mean_hm']:.4f} vs {BASELINE_HM})"
-)
 r1c2.metric(
     "Temperature Change",
     _cooling_label,
-    delta=_cooling_delta_str,
-    delta_color="normal" if abs(_cooling_f) >= 0.1 else "off",
+    delta="cooler vs baseline" if _cooling_f > 0.1 else ("warmer than baseline" if _cooling_f < -0.1 else "no change"),
+    delta_color="normal" if _cooling_f > 0.1 else ("inverse" if _cooling_f < -0.1 else "off"),
     help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
 r1c3.metric(
