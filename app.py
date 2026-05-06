@@ -1053,7 +1053,7 @@ _runoff_negligible = abs(_runoff_prevented) < 1.0
 _runoff_delta_str = (
     "No change vs baseline" if _runoff_negligible
     else f"-{_runoff_prevented:,.0f} ac-ft prevented" if _runoff_prevented > 0
-    else f"{abs(_runoff_prevented):,.0f} ac-ft more than baseline"
+    else f"{abs(_runoff_prevented):,.0f} ac-ft above baseline"
 )
 _people_fed = results['people_fed']
 _food_delta_str = f"feeds ~{_people_fed:,} people" if _people_fed > 0 else "—"
@@ -1100,7 +1100,7 @@ hs3.metric(
     delta=_ndvi_delta_str,
     delta_color="normal" if abs(_ndvi_delta) >= 0.001 else "off",
     help=(
-        "Normalized Difference Vegetation Index — a measure of vegetation density (0–1, higher = more vegetation). "
+        "City-wide mean synthetic NDVI averaged across all land cover pixels (0–1, higher = more vegetation). "
         "Computed as a synthetic proxy from land cover types (not from satellite imagery): woody wetlands 0.70, "
         "deciduous forest 0.75, developed 0.10–0.30, other natural 0.60. "
         f"Baseline: {BASELINE_NDVI:.3f}. Treat as directional only until real NDVI rasters are integrated."
