@@ -80,6 +80,10 @@ The app combines three computational layers to balance realism and responsivenes
 3. **Runtime surrogate optimization (~10,000 candidate scenarios)**  
    During optimization, the app generates thousands of new candidate land-use combinations and evaluates them using the Random Forest surrogate model rather than the full raster simulation. This enables rapid search across a much wider range of scenarios than the lookup table covers.
 
+**Pixel-Level Simulation:** Each pixel is cross-referenced against biophysical lookup tables — one for curve numbers (mapping land cover × soil group) and one for heat mitigation values. These calculations were run for all 2,541 precomputed scenarios at startup to ensure hydrological and thermal accuracy at the pixel level.
+
+**Scenario Lookup:** When you adjust the sliders, the app performs an instantaneous lookup of these precomputed city-wide averages. This allows near-instant exploration of the scenario space without rerunning the underlying pixel-level calculations.
+
 ---
 
 ## Metric Cards — Row 1 (three columns)
