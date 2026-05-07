@@ -813,35 +813,6 @@ def render_matplotlib(fig):
 
 
 # ── Matplotlib plots ───────────────────────────────────────────────────────────
-def plot_bars(results):
-    """Three bar charts: flood risk, cooling, food production vs baseline."""
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 7), dpi=120)
-
-    panels = [
-        (ax1, 'Flood Risk',      'Mean Curve Number\n(lower = less runoff)',
-         BASELINE_CN,            results['mean_cn'],          (0, 100),  True),
-        (ax2, 'Urban Cooling',   'Heat Mitigation Index\n(higher = more cooling)',
-         BASELINE_HM,            results['mean_hm'],          (0, 1.1),  True),
-        (ax3, 'Food Production', 'Food Production\n(million lbs/year)',
-         BASELINE_FOOD_MLN_LBS,  results['food_mln_lbs'],     (0, max(MAX_FOOD * 1.1, 0.01)), False),
-    ]
-
-    for ax, title, ylabel, baseline_val, scenario_val, ylim, draw_baseline in panels:
-        ax.bar([0, 1], [baseline_val, scenario_val], color=['steelblue', 'purple'])
-        if draw_baseline:
-            ax.axhline(baseline_val, color='gray', linestyle='--', alpha=0.5)
-        ax.set_title(title, fontsize=18, fontweight='bold', pad=15)
-        ax.set_ylabel(ylabel, fontsize=13)
-        ax.set_xlabel('')
-        ax.set_ylim(*ylim)
-        ax.set_xticks([0, 1])
-        ax.set_xticklabels(['Baseline', 'This Scenario'], fontsize=13)
-        ax.tick_params(axis='y', labelsize=12)
-
-    plt.tight_layout(pad=3.0)
-    return fig
-
-
 def plot_spatial_map(scenario_lulc, baseline_lulc):
     h, w = scenario_lulc.shape
     rgb = np.full((h, w, 3), mcolors.to_rgb(CHANGE_COLORS['Unchanged']))
@@ -1617,7 +1588,48 @@ tab1, tab2, tab3 = st.tabs(["Scenario", "Tradeoff Analysis", "Map View"])
 
 with tab1:
     st.subheader("Outcome Comparison")
-    render_matplotlib(plot_bars(results))
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.bar(['Baseline', 'This Scenario'],
+               [BASELINE_CN, results['mean_cn']],
+               color=['#5b8db8', '#7b4fa6'])
+        ax.axhline(BASELINE_CN, color='gray', linestyle='--', alpha=0.5)
+        ax.set_title('Flood Risk', fontsize=16, fontweight='bold')
+        ax.set_ylabel('Mean Curve Number\n(lower = less runoff)', fontsize=12)
+        ax.set_ylim(0, 100)
+        ax.tick_params(labelsize=12)
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+
+    with col2:
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.bar(['Baseline', 'This Scenario'],
+               [BASELINE_HM, results['mean_hm']],
+               color=['#5b8db8', '#7b4fa6'])
+        ax.axhline(BASELINE_HM, color='gray', linestyle='--', alpha=0.5)
+        ax.set_title('Urban Cooling', fontsize=16, fontweight='bold')
+        ax.set_ylabel('Heat Mitigation Index\n(higher = more cooling)', fontsize=12)
+        ax.set_ylim(0, 1.1)
+        ax.tick_params(labelsize=12)
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+
+    with col3:
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.bar(['Baseline', 'This Scenario'],
+               [BASELINE_FOOD_MLN_LBS, results['food_mln_lbs']],
+               color=['#5b8db8', '#7b4fa6'])
+        ax.set_title('Food Production', fontsize=16, fontweight='bold')
+        ax.set_ylabel('Food Production\n(million lbs/year)', fontsize=12)
+        ax.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
+        ax.tick_params(labelsize=12)
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
 
 with tab2:
     # NOTE: We deliberately do NOT auto-clear `just_optimized` here. Streamlit
@@ -1723,10 +1735,8 @@ with tab2:
             st.dataframe(opt[display_cols].rename(columns=_col_rename),
                          use_container_width=True, hide_index=True)
             st.caption(
-                "⚠️ Suggestions showing small amounts of High Density development (e.g. 2–10%) "
-                "are likely surrogate model artifacts rather than genuinely efficient tradeoff allocations. "
-                "When applying a suggestion, consider setting High Density to 0% and redistributing "
-                "to Green Infrastructure or Food Forest."
+                "Note: suggestions with small amounts of High Density (2–10%) may "
+                "reflect surrogate approximation — consider setting HD to 0% when applying."
             )
 
             st.markdown("#### What drives the surrogate?")
@@ -1734,47 +1744,32 @@ with tab2:
             render_matplotlib(plot_feature_importance(surrogate))
 
             st.markdown("#### Apply a suggestion")
-            best = opt.iloc[0]
+            st.caption(
+                "Suggestions are ranked by balanced score across flood, cooling, "
+                "and food metrics. #1 is the top-ranked scenario."
+            )
 
-            # ── Apply button: loads best scenario into sliders ─────────────────
-            apply_col, info_col = st.columns([1, 3])
-            with apply_col:
-                if st.button("Use best scenario"):
-                    st.session_state._pending_pct = int(round(best.pct_converted / 5) * 5)
-                    st.session_state._pending_gi  = int(round(best.green_infrastructure_pct / 5) * 5)
-                    st.session_state._pending_ff  = int(round(best.food_forest_pct / 5) * 5)
-                    if st.session_state._pending_gi + st.session_state._pending_ff > 100:
-                        st.session_state._pending_ff = 100 - st.session_state._pending_gi
-                    st.rerun()
+            btn_cols = st.columns(len(opt))
+            for i, (_, row) in enumerate(opt.iterrows()):
+                with btn_cols[i]:
+                    prefix = "✓ " if st.session_state.get("applied_suggestion") == i else ""
+                    label = f"{prefix}#{i+1}: {int(row.pct_converted)}% conv"
+                    if st.button(label, key=f"apply_opt_{i}"):
+                        st.session_state._pending_pct = int(round(row.pct_converted / 5) * 5)
+                        st.session_state._pending_gi  = int(round(row.green_infrastructure_pct / 5) * 5)
+                        st.session_state._pending_ff  = int(round(row.food_forest_pct / 5) * 5)
+                        if st.session_state._pending_gi + st.session_state._pending_ff > 100:
+                            st.session_state._pending_ff = 100 - st.session_state._pending_gi
+                        st.session_state.applied_suggestion = i
+                        st.session_state._show_apply_toast = True
+                        st.rerun()
 
-            with info_col:
-                flood_unc = f" [{best.flood_lower:.1f}–{best.flood_upper:.1f}]" if 'flood_lower' in best else ""
-                hm_unc    = f" [{best.hm_lower:.4f}–{best.hm_upper:.4f}]"       if 'hm_lower'    in best else ""
-                food_unc  = f" [{best.food_lower:.3f}–{best.food_upper:.3f}]"   if 'food_lower'  in best else ""
-                st.info(
-                    f"**Best balanced scenario:** Convert {int(best.pct_converted)}% of developed land — "
-                    f"{int(best.green_infrastructure_pct)}% Green Infrastructure, "
-                    f"{int(best.food_forest_pct)}% Food Forest, "
-                    f"{int(best.pct_highdensity)}% High Density.  \n"
-                    f"Predicted: flood **{best.flood_reduction:.1f}**{flood_unc} · "
-                    f"cooling HM **{best.mean_hm:.4f}**{hm_unc} · "
-                    f"food **{best.food_mln_lbs:.3f}M lbs**{food_unc}"
-                )
-
-            # Additional apply buttons for all suggestions
-            if len(opt) > 1:
-                st.caption("Apply other suggestions:")
-                btn_cols = st.columns(len(opt))
-                for i, (_, row) in enumerate(opt.iterrows()):
-                    with btn_cols[i]:
-                        label = f"#{i+1}: {int(row.pct_converted)}% conv"
-                        if st.button(label, key=f"apply_opt_{i}"):
-                            st.session_state._pending_pct = int(round(row.pct_converted / 5) * 5)
-                            st.session_state._pending_gi  = int(round(row.green_infrastructure_pct / 5) * 5)
-                            st.session_state._pending_ff  = int(round(row.food_forest_pct / 5) * 5)
-                            if st.session_state._pending_gi + st.session_state._pending_ff > 100:
-                                st.session_state._pending_ff = 100 - st.session_state._pending_gi
-                            st.rerun()
+            # One-shot confirmation toast: rendered on the rerun immediately
+            # following an Apply click, then cleared so it doesn't persist
+            # through unrelated reruns.
+            if st.session_state.get("_show_apply_toast"):
+                st.success("Applied — check the Scenario tab to see updated results.")
+                st.session_state._show_apply_toast = False
 
             st.divider()
 
