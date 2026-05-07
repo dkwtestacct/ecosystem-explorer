@@ -498,7 +498,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 2
+SCENARIO_SCHEMA_VERSION = 3
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -509,6 +509,15 @@ REQUIRED_TARGET_COLUMNS = [
 ]
 
 
+def _compute_carbon(n_wet, n_for, n_hd):
+    """Carbon sequestration at default rates — used at scenario-grid build time."""
+    return round(
+        n_for * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_FOOD_FOREST]
+        + n_wet * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_GREEN_INFRA]
+        + n_hd  * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_HIGH_DENSITY], 1
+    )
+
+
 @st.cache_data
 def compute_scenario_grid(data_dir_flood, data_dir_cooling, schema_version=SCENARIO_SCHEMA_VERSION):
     rows = []
@@ -516,8 +525,19 @@ def compute_scenario_grid(data_dir_flood, data_dir_cooling, schema_version=SCENA
         for gi in range(0, 101, 25):
             for ff in range(0, 101, 25):
                 if gi + ff <= 100:
-                    r = evaluate_scenario(pct, gi, ff, seed=42)
-                    rows.append({k: v for k, v in r.items() if k != 'scenario_lulc'})
+                    result = evaluate_scenario(pct, gi, ff, seed=42)
+                    row = {k: v for k, v in result.items() if k != 'scenario_lulc'}
+                    # Explicit recomputation guarantees the surrogate-target
+                    # columns exist regardless of evaluate_scenario's return.
+                    row['carbon_tons_co2_yr'] = _compute_carbon(
+                        row['n_wet'], row['n_for'], row['n_hd']
+                    )
+                    nature_access_pct, people_with_nature_access = calculate_nature_access(
+                        result['scenario_lulc'], pop_count_raster
+                    )
+                    row['nature_access_pct'] = nature_access_pct
+                    row['people_with_nature_access'] = people_with_nature_access
+                    rows.append(row)
     df = pd.DataFrame(rows)
     missing = [c for c in REQUIRED_TARGET_COLUMNS if c not in df.columns]
     if missing:
@@ -531,13 +551,35 @@ def compute_scenario_grid(data_dir_flood, data_dir_cooling, schema_version=SCENA
 @st.cache_data
 def compute_lookup_table(data_dir_flood, data_dir_cooling, schema_version=SCENARIO_SCHEMA_VERSION):
     """Pre-compute results for every valid slider position (step=5) for instant response."""
+    # 2,541 valid (pct, gi, ff) combinations × distance_transform_edt is slow,
+    # so show a progress bar so the user knows the app hasn't hung.
+    total = sum(
+        1
+        for pct in range(0, 51, 5)
+        for gi in range(0, 101, 5)
+        for ff in range(0, 101, 5)
+        if gi + ff <= 100
+    )
+    progress_msg = st.empty()
+    progress_msg.info(f"Pre-computing {total:,} scenarios (one-time, then cached)...")
+    progress = st.progress(0)
+
     table = {}
+    done = 0
     for pct in range(0, 51, 5):
         for gi in range(0, 101, 5):
             for ff in range(0, 101, 5):
                 if gi + ff <= 100:
-                    r = evaluate_scenario(pct, gi, ff, seed=42)
-                    entry = {k: v for k, v in r.items() if k != 'scenario_lulc'}
+                    result = evaluate_scenario(pct, gi, ff, seed=42)
+                    entry = {k: v for k, v in result.items() if k != 'scenario_lulc'}
+                    entry['carbon_tons_co2_yr'] = _compute_carbon(
+                        entry['n_wet'], entry['n_for'], entry['n_hd']
+                    )
+                    nature_access_pct, people_with_nature_access = calculate_nature_access(
+                        result['scenario_lulc'], pop_count_raster
+                    )
+                    entry['nature_access_pct'] = nature_access_pct
+                    entry['people_with_nature_access'] = people_with_nature_access
                     missing = [c for c in REQUIRED_TARGET_COLUMNS if c not in entry]
                     if missing:
                         raise RuntimeError(
@@ -545,6 +587,12 @@ def compute_lookup_table(data_dir_flood, data_dir_cooling, schema_version=SCENAR
                             f"check evaluate_scenario's return dict."
                         )
                     table[(pct, gi, ff)] = entry
+                    done += 1
+                    if done % 50 == 0 or done == total:
+                        progress.progress(done / total)
+
+    progress.empty()
+    progress_msg.empty()
     return table
 
 
