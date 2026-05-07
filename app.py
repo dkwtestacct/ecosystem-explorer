@@ -221,7 +221,56 @@ def load_data(data_dir_flood, data_dir_cooling):
  cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
  equity_weights) = load_data(DATA_DIR_FLOOD, DATA_DIR_COOLING)
 
+# ── Population raster (for Nature Access metric) ───────────────────────────────
+# Temporary uniform population for testing — replace with WorldPop raster
+# (call load_population_data below) once data/population/minneapolis_pop_2020.tif
+# is in place. POPULATION_DATA_AVAILABLE stays False until then so the card's
+# help text can flag that the value reflects placeholder weighting.
+pop_count_raster = np.ones(cooling_lulc.shape, dtype=np.float32)
+POPULATION_DATA_AVAILABLE = False
+
+
+def load_population_data(pop_path, target_shape):
+    """Load a population-count raster, resampled to target_shape with bilinear."""
+    with rasterio.open(pop_path) as src:
+        data = src.read(
+            1, out_shape=target_shape,
+            resampling=rasterio.enums.Resampling.bilinear,
+        )
+        data = data.astype(float)
+        data[data < 0] = 0
+        return data
+
+# Nature Access: share of residents within ~800 m of natural / green land cover.
+# Implemented as a Euclidean distance transform of the green-pixel mask, NOT a
+# street-network walk model — a proximity proxy, treated as directional only.
+NATURE_CODES      = [41, 42, 43, 52, 71, 90, 95]   # forest / shrub / grass / wetland classes
+ACCESS_DISTANCE_M = 800
+PIXEL_SIZE_M      = 30
+
+
+def calculate_nature_access(scenario_lulc, pop_count_raster):
+    """
+    Returns (access_pct, people_with_access).
+    pop_count_raster must be per-pixel **counts** (not density). WorldPop "ppp"
+    layers are already counts; clip_worldpop.py preserves that through the
+    area-ratio rescaling.
+    """
+    from scipy.ndimage import distance_transform_edt
+    nature_mask        = np.isin(scenario_lulc, NATURE_CODES)
+    distance_to_nature = distance_transform_edt(~nature_mask) * PIXEL_SIZE_M
+    access_mask        = distance_to_nature <= ACCESS_DISTANCE_M
+    valid_pop          = pop_count_raster > 0
+    total_pop          = pop_count_raster[valid_pop].sum()
+    if total_pop <= 0:
+        return 0.0, 0
+    pop_with_access = pop_count_raster[access_mask & valid_pop].sum()
+    access_pct      = 100 * pop_with_access / total_pop
+    return round(access_pct, 1), int(pop_with_access)
+
+
 BASELINE_FOOD_MLN_LBS = 0.0
+BASELINE_NATURE_ACCESS_PCT, _ = calculate_nature_access(cooling_lulc, pop_count_raster)
 
 
 # ── Metric translation helpers ─────────────────────────────────────────────────
@@ -410,6 +459,8 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         + n_hd  * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_HIGH_DENSITY], 1
     )
 
+    nat_pct, nat_people = calculate_nature_access(scenario_lulc, pop_count_raster)
+
     total_developed_acres = len(developed_pixels) * PIXEL_AREA_ACRES
     total_cost_mln = compute_cost(n_wet, n_for, n_hd, cost_gi, cost_ff, cost_hd)
 
@@ -428,6 +479,8 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'cooling_f':                hm_to_fahrenheit_cooling(mean_hm),
         'mean_ndvi':                compute_mean_ndvi(scenario_lulc),
         'carbon_tons_co2_yr':       carbon_tons_co2_yr,
+        'nature_access_pct':        nat_pct,
+        'people_with_nature_access': nat_people,
         'food_mln_lbs':             food_mln_lbs,
         'people_fed':               food_to_people_fed(food_mln_lbs),
         'total_cost_mln':           total_cost_mln,
@@ -495,7 +548,15 @@ BASELINE_NDVI = compute_mean_ndvi(cooling_lulc)
 @st.cache_resource
 def train_surrogate(_scenario_df, data_dir_flood, data_dir_cooling):
     X = _scenario_df[['pct_converted', 'green_infrastructure_pct', 'food_forest_pct']]
-    y = _scenario_df[['flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet']]
+    # Nature Access is included as a sixth output, but with an important caveat:
+    # the surrogate maps (pct, gi%, ff%) → nature_access_pct, which discards the
+    # spatial geometry that drives the metric. Random vs heat-priority placement,
+    # and the location of converted pixels relative to existing parks and
+    # population centers, all change the actual buffer overlap — but the
+    # surrogate cannot see any of that. Treat surrogate predictions of
+    # nature_access_pct as an indicative trend, not a precise spatial estimate.
+    y = _scenario_df[['flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet',
+                      'carbon_tons_co2_yr', 'nature_access_pct']]
     model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X, y)
     return model
@@ -508,8 +569,9 @@ def predict_with_uncertainty(model, X):
     """
     Return mean prediction and 10th/90th percentile bands across RF trees.
     X should be shape (n_samples, n_features).
-    Returns: mean (n,4), lower (n,4), upper (n,4)
-    Columns: [flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet]
+    Returns: mean (n,6), lower (n,6), upper (n,6)
+    Columns: [flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet,
+              carbon_tons_co2_yr, nature_access_pct]
     """
     tree_preds = np.array([tree.predict(X) for tree in model.estimators_])
     # tree_preds shape: (n_trees, n_samples, n_outputs)
@@ -540,7 +602,7 @@ def plot_feature_importance(model):
     plt.tight_layout()
     return fig
 
-def optimize_scenario(surrogate, min_flood, min_cool, min_food, max_runoff, n_samples=10000):
+def optimize_scenario(surrogate, min_flood, min_cool, min_food, max_runoff, min_carbon=0, n_samples=10000):
     """Use the surrogate to find efficient tradeoff scenarios meeting the given constraints."""
     rng = np.random.default_rng(42)
     pct_converted = rng.integers(0, 51, n_samples)
@@ -557,14 +619,16 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, max_runoff, n_sa
         (mean_preds[:, 0] >= min_flood) &
         (mean_preds[:, 1] >= min_cool)  &
         (mean_preds[:, 2] >= min_food)  &
-        (mean_preds[:, 3] <= max_runoff)
+        (mean_preds[:, 3] <= max_runoff) &
+        (mean_preds[:, 4] >= min_carbon)
     )
     if not meets.any():
         return {
             'found': False,
-            'max_flood': round(float(mean_preds[:, 0].max()), 1),
-            'max_cool':  round(float(mean_preds[:, 1].max()), 4),
-            'max_food':  round(float(mean_preds[:, 2].max()), 3),
+            'max_flood':  round(float(mean_preds[:, 0].max()), 1),
+            'max_cool':   round(float(mean_preds[:, 1].max()), 4),
+            'max_food':   round(float(mean_preds[:, 2].max()), 3),
+            'max_carbon': round(float(mean_preds[:, 4].max()), 1),
         }
 
     candidates = pd.DataFrame({
@@ -580,6 +644,9 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, max_runoff, n_sa
         'food_mln_lbs':             mean_preds[meets, 2].round(3),
         'food_lower':               lower_preds[meets, 2].round(3),
         'food_upper':               upper_preds[meets, 2].round(3),
+        'carbon_tons_co2_yr':       mean_preds[meets, 4].round(1),
+        'carbon_lower':             lower_preds[meets, 4].round(1),
+        'carbon_upper':             upper_preds[meets, 4].round(1),
     })
     candidates['pct_highdensity'] = (
         100 - candidates['green_infrastructure_pct'] - candidates['food_forest_pct']
@@ -970,8 +1037,8 @@ st.sidebar.caption(
 )
 
 st.sidebar.caption(
-    "Optimization currently targets flood reduction, cooling, and food production. "
-    "Cost and heat-priority placement are not yet included in the surrogate."
+    "Optimization currently targets flood reduction, cooling, food production, and carbon "
+    "sequestration. Cost and heat-priority placement are not yet included in the surrogate."
 )
 
 with st.sidebar.container(border=True):
@@ -997,6 +1064,11 @@ with st.sidebar.container(border=True):
         step=100,
         help=f"Scenarios must stay below this runoff volume. Baseline is approximately {BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft."
     )
+    min_carbon = st.slider(
+        "Min carbon sequestration (tons CO2e/yr)",
+        0, int(scenario_df['carbon_tons_co2_yr'].max()), 0, 100,
+        help="Corresponds to the Carbon Sequestration metric card. Counts only converted pixels; baseline is 0."
+    )
 
     st.caption(
         "💡 The optimizer uses a surrogate model — a fast approximation trained on pre-computed "
@@ -1011,7 +1083,7 @@ with st.sidebar.container(border=True):
     if st.button("Optimize"):
         with st.spinner("Searching for most efficient tradeoff scenarios..."):
             st.session_state.optimized_results = optimize_scenario(
-                surrogate, min_flood, min_cool, min_food, max_runoff)
+                surrogate, min_flood, min_cool, min_food, max_runoff, min_carbon=min_carbon)
         _opt_res = st.session_state.optimized_results
         if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
             st.sidebar.warning("No scenarios found — try lowering the targets.")
@@ -1065,6 +1137,8 @@ if lookup_key in lookup_table and not use_heat_priority:
     results['people_fed']   = _fresh['people_fed']
     results['mean_ndvi']    = _fresh['mean_ndvi']
     results['carbon_tons_co2_yr'] = _fresh['carbon_tons_co2_yr']
+    results['nature_access_pct']  = _fresh['nature_access_pct']
+    results['people_with_nature_access'] = _fresh['people_with_nature_access']
     # Recompute cost with current cost sliders (lookup table used default costs)
     results['total_cost_mln'] = compute_cost(
         results['n_wet'], results['n_for'], results['n_hd'],
@@ -1174,7 +1248,35 @@ st.divider()
 
 st.markdown("#### 👥 Human & Social")
 hs1, hs2, hs3 = st.columns(3)
-hs1.metric("Nature Access", "—", help="Share of residents within walking distance of green space. Not yet modeled.")
+_nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
+_nature_help = (
+    "Share of residents within ~800m of natural or green land cover "
+    "(Euclidean distance, not street network). A proximity metric — "
+    "not a true walk accessibility model."
+) if POPULATION_DATA_AVAILABLE else (
+    "Currently using placeholder uniform population weighting — real "
+    "WorldPop 2020 population raster will be integrated once processing "
+    "is complete. Proximity metric only, not street-network walking distance."
+)
+hs1.metric(
+    "Nature Access",
+    f'{results["nature_access_pct"]:.1f}% of residents',
+    delta=f"{_nature_delta:+.1f} percentage points vs baseline",
+    delta_color="normal" if abs(_nature_delta) >= 0.1 else "off",
+    help=_nature_help,
+)
+if not POPULATION_DATA_AVAILABLE:
+    st.caption(
+        "⚠️ Nature Access currently uses uniform population weighting — "
+        "proximity to green space only, not weighted by where people live. "
+        "Real population data loading."
+    )
+if use_heat_priority:
+    hs1.caption(
+        "Heat-weighted placement concentrates conversions in higher-intensity "
+        "developed areas, which tend to have lower existing nature access — "
+        "improving equity of green space distribution."
+    )
 hs2.metric("Mental Health Index", "—", help="Composite indicator linking green space exposure to mental health outcomes. Not yet modeled.")
 _ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
 _ndvi_delta_str = f"{_ndvi_delta:+.3f} vs base" if abs(_ndvi_delta) >= 0.001 else "no change"
@@ -1310,26 +1412,30 @@ with tab2:
         opt = st.session_state.optimized_results
         if isinstance(opt, dict) and not opt.get('found'):
             st.warning(
-                f"No scenarios found meeting all three targets simultaneously.  \n"
+                f"No scenarios found meeting all targets simultaneously.  \n"
                 f"Maximum achievable values across all candidates:  \n"
                 f"- Flood reduction: up to **{opt['max_flood']}** (your target: {min_flood})  \n"
                 f"- Cooling: up to **{opt['max_cool']:.4f} HM** (your target: {min_cool:.4f})  \n"
                 f"- Food: up to **{opt['max_food']:.3f}M lbs** (your target: {min_food:.3f})  \n"
+                f"- Carbon: up to **{opt['max_carbon']:,.0f} tons CO2e/yr** (your target: {min_carbon:,})  \n"
                 f"Try lowering the target for whichever metric is furthest from its maximum."
             )
         else:
             st.caption(
                 f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
-                f"food ≥ {min_food:.3f}M lbs — ranked by balanced score. "
+                f"food ≥ {min_food:.3f}M lbs, carbon ≥ {min_carbon:,} tons CO2e/yr "
+                "— ranked by balanced score. "
                 "Numbers are surrogate model predictions with 10th–90th percentile uncertainty bands."
             )
 
             # Display table with uncertainty columns
             display_cols = ['scenario_name', 'pct_converted', 'green_infrastructure_pct',
-                            'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs']
+                            'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs',
+                            'carbon_tons_co2_yr']
             # Add uncertainty columns if present
             unc_cols = [c for c in ['flood_lower', 'flood_upper', 'hm_lower', 'hm_upper',
-                                    'food_lower', 'food_upper'] if c in opt.columns]
+                                    'food_lower', 'food_upper',
+                                    'carbon_lower', 'carbon_upper'] if c in opt.columns]
             _col_rename = {
                 'scenario_name':            'Scenario',
                 'pct_converted':            'Total Conversion (%)',
@@ -1338,6 +1444,7 @@ with tab2:
                 'flood_reduction':          'Flood Index',
                 'mean_hm':                  'Cooling HM',
                 'food_mln_lbs':             'Food (M lbs)',
+                'carbon_tons_co2_yr':       'Carbon (tons CO2e/yr)',
             }
 
             st.markdown("#### Candidate scenarios")
