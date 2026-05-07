@@ -1266,7 +1266,7 @@ hs1.metric(
     help=_nature_help,
 )
 if not POPULATION_DATA_AVAILABLE:
-    st.caption(
+    hs1.caption(
         "⚠️ Nature Access currently uses uniform population weighting — "
         "proximity to green space only, not weighted by where people live. "
         "Real population data loading."
