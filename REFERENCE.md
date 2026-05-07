@@ -116,7 +116,7 @@ The metric cards are grouped into four labeled sections separated by horizontal 
 
 ## 🌿 Ecological (two rows)
 
-The Ecological section is laid out in two rows: a 3-column row with **Flood Risk Reduction**, **Temperature Change**, and **Runoff Volume**, followed by a 2-column row with **Carbon Sequestration** and a placeholder card reserved for a future metric.
+The Ecological section is laid out in two rows: a 3-column row with **Flood Risk Reduction**, **Temperature Change**, and **Runoff Volume**, followed by a 2-column row with **Carbon Sequestration** and **NDVI**.
 
 ### Flood Risk Reduction
 
@@ -166,15 +166,29 @@ The Ecological section is laid out in two rows: a 3-column row with **Flood Risk
 
 ---
 
-## 👥 Human & Social (three columns)
+### NDVI
 
-Mental Health Index remains a placeholder. Nature Access and NDVI are implemented.
+| Field | Detail |
+|-------|--------|
+| **Represents** | Mean Normalized Difference Vegetation Index across all valid pixels (0–1, higher = denser vegetation). Now lives in the Ecological section's second row alongside Carbon Sequestration. |
+| **Formula** | NDVI is assigned per NLCD code as a synthetic proxy — woody wetlands (90) = 0.70, deciduous forest (41) = 0.75, high-density (24) = 0.10, NLCD 23 = 0.15, NLCD 22 = 0.20, NLCD 21 = 0.30, other developed = 0.25, other natural = 0.60. The card value reports the area-weighted mean. |
+| **Delta** | Difference vs `BASELINE_NDVI`, computed once at startup from the unmodified `cooling_lulc` raster. |
+| **Caveats** | Not derived from satellite imagery — placeholder until real NDVI rasters are integrated. Treat as directional only. |
+
+---
+
+## 👥 Human & Social
+
+Currently shows only **Nature Access**. NDVI moved into the Ecological section after Carbon Sequestration. Mental Health Index has been removed pending implementation — it'll be added back when there's real underlying data, not as a "—" placeholder.
 
 | Card | Status | Meaning |
 |------|--------|---------|
-| **Nature Access** | Implemented (proximity proxy) | Share of residents within ~800 m of natural / green land cover (NLCD 41, 42, 43, 52, 71, 90, 95). Computed via Euclidean distance transform — `distance_transform_edt` on `~nature_mask`, scaled by 30 m/pixel — so any pixel within 800 m of a nature pixel is "in access," and the per-pixel population counts inside that mask are summed and divided by total population. **This is a proximity proxy, not a true walk accessibility model**: it ignores street networks, barriers, slope, and crossings. Delta vs `BASELINE_NATURE_ACCESS_PCT` shown in percentage points. **Population data:** US Census 2020 block-level totals (`P1_001N`) for Hennepin County (FIPS 27053), pulled via the decennial PL API and joined to TIGER 2020 tabulation-block polygons. Each block's total population is spread uniformly across its NLCD-grid pixels, then the result is rasterized to match `data/cooling/land_use_2021.tif` exactly (CRS EPSG:26915, 30 m, 360×356). The full pipeline lives in `download_census_pop.py`. **Extent caveat:** the NLCD raster only covers a ~10.8 km × 10.7 km area centered on downtown Minneapolis (~154,000 residents in the extent), not the full city — `nature_access_pct` therefore describes that downtown / near-neighborhoods study area, not Minneapolis as a whole. |
-| **Mental Health Index** | Placeholder ("—") | Composite indicator linking green-space exposure to mental health outcomes. Not yet modeled. |
-| **NDVI** | Implemented (synthetic proxy) | Mean Normalized Difference Vegetation Index across all valid pixels (0–1, higher = denser vegetation). NDVI is assigned per NLCD code as a synthetic proxy — woody wetlands (90) = 0.70, deciduous forest (41) = 0.75, high-density (24) = 0.10, NLCD 23 = 0.15, NLCD 22 = 0.20, NLCD 21 = 0.30, other developed = 0.25, other natural = 0.60. Delta shown vs `BASELINE_NDVI` computed once at startup from the unmodified `cooling_lulc` raster. Not derived from satellite imagery — placeholder until real NDVI rasters are integrated. |
+| **Nature Access** | Implemented (proximity proxy) | Share of residents within ~800 m of natural / green land cover (NLCD 41, 42, 43, 52, 71, 90, 95). Computed via Euclidean distance transform — `distance_transform_edt` on `~nature_mask`, scaled by 30 m/pixel — so any pixel within 800 m of a nature pixel is "in access," and the per-pixel population counts inside that mask are summed and divided by total population. **This is a proximity proxy, not a true walk accessibility model**: it ignores street networks, barriers, slope, and crossings. Delta vs `BASELINE_NATURE_ACCESS_PCT` shown in percentage points. The metric value displays the percentage; "residents in the model area" framing lives in the help text. **Population data:** US Census 2020 block-level totals (`P1_001N`) for Hennepin County (FIPS 27053), pulled via the decennial PL API and joined to TIGER 2020 tabulation-block polygons. Each block's total population is spread uniformly across its NLCD-grid pixels, then the result is rasterized to match `data/cooling/land_use_2021.tif` exactly (CRS EPSG:26915, 30 m, 360×356). The full pipeline lives in `download_census_pop.py`. **Extent caveat:** the NLCD raster only covers a ~10.8 km × 10.7 km area centered on downtown Minneapolis (~154,000 residents in the extent), not the full city — `nature_access_pct` therefore describes that downtown / near-neighborhoods study area, not Minneapolis as a whole. |
+
+**Additional caveats:**
+
+- **High-Density-only conversion ties baseline.** When all converted land is High Density, Nature Access equals the baseline — no existing green space is removed by the model, so proximity to nature is unchanged. A future enhancement could model degradation of nearby green-space quality when high-density development expands.
+- **Saturation at aggressive green allocations.** At high conversion percentages (≥ 50 %) with aggressive green allocations, Nature Access may saturate around 65–66 % as the 800 m buffers from converted pixels overlap across the model area. The metric is most discriminating at lower conversion percentages where realistic planning scenarios typically operate.
 
 ---
 
@@ -428,7 +442,9 @@ The outcome of the current slider settings. Crosshair lines extend from the star
 
 ### Saved Scenarios (purple circles)
 
-Scenarios explicitly saved by clicking "Save this scenario." Bubble size scales with food production (`base + 120 × sqrt(food / MAX_FOOD)`). Hovering shows the scenario name and all three metric values.
+Scenarios explicitly saved via the **Save this scenario** button on the Tradeoff Analysis tab. Clicking the button reveals an inline name prompt — the user types a free-form label (e.g. "High GI / Low Cost") and clicks **Confirm save**. The label is stored on the scenario as `display_name` and surfaces in three places: the first column of the **Saved Scenarios** expander table, the chart hover tooltip on the purple-circle marker, and the exported CSV. If a saved entry predates the named-scenarios feature (or someone clears the input field), the table and tooltip fall back to the auto-generated `scenario_name` (e.g. "30% converted — GI 50% / FF 50%") so nothing renders blank. Bubble size scales with food production (`base + 120 × sqrt(food / MAX_FOOD)`).
+
+**CSV export:** the **Download saved scenarios as CSV** button inside the Saved Scenarios expander streams the full table (display_name first, then all stored fields) to `ecosystem_explorer_scenarios.csv` via `st.download_button`. The download runs in the browser — no file is written to the server.
 
 ---
 

@@ -193,3 +193,26 @@ print(f"\nWrote {OUT_PATH}")
 print(f"  Rows:    {len(df):,}")
 print(f"  Columns: {len(df.columns)}")
 print(f"  Total time (including app import): {time.time() - _t_import:.1f}s")
+
+# ── 4. Verification block ─────────────────────────────────────────────────────
+print("\n--- Verification ---")
+print(f"Exact row count: {len(df):,}")
+
+print("\nFirst 5 rows (key columns):")
+preview_cols = [c for c in [
+    "pct_converted", "green_infrastructure_pct", "food_forest_pct",
+    "flood_reduction", "mean_hm", "food_mln_lbs", "runoff_acre_feet",
+    "carbon_tons_co2_yr", "nature_access_pct", "mean_ndvi",
+] if c in df.columns]
+print(df[preview_cols].head(5).to_string(index=False))
+
+print("\nMin/max per output column:")
+output_cols = [c for c in [
+    "flood_reduction", "mean_hm", "food_mln_lbs", "runoff_acre_feet",
+    "carbon_tons_co2_yr", "nature_access_pct", "mean_ndvi",
+] if c in df.columns]
+header = f"  {'column':<25} {'min':>12} {'max':>12}"
+print(header)
+print("  " + "-" * (len(header) - 2))
+for col in output_cols:
+    print(f"  {col:<25} {df[col].min():>12.4f} {df[col].max():>12.4f}")

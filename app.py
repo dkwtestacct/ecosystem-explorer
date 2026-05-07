@@ -1817,14 +1817,19 @@ with tab2:
                 'cost_hd'
             ] if c in df_saved.columns]
 
-            st.dataframe(df_saved[show_cols], use_container_width=True, hide_index=True)
-
             csv = df_saved[show_cols].to_csv(index=False)
             st.download_button(
                 "Download saved scenarios as CSV",
                 csv,
                 "ecosystem_explorer_scenarios.csv",
                 "text/csv",
+                type="primary",
+            )
+
+            st.dataframe(df_saved[show_cols], use_container_width=True, hide_index=True)
+
+            st.caption(
+                "Note: saved scenarios are lost on page refresh — download the CSV to keep them."
             )
 
             if st.button("Clear saved scenarios"):

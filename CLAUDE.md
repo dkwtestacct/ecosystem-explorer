@@ -162,12 +162,12 @@ separate cache entries via the path parameters.
 - **Scenario LULC is not stored in the lookup table** — `scenario_lulc` is stripped from cached
   results (`if k != 'scenario_lulc'`) and recomputed on demand for the map view to keep memory
   usage manageable.
-- **Metric cards are grouped into four labeled sections** — 🌿 Ecological (4 cards laid out
-  in two rows to avoid label truncation: row 1 has Flood Risk Reduction, Temperature Change,
-  and Runoff Volume in 3 columns; row 2 has Carbon Sequestration plus a placeholder in
-  2 columns),
-  👥 Human & Social (Nature Access and Mental Health Index are still "—" placeholders;
-  NDVI is implemented as a synthetic per-NLCD proxy via `compute_mean_ndvi` and `NDVI_PROXY`),
+- **Metric cards are grouped into four labeled sections** — 🌿 Ecological (5 cards in two
+  rows: row 1 has Flood Risk Reduction, Temperature Change, and Runoff Volume in 3 columns;
+  row 2 has Carbon Sequestration and NDVI in 2 columns),
+  👥 Human & Social (only Nature Access for now — Mental Health Index has been removed
+  pending real implementation, and NDVI moved to Ecological since it's a vegetation
+  measure, not a social one),
   📈 Economic (2 cards), 📊 Cost Effectiveness (3 cards). Each group is separated by
   `st.divider()`. Keep this grouping when adding new metrics — place new cards in the section
   that matches their category rather than appending to a flat list.
@@ -225,7 +225,10 @@ separate cache entries via the path parameters.
   open `REFERENCE.md` on GitHub in a new tab rather than embedding the content inline. The
   GitHub URL is hardcoded; update it if the repo moves.
 - **Post-optimize banner uses `st.session_state.just_optimized`** — set to `True` on a
-  successful optimize, cleared on failure, by the dismiss-button click, or when the Tradeoff
-  Analysis tab body renders. Note: Streamlit executes every `with tabX:` block on each
-  rerun regardless of which tab is visible, so the auto-clear inside `with tab2:` fires on
-  the next rerun rather than only when the user actually switches tabs.
+  successful optimize, cleared on optimize-with-no-results or by the dismiss-X button.
+  When the flag is set, two prompts render: a large success banner under the divider and
+  an `st.info` line directly above the tab bar. **Do not auto-clear inside `with tab2:`**
+  — Streamlit executes every `with tabX:` block on every rerun regardless of which tab
+  is visible, so an auto-clear there fires on the next unrelated rerun instead of when
+  the user actually opens the tab. Streamlit has no API for detecting tab switches, so
+  the dismiss-X button (or running a new optimization) is the only way to clear the flag.
