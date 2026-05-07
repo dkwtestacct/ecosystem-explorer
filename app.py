@@ -1569,7 +1569,7 @@ with st.expander("📊 Baseline vs Scenario Comparison", expanded=False):
             return 'color: red'
         return 'color: gray'
 
-    _styled = _comparison_df.style.applymap(_color_change, subset=['Change'])
+    _styled = _comparison_df.style.map(_color_change, subset=['Change'])
     st.dataframe(_styled, use_container_width=True, hide_index=True)
 
 with st.expander("Assumptions and limitations"):
