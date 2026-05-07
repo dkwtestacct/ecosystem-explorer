@@ -283,6 +283,26 @@ BASELINE_FOOD_MLN_LBS = 0.0
 BASELINE_NATURE_ACCESS_PCT, _ = calculate_nature_access(cooling_lulc, pop_count_raster)
 
 
+# ── Urban Wellbeing Score ─────────────────────────────────────────────────────
+# Composite index combining vegetation (NDVI), urban cooling (mean HM), and
+# nature access %. Weights are *provisional* — see REFERENCE.md "Urban
+# Wellbeing Score" section for the full caveat. Defaults sum to 1.0.
+DEFAULT_WGT_NDVI    = 0.2
+DEFAULT_WGT_COOLING = 0.4
+DEFAULT_WGT_NATURE  = 0.4
+
+
+def compute_wellbeing_score(ndvi, hm, nature_pct, w_ndvi, w_cooling, w_nature):
+    """Composite wellbeing index. Inputs are normalized to 0–1 before weighting:
+    NDVI is already 0–1, HM is treated as 0–1 (theoretical max = 1.0), and
+    nature_pct (0–100) is divided by 100. Returned value rounds to 3 decimals."""
+    return round(float(
+        w_ndvi   * ndvi
+        + w_cooling * hm
+        + w_nature * nature_pct / 100.0
+    ), 3)
+
+
 # ── Metric translation helpers ─────────────────────────────────────────────────
 # NDVI proxy: synthetic per-NLCD greenness values (0–1, higher = denser vegetation).
 # Not derived from satellite imagery — assigned by land cover type as a placeholder
@@ -402,7 +422,10 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
                       cost_ff=DEFAULT_COST_FF,
                       cost_hd=DEFAULT_COST_HD,
                       carbon_rate_ff=None,
-                      carbon_rate_gi=None):
+                      carbon_rate_gi=None,
+                      w_ndvi=DEFAULT_WGT_NDVI,
+                      w_cooling=DEFAULT_WGT_COOLING,
+                      w_nature=DEFAULT_WGT_NATURE):
     """
     Convert a random (or equity-weighted) sample of developed pixels to the specified
     land use mix, then compute flood risk, urban cooling, food production, and cost.
@@ -471,6 +494,11 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 
     nat_pct, nat_people = calculate_nature_access(scenario_lulc, pop_count_raster)
 
+    mean_ndvi = compute_mean_ndvi(scenario_lulc)
+    wellbeing_score = compute_wellbeing_score(
+        mean_ndvi, mean_hm, nat_pct, w_ndvi, w_cooling, w_nature
+    )
+
     total_developed_acres = len(developed_pixels) * PIXEL_AREA_ACRES
     total_cost_mln = compute_cost(n_wet, n_for, n_hd, cost_gi, cost_ff, cost_hd)
 
@@ -487,10 +515,11 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'runoff_acre_feet':         cn_to_runoff_acre_feet(mean_cn, total_developed_acres),
         'mean_hm':                  mean_hm,
         'cooling_f':                hm_to_fahrenheit_cooling(mean_hm),
-        'mean_ndvi':                compute_mean_ndvi(scenario_lulc),
+        'mean_ndvi':                mean_ndvi,
         'carbon_tons_co2_yr':       carbon_tons_co2_yr,
         'nature_access_pct':        nat_pct,
         'people_with_nature_access': nat_people,
+        'wellbeing_score':          wellbeing_score,
         'food_mln_lbs':             food_mln_lbs,
         'people_fed':               food_to_people_fed(food_mln_lbs),
         'total_cost_mln':           total_cost_mln,
@@ -1232,6 +1261,18 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
     )
     st.caption(f"Active: {len(scenario_df):,} training scenarios.")
 
+    st.divider()
+
+    st.markdown("**Urban Wellbeing Score weights**")
+    st.caption("Weights are provisional — adjust to reflect local research priorities.")
+    wgt_ndvi    = st.slider("NDVI weight",         0.0, 1.0, DEFAULT_WGT_NDVI,    0.05, key="wgt_ndvi")
+    wgt_cooling = st.slider("Cooling weight",      0.0, 1.0, DEFAULT_WGT_COOLING, 0.05, key="wgt_cooling")
+    wgt_nature  = st.slider("Nature Access weight", 0.0, 1.0, DEFAULT_WGT_NATURE,  0.05, key="wgt_nature")
+    st.caption(
+        f"Current weights sum to {wgt_ndvi + wgt_cooling + wgt_nature:.2f} — "
+        "ideally should sum to 1.0."
+    )
+
 st.sidebar.divider()
 
 st.sidebar.link_button(
@@ -1249,6 +1290,9 @@ if lookup_key in lookup_table and not use_heat_priority:
         use_heat_priority=False, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
         carbon_rate_ff=st.session_state.carbon_rate_ff,
         carbon_rate_gi=st.session_state.carbon_rate_gi,
+        w_ndvi=st.session_state.get("wgt_ndvi", DEFAULT_WGT_NDVI),
+        w_cooling=st.session_state.get("wgt_cooling", DEFAULT_WGT_COOLING),
+        w_nature=st.session_state.get("wgt_nature", DEFAULT_WGT_NATURE),
     )
     results['scenario_lulc'] = _fresh['scenario_lulc']
     # Food values are recomputed live — lookup table may predate the n_food_pixels fix
@@ -1258,6 +1302,7 @@ if lookup_key in lookup_table and not use_heat_priority:
     results['carbon_tons_co2_yr'] = _fresh['carbon_tons_co2_yr']
     results['nature_access_pct']  = _fresh['nature_access_pct']
     results['people_with_nature_access'] = _fresh['people_with_nature_access']
+    results['wellbeing_score']    = _fresh['wellbeing_score']
     # Recompute cost with current cost sliders (lookup table used default costs)
     results['total_cost_mln'] = compute_cost(
         results['n_wet'], results['n_for'], results['n_hd'],
@@ -1269,6 +1314,9 @@ else:
         use_heat_priority=use_heat_priority, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
         carbon_rate_ff=st.session_state.carbon_rate_ff,
         carbon_rate_gi=st.session_state.carbon_rate_gi,
+        w_ndvi=st.session_state.get("wgt_ndvi", DEFAULT_WGT_NDVI),
+        w_cooling=st.session_state.get("wgt_cooling", DEFAULT_WGT_COOLING),
+        w_nature=st.session_state.get("wgt_nature", DEFAULT_WGT_NATURE),
     )
 
 # ── Top metric cards ───────────────────────────────────────────────────────────
@@ -1328,12 +1376,14 @@ eco1.metric(
         "runoff potential. Baseline is 24.3 for Minneapolis developed land."
     )
 )
+eco1.caption("Raster-based calculation")
 eco2.metric(
     "Temperature Change",
     _cooling_label,
     delta=None,
     help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
+eco2.caption("Raster-based calculation")
 if abs(_cooling_f) < 0.05:
     eco2.markdown(
         '<p style="color: gray; font-size: 0.85em;">↔ No change vs baseline</p>',
@@ -1360,6 +1410,7 @@ eco3.metric(
         "Lower volume = more retention."
     )
 )
+eco3.caption("Raster-based calculation")
 
 _ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
 _ndvi_delta_str = f"{_ndvi_delta:+.3f} vs base" if abs(_ndvi_delta) >= 0.001 else "no change"
@@ -1377,6 +1428,7 @@ eco4.metric(
         "Treat as directional only — refine with locally calibrated values."
     )
 )
+eco4.caption("Provisional assumption")
 eco5.metric(
     "NDVI",
     f"{results['mean_ndvi']:.3f}",
@@ -1388,11 +1440,12 @@ eco5.metric(
         "Treat as directional only."
     )
 )
+eco5.caption("Synthetic proxy")
 
 st.divider()
 
 st.markdown("#### Human & Social")
-hs1, _, _ = st.columns(3)
+hs1, hs2, _ = st.columns(3)
 _nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
 _nature_help = (
     "Approximate share of residents in the model area within ~800m of green "
@@ -1411,6 +1464,7 @@ hs1.metric(
     delta_color="normal" if abs(_nature_delta) >= 0.1 else "off",
     help=_nature_help,
 )
+hs1.caption("Proximity estimate")
 if not POPULATION_DATA_AVAILABLE:
     hs1.caption(
         "⚠️ Nature Access currently uses uniform population weighting — "
@@ -1424,6 +1478,30 @@ if use_heat_priority:
         "improving equity of green space distribution."
     )
 
+# Urban Wellbeing Score — composite index. Baseline is recomputed each rerun
+# using the *current* weights so the delta stays meaningful when the user tunes
+# weights in Advanced Settings.
+_active_w_ndvi    = st.session_state.get("wgt_ndvi",    DEFAULT_WGT_NDVI)
+_active_w_cooling = st.session_state.get("wgt_cooling", DEFAULT_WGT_COOLING)
+_active_w_nature  = st.session_state.get("wgt_nature",  DEFAULT_WGT_NATURE)
+_baseline_wellbeing = compute_wellbeing_score(
+    BASELINE_NDVI, BASELINE_HM, BASELINE_NATURE_ACCESS_PCT,
+    _active_w_ndvi, _active_w_cooling, _active_w_nature,
+)
+_wellbeing_delta = results['wellbeing_score'] - _baseline_wellbeing
+hs2.metric(
+    "Urban Wellbeing Score",
+    f'{results["wellbeing_score"]:.3f}',
+    delta=f"{_wellbeing_delta:+.3f} vs baseline",
+    delta_color="normal" if abs(_wellbeing_delta) >= 0.001 else "off",
+    help=(
+        "Composite index combining NDVI (vegetation), urban cooling, and nature "
+        "access. Weights are provisional and adjustable in Advanced Settings. "
+        "Treat as directional only — not a validated mental health model."
+    ),
+)
+hs2.caption("Composite proxy")
+
 st.divider()
 
 st.markdown("#### Economic")
@@ -1435,6 +1513,7 @@ econ1.metric(
     delta_color="normal" if _people_fed > 0 else "off",
     help="Counts only food forest pixels created by this scenario (not pre-existing deciduous forest). Yield estimated at 11,500 lbs/acre/year based on NatCap food forest benchmarks — treat as directional only."
 )
+econ1.caption("Provisional assumption")
 if results['food_mln_lbs'] == 0:
     econ1.caption(
         "No food forest in this scenario — add Food Forest % to see production estimates."
@@ -1445,6 +1524,7 @@ econ2.metric(
     delta=None,
     help="Total cost based on $/acre sliders × converted acreage. Rough order-of-magnitude only."
 )
+econ2.caption("Order-of-magnitude estimate")
 
 st.divider()
 
@@ -1462,6 +1542,7 @@ ceff1.metric(
     delta=None,
     help=f"Implementation cost divided by runoff reduction vs baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario increases runoff or has no cost."
 )
+ceff1.caption("Order-of-magnitude estimate")
 ceff2.metric(
     "Cost / °F Cooling",
     _fmt_ce(ce['cost_per_degf']),
@@ -1469,12 +1550,14 @@ ceff2.metric(
     delta_color="off" if _cooling_f <= 0 else "normal",
     help="Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement."
 )
+ceff2.caption("Order-of-magnitude estimate")
 ceff3.metric(
     "Cost / 1,000 People Fed",
     _fmt_ce(ce['cost_per_1k_people']),
     delta=None,
     help="Implementation cost divided by (people fed ÷ 1,000). N/A if no food production."
 )
+ceff3.caption("Order-of-magnitude estimate")
 
 st.caption(
     "For outcome metrics, higher is generally better except Runoff Volume, where "
@@ -1546,15 +1629,111 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     st.dataframe(_styled, use_container_width=True, hide_index=True)
 
 with st.expander("Assumptions and limitations"):
-    st.markdown(
-        "- **Green Infrastructure** is modeled as woody wetlands (NLCD code 90). The broader category of green infrastructure includes many other interventions (rain gardens, bioswales, permeable pavement, green roofs, urban tree canopy) that are not modeled here. Each would have different curve numbers and heat mitigation values.\n"
-        "- **Food Forest** is modeled as deciduous forest (NLCD code 41) — the closest available NLCD class to a managed food-producing tree system. No NLCD class exists specifically for food forests or agroforestry. The yield benchmark of 11,500 lbs/acre/year assumes a mature, well-managed system at peak productivity. Newly established food forests will produce significantly less in early years. NLCD 41 covers any deciduous forest, so the tool models the ecological characteristics of mature deciduous canopy, not a precisely engineered food forest.\n"
-        "- Note: the model assumes all developed land is available for conversion — real projects would need site-by-site feasibility checks.\n"
-        "- Food production uses a benchmark yield estimate and should be treated as directional.\n"
-        "- Spatial placement is stylized (random or heat-weighted), not based on real siting constraints or corridors.\n"
-        "- Optimized results come from a surrogate model and should be verified.\n"
-        "- Carbon sequestration rates are provisional regional estimates (USDA NRCS/IPCC). Adjust in Advanced Settings in the sidebar."
-    )
+    _assumption_tabs = st.tabs([
+        "Flood & Runoff", "Temperature", "Food", "Carbon",
+        "Nature Access", "Wellbeing Score", "Costs",
+    ])
+    with _assumption_tabs[0]:
+        st.markdown(
+            "- **Method:** USDA SCS Curve Number method, computed at 30 m raster "
+            "resolution from per-pixel CN values × soil hydrologic group lookup. "
+            "Reported as `100 − mean_CN` so higher = better.\n"
+            "- **Design storm:** 2-inch rainfall — a common minor event for "
+            "Minneapolis. Larger storms scale runoff non-linearly; results don't "
+            "extrapolate to extreme events.\n"
+            "- **Green Infrastructure** is modeled as woody wetlands (NLCD 90). "
+            "The broader GI category (rain gardens, bioswales, permeable pavement, "
+            "green roofs, urban tree canopy) is not modeled — each would have "
+            "different curve numbers."
+        )
+    with _assumption_tabs[1]:
+        st.markdown(
+            "- **Method:** InVEST Urban Cooling Model Heat Mitigation Index "
+            "(shade + evapotranspiration), per-pixel.\n"
+            "- **Calibration:** 4 °F per HM unit is an approximate midpoint from "
+            "the published 2–5 °C / HM literature range. Not locally calibrated "
+            "for Minneapolis — treat the °F output as ±2 °F at best.\n"
+            "- **Not captured:** wind, humidity, urban geometry, building "
+            "materials, anthropogenic heat. The model sees land cover only."
+        )
+    with _assumption_tabs[2]:
+        st.markdown(
+            "- **Food Forest** is modeled as deciduous forest (NLCD 41) — the "
+            "closest available NLCD class. No NLCD class exists specifically for "
+            "agroforestry or food forests.\n"
+            "- **Yield benchmark:** 11,500 lbs/acre/year, from NatCap food-forest "
+            "studies. Assumes a mature, well-managed system at peak productivity. "
+            "Newly established food forests will produce significantly less in "
+            "early years.\n"
+            "- **Counts only newly converted pixels** — pre-existing deciduous "
+            "forest doesn't add to the food production tally."
+        )
+    with _assumption_tabs[3]:
+        st.markdown(
+            "- **Method:** newly converted pixel counts × pixel area × per-cover "
+            "rate. Existing land cover is not credited and not penalized.\n"
+            "- **Default rates** are provisional regional USDA NRCS / IPCC "
+            "values: Food Forest 3.5 t CO2e/acre/yr, Green Infrastructure "
+            "2.0 t CO2e/acre/yr, High Density 0.0. Wide published ranges (e.g. "
+            "1.76–18.2 for managed food forests) — adjust the sliders in "
+            "**Advanced Settings → Urban Wellbeing Score weights** Food Forest "
+            "and Green Infrastructure carbon rate sliders.\n"
+            "- **Not locally calibrated.** Refine with site-specific data when "
+            "available."
+        )
+    with _assumption_tabs[4]:
+        st.markdown(
+            "- **Proximity proxy, not walkshed:** Euclidean distance from each "
+            "pixel to the nearest nature pixel × 30 m, thresholded at 800 m. "
+            "Ignores street networks, barriers, slope, and crossings.\n"
+            "- **Population data:** US Census 2020 block totals (Hennepin "
+            "County, FIPS 27053) joined to TIGER 2020 blocks and rasterized to "
+            "the NLCD grid.\n"
+            "- **Extent caveat:** the NLCD raster only covers ~10.8 km × "
+            "10.7 km of downtown Minneapolis (~154,000 residents in extent), "
+            "not the full city.\n"
+            "- **Spatial placement is stylized** — converted pixels are picked "
+            "randomly (or heat-weighted), not by real siting constraints, "
+            "parcel ownership, or corridor design.\n"
+            "- **High-density-only conversion ties baseline:** the model never "
+            "removes existing nature, so adding HD alone leaves the buffer "
+            "unchanged.\n"
+            "- **Saturation:** at ≥ 50 % conversion with aggressive green "
+            "allocations the metric tops out around 65–66 % as buffers overlap. "
+            "Most discriminating at lower conversion percentages."
+        )
+    with _assumption_tabs[5]:
+        st.markdown(
+            "- **Composite, not validated:** weighted combination of NDVI "
+            "(synthetic), HM (cooling proxy), and Nature Access %. Each input "
+            "carries its own uncertainty.\n"
+            "- **Weights are arbitrary** until empirically validated against a "
+            "local quality-of-life or self-reported wellbeing dataset. "
+            "Defaults (0.2 / 0.4 / 0.4) are a reasonable starting point, not a "
+            "claim of correctness.\n"
+            "- **Not a mental health model.** Useful for cross-scenario "
+            "ranking, not for population-health inference.\n"
+            "- **Not in the surrogate** — wellbeing is computed live from "
+            "current weights, but the optimizer doesn't search over it."
+        )
+    with _assumption_tabs[6]:
+        st.markdown(
+            "- **Order-of-magnitude only:** total cost = "
+            "`$/acre slider × converted acres`, summed across green "
+            "infrastructure, food forest, and high-density development. "
+            "Default $/acre ranges come from broad planning literature, not "
+            "site-specific bids.\n"
+            "- **Cost-effectiveness ratios** divide the cost by a per-unit "
+            "benefit (acre-foot prevented, °F cooling, 1,000 people fed). "
+            "Returns N/A when the denominator is zero or negative — never "
+            "infinite or misleading.\n"
+            "- **Feasibility ignored:** the model assumes all developed land "
+            "is available for conversion. Real projects need site-by-site "
+            "feasibility checks (zoning, ownership, soil, infrastructure).\n"
+            "- **Optimized scenarios** come from a Random Forest surrogate. "
+            "Verify any suggestion by manually applying it to the main "
+            "sliders so the full pixel-level simulation runs."
+        )
 
 st.divider()
 
