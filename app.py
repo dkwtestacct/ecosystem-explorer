@@ -815,36 +815,30 @@ def render_matplotlib(fig):
 # ── Matplotlib plots ───────────────────────────────────────────────────────────
 def plot_bars(results):
     """Three bar charts: flood risk, cooling, food production vs baseline."""
-    plt.rcParams.update({'font.size': 12})
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 7))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 7), dpi=120)
 
-    ax1.bar(['Baseline', 'This Scenario'], [BASELINE_CN, results['mean_cn']],
-            color=['steelblue', 'purple'])
-    ax1.axhline(BASELINE_CN, color='gray', linestyle='--', alpha=0.5)
-    ax1.set_ylabel('Mean Curve Number (lower = less runoff)', fontsize=13)
-    ax1.set_title('Flood Risk', fontsize=16, fontweight='bold', pad=12)
-    ax1.set_xlabel('')
-    ax1.set_ylim(0, 100)
-    ax1.tick_params(axis='both', labelsize=12)
+    panels = [
+        (ax1, 'Flood Risk',      'Mean Curve Number\n(lower = less runoff)',
+         BASELINE_CN,            results['mean_cn'],          (0, 100),  True),
+        (ax2, 'Urban Cooling',   'Heat Mitigation Index\n(higher = more cooling)',
+         BASELINE_HM,            results['mean_hm'],          (0, 1.1),  True),
+        (ax3, 'Food Production', 'Food Production\n(million lbs/year)',
+         BASELINE_FOOD_MLN_LBS,  results['food_mln_lbs'],     (0, max(MAX_FOOD * 1.1, 0.01)), False),
+    ]
 
-    ax2.bar(['Baseline', 'This Scenario'], [BASELINE_HM, results['mean_hm']],
-            color=['steelblue', 'purple'])
-    ax2.axhline(BASELINE_HM, color='gray', linestyle='--', alpha=0.5)
-    ax2.set_ylabel('Heat Mitigation Index (higher = more cooling)', fontsize=13)
-    ax2.set_title('Urban Cooling', fontsize=16, fontweight='bold', pad=12)
-    ax2.set_xlabel('')
-    ax2.set_ylim(0, 1.1)
-    ax2.tick_params(axis='both', labelsize=12)
+    for ax, title, ylabel, baseline_val, scenario_val, ylim, draw_baseline in panels:
+        ax.bar([0, 1], [baseline_val, scenario_val], color=['steelblue', 'purple'])
+        if draw_baseline:
+            ax.axhline(baseline_val, color='gray', linestyle='--', alpha=0.5)
+        ax.set_title(title, fontsize=18, fontweight='bold', pad=15)
+        ax.set_ylabel(ylabel, fontsize=13)
+        ax.set_xlabel('')
+        ax.set_ylim(*ylim)
+        ax.set_xticks([0, 1])
+        ax.set_xticklabels(['Baseline', 'This Scenario'], fontsize=13)
+        ax.tick_params(axis='y', labelsize=12)
 
-    ax3.bar(['Baseline', 'This Scenario'], [BASELINE_FOOD_MLN_LBS, results['food_mln_lbs']],
-            color=['steelblue', 'purple'])
-    ax3.set_ylabel('Food Production (million lbs/year)', fontsize=13)
-    ax3.set_title('Food Production', fontsize=16, fontweight='bold', pad=12)
-    ax3.set_xlabel('')
-    ax3.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
-    ax3.tick_params(axis='both', labelsize=12)
-
-    plt.tight_layout(pad=2.0)
+    plt.tight_layout(pad=3.0)
     return fig
 
 
@@ -1163,9 +1157,9 @@ st.sidebar.divider()
 st.sidebar.subheader("🔍 Smart Scenario Search")
 
 st.sidebar.caption(
-    "Uses a surrogate model trained on ~10,000 precomputed full-resolution "
-    "scenarios to rapidly explore new land-use combinations and identify "
-    "promising tradeoff scenarios."
+    "Uses a surrogate model trained on ~90 full-resolution simulations to "
+    "search ~10,000 candidate strategies in seconds. Results are approximate "
+    "— verify promising scenarios using the main sliders."
 )
 
 st.sidebar.caption(
@@ -1261,7 +1255,7 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
     st.caption(
         "Fast prototype: ~90 training scenarios — quick startup, good for exploration.  \n"
         "Balanced: ~500 scenarios — better coverage, moderate startup time.  \n"
-        "High resolution: 2,541 scenarios — most accurate optimizer suggestions, slower startup."
+        "High resolution: trains on the full 2,541-entry lookup table — slower startup, better optimizer coverage."
     )
     st.caption(f"Active: {len(scenario_df):,} training scenarios.")
 
@@ -1356,7 +1350,10 @@ eco1.metric(
     f"{results['flood_reduction']:.1f}",
     delta=_flood_delta_str,
     delta_color="normal" if abs(_flood_delta) >= 0.1 else "off",
-    help="SCS Curve Number based. Higher = less runoff."
+    help=(
+        "Unitless index (0–100) based on the USDA Curve Number. Higher = less "
+        "runoff potential. Baseline is 24.3 for Minneapolis developed land."
+    )
 )
 eco2.metric(
     "Temperature Change",
@@ -1391,6 +1388,9 @@ eco3.metric(
     )
 )
 
+_ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
+_ndvi_delta_str = f"{_ndvi_delta:+.3f} vs base" if abs(_ndvi_delta) >= 0.001 else "no change"
+
 eco4, eco5 = st.columns(2)
 eco4.metric(
     "Carbon Sequestration",
@@ -1405,15 +1405,21 @@ eco4.metric(
     )
 )
 eco5.metric(
-    "—",
-    "—",
-    help="Reserved for a future ecological metric."
+    "NDVI",
+    f"{results['mean_ndvi']:.3f}",
+    delta=_ndvi_delta_str,
+    delta_color="normal" if abs(_ndvi_delta) >= 0.001 else "off",
+    help=(
+        "Synthetic vegetation index (0–1) estimated from land cover type — not derived from satellite imagery. "
+        "Higher = more vegetation. Woody wetlands: 0.70, Food Forest: 0.75, High Density: 0.10–0.30. "
+        "Treat as directional only."
+    )
 )
 
 st.divider()
 
 st.markdown("#### 👥 Human & Social")
-hs1, hs2, hs3 = st.columns(3)
+hs1, _, _ = st.columns(3)
 _nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
 _nature_help = (
     "Approximate share of residents in the model area within ~800m of green "
@@ -1427,7 +1433,7 @@ _nature_help = (
 )
 hs1.metric(
     "Nature Access",
-    f'{results["nature_access_pct"]:.1f}% of residents',
+    f'{results["nature_access_pct"]:.1f}%',
     delta=f"{_nature_delta:+.1f} percentage points vs baseline",
     delta_color="normal" if abs(_nature_delta) >= 0.1 else "off",
     help=_nature_help,
@@ -1444,20 +1450,6 @@ if use_heat_priority:
         "developed areas, which tend to have lower existing nature access — "
         "improving equity of green space distribution."
     )
-hs2.metric("Mental Health Index", "—", help="Composite indicator linking green space exposure to mental health outcomes. Not yet modeled.")
-_ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
-_ndvi_delta_str = f"{_ndvi_delta:+.3f} vs base" if abs(_ndvi_delta) >= 0.001 else "no change"
-hs3.metric(
-    "NDVI",
-    f"{results['mean_ndvi']:.3f}",
-    delta=_ndvi_delta_str,
-    delta_color="normal" if abs(_ndvi_delta) >= 0.001 else "off",
-    help=(
-        "Synthetic vegetation index (0–1) estimated from land cover type — not derived from satellite imagery. "
-        "Higher = more vegetation. Woody wetlands: 0.70, Food Forest: 0.75, High Density: 0.10–0.30. "
-        "Treat as directional only."
-    )
-)
 
 st.divider()
 
@@ -1470,6 +1462,10 @@ econ1.metric(
     delta_color="normal" if _people_fed > 0 else "off",
     help="Counts only food forest pixels created by this scenario (not pre-existing deciduous forest). Yield estimated at 11,500 lbs/acre/year based on NatCap food forest benchmarks — treat as directional only."
 )
+if results['food_mln_lbs'] == 0:
+    econ1.caption(
+        "No food forest in this scenario — add Food Forest % to see production estimates."
+    )
 econ2.metric(
     "Est. Implementation Cost",
     f"${results['total_cost_mln']:.1f}M",
@@ -1508,8 +1504,73 @@ ceff3.metric(
 )
 
 st.caption(
-    "Higher is better for all ecological and social metrics except Runoff Volume (lower is better)."
+    "For outcome metrics, higher is generally better except Runoff Volume, where "
+    "lower is better. For cost-effectiveness ratios, lower cost per unit of "
+    "benefit is better."
 )
+
+with st.expander("📊 Baseline vs Scenario Comparison", expanded=False):
+    _baseline_flood = 100 - BASELINE_CN
+    _runoff_diff    = results['runoff_acre_feet'] - BASELINE_RUNOFF_ACRE_FEET
+    _flood_diff     = results['flood_reduction'] - _baseline_flood
+
+    comparison_data = {
+        'Metric': [
+            'Flood Risk Reduction', 'Runoff Volume', 'Temperature Change',
+            'Food Production', 'Carbon Sequestration', 'Nature Access', 'NDVI',
+        ],
+        'Baseline': [
+            f'{_baseline_flood:.1f}',
+            f'{BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft',
+            'Reference',
+            '0 lbs',
+            '0 tons CO2e/yr',
+            f'{BASELINE_NATURE_ACCESS_PCT:.1f}%',
+            f'{BASELINE_NDVI:.3f}',
+        ],
+        'This Scenario': [
+            f'{results["flood_reduction"]:.1f}',
+            f'{results["runoff_acre_feet"]:,.0f} ac-ft',
+            (
+                f'{_cooling_f:.1f}°F cooler' if _cooling_f > 0
+                else f'{abs(_cooling_f):.1f}°F warmer' if _cooling_f < 0
+                else 'No change'
+            ),
+            f'{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
+            f'{results["carbon_tons_co2_yr"]:,.0f} tons CO2e/yr',
+            f'{results["nature_access_pct"]:.1f}%',
+            f'{results["mean_ndvi"]:.3f}',
+        ],
+        'Change': [
+            f'{_flood_diff:+.1f}',
+            (
+                f'+{_runoff_diff:,.0f} ac-ft'         if _runoff_diff > 0
+                else f'{abs(_runoff_diff):,.0f} ac-ft prevented' if _runoff_diff < 0
+                else '0 ac-ft'
+            ),
+            f'{_cooling_f:+.1f}°F',
+            f'+{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
+            f'+{results["carbon_tons_co2_yr"]:,.0f} tons CO2e/yr',
+            f'{results["nature_access_pct"] - BASELINE_NATURE_ACCESS_PCT:+.1f} pp',
+            f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
+        ],
+    }
+
+    _comparison_df = pd.DataFrame(comparison_data)
+
+    def _color_change(val):
+        s = str(val)
+        # Runoff is inverse — positive change is bad
+        if 'ac-ft' in s and s.startswith('+'):
+            return 'color: red'
+        if s.startswith('+') or 'prevented' in s or 'cooler' in s:
+            return 'color: green'
+        if s.startswith('-') or 'warmer' in s or 'worse' in s:
+            return 'color: red'
+        return 'color: gray'
+
+    _styled = _comparison_df.style.applymap(_color_change, subset=['Change'])
+    st.dataframe(_styled, use_container_width=True, hide_index=True)
 
 with st.expander("Assumptions and limitations"):
     st.markdown(
@@ -1551,7 +1612,7 @@ with tab2:
     if st.session_state.get('just_optimized'):
         st.session_state.just_optimized = False
     st.subheader("Tradeoff Space")
-    st.caption("Each point is a scenario. Better outcomes are toward the top-right — higher cooling and lower flood risk. Bubble size shows food production for saved and optimized scenarios.")
+    st.caption("Each point is a scenario. Better outcomes are toward the top-right — more cooling and greater flood-risk reduction. Bubble size shows food production for saved and optimized scenarios.")
     st.plotly_chart(plot_tradeoff(
         results, scenario_df,
         lookup_table=lookup_table,
@@ -1615,6 +1676,10 @@ with tab2:
             }
 
             st.markdown("#### Candidate scenarios")
+            st.caption(
+                "These are surrogate model predictions. Click Apply to run a "
+                "full pixel-level simulation and verify the result."
+            )
             with st.expander("Show uncertainty bands", expanded=False):
                 st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
                              use_container_width=True, hide_index=True)
