@@ -190,6 +190,19 @@ separate cache entries via the path parameters.
   defaults when the kwargs are `None`. The precomputed lookup table is built with defaults,
   but `carbon_tons_co2_yr` is recomputed live in the lookup-refresh path so slider changes
   always take effect.
+- **Urban Wellbeing Score is a weighted composite** — `compute_wellbeing_score(ndvi, hm,
+  nature_pct, w_ndvi, w_cooling, w_nature)` returns
+  `w_ndvi*ndvi + w_cooling*hm + w_nature*nature_pct/100` rounded to 3dp. Defaults
+  `DEFAULT_WGT_NDVI=0.2`, `DEFAULT_WGT_COOLING=0.4`, `DEFAULT_WGT_NATURE=0.4` sum to 1.0.
+  Three sliders in Advanced Settings (`wgt_ndvi`, `wgt_cooling`, `wgt_nature`) are read
+  via `st.session_state.get(key, DEFAULT_*)` at both `evaluate_scenario` call sites — same
+  pattern as the carbon rates, but using `.get()` with explicit defaults so first-run
+  ordering doesn't matter. The Human & Social card recomputes `_baseline_wellbeing`
+  every rerun against `BASELINE_NDVI`, `BASELINE_HM`, `BASELINE_NATURE_ACCESS_PCT`, and
+  the **currently selected** weights, so changing weights doesn't make the delta
+  misleading. Wellbeing is **not** in the surrogate's training targets — the optimizer
+  doesn't search over it; cached scenario_df rows reflect default-weight wellbeing only.
+  Help text explicitly disclaims any validated mental-health interpretation.
 - **The surrogate predicts six outputs** — `train_surrogate` fits the Random Forest on
   `[flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet, carbon_tons_co2_yr,
   nature_access_pct]`, so `predict_with_uncertainty` returns `(n, 6)` arrays.
