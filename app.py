@@ -140,9 +140,9 @@ st.markdown(
     "changes **flood risk**, **urban cooling**, and **food production** across the city."
 )
 st.markdown(
-    '🌊 **Green Infrastructure (wetlands)** — best for flood  \n'
-    '🌳 **Food Forest** — best for cooling + food  \n'
-    '🏙️ **High Density** — worst for all three  \n'
+    '- **Green Infrastructure (wetlands)** — best for flood  \n'
+    '- **Food Forest** — best for cooling + food  \n'
+    '- **High Density** — worst for all three  \n'
 )
 
 with st.expander("How this prototype works", expanded=False):
@@ -1111,7 +1111,7 @@ use_heat_priority = st.sidebar.toggle(
 
 st.sidebar.divider()
 
-st.sidebar.subheader("⚡ Quick Start — Try a Scenario")
+st.sidebar.subheader("Quick Start — Try a Scenario")
 st.sidebar.caption("Click any button to load a preset scenario instantly.")
 
 # Clear active example if the user has manually changed any slider away from its values
@@ -1129,7 +1129,7 @@ if _active is not None:
         st.session_state.active_example_scenario = None
         _active = None
 
-if st.sidebar.button("🌳 Food Forest (Cooling + Food Focus)",
+if st.sidebar.button("Food Forest (Cooling + Food Focus)",
                      type="primary" if _active == 'food_forest' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 0
@@ -1137,7 +1137,7 @@ if st.sidebar.button("🌳 Food Forest (Cooling + Food Focus)",
     st.session_state.active_example_scenario = 'food_forest'
     st.rerun()
 
-if st.sidebar.button("🌊 Green Infrastructure (Flood Mitigation)",
+if st.sidebar.button("Green Infrastructure (Flood Mitigation)",
                      type="primary" if _active == 'green_infra' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 100
@@ -1145,7 +1145,7 @@ if st.sidebar.button("🌊 Green Infrastructure (Flood Mitigation)",
     st.session_state.active_example_scenario = 'green_infra'
     st.rerun()
 
-if st.sidebar.button("🏙️ High Density Development",
+if st.sidebar.button("High Density Development",
                      type="primary" if _active == 'high_density' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 0
@@ -1154,7 +1154,7 @@ if st.sidebar.button("🏙️ High Density Development",
     st.rerun()
 
 st.sidebar.divider()
-st.sidebar.subheader("🔍 Smart Scenario Search")
+st.sidebar.subheader("Find Best Scenario")
 
 st.sidebar.caption(
     "Uses a surrogate model trained on ~90 full-resolution simulations to "
@@ -1197,12 +1197,12 @@ with st.sidebar.container(border=True):
     )
 
     st.caption(
-        "💡 The optimizer uses a surrogate model — a fast approximation trained on pre-computed "
+        "The optimizer uses a surrogate model — a fast approximation trained on pre-computed "
         "scenarios — to search 10,000 candidate strategies in seconds. Results are approximate; "
         "verify promising scenarios using the main sliders."
     )
     st.sidebar.caption(
-        "💡 Slider results use a precomputed lookup table for instant response. "
+        "Slider results use a precomputed lookup table for instant response. "
         "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
     )
 
@@ -1343,7 +1343,7 @@ _carbon_delta_str = (
     else "no change vs base"
 )
 
-st.markdown("#### 🌿 Ecological")
+st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
 eco1.metric(
     "Flood Risk Reduction",
@@ -1418,7 +1418,7 @@ eco5.metric(
 
 st.divider()
 
-st.markdown("#### 👥 Human & Social")
+st.markdown("#### Human & Social")
 hs1, _, _ = st.columns(3)
 _nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
 _nature_help = (
@@ -1453,7 +1453,7 @@ if use_heat_priority:
 
 st.divider()
 
-st.markdown("#### 📈 Economic")
+st.markdown("#### Economic")
 econ1, econ2 = st.columns(2)
 econ1.metric(
     "Food Production",
@@ -1476,7 +1476,7 @@ econ2.metric(
 st.divider()
 
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
-st.markdown("#### 📊 Cost Effectiveness")
+st.markdown("#### Cost Effectiveness")
 st.caption(
     "Shows N/A when the scenario performs worse than the baseline on that metric, "
     "or when no land is converted. Try adding more green infrastructure or food "
@@ -1509,7 +1509,7 @@ st.caption(
     "benefit is better."
 )
 
-with st.expander("📊 Baseline vs Scenario Comparison", expanded=False):
+with st.expander("Baseline vs Scenario Comparison", expanded=False):
     _baseline_flood = 100 - BASELINE_CN
     _runoff_diff    = results['runoff_acre_feet'] - BASELINE_RUNOFF_ACRE_FEET
     _flood_diff     = results['flood_reduction'] - _baseline_flood
@@ -1588,7 +1588,11 @@ st.divider()
 if st.session_state.get("just_optimized"):
     banner_col, dismiss_col = st.columns([5, 1])
     with banner_col:
-        st.success("✅ Optimization complete — open the Tradeoff Analysis tab to see results and apply a scenario.")
+        st.success(
+            "### ✅ Optimization complete!\n"
+            "**Click the Tradeoff Analysis tab above** to see your suggested "
+            "scenarios and apply one to the main sliders."
+        )
     with dismiss_col:
         if st.button("✕", key="dismiss_optimize_banner"):
             st.session_state.just_optimized = False
@@ -1602,15 +1606,25 @@ st.write(
     f"to high-density development, {mode_text}."
 )
 
-tab1, tab2, tab3 = st.tabs(["📊 Scenario", "🔀 Tradeoff Analysis", "🗺️ Map View"])
+if st.session_state.get("just_optimized"):
+    st.info(
+        "Click the **Tradeoff Analysis** tab above to see your optimization results."
+    )
+
+tab1, tab2, tab3 = st.tabs(["Scenario", "Tradeoff Analysis", "Map View"])
 
 with tab1:
     st.subheader("Outcome Comparison")
     render_matplotlib(plot_bars(results))
 
 with tab2:
-    if st.session_state.get('just_optimized'):
-        st.session_state.just_optimized = False
+    # NOTE: We deliberately do NOT auto-clear `just_optimized` here. Streamlit
+    # executes every `with tabX:` block on every rerun (regardless of which
+    # tab is visible), so an auto-clear inside this block fires on the next
+    # rerun rather than only when the user actually opens this tab — which
+    # made the optimization banner vanish prematurely. The dismiss-X button
+    # on the banner is now the only way to clear the flag, plus running a
+    # new optimization (which sets it back to True or False).
     st.subheader("Tradeoff Space")
     st.caption("Each point is a scenario. Better outcomes are toward the top-right — more cooling and greater flood-risk reduction. Bubble size shows food production for saved and optimized scenarios.")
     st.plotly_chart(plot_tradeoff(
@@ -1620,7 +1634,7 @@ with tab2:
         optimized=st.session_state.optimized_results
     ), use_container_width=True)
 
-    if st.button("💾 Save this scenario"):
+    if st.button("Save this scenario"):
         saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
         saved["heat_priority"] = use_heat_priority
         saved["cost_gi"] = cost_gi
@@ -1635,7 +1649,7 @@ with tab2:
 
     if st.session_state.optimized_results is not None:
         st.divider()
-        st.subheader("🎯 Optimized Scenario Suggestions")
+        st.subheader("Optimized Scenario Suggestions")
         st.caption("Scroll down to see suggestions and apply them to the sliders.")
         opt = st.session_state.optimized_results
         if isinstance(opt, dict) and not opt.get('found'):
@@ -1748,7 +1762,7 @@ with tab2:
             "cannot improve flood reduction, cooling, or food production without making at least "
             "one of the others worse."
         )
-        with st.expander(f"📋 Saved Scenarios ({len(st.session_state.saved_scenarios)})", expanded=False):
+        with st.expander(f"Saved Scenarios ({len(st.session_state.saved_scenarios)})", expanded=False):
             df_saved = pd.DataFrame(st.session_state.saved_scenarios)
             show_cols = [c for c in [
                 'scenario_name',
@@ -1772,7 +1786,7 @@ with tab2:
             ] if c in df_saved.columns]
 
             st.dataframe(df_saved[show_cols], use_container_width=True, hide_index=True)
-            if st.button("🗑 Clear saved scenarios"):
+            if st.button("Clear saved scenarios"):
                 st.session_state.saved_scenarios = []
                 st.rerun()
 
@@ -1780,7 +1794,7 @@ with tab3:
     st.subheader("Where Changes Happen")
     if use_heat_priority:
         st.info(
-        "🌡️ **Heat-exposure mode active** — conversions concentrated in higher-intensity "
+        "**Heat-exposure mode active** — conversions concentrated in higher-intensity "
         "developed areas. Notice the spatial pattern shift vs. random allocation."
         )
 
