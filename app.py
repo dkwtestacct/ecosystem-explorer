@@ -1284,13 +1284,6 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
         "ideally should sum to 1.0."
     )
 
-st.sidebar.divider()
-
-st.sidebar.link_button(
-    "📖 Methodology & Data Sources",
-    "https://github.com/dkw-testing/ecosystem-explorer/blob/main/REFERENCE.md"
-)
-
 # ── Main panel ─────────────────────────────────────────────────────────────────
 lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
 if lookup_key in lookup_table and not use_heat_priority:
@@ -1775,7 +1768,7 @@ if st.session_state.get("just_optimized"):
         "Click the **Tradeoff Analysis** tab above to see your optimization results."
     )
 
-tab1, tab2, tab3 = st.tabs(["Scenario", "Tradeoff Analysis", "Map View"])
+tab1, tab2, tab3, tab4 = st.tabs(["Scenario", "Tradeoff Analysis", "Map View", "Reference"])
 
 with tab1:
     st.subheader("Outcome Comparison")
@@ -2094,6 +2087,15 @@ with tab3:
         "ownership, adjacency, corridors, or neighborhood targeting — real implementation would "
         "require site-specific siting analysis."
     )
+
+with tab4:
+    st.markdown("## Methodology & Data Sources")
+    try:
+        with open("REFERENCE.md", "r") as f:
+            reference_content = f.read()
+        st.markdown(reference_content)
+    except FileNotFoundError:
+        st.error("REFERENCE.md not found.")
 
 with st.expander("Intended Use", expanded=False):
     st.markdown(
