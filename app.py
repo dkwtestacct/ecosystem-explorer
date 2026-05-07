@@ -496,20 +496,40 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 
 
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
-@st.cache_data
-def compute_scenario_grid(data_dir_flood, data_dir_cooling):
-    rows = [
-        {k: v for k, v in evaluate_scenario(pct, gi, ff, seed=42).items() if k != 'scenario_lulc'}
-        for pct in range(0, 51, 10)
-        for gi  in range(0, 101, 25)
-        for ff  in range(0, 101, 25)
-        if gi + ff <= 100
-    ]
-    return pd.DataFrame(rows)
+# Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
+# Streamlit's @st.cache_data automatically invalidates stale grids/tables.
+SCENARIO_SCHEMA_VERSION = 2
+
+# Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
+# requires. Listed explicitly so a missing column fails loudly instead of leaking
+# into a KeyError deep in fit().
+REQUIRED_TARGET_COLUMNS = [
+    'flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet',
+    'carbon_tons_co2_yr', 'nature_access_pct',
+]
 
 
 @st.cache_data
-def compute_lookup_table(data_dir_flood, data_dir_cooling):
+def compute_scenario_grid(data_dir_flood, data_dir_cooling, schema_version=SCENARIO_SCHEMA_VERSION):
+    rows = []
+    for pct in range(0, 51, 10):
+        for gi in range(0, 101, 25):
+            for ff in range(0, 101, 25):
+                if gi + ff <= 100:
+                    r = evaluate_scenario(pct, gi, ff, seed=42)
+                    rows.append({k: v for k, v in r.items() if k != 'scenario_lulc'})
+    df = pd.DataFrame(rows)
+    missing = [c for c in REQUIRED_TARGET_COLUMNS if c not in df.columns]
+    if missing:
+        raise RuntimeError(
+            f"compute_scenario_grid is missing required columns {missing}; "
+            f"check evaluate_scenario's return dict."
+        )
+    return df
+
+
+@st.cache_data
+def compute_lookup_table(data_dir_flood, data_dir_cooling, schema_version=SCENARIO_SCHEMA_VERSION):
     """Pre-compute results for every valid slider position (step=5) for instant response."""
     table = {}
     for pct in range(0, 51, 5):
@@ -517,7 +537,14 @@ def compute_lookup_table(data_dir_flood, data_dir_cooling):
             for ff in range(0, 101, 5):
                 if gi + ff <= 100:
                     r = evaluate_scenario(pct, gi, ff, seed=42)
-                    table[(pct, gi, ff)] = {k: v for k, v in r.items() if k != 'scenario_lulc'}
+                    entry = {k: v for k, v in r.items() if k != 'scenario_lulc'}
+                    missing = [c for c in REQUIRED_TARGET_COLUMNS if c not in entry]
+                    if missing:
+                        raise RuntimeError(
+                            f"compute_lookup_table entry missing columns {missing}; "
+                            f"check evaluate_scenario's return dict."
+                        )
+                    table[(pct, gi, ff)] = entry
     return table
 
 
