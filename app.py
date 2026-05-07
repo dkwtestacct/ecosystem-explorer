@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.patches import Patch
 import plotly.graph_objects as go
+import os
+
 import rasterio
 from skimage.transform import resize
 from sklearn.ensemble import RandomForestRegressor
@@ -519,11 +521,13 @@ def _compute_carbon(n_wet, n_for, n_hd):
 
 
 @st.cache_data
-def compute_scenario_grid(data_dir_flood, data_dir_cooling, schema_version=SCENARIO_SCHEMA_VERSION):
+def compute_scenario_grid(data_dir_flood, data_dir_cooling,
+                          step_pct=10, step_alloc=25,
+                          schema_version=SCENARIO_SCHEMA_VERSION):
     rows = []
-    for pct in range(0, 51, 10):
-        for gi in range(0, 101, 25):
-            for ff in range(0, 101, 25):
+    for pct in range(0, 51, step_pct):
+        for gi in range(0, 101, step_alloc):
+            for ff in range(0, 101, step_alloc):
                 if gi + ff <= 100:
                     result = evaluate_scenario(pct, gi, ff, seed=42)
                     row = {k: v for k, v in result.items() if k != 'scenario_lulc'}
@@ -611,9 +615,43 @@ def compute_pareto(df):
     return df[is_efficient]
 
 
+DENSE_SCENARIOS_PATH = "data/scenarios_dense.csv"
+# Read the model-quality selection from session_state. The radio that writes
+# here lives in the Advanced Settings expander further down — Streamlit reruns
+# top-to-bottom on every interaction, so on the next rerun this read picks up
+# the new value the radio wrote on the previous run.
+MODEL_QUALITY_OPTIONS = ["Fast prototype", "Balanced", "High resolution"]
+_requested_model_quality = st.session_state.get("model_quality", MODEL_QUALITY_OPTIONS[0])
+
 with st.spinner("Loading data and pre-computing scenarios..."):
-    scenario_df  = compute_scenario_grid(DATA_DIR_FLOOD, DATA_DIR_COOLING)
+    # The lookup table is built unconditionally — it powers instant slider
+    # response throughout the app, and it doubles as the High-resolution
+    # training set (no extra compute needed).
     lookup_table = compute_lookup_table(DATA_DIR_FLOOD, DATA_DIR_COOLING)
+
+    if _requested_model_quality == "High resolution":
+        scenario_df = pd.DataFrame(list(lookup_table.values()))
+        ACTIVE_MODEL_QUALITY = "high"
+        N_ESTIMATORS = 300
+    elif _requested_model_quality == "Balanced":
+        if os.path.exists(DENSE_SCENARIOS_PATH):
+            scenario_df = pd.read_csv(DENSE_SCENARIOS_PATH)
+        else:
+            st.warning(
+                f"⚠️ `{DENSE_SCENARIOS_PATH}` not found — recomputing on the fly. "
+                "Run `python3 precompute_scenarios.py` once to skip this on future startups."
+            )
+            scenario_df = compute_scenario_grid(
+                DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=5, step_alloc=10
+            )
+        ACTIVE_MODEL_QUALITY = "balanced"
+        N_ESTIMATORS = 200
+    else:  # Fast prototype
+        scenario_df = compute_scenario_grid(
+            DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=10, step_alloc=25
+        )
+        ACTIVE_MODEL_QUALITY = "fast"
+        N_ESTIMATORS = 100
 
 MAX_FOOD  = float(scenario_df['food_mln_lbs'].max())
 MAX_FLOOD = 100.0
@@ -627,7 +665,11 @@ BASELINE_NDVI = compute_mean_ndvi(cooling_lulc)
 
 # ── Surrogate model ────────────────────────────────────────────────────────────
 @st.cache_resource
-def train_surrogate(_scenario_df, data_dir_flood, data_dir_cooling):
+def train_surrogate(_scenario_df, data_dir_flood, data_dir_cooling,
+                    mode_key="fast", n_estimators=100):
+    # mode_key + n_estimators participate in the cache key so changing the
+    # Model quality mode radio in the sidebar automatically retrains on the
+    # new training set without needing a manual cache clear.
     X = _scenario_df[['pct_converted', 'green_infrastructure_pct', 'food_forest_pct']]
     # Nature Access is included as a sixth output, but with an important caveat:
     # the surrogate maps (pct, gi%, ff%) → nature_access_pct, which discards the
@@ -638,12 +680,15 @@ def train_surrogate(_scenario_df, data_dir_flood, data_dir_cooling):
     # nature_access_pct as an indicative trend, not a precise spatial estimate.
     y = _scenario_df[['flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet',
                       'carbon_tons_co2_yr', 'nature_access_pct']]
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
     model.fit(X, y)
     return model
 
 
-surrogate = train_surrogate(scenario_df, DATA_DIR_FLOOD, DATA_DIR_COOLING)
+surrogate = train_surrogate(
+    scenario_df, DATA_DIR_FLOOD, DATA_DIR_COOLING,
+    mode_key=ACTIVE_MODEL_QUALITY, n_estimators=N_ESTIMATORS,
+)
 
 
 def predict_with_uncertainty(model, X):
@@ -1193,6 +1238,26 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
         "values or sensitivity test assumptions. See Methodology & Data Sources for "
         "sources and caveats."
     )
+
+    st.divider()
+
+    st.radio(
+        "Model quality mode",
+        options=MODEL_QUALITY_OPTIONS,
+        index=0,
+        key="model_quality",
+        help=(
+            "Controls how many full-resolution simulations are used to train the "
+            "surrogate model. More simulations improve optimizer suggestions but "
+            "take longer to initialize."
+        ),
+    )
+    st.caption(
+        "Fast prototype: ~90 training scenarios, 100 trees.  \n"
+        "Balanced: ~726 scenarios, 200 trees.  \n"
+        "High resolution: uses full 2,541-entry lookup table as training data, 300 trees."
+    )
+    st.caption(f"Active: {len(scenario_df):,} training scenarios, {N_ESTIMATORS} trees.")
 
 st.sidebar.divider()
 

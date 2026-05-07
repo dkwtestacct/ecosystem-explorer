@@ -131,7 +131,26 @@ separate cache entries via the path parameters.
   outside of the `CITIES` dict.
 - **Cached functions use path params as cache keys** — `load_data`, `compute_scenario_grid`,
   `compute_lookup_table`, and `train_surrogate` all accept the data directory paths so Streamlit
-  caches city results separately.
+  caches city results separately. `compute_scenario_grid` and `compute_lookup_table` also take a
+  `schema_version=SCENARIO_SCHEMA_VERSION` arg — bump that constant whenever the surrogate-target
+  columns change (e.g., adding a new metric to `evaluate_scenario`'s return dict) and Streamlit
+  will automatically invalidate cached grids and lookup tables. Both functions also assert the
+  presence of `REQUIRED_TARGET_COLUMNS` so a missing column fails loudly instead of producing a
+  `KeyError` deep inside `train_surrogate`. `train_surrogate` additionally takes `mode_key` and
+  `n_estimators` args, both of which participate in the cache key so the Model Quality radio
+  in Advanced Settings retrains automatically when the user changes mode.
+- **Three Model Quality modes (Fast prototype / Balanced / High resolution)** — selected via
+  the Advanced Settings radio (`st.session_state['model_quality']`). The mode determines:
+  (1) `scenario_df` source — Fast prototype uses `compute_scenario_grid(step_pct=10,
+  step_alloc=25)` (~90), Balanced prefers `data/scenarios_dense.csv` else
+  `compute_scenario_grid(step_pct=5, step_alloc=10)` (~726), High resolution reuses the
+  2,541-entry lookup table as training data (free — those rows are already computed for
+  instant slider response); (2) `n_estimators` (100 / 200 / 300). The Balanced default
+  CSV is built offline by `precompute_scenarios.py`, which stubs `streamlit` so it can
+  `import app` and reuse `evaluate_scenario`, `_compute_carbon`, `calculate_nature_access`,
+  and `pop_count_raster` without duplicating logic. **Conceptual separation:** training
+  scenarios (1) and tree count (2) are surrogate-side knobs; the optimizer's ~10,000
+  random candidate samples at search time are independent and unchanged across modes.
 - **N/A over division errors** — cost-effectiveness ratios return `None` (displayed as "N/A")
   when the denominator is zero or negative. Never let a divide-by-zero surface to the user.
 - **Metric formatters are helpers, not inline f-strings** — use `_fmt_runoff()`, `_fmt_food()`,
