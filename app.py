@@ -222,14 +222,9 @@ def load_data(data_dir_flood, data_dir_cooling):
  equity_weights) = load_data(DATA_DIR_FLOOD, DATA_DIR_COOLING)
 
 # ── Population raster (for Nature Access metric) ───────────────────────────────
-# Temporary uniform population for testing — replace with WorldPop raster
-# (call load_population_data below) once data/population/minneapolis_pop_2020.tif
-# is in place. POPULATION_DATA_AVAILABLE stays False until then so the card's
-# help text can flag that the value reflects placeholder weighting.
-pop_count_raster = np.ones(cooling_lulc.shape, dtype=np.float32)
-POPULATION_DATA_AVAILABLE = False
-
-
+# Built by download_census_pop.py from US Census 2020 block-level totals,
+# rasterized to the NLCD grid. Falls back to a uniform placeholder if the file
+# is missing so the app still launches before the pipeline has run.
 def load_population_data(pop_path, target_shape):
     """Load a population-count raster, resampled to target_shape with bilinear."""
     with rasterio.open(pop_path) as src:
@@ -240,6 +235,17 @@ def load_population_data(pop_path, target_shape):
         data = data.astype(float)
         data[data < 0] = 0
         return data
+
+
+try:
+    pop_count_raster = load_population_data(
+        "data/population/minneapolis_pop_2020.tif",
+        cooling_lulc.shape,
+    )
+    POPULATION_DATA_AVAILABLE = True
+except (FileNotFoundError, rasterio.errors.RasterioIOError):
+    pop_count_raster = np.ones(cooling_lulc.shape, dtype=np.float32)
+    POPULATION_DATA_AVAILABLE = False
 
 # Nature Access: share of residents within ~800 m of natural / green land cover.
 # Implemented as a Euclidean distance transform of the green-pixel mask, NOT a
@@ -1250,13 +1256,15 @@ st.markdown("#### 👥 Human & Social")
 hs1, hs2, hs3 = st.columns(3)
 _nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
 _nature_help = (
-    "Share of residents within ~800m of natural or green land cover "
-    "(Euclidean distance, not street network). A proximity metric — "
-    "not a true walk accessibility model."
+    "Share of residents within ~800m of green or natural land cover "
+    "(Euclidean distance, not street network). Population from US Census "
+    "2020 block-level data rasterized to 30m NLCD grid. Note: NLCD extent "
+    "covers the downtown and near-neighborhoods area (~154,000 residents) "
+    "rather than full city."
 ) if POPULATION_DATA_AVAILABLE else (
-    "Currently using placeholder uniform population weighting — real "
-    "WorldPop 2020 population raster will be integrated once processing "
-    "is complete. Proximity metric only, not street-network walking distance."
+    "Currently using placeholder uniform population weighting — run "
+    "`download_census_pop.py` to build the real Census-derived raster. "
+    "Proximity metric only, not street-network walking distance."
 )
 hs1.metric(
     "Nature Access",

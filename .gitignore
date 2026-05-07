@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Large reproducible inputs — regenerate via download_census_pop.py
+data/population/tiger/
+data/population/usa_pop_2020.tif
