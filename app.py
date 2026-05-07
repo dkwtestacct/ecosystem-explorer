@@ -951,7 +951,9 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
                         line=dict(color='white', width=1)),
             text=df_saved.apply(
                 lambda r: (
-                    f"{r.scenario_name}<br>"
+                    # Prefer the user-given display_name; fall back to scenario_name
+                    # for older saves that predate the named-scenarios feature.
+                    f"{getattr(r, 'display_name', None) or r.scenario_name}<br>"
                     f"Flood: {r.flood_reduction:.1f} | Cooling: {r.mean_hm:.4f} | "
                     f"Food: {r.food_mln_lbs:.3f}M lbs"
                 ), axis=1),
@@ -1635,17 +1637,38 @@ with tab2:
     ), use_container_width=True)
 
     if st.button("Save this scenario"):
-        saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
-        saved["heat_priority"] = use_heat_priority
-        saved["cost_gi"] = cost_gi
-        saved["cost_ff"] = cost_ff
-        saved["cost_hd"] = cost_hd
-        _ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
-        saved["cost_per_acft"]      = _ce['cost_per_acft']
-        saved["cost_per_degf"]      = _ce['cost_per_degf']
-        saved["cost_per_1k_people"] = _ce['cost_per_1k_people']
-        st.session_state.saved_scenarios.append(saved)
-        st.success(f"Saved: {results['scenario_name']}")
+        st.session_state.show_save_input = True
+
+    if st.session_state.get("show_save_input"):
+        scenario_name_input = st.text_input(
+            "Name this scenario:",
+            placeholder="e.g. High GI / Low Cost",
+            key="scenario_name_input",
+        )
+        confirm_col, cancel_col = st.columns([1, 5])
+        with confirm_col:
+            confirm_clicked = st.button("Confirm save")
+        with cancel_col:
+            if st.button("Cancel", key="cancel_save"):
+                st.session_state.show_save_input = False
+                st.rerun()
+        if confirm_clicked and scenario_name_input:
+            saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
+            saved["display_name"] = scenario_name_input
+            saved["heat_priority"] = use_heat_priority
+            saved["cost_gi"] = cost_gi
+            saved["cost_ff"] = cost_ff
+            saved["cost_hd"] = cost_hd
+            _ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
+            saved["cost_per_acft"]      = _ce['cost_per_acft']
+            saved["cost_per_degf"]      = _ce['cost_per_degf']
+            saved["cost_per_1k_people"] = _ce['cost_per_1k_people']
+            st.session_state.saved_scenarios.append(saved)
+            st.session_state.show_save_input = False
+            st.success(f"Saved: {scenario_name_input}")
+            st.rerun()
+        elif confirm_clicked and not scenario_name_input:
+            st.warning("Please enter a name before saving.")
 
     if st.session_state.optimized_results is not None:
         st.divider()
@@ -1764,7 +1787,16 @@ with tab2:
         )
         with st.expander(f"Saved Scenarios ({len(st.session_state.saved_scenarios)})", expanded=False):
             df_saved = pd.DataFrame(st.session_state.saved_scenarios)
+            # Older saves predate display_name; backfill from scenario_name so the
+            # column is always present and never NaN in the table or hover labels.
+            if 'display_name' not in df_saved.columns:
+                df_saved['display_name'] = df_saved.get('scenario_name', '')
+            else:
+                df_saved['display_name'] = df_saved['display_name'].fillna('').replace('', np.nan)
+                df_saved['display_name'] = df_saved['display_name'].fillna(df_saved['scenario_name'])
+
             show_cols = [c for c in [
+                'display_name',
                 'scenario_name',
                 'pct_converted',
                 'green_infrastructure_pct',
@@ -1786,6 +1818,15 @@ with tab2:
             ] if c in df_saved.columns]
 
             st.dataframe(df_saved[show_cols], use_container_width=True, hide_index=True)
+
+            csv = df_saved[show_cols].to_csv(index=False)
+            st.download_button(
+                "Download saved scenarios as CSV",
+                csv,
+                "ecosystem_explorer_scenarios.csv",
+                "text/csv",
+            )
+
             if st.button("Clear saved scenarios"):
                 st.session_state.saved_scenarios = []
                 st.rerun()
