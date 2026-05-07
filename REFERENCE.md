@@ -260,7 +260,7 @@ A plain-language summary of the current scenario settings, displayed below the m
 | Field | Detail |
 |-------|--------|
 | **Type** | Selectbox |
-| **Options** | All keys from the `CITIES` dict; unavailable cities are labelled "(coming soon)". |
+| **Options** | All keys from the `CITIES` dict; unavailable cities are labeled "(coming soon)". |
 | **Effect** | Selecting an unavailable city shows a warning and keeps the app running with Minneapolis data. Selecting an available city sets data paths and baseline constants for all downstream computation. |
 
 ---
