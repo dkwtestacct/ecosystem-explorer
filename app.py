@@ -1361,10 +1361,24 @@ eco1.metric(
 eco2.metric(
     "Temperature Change",
     _cooling_label,
-    delta="cooler vs baseline" if _cooling_f > 0.1 else ("warmer than baseline" if _cooling_f < -0.1 else "no change"),
-    delta_color="normal" if _cooling_f > 0.1 else ("inverse" if _cooling_f < -0.1 else "off"),
+    delta=None,
     help="Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
 )
+if abs(_cooling_f) < 0.05:
+    eco2.markdown(
+        '<p style="color: gray; font-size: 0.85em;">↔ No change vs baseline</p>',
+        unsafe_allow_html=True,
+    )
+elif _cooling_f > 0:
+    eco2.markdown(
+        f'<p style="color: green; font-size: 0.85em;">● {_cooling_f:.1f}°F cooler vs baseline</p>',
+        unsafe_allow_html=True,
+    )
+else:
+    eco2.markdown(
+        f'<p style="color: red; font-size: 0.85em;">● {abs(_cooling_f):.1f}°F warmer vs baseline</p>',
+        unsafe_allow_html=True,
+    )
 eco3.metric(
     "Runoff Volume",
     _fmt_runoff(results['runoff_acre_feet']),
