@@ -145,7 +145,9 @@ separate cache entries via the path parameters.
   step_alloc=25)` (~90), Balanced prefers `data/scenarios_dense.csv` else
   `compute_scenario_grid(step_pct=5, step_alloc=10)` (~726), High resolution reuses the
   2,541-entry lookup table as training data (free — those rows are already computed for
-  instant slider response); (2) `n_estimators` (100 / 200 / 300). The Balanced default
+  instant slider response); (2) `n_estimators` via `SURROGATE_TREES = {"Fast prototype":
+  100, "Balanced": 200, "High resolution": 300}`. The tree count is **intentionally hidden
+  from the UI** — only the training-scenario story is shown to users. The Balanced default
   CSV is built offline by `precompute_scenarios.py`, which stubs `streamlit` so it can
   `import app` and reuse `evaluate_scenario`, `_compute_carbon`, `calculate_nature_access`,
   and `pop_count_raster` without duplicating logic. **Conceptual separation:** training

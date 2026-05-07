@@ -235,6 +235,8 @@ def load_population_data(pop_path, target_shape):
             resampling=rasterio.enums.Resampling.bilinear,
         )
         data = data.astype(float)
+        if src.nodata is not None:
+            data[data == src.nodata] = 0
         data[data < 0] = 0
         return data
 
@@ -621,7 +623,14 @@ DENSE_SCENARIOS_PATH = "data/scenarios_dense.csv"
 # top-to-bottom on every interaction, so on the next rerun this read picks up
 # the new value the radio wrote on the previous run.
 MODEL_QUALITY_OPTIONS = ["Fast prototype", "Balanced", "High resolution"]
+# Random Forest tree counts per mode — implementation detail, not exposed in UI.
+SURROGATE_TREES = {
+    "Fast prototype":  100,
+    "Balanced":        200,
+    "High resolution": 300,
+}
 _requested_model_quality = st.session_state.get("model_quality", MODEL_QUALITY_OPTIONS[0])
+N_ESTIMATORS = SURROGATE_TREES[_requested_model_quality]
 
 with st.spinner("Loading data and pre-computing scenarios..."):
     # The lookup table is built unconditionally — it powers instant slider
@@ -632,7 +641,6 @@ with st.spinner("Loading data and pre-computing scenarios..."):
     if _requested_model_quality == "High resolution":
         scenario_df = pd.DataFrame(list(lookup_table.values()))
         ACTIVE_MODEL_QUALITY = "high"
-        N_ESTIMATORS = 300
     elif _requested_model_quality == "Balanced":
         if os.path.exists(DENSE_SCENARIOS_PATH):
             scenario_df = pd.read_csv(DENSE_SCENARIOS_PATH)
@@ -645,13 +653,11 @@ with st.spinner("Loading data and pre-computing scenarios..."):
                 DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=5, step_alloc=10
             )
         ACTIVE_MODEL_QUALITY = "balanced"
-        N_ESTIMATORS = 200
     else:  # Fast prototype
         scenario_df = compute_scenario_grid(
             DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=10, step_alloc=25
         )
         ACTIVE_MODEL_QUALITY = "fast"
-        N_ESTIMATORS = 100
 
 MAX_FOOD  = float(scenario_df['food_mln_lbs'].max())
 MAX_FLOOD = 100.0
@@ -1253,11 +1259,11 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
         ),
     )
     st.caption(
-        "Fast prototype: ~90 training scenarios, 100 trees.  \n"
-        "Balanced: ~726 scenarios, 200 trees.  \n"
-        "High resolution: uses full 2,541-entry lookup table as training data, 300 trees."
+        "Fast prototype: ~90 training scenarios — quick startup, good for exploration.  \n"
+        "Balanced: ~500 scenarios — better coverage, moderate startup time.  \n"
+        "High resolution: 2,541 scenarios — most accurate optimizer suggestions, slower startup."
     )
-    st.caption(f"Active: {len(scenario_df):,} training scenarios, {N_ESTIMATORS} trees.")
+    st.caption(f"Active: {len(scenario_df):,} training scenarios.")
 
 st.sidebar.divider()
 
@@ -1396,11 +1402,10 @@ st.markdown("#### 👥 Human & Social")
 hs1, hs2, hs3 = st.columns(3)
 _nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
 _nature_help = (
-    "Share of residents within ~800m of green or natural land cover "
-    "(Euclidean distance, not street network). Population from US Census "
-    "2020 block-level data rasterized to 30m NLCD grid. Note: NLCD extent "
-    "covers the downtown and near-neighborhoods area (~154,000 residents) "
-    "rather than full city."
+    "Approximate share of residents in the model area within ~800m of green "
+    "or natural land cover. Model area covers downtown Minneapolis and "
+    "near-neighborhoods (~154,000 residents). Uses Euclidean distance, not "
+    "street-network walking distance. Population from US Census 2020 block data."
 ) if POPULATION_DATA_AVAILABLE else (
     "Currently using placeholder uniform population weighting — run "
     "`download_census_pop.py` to build the real Census-derived raster. "
