@@ -170,12 +170,25 @@ with ET; SA's value will shift slightly once ET is wired in).
   CC raster is the `mean_hm` reported in scenario results (UI label: "Cooling Capacity" / "CC").
   `compute_cooling_energy_savings(cc_raster)` converts ΔCC → ΔT °C (× `UHI_MAX_C`) →
   kWh saved (× `consumption_rate × pixel_area`) → $/yr (× `COST_PER_KWH_USD`). Per-pixel,
-  not per-building polygon — see `UCM_AUDIT.md` for the open-divergences list, including the
-  pre-existing ET nodata-sentinel issue (Finding #11). Both functions are called inside
-  `evaluate_scenario`. Module-level precompute: `ET_RESIZED`, `MAX_ET_REF`, `BUILDINGS_TYPE_RASTER`,
-  `CONSUMPTION_RATE_PER_PIXEL`, `_BASELINE_HM_RASTER` (the smoothed baseline CC).
-  **`SCENARIO_SCHEMA_VERSION = 8`** (was 7) — bumped after the UCM rework to invalidate cached
-  lookup tables.
+  not per-building polygon — see `UCM_AUDIT.md` for the open-divergences list. Both functions
+  are called inside `evaluate_scenario`. Module-level precompute: `ET_RESIZED`, `MAX_ET_REF`,
+  `BUILDINGS_TYPE_RASTER`, `CONSUMPTION_RATE_PER_PIXEL`, `_BASELINE_HM_RASTER` (the smoothed
+  baseline CC).
+- **OSM road exclusion**: Road footprints are unioned into `BUILDINGS_RASTER` so the
+  convertible-pixels pool excludes both buildings and impassable surfaces.
+  `download_osm_minneapolis.py` fetches the Geofabrik Minnesota state extract, clips to the
+  AOI, and applies **Option B class filter** (`ROADS_DROP_CLASSES`) — drops `footway`,
+  `cycleway`, `steps`, `service`, `path`, `pedestrian`, `unclassified`, `track*`. These are
+  sub-pixel-width surfaces that would over-count the non-convertible mask at 30 m NLCD
+  resolution. Retained set: motorway, trunk, primary, secondary, tertiary, residential,
+  living-street, and on/off-ramp links — **5,495 segments covering ~29 % of AOI**. After
+  unioning with buildings, **~65 % of developed pixels (NLCD 21–24) remain convertible**
+  (33,357 of 51,430). Rasterization is unbuffered line-to-pixel via `rasterio.features.rasterize`
+  with `dtype="uint8"`; output is binary 0/1.
+- **`SCENARIO_SCHEMA_VERSION = 11`** — bump on every change that shifts `evaluate_scenario`
+  outputs so cached lookup tables get regenerated. Recent bumps: 7→8 (UCM rework: ET fix,
+  Gaussian convolution, canonical energy formula); 8→9 (ET nodata sentinel masked);
+  9→10 (full Geofabrik OSM road network, 62 % AOI); 10→11 (Option B road filter, ~29 % AOI).
 
 ---
 
