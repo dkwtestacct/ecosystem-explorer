@@ -30,17 +30,20 @@ CITIES = {
         'available':            True,
         'crs':                  'EPSG:26915',
         # Reference points plotted on the tradeoff scatter. Recomputed via
-        # `verify_cooling.py` (seed=42) after switching to the full
-        # Geofabrik OSM road network (62 % AOI coverage vs ~11 % previously),
-        # which shrunk the convertible-pixels pool. Earlier rework also
-        # included: ET nodata fix, Gaussian convolution at 450 m, canonical
-        # energy formula, UHI_MAX_C = 2.05 °C. Each "All X" scenario is
+        # `verify_cooling.py` (seed=42) after the OSM road filter was
+        # tightened (Option B: drop footway/cycleway/steps/service/path/
+        # pedestrian — sub-pixel-width surfaces that were over-counting the
+        # non-convertible mask). Road exclusion now covers ~29 % of AOI
+        # (down from 62 % with the unfiltered network, up from ~11 % with
+        # the pre-OSM curated subset). Earlier rework also included: ET
+        # nodata fix, Gaussian convolution at 450 m, canonical energy
+        # formula, UHI_MAX_C = 2.05 °C. Each "All X" scenario is
         # pct_converted=50 with 100 % allocation to that single land cover.
         'ref_scenarios': {
             'Baseline':                     {'flood': 24.3,  'cooling': 0.1859, 'color': 'steelblue'},
-            'All Food Forest (NLCD 41)':    {'flood': 25.1,  'cooling': 0.2560, 'color': 'green'},
-            'All Green Infra (NLCD 90)':    {'flood': 33.2,  'cooling': 0.2585, 'color': 'teal'},
-            'All High Density (NLCD 24)':   {'flood': 22.9,  'cooling': 0.1720, 'color': 'red'},
+            'All Food Forest (NLCD 41)':    {'flood': 26.1,  'cooling': 0.3407, 'color': 'green'},
+            'All Green Infra (NLCD 90)':    {'flood': 43.3,  'cooling': 0.3461, 'color': 'teal'},
+            'All High Density (NLCD 24)':   {'flood': 21.4,  'cooling': 0.1607, 'color': 'red'},
         },
     },
     'San Antonio, TX': {
@@ -802,7 +805,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 10  # bumped: full Geofabrik OSM road exclusion (62 % AOI coverage) shrunk the convertible-pixels pool, shifting all scenario outputs
+SCENARIO_SCHEMA_VERSION = 11  # bumped: tightened OSM road filter (Option B — drop sub-pixel-width surfaces); road mask now ~29 % AOI
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking

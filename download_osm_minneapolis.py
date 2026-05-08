@@ -88,7 +88,20 @@ def aoi_bbox_4326():
     return (minx - 0.01, miny - 0.01, maxx + 0.01, maxy + 0.01)
 
 
-def clip_layer(layer_path, label, out_path):
+# Road classes excluded from the rasterized non-convertible mask. These are
+# physical surfaces narrower than one 30 m NLCD pixel, so flagging the whole
+# pixel as non-convertible because (e.g.) a 1.5 m sidewalk crosses it would
+# substantially overstate the unconvertible fraction. We also drop the
+# unclassified + track* classes (low-quality data, often actually convertible
+# rural lanes).
+ROADS_DROP_CLASSES = (
+    "footway", "cycleway", "steps", "service", "path", "pedestrian",
+    "unclassified", "track", "track_grade1", "track_grade2",
+    "track_grade3", "track_grade4", "track_grade5",
+)
+
+
+def clip_layer(layer_path, label, out_path, drop_classes=None):
     bbox = aoi_bbox_4326()
     print(f"\n{label}: reading {layer_path.name} with bbox filter {bbox} ...")
     gdf = gpd.read_file(layer_path, bbox=bbox, engine="pyogrio")
@@ -99,8 +112,15 @@ def clip_layer(layer_path, label, out_path):
     aoi_rect = box(*AOI_BOUNDS)
     clipped = gdf[gdf.intersects(aoi_rect)].copy()
     print(f"  intersects AOI rectangle: {len(clipped):,}")
+    if drop_classes and "fclass" in clipped.columns:
+        before = len(clipped)
+        clipped = clipped[~clipped["fclass"].isin(drop_classes)].copy()
+        print(f"  after dropping classes {drop_classes}: {len(clipped):,} "
+              f"(removed {before - len(clipped):,})")
     geom_types = clipped.geom_type.value_counts().to_dict()
     print(f"  geometry types: {geom_types}")
+    if "fclass" in clipped.columns:
+        print(f"  fclass counts: {dict(clipped['fclass'].value_counts())}")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
         out_path.unlink()
@@ -113,7 +133,8 @@ def clip_layer(layer_path, label, out_path):
 def main():
     download_zip()
     extract_zip()
-    clip_layer(EXTRACT_DIR / ROADS_LAYER,     "ROADS",     ROADS_OUT)
+    clip_layer(EXTRACT_DIR / ROADS_LAYER,     "ROADS",     ROADS_OUT,
+               drop_classes=ROADS_DROP_CLASSES)
     clip_layer(EXTRACT_DIR / BUILDINGS_LAYER, "BUILDINGS", BUILDINGS_OUT)
 
 
