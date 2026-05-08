@@ -19,5 +19,9 @@ env/
 data/population/tiger/
 data/population/usa_pop_2020.tif
 
+# Geofabrik state-wide download + extract — regenerate via download_osm_minneapolis.py
+data/osm/minnesota.shp.zip
+data/osm/minnesota/
+
 # Local on-disk cache (osmnx / Streamlit scratch)
 cache/
