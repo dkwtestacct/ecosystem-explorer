@@ -37,11 +37,16 @@ existing food forest type.
 
 ## Where to get each input
 
-### LULC (`flood/LULC_NLCD_2021_SA.tif` and `cooling/land_use_2021.tif`)
-- Download NLCD 2021 from <https://www.mrlc.gov/data>
+### LULC (`flood/land_use_2021_sa.tif` and `cooling/land_use_2021.tif`)
+- Download NLCD 2021 from <https://www.mrlc.gov/data> (or run
+  `download_sa_data.py`, which pulls the bbox-clipped coverage from MRLC's
+  WCS endpoint)
 - Clip to San Antonio city boundary (or Bexar County for full coverage)
-- Reproject to **EPSG:3857** (Web Mercator) per project hint, **30 m** pixel
-  size, integer Byte type
+- Keep in **EPSG:5070** (NAD83 / Conus Albers) — this is NLCD's native
+  equal-area CRS and the canonical CRS for all San Antonio rasters.
+  30 m pixel size, integer Byte type. (Differs from Minneapolis, which
+  uses EPSG:26915 / UTM 15N — equal-area is preferred for SA's larger
+  area-based analyses.)
 - Confirm bounds and pixel count, then update `pixel_area_acres` in `CITIES`
 
 ### Soil group (`flood/soil_group_SA.tif`)
@@ -61,7 +66,7 @@ existing food forest type.
   per land cover, not city-specific) or use SA-specific values from the
   NatCap project deliverables if they tuned them.
 
-### Urban Cooling biophysical table (`cooling/biophysical_table_urban_cooling.csv`)
+### Urban Cooling biophysical table (`cooling/biophysical_table_urban_cooling_SA.csv`)
 - Same schema (`lucode, lulc_desc, shade, kc, albedo, green_area, building_intensity`)
 - SA's hotter / drier climate may justify lower kc and shade values for some
   classes — confirm with project report.
@@ -75,7 +80,7 @@ existing food forest type.
 - City of San Antonio Open Data portal: <https://data.sanantonio.gov>
 - TIGER 2020 tracts for Bexar County:
   `https://www2.census.gov/geo/tiger/TIGER2020/TABBLOCK20/tl_2020_48_tabblock20.zip`
-- Reproject to EPSG:3857 to match LULC
+- Reproject to EPSG:5070 to match LULC
 
 ### Damage-loss + yield tables (`flood/Damage_loss_table_SA.csv`, etc.)
 - Damage rates may differ from Minneapolis ($/m² by building type) — request
@@ -91,7 +96,7 @@ In `app.py`'s `CITIES['San Antonio, TX']` block:
 ```python
 'baseline_cn':          XX.X,    # mean CN of unmodified SA LULC × soil grid
 'baseline_hm':          0.XXXX,  # mean HM index of unmodified SA LULC
-'pixel_area_acres':     0.XXX,   # depends on EPSG:3857 + 30 m pixel size
+'pixel_area_acres':     0.XXX,   # depends on EPSG:5070 + 30 m pixel size
 'food_forest_lbs_acre': XXXXX,   # average of pecan + fig + mulberry + nopal
 'available':            True,    # flip last
 ```

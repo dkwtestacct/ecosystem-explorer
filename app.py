@@ -17,31 +17,48 @@ CITIES = {
     'Minneapolis, MN': {
         'data_dir_flood':       'data/flood',
         'data_dir_cooling':     'data/cooling',
+        'cn_table_file':        'UFR_biophysical_table_MN.csv',
+        'cooling_table_file':   'biophysical_table_urban_cooling_MN.csv',
         'baseline_cn':          75.7,
-        'baseline_hm':          0.2719,
+        # 0.1859 = mean(smoothed CC) on the MN baseline LULC after the InVEST
+        # UCM rework (ET nodata fix, Gaussian convolution, canonical formula).
+        # Auto-recomputed at module load from `_BASELINE_HM_RASTER`, so this
+        # value is only a documentation placeholder.
+        'baseline_hm':          0.1859,
         'pixel_area_acres':     0.222,
         'food_forest_lbs_acre': 11_500,
         'available':            True,
         'crs':                  'EPSG:26915',
+        # Reference points plotted on the tradeoff scatter. Recomputed via
+        # `verify_cooling.py` (seed=42) after the InVEST UCM rework: ET
+        # nodata fix, Gaussian convolution at 450 m, canonical energy
+        # formula, UHI_MAX_C = 2.05 °C. Each "All X" scenario is
+        # pct_converted=50 with 100 % allocation to that single land cover.
         'ref_scenarios': {
-            'Baseline':                     {'flood': 24.3,  'cooling': 0.2719, 'color': 'steelblue'},
-            'All Food Forest (NLCD 41)':    {'flood': 29.9,  'cooling': 0.8284, 'color': 'green'},
-            'All Green Infra (NLCD 90)':    {'flood': 83.0,  'cooling': 0.8633, 'color': 'teal'},
-            'All High Density (NLCD 24)':   {'flood': 18.8,  'cooling': 0.1923, 'color': 'red'},
+            'Baseline':                     {'flood': 24.3,  'cooling': 0.1859, 'color': 'steelblue'},
+            'All Food Forest (NLCD 41)':    {'flood': 26.7,  'cooling': 0.3910, 'color': 'green'},
+            'All Green Infra (NLCD 90)':    {'flood': 49.3,  'cooling': 0.3981, 'color': 'teal'},
+            'All High Density (NLCD 24)':   {'flood': 20.5,  'cooling': 0.1549, 'color': 'red'},
         },
     },
     'San Antonio, TX': {
         'data_dir_flood':       'data/sa/flood',
         'data_dir_cooling':     'data/sa/cooling',
-        'baseline_cn':          None,   # TODO: get from Yingjie or compute from SA LULC
-        'baseline_hm':          None,   # TODO: get from Yingjie or compute from SA biophysical table
-        'pixel_area_acres':     None,   # TODO: compute after LULC download
-        'food_forest_lbs_acre': None,   # TODO: use crop-specific SA yields from project report
-        'available':            False,  # set True when data is ready
-        'crs':                  'EPSG:3857',
+        'cn_table_file':        'UFR_biophysical_table_SA.csv',
+        'cooling_table_file':   'biophysical_table_urban_cooling_SA.csv',
+        # Preliminary values from download_sa_data.py: CN uses CN_B as default
+        # soil group (pending SSURGO), HM uses 0.6*shade + 0.2*albedo + 0.2*kc
+        # proxy (pending reference-ET).
+        'baseline_cn':          65.97,
+        'baseline_hm':          0.2917,
+        'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
+        'food_forest_lbs_acre': None,    # TODO: use crop-specific SA yields from project report
+        'available':            False,   # set True when soil/population/ET inputs are ready
+        'crs':                  'EPSG:5070',
         'notes': (
             'Data source: NatCap SA Urban Agriculture Project 2023. '
-            'LULC from NLCD 2021. Baseline constants pending — see data/sa/README.md.'
+            'LULC from NLCD 2021. Baseline constants are preliminary — '
+            'see data/sa/README.md.'
         ),
         'ref_scenarios': {},
     },
@@ -64,8 +81,13 @@ DEFAULT_COST_HD   =  5_000   # High density development
 # ── Metric translation constants ───────────────────────────────────────────────
 # SCS design storm: 2-inch rainfall event (typical minor storm)
 DESIGN_STORM_INCHES   = 2.0
-# HM → temperature: each +1.0 HM ≈ 4°F cooling vs fully paved (calibrated for Minneapolis)
-HM_TO_FAHRENHEIT      = 4.0
+# Urban heat-island anomaly for Minneapolis: maximum temperature difference
+# between fully-paved and rural-reference pixels. Source: InVEST UCM args JSON
+# for the MN AOI (`uhi_max=2.05`, `t_ref=23.2`). One CC unit therefore maps to
+# UHI_MAX_C in °C, or UHI_MAX_C × 1.8 in °F. When SA's InVEST args are
+# retrieved, this should become a per-city `city_cfg['uhi_max_c']`.
+UHI_MAX_C             = 2.05
+HM_TO_FAHRENHEIT      = UHI_MAX_C * 1.8   # = 3.69 °F per CC unit (MN-calibrated)
 # Food: average American consumes ~2,000 lbs of food per year
 LBS_PER_PERSON_YEAR   = 2_000
 
@@ -142,11 +164,13 @@ if not city_cfg['available']:
     st.stop()
 
 # Runtime constants derived from selected city — functions reference these as globals
-DATA_DIR_FLOOD   = city_cfg['data_dir_flood']
-DATA_DIR_COOLING = city_cfg['data_dir_cooling']
-BASELINE_CN      = city_cfg['baseline_cn']
-BASELINE_HM      = city_cfg['baseline_hm']
-REF_SCENARIOS    = city_cfg['ref_scenarios']
+DATA_DIR_FLOOD     = city_cfg['data_dir_flood']
+DATA_DIR_COOLING   = city_cfg['data_dir_cooling']
+CN_TABLE_FILE      = city_cfg['cn_table_file']
+COOLING_TABLE_FILE = city_cfg['cooling_table_file']
+BASELINE_CN        = city_cfg['baseline_cn']
+BASELINE_HM        = city_cfg['baseline_hm']
+REF_SCENARIOS      = city_cfg['ref_scenarios']
 
 st.markdown(
     "Explore how converting developed land into green infrastructure or food forests "
@@ -180,15 +204,15 @@ with st.expander("How this prototype works", expanded=False):
 
 # ── Data loading ───────────────────────────────────────────────────────────────
 @st.cache_data
-def load_data(data_dir_flood, data_dir_cooling):
-    bio = pd.read_csv(f'{data_dir_flood}/UFR_biophysical_table_MN.csv')
+def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_file):
+    bio = pd.read_csv(f'{data_dir_flood}/{cn_table_file}')
 
     with rasterio.open(f'{data_dir_flood}/LULC_NLCD_2021_MN.tif') as src:
         lulc = src.read(1)
     with rasterio.open(f'{data_dir_flood}/soil_group_MN.tif') as src:
         soil = src.read(1)
 
-    cooling_bio = pd.read_csv(f'{data_dir_cooling}/biophysical_table_urban_cooling.csv')
+    cooling_bio = pd.read_csv(f'{data_dir_cooling}/{cooling_table_file}')
     with rasterio.open(f'{data_dir_cooling}/land_use_2021.tif') as src:
         cooling_lulc = src.read(1)
 
@@ -246,7 +270,8 @@ def load_data(data_dir_flood, data_dir_cooling):
 
 (lulc, soil_resized, cooling_lulc, developed_pixels,
  cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
- equity_weights, shade_arr, kc_arr, albedo_arr) = load_data(DATA_DIR_FLOOD, DATA_DIR_COOLING)
+ equity_weights, shade_arr, kc_arr, albedo_arr) = load_data(
+    DATA_DIR_FLOOD, DATA_DIR_COOLING, CN_TABLE_FILE, COOLING_TABLE_FILE)
 
 # ── Population raster (for Nature Access metric) ───────────────────────────────
 # Built by download_census_pop.py from US Census 2020 block-level totals,
@@ -283,7 +308,8 @@ except (FileNotFoundError, rasterio.errors.RasterioIOError):
 #     CC_pixel  = 0.6 × shade[class] + 0.2 × albedo[class] + 0.2 × ETI_pixel
 # `mean_hm` reported by `evaluate_scenario` is now the mean CC over valid
 # pixels (replacing the legacy `(shade + kc) / 2` lookup). Per-class shade,
-# kc, and albedo come from `biophysical_table_urban_cooling.csv`; ET comes
+# kc, and albedo come from the city's `cooling_table_file` (e.g.
+# `biophysical_table_urban_cooling_MN.csv`); ET comes
 # from `reference_evapotranspiration_annual.tif` (1 km, bilinear-resampled
 # to the 30 m NLCD grid).
 try:
@@ -292,8 +318,21 @@ try:
         "reference_evapotranspiration_annual.tif"
     ) as _et_src:
         _et_raw = _et_src.read(1).astype(float)
+        _et_nodata = _et_src.nodata
+    # The MN reference-ET raster uses 65535 as a nodata sentinel; np.isfinite
+    # treats that as a valid float, so a previous version of this code
+    # propagated the sentinel into MAX_ET_REF and zeroed out the ETI term in
+    # the InVEST CC formula. Mask explicitly here, before resampling, so
+    # bilinear interpolation doesn't bleed sentinel values onto valid pixels.
+    if _et_nodata is not None:
+        _et_raw[_et_raw == _et_nodata] = np.nan
+    _et_raw[_et_raw > 10_000] = np.nan   # belt-and-braces against any other sentinels
+    _et_raw[_et_raw < 0]      = np.nan
     ET_RESIZED = resize(_et_raw, cooling_lulc.shape, order=1, preserve_range=True)
-    ET_RESIZED[~np.isfinite(ET_RESIZED)] = 0
+    # Fill NaNs introduced by resize() interpolating across nodata pixels with
+    # the field median so the convolution downstream sees a smooth ET surface.
+    _finite = np.isfinite(ET_RESIZED)
+    ET_RESIZED = np.where(_finite, ET_RESIZED, np.nanmedian(ET_RESIZED[_finite]))
     MAX_ET_REF = float(ET_RESIZED.max()) if ET_RESIZED.max() > 0 else 1.0
     ET_DATA_AVAILABLE = True
 except Exception:
@@ -313,25 +352,58 @@ except Exception:
     ENERGY_BY_TYPE = {}
     ENERGY_TABLE_AVAILABLE = False
 
-# Cost-per-kWh (US average residential, EIA 2024) and AC-energy-per-°F
-# sensitivity (per RECS 2020). Both are placeholders for an order-of-magnitude
-# story — refine when SA-specific values arrive.
+# Cost-per-kWh (US average residential, EIA 2024). Used to convert
+# avoided-AC-kWh into $.
 COST_PER_KWH_USD = 0.13
-AC_KWH_PER_DEG_F = 0.03  # 3% AC drop per °F cooler
+
+# NOTE: there used to be an `AC_KWH_PER_DEG_F = 0.03` fractional-AC-sensitivity
+# constant here, applied as an extra multiplier in the energy-savings formula.
+# It has been removed: the InVEST UCM `consumption` column is documented as
+# kWh/(m²·°C), i.e. the per-degree response is already encoded in the rate.
+# Multiplying by an additional 0.03 fraction would double-count. See
+# `data/invest/cooling/UCM_AUDIT.md` for the full reasoning.
+
+
+# InVEST UCM applies a Gaussian convolution to T_air_nomix with kernel radius
+# = green_area_cooling_distance (450 m for MN, per the InVEST args JSON), to
+# spatially propagate cooling from green pixels onto neighbours. We smooth CC
+# directly — equivalent up to constants since T_air_nomix = t_ref + UHI×(1−CC)
+# is an affine transform of CC and Gaussian convolution is linear.
+GREEN_AREA_COOLING_DISTANCE_M = 450
+_CC_SIGMA_PX = GREEN_AREA_COOLING_DISTANCE_M / 30  # 30 m NLCD pixels → σ = 15 px
+
+from scipy.ndimage import gaussian_filter as _gaussian_filter
 
 
 def _compute_cc_raster(scenario_lulc):
     """Per-pixel cooling-capacity index per InVEST UCM:
-        CC = 0.6·shade + 0.2·albedo + 0.2·ETI
-        ETI = (kc × ET_ref) / max(ET_ref)
-    NaN where the LULC code is outside the biophysical table."""
+        CC_raw_i  = 0.6·shade_i + 0.2·albedo_i + 0.2·ETI_i
+        ETI_i     = (kc_i × ET_ref_i) / max(ET_ref)
+        CC_i      = gaussian_filter(CC_raw, σ = 450 m / 30 m px = 15 px)
+    The Gaussian step approximates the InVEST T_air convolution: cooling
+    benefits propagate ~450 m onto neighbouring pixels rather than staying
+    pinned to the green pixel itself. NaN where the LULC code is outside the
+    biophysical table; NaNs are temporarily filled with the in-AOI mean so
+    they don't poison the convolution, then restored on the output."""
     safe = np.clip(scenario_lulc, 0, len(shade_arr) - 1)
     shade  = shade_arr[safe]
     kc     = kc_arr[safe]
     albedo = albedo_arr[safe]
     eti = (kc * ET_RESIZED) / MAX_ET_REF
-    cc = 0.6 * shade + 0.2 * albedo + 0.2 * eti
-    cc[(scenario_lulc < 0) | (scenario_lulc >= len(shade_arr))] = np.nan
+    cc_raw = 0.6 * shade + 0.2 * albedo + 0.2 * eti
+    nan_mask = (scenario_lulc < 0) | (scenario_lulc >= len(shade_arr)) | ~np.isfinite(cc_raw)
+
+    # Fill NaNs with the valid-pixel mean before convolving, then restore. The
+    # alternative — letting NaN propagate — would zero out a 15-px ring around
+    # every nodata pixel and visibly bleed onto the AOI interior.
+    if nan_mask.any():
+        fill = float(np.nan_to_num(cc_raw[~nan_mask], nan=0.0).mean()) if (~nan_mask).any() else 0.0
+        cc_filled = np.where(nan_mask, fill, cc_raw)
+    else:
+        cc_filled = cc_raw
+
+    cc = _gaussian_filter(cc_filled.astype(np.float32), sigma=_CC_SIGMA_PX, mode="nearest")
+    cc[nan_mask] = np.nan
     return cc
 
 
@@ -728,7 +800,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 7
+SCENARIO_SCHEMA_VERSION = 9   # bumped: ET nodata sentinel masked → ETI term now active in CC
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -1000,24 +1072,32 @@ def _compute_hm_raster(scenario_lulc):
 
 
 def compute_cooling_energy_savings(scenario_cc_raster):
-    """Annual avoided AC cost ($/yr) for buildings under the active scenario.
+    """Annual avoided AC cost ($/yr) for buildings under the active scenario,
+    using the canonical InVEST UCM energy-valuation formula.
 
-    Per pixel: `ΔT_°F = (CC_scenario − CC_baseline) × HM_TO_FAHRENHEIT`. The
-    avoided fraction of AC consumption is approximated linearly as
-    `ΔT_°F × AC_KWH_PER_DEG_F` (~3 % per °F, RECS 2020), clamped ≥ 0. Per-pixel
-    savings = `avoided_fraction × consumption × pixel_area × $/kWh`, summed
-    over building pixels. Returns 0 when buildings, the energy table, or the
-    ET raster are unavailable. Order-of-magnitude — refine with a calibrated
-    AC-energy-vs-temperature curve when available.
+    Per pixel: `ΔT_°C = (CC_scenario − CC_baseline) × UHI_MAX_C`. The InVEST
+    `consumption` column is documented as kWh/(m²·°C), so the per-pixel kWh
+    saved is `consumption_rate × ΔT_°C × pixel_area_m²`, and the dollar value
+    is multiplied by `$/kWh`. Negative ΔT (scenario hotter than baseline) is
+    clamped to zero — we only credit cooling, not penalise warming. Sums over
+    building pixels and returns $0 when buildings, the energy table, or the
+    ET raster are unavailable.
+
+    See `data/invest/cooling/UCM_AUDIT.md` for the divergence-from-canonical
+    log: we still apply this per-pixel rather than per-building (no 600 m
+    `t_air_average_radius` aggregation), but the per-pixel CC raster is now
+    Gaussian-smoothed at 450 m before reaching this function.
     """
     if not (BUILDINGS_DATA_AVAILABLE and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE):
         return 0.0
     delta_cc = scenario_cc_raster - _BASELINE_HM_RASTER
-    delta_t_f = delta_cc * HM_TO_FAHRENHEIT
-    avoided = np.clip(delta_t_f * AC_KWH_PER_DEG_F, 0.0, 1.0)
-    per_pixel = avoided * CONSUMPTION_RATE_PER_PIXEL * PIXEL_AREA_M2 * COST_PER_KWH_USD
-    valid = (BUILDINGS_TYPE_RASTER >= 0) & np.isfinite(per_pixel)
-    return round(float(per_pixel[valid].sum()), 0)
+    delta_t_c = np.clip(delta_cc * UHI_MAX_C, 0.0, None)
+    kwh_saved_per_pixel = (
+        CONSUMPTION_RATE_PER_PIXEL * delta_t_c * PIXEL_AREA_M2
+    )
+    usd_per_pixel = kwh_saved_per_pixel * COST_PER_KWH_USD
+    valid = (BUILDINGS_TYPE_RASTER >= 0) & np.isfinite(usd_per_pixel)
+    return round(float(usd_per_pixel[valid].sum()), 0)
 
 
 # Pre-compute baseline rasters once at startup so per-tract aggregates only
@@ -1193,7 +1273,7 @@ def predict_with_uncertainty(model, X):
 def plot_feature_importance(model):
     """Bar chart of RF feature importances across all three output metrics."""
     feature_names = ['% Converted', 'Green Infra %', 'Food Forest %']
-    metric_names  = ['Flood Reduction', 'Cooling (HM)', 'Food Production']
+    metric_names  = ['Flood Reduction', 'Cooling (CC)', 'Food Production']
     
     # Each estimator in a MultiOutputRegressor-style RF predicts all outputs
     # feature_importances_ is averaged across all trees
@@ -1416,7 +1496,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             textfont=dict(size=9),
             hovertemplate=(
                 f"<b>{name}</b> (reference benchmark)<br>"
-                f"Flood reduction: {ref['flood']} | Cooling HM: {ref['cooling']:.4f}"
+                f"Flood reduction: {ref['flood']} | Cooling CC: {ref['cooling']:.4f}"
                 "<extra></extra>"
             ),
             name=name,
@@ -1498,7 +1578,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         hovertemplate=(
             f"<b>This Scenario</b><br>"
             f"Flood reduction: {results['flood_reduction']:.1f}<br>"
-            f"Cooling HM: {results['mean_hm']:.4f}<br>"
+            f"Cooling CC: {results['mean_hm']:.4f}<br>"
             f"Food: {results['food_mln_lbs']:.3f}M lbs/yr<br>"
             f"Cost: ${results['total_cost_mln']:.1f}M"
             "<extra></extra>"
@@ -1512,9 +1592,9 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     fig.update_layout(
         title='Tradeoff Space',
         xaxis_title='Flood Risk Reduction (higher = better)',
-        yaxis_title='Heat Mitigation Index (higher = better)',
+        yaxis_title='Cooling Capacity (higher = better)',
         xaxis=dict(range=[0, 100]),
-        yaxis=dict(range=[0, 1.1]),
+        yaxis=dict(range=[0, 0.6]),
         height=520,
         margin=dict(l=60, r=200, t=80, b=60),
         legend=dict(orientation='v', x=1.02, y=1, xanchor='left', yanchor='top',
@@ -1864,7 +1944,7 @@ eco2.metric(
     "Temperature Change",
     _cooling_label,
     delta=None,
-    help="Confidence: Raster-based calculation. Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from Heat Mitigation Index (calibration factor 4°F/HM unit, ±2°F accuracy)."
+    help="Confidence: Raster-based calculation. Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from mean Cooling Capacity (CC) under the InVEST UCM (calibration factor 3.69°F/CC unit from Minneapolis UHI=2.05°C; ±2°F accuracy). Note: this is mean(CC), an approximation of the canonical InVEST Heat Mitigation Index — see UCM_AUDIT.md."
 )
 if abs(_cooling_f) < 0.05:
     eco2.markdown(
@@ -2220,11 +2300,16 @@ with st.expander("Assumptions and limitations"):
         )
     with _assumption_tabs[1]:
         st.markdown(
-            "- **Method:** InVEST Urban Cooling Model Heat Mitigation Index "
-            "(shade + evapotranspiration), per-pixel.\n"
-            "- **Calibration:** 4 °F per HM unit is an approximate midpoint from "
-            "the published 2–5 °C / HM literature range. Not locally calibrated "
-            "for Minneapolis — treat the °F output as ±2 °F at best.\n"
+            "- **Method:** InVEST Urban Cooling Model. Per-pixel Cooling "
+            "Capacity `CC = 0.6·shade + 0.2·albedo + 0.2·ETI`, then Gaussian-"
+            "smoothed over a 450 m kernel so cooling propagates onto "
+            "neighbouring pixels (per InVEST `green_area_cooling_distance`).\n"
+            "- **Reported value:** mean(CC) across the AOI, labeled CC. This "
+            "approximates but is not identical to the canonical InVEST Heat "
+            "Mitigation Index (HMI) — see UCM_AUDIT.md.\n"
+            "- **Calibration:** 3.69 °F per CC unit, from Minneapolis "
+            "`uhi_max = 2.05 °C` in the InVEST args JSON. Not independently "
+            "calibrated for MN — treat the °F output as ±2 °F at best.\n"
             "- **Not captured:** wind, humidity, urban geometry, building "
             "materials, anthropogenic heat. The model sees land cover only."
         )
@@ -2281,7 +2366,7 @@ with st.expander("Assumptions and limitations"):
     with _assumption_tabs[5]:
         st.markdown(
             "- **Composite, not validated:** weighted combination of NDVI "
-            "(synthetic), HM (cooling proxy), and Nature Access %. Each input "
+            "(synthetic), CC (cooling proxy), and Nature Access %. Each input "
             "carries its own uncertainty.\n"
             "- **Weights are arbitrary** until empirically validated against a "
             "local quality-of-life or self-reported wellbeing dataset. "
@@ -2370,7 +2455,7 @@ with tab1:
                color=['#5b8db8', '#7b4fa6'])
         ax.axhline(BASELINE_HM, color='gray', linestyle='--', alpha=0.5)
         ax.set_title('Urban Cooling', fontsize=16, fontweight='bold')
-        ax.set_ylabel('Heat Mitigation Index\n(higher = more cooling)', fontsize=12)
+        ax.set_ylabel('Cooling Capacity\n(higher = more cooling)', fontsize=12)
         ax.set_ylim(0, 1.1)
         ax.tick_params(labelsize=12)
         plt.tight_layout()

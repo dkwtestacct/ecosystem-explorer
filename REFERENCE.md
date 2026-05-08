@@ -51,7 +51,9 @@ $$R = \frac{(P - 0.2\,S)^2}{P + 0.8\,S}$$
 
 Where $P$ = design storm depth (inches; here 2.0), $R$ = direct runoff depth (inches), $S$ = potential maximum retention after runoff begins (inches), and $CN$ = curve number (0–100). The 0.2 coefficient in the numerator is the standard initial-abstraction ratio $I_a = 0.2\,S$. To get runoff *volume* in acre-feet, multiply $R$ (inches) by total developed acreage and convert: $V_{ac\text{-}ft} = (R / 12) \times \text{acres}$. GitHub renders these equations natively from the inline `$…$` and display `$$…$$` math.
 
-**Temperature Calibration (4°F/HM unit)** — The conversion from HM index to degrees Fahrenheit uses a factor of 4°F per HM unit, a midpoint estimate from InVEST Urban Cooling Model literature (published range: 2–5°C per HM unit). This factor has not been locally calibrated for Minneapolis and should be treated as an order-of-magnitude approximation. Outputs carry roughly ±2°F uncertainty.
+**Temperature Calibration (3.69 °F / CC unit)** — The conversion from Cooling Capacity (CC) to degrees Fahrenheit uses `UHI_MAX_C × 1.8 = 2.05 × 1.8 = 3.69 °F` per CC unit, where `UHI_MAX_C` comes from the Minneapolis InVEST UCM args JSON (`uhi_max=2.05 °C`). The published 2–5 °C UHI range puts MN's value near the lower end. Outputs carry roughly ±2 °F uncertainty given that wind, humidity, and urban geometry are not modelled. Previous versions used 4 °F/HM unit; the calibrated 3.69 is ~8 % lower.
+
+**"No change" display threshold** — Cooling deltas below 0.1 °F are displayed as "No change" in the Temperature Change metric card. At `UHI_MAX_C = 2.05`, this affects scenarios converting less than ~5 % of developed land. The threshold may need adjustment if `UHI_MAX_C` is recalibrated for other cities (a smaller UHI shrinks the °F-per-CC factor and widens the dead zone; a larger UHI does the opposite).
 
 **Food Forest Yield (11,500 lbs/acre/year)** — This benchmark is drawn from NatCap/InVEST food forest studies and assumes a mature, well-managed ecosystem at peak productivity. Newly established food forests will produce significantly less in early years. Actual yield depends on species mix, soil quality, management intensity, and climate.
 
@@ -78,11 +80,11 @@ Annual CO2e sequestration rates used in the tool (tons CO2e/acre/year, counting 
 
 ## Data Sources
 
-**Land Use / Land Cover** — National Land Cover Database (NLCD) 2021, produced by the USGS Multi-Resolution Land Characteristics Consortium. Provides 30m resolution land cover classifications across the contiguous US. Used to identify developed pixels eligible for conversion and to assign CN and HM values via biophysical lookup tables.
+**Land Use / Land Cover** — National Land Cover Database (NLCD) 2021, produced by the USGS Multi-Resolution Land Characteristics Consortium. Provides 30 m resolution land cover classifications across the contiguous US. Used to identify developed pixels eligible for conversion and to assign CN and HM values via biophysical lookup tables. Minneapolis data is reprojected to EPSG:26915 (UTM 15N); San Antonio data is kept in NLCD's native EPSG:5070 (NAD83 / Conus Albers, equal-area) and fetched via MRLC's WCS endpoint by `download_sa_data.py`.
 
 **Soils** — USDA Soil Survey Geographic Database (SSURGO), rasterized to match the NLCD grid. Soil hydrologic group (A/B/C/D) determines how quickly water infiltrates: Group A soils (sandy) absorb water readily; Group D soils (clay-rich) shed water quickly. Used to assign the correct Curve Number per land cover × soil combination.
 
-**Biophysical Tables** — Per-lucode CN and HM parameters derived from InVEST model documentation and NatCap published studies. These tables translate NLCD land cover codes into hydrological and thermal performance values.
+**Biophysical Tables** — Per-lucode CN and HM parameters derived from InVEST model documentation and NatCap published studies. These tables translate NLCD land cover codes into hydrological and thermal performance values. NLCD code 82 (Cultivated Crops) was added to support San Antonio, where ~6.8% of the bbox is cropland.
 
 **Heat Exposure Proxy** — The current version uses NLCD development intensity (codes 23 > 22 > 21) as a stand-in for neighborhood heat vulnerability. This is a land-use proxy, not a measured temperature or socioeconomic index. A formal Heat Vulnerability Index (e.g. CDC/ATSDR HVI by census tract) is intended for a future version.
 
@@ -133,7 +135,7 @@ The Ecological section is laid out in two rows: a 3-column row with **Flood Risk
 |-------|--------|
 | **Represents** | A unitless index of runoff potential derived from the average Curve Number (CN). Lower CN implies greater infiltration and lower runoff potential. Reported as 100 − mean_CN for interpretability. Higher is better. |
 | **Formula** | Computed as 100 minus the area-weighted average Curve Number across all pixels. Essentially, we turn the runoff score upside down so that a higher number always means a better result. **Technical detail:** `100 − mean_CN`, where `mean_CN` is derived from the biophysical lookup table by land cover type and soil group. |
-| **Data source** | `UFR_biophysical_table_MN.csv` (CN values by lucode × soil group), `soil_group_MN.tif`, `LULC_NLCD_2021_MN.tif`. |
+| **Data source** | `UFR_biophysical_table_<city>.csv` (CN values by lucode × soil group), `soil_group_<city>.tif`, LULC raster. Filename per city: `_MN` for Minneapolis, `_SA` for San Antonio (declared in `CITIES[city]['cn_table_file']`). |
 | **Delta** | Difference vs baseline (`BASELINE_CN = 75.7` → baseline index = 24.3). |
 | **Caveats** | Not a direct percentage reduction in runoff volume — it is a CN-derived index. Green infrastructure (NLCD 90) drives the largest improvements; high-density development (NLCD 24) makes it worse. |
 
@@ -144,10 +146,24 @@ The Ecological section is laid out in two rows: a 3-column row with **Flood Risk
 | Field | Detail |
 |-------|--------|
 | **Represents** | Approximate air-temperature difference vs the unmodified baseline, expressed as a direction and magnitude (e.g. "1.2°F cooler" or "0.8°F warmer"). |
-| **Formula** | Computed by averaging the shade and evapotranspiration coefficients for each pixel, then converting the change vs baseline to degrees Fahrenheit using a calibration factor. **Technical detail:** `HM = (shade + kc) / 2` per InVEST Urban Cooling Model; `ΔHM × 4.0°F/HM unit`. Calibration: 4.0°F/HM is an approximate midpoint from InVEST UCM literature (range 2–5°C per HM unit); not locally calibrated for Minneapolis. Treat as directional only. |
-| **Data source** | `biophysical_table_urban_cooling.csv` (shade and kc columns per NLCD lucode). |
-| **Delta** | Raw HM values for the scenario and baseline shown side-by-side (e.g. "HM 0.3142 vs 0.2719"). |
-| **Caveats** | Calibration factor of 4 °F/HM unit is approximate for Minneapolis; accuracy is roughly ±2 °F. The HM index is a proxy, not a direct temperature measurement. This scaling is not locally calibrated and should not be interpreted as a site-specific temperature prediction. This range reflects both the model's approximation and the fact that local air temperatures are influenced by factors such as wind, humidity, and urban geometry not captured in this tool. |
+| **Formula** | Per-pixel cooling capacity from the InVEST Urban Cooling Model: **`CC_raw = 0.6 × shade + 0.2 × albedo + 0.2 × ETI`**, where **`ETI = Kc × (ET_annual / ET_max)`** normalises actual evapotranspiration to a 0–1 fraction of the model area's maximum. The raw CC raster is then **Gaussian-smoothed with σ = 15 px (450 m, matching InVEST's `green_area_cooling_distance` for the MN AOI)** so cooling propagates onto neighbouring pixels rather than staying pinned to the green pixel itself. The card's reported value is `mean(CC_smoothed)` over valid pixels, labeled "Cooling Capacity" / "CC". Temperature change against baseline = `(CC_scenario − CC_baseline) × HM_TO_FAHRENHEIT`, where `HM_TO_FAHRENHEIT = UHI_MAX_C × 1.8 = 3.69 °F` (`UHI_MAX_C = 2.05 °C` from the InVEST args JSON for Minneapolis). |
+| **Note on labeling** | The app reports mean Cooling Capacity (CC) across the model area, which approximates but is not identical to the InVEST Heat Mitigation Index (HMI). Both are bounded 0–1 and respond to the same biophysical inputs, but canonical HMI = `1 − (T_air − t_ref) / uhi_max` after a per-building T_air sampling step that we do not implement. See [`UCM_AUDIT.md`](data/invest/cooling/UCM_AUDIT.md) for the full divergence log. |
+| **Data source** | `biophysical_table_urban_cooling_<city>.csv` (shade, Kc, albedo per NLCD lucode; declared via `CITIES[city]['cooling_table_file']`) and `data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/reference_evapotranspiration_annual.tif` (1 km MN-only, bilinear-resampled to the 30 m NLCD grid). SA's hotter/drier climate likely warrants lower Kc/shade values for some classes once the project-specific table is finalized; SA also still needs its own ET raster. |
+| **Delta** | Raw CC values for the scenario and baseline shown side-by-side (e.g. "CC 0.3910 vs 0.1859"). |
+| **Caveats** | The 3.69 °F/CC factor comes from MN's `uhi_max=2.05 °C`; treat the °F output as ±2 °F at best, since wind, humidity, urban geometry, and anthropogenic heat are not modelled. Two canonical InVEST steps remain unimplemented: (a) full HMI normalisation against `t_ref` (we report mean(CC) directly), and (b) per-building T_air sampling over a 600 m `t_air_average_radius`. The Gaussian convolution we *do* apply gets most of the way there: buildings adjacent to (not just on top of) converted pixels now receive cooling credit. |
+
+---
+
+### Cooling Energy Savings
+
+| Field | Detail |
+|-------|--------|
+| **Represents** | Annual avoided air-conditioning energy cost ($/yr) attributable to the scenario's cooling-capacity gain over the baseline LULC. Reported on the metric card as `$X.XXM/yr`, with a delta of `+$X.XXM/yr vs baseline` (baseline = $0). |
+| **Formula** | Canonical InVEST UCM energy-valuation formula. Per pixel: `ΔCC = CC_scenario − CC_baseline` (smoothed), then `ΔT_°C = max(ΔCC × UHI_MAX_C, 0)` clamped non-negative (we credit cooling, not penalise warming). Per-pixel kWh saved = `consumption_rate_kWh_per_m²_per_°C × ΔT_°C × pixel_area_m²`. Per-pixel $ saved = `kWh × $/kWh`. Summed over all building pixels, rounded to the nearest dollar. Returns 0 if buildings, the energy table, or the ET raster are unavailable. |
+| **Data source** | Building footprints + type codes from `data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/buildings.shp` (3,788 buildings, type ∈ {0=other, 1=commercial, 2=residential, 3=industrial}, rasterized to the NLCD grid as `BUILDINGS_TYPE_RASTER`). Per-type **kWh/(m²·°C)/yr** consumption rate from `energy_consumption.csv`: other=10, commercial=30, residential=20, industrial=25. (Verified against InVEST 3.14 user guide: *"consumption (number, units: kWh/(m² · °C), required): Energy consumption by footprint area for this building type."*) NLCD pixel area = 30 × 30 = 900 m². |
+| **Constants** | `UHI_MAX_C = 2.05 °C` (Minneapolis, from InVEST args JSON; mapped to 3.69 °F via × 1.8). `COST_PER_KWH_USD = 0.13` (US average residential, EIA 2024). The previous `AC_KWH_PER_DEG_F = 0.03` constant has been removed — it was double-counting against the per-°C response already encoded in the InVEST `consumption` column. |
+| **Delta** | Baseline scenario produces $0 by construction (`ΔCC = 0` everywhere). Card shows `+$X.XXM/yr vs baseline`; comparison-table row uses the same value. |
+| **Caveats** | (1) **Per-pixel, not per-building polygon** — we don't run InVEST's 600 m `t_air_average_radius` step that would average T_air across each building footprint before applying the consumption rate; for buildings spanning a CC discontinuity this could shift the dollar number. (2) **Building-extent limited** — coverage is the InVEST sample-data buildings shapefile; areas of the city outside that shapefile contribute zero. (3) **Annual flat rate** — consumption rates are annualised in the InVEST table; we do not apply a cooling-degree-day weighting. (4) **One UHI for both cities** — until SA's `uhi_max` is retrieved, both cities use MN's 2.05 °C scaling; SA's hotter climate likely warrants a higher value. Treat the dollar figure as order-of-magnitude. |
 
 ---
 
@@ -361,7 +377,7 @@ Buttons work by writing to `st.session_state` and calling `st.rerun()`.
 | Control | Detail |
 |---------|--------|
 | **Min flood reduction** | Slider 0–90, step 5. Minimum acceptable Flood Risk Reduction index. |
-| **Min cooling (°F vs baseline)** | Slider −1.0 to ~3.0°F, step 0.1, default 0.1°F. Minimum acceptable temperature improvement vs baseline. Converted to HM units internally via `BASELINE_HM + min_cool_f / 4.0` before being passed to the surrogate. Note: HM 0.30 ≈ 0.1°F cooler than baseline. |
+| **Min cooling (°F vs baseline)** | Slider −1.0 to ~3.0 °F, step 0.1, default 0.1 °F. Minimum acceptable temperature improvement vs baseline. Converted to CC units internally via `BASELINE_HM + min_cool_f / HM_TO_FAHRENHEIT` (= `… / 3.69`) before being passed to the surrogate. |
 | **Min food production (M lbs)** | Slider 0.0–MAX_FOOD, step 0.01. Minimum acceptable food production. |
 | **Min carbon sequestration (tons CO2e/yr)** | Slider 0 to maximum achievable, default 0, step 100. Minimum acceptable annual carbon sequestration from converted pixels. Only counts newly converted pixels, not pre-existing land cover. Inherits uncertainty from provisional sequestration rates — adjust rates in Advanced Settings before using this as a hard constraint. |
 | **Optimize button** | Samples ~10,000 random (pct, GI%, FF%) combinations, predicts outcomes with the RF surrogate, filters to those meeting all minimums (flood, cooling, food, carbon) and the runoff cap, computes the Pareto front, de-duplicates near-identical points, and returns up to 5 top suggestions ranked by a balanced score: `flood/100 + HM/1.1 + food/MAX_FOOD`. On success, a sidebar success message and a dismissible main-panel banner ("✅ Optimization complete — open the Tradeoff Analysis tab…") are shown until the user clicks the dismiss button or the Tradeoff Analysis tab renders. |
@@ -439,14 +455,25 @@ Built with Plotly. X and Y axes show the two primary ecological metrics; bubble 
 
 ### Reference Benchmarks (colored markers)
 
-Four fixed points representing extreme all-one-landcover scenarios for Minneapolis. Stored in `city_cfg['ref_scenarios']` and set as `REF_SCENARIOS` at runtime. **These values are specific to Minneapolis 2021 NLCD data and will differ for other cities** — each city added to the `CITIES` dict must supply its own benchmark values.
+Four fixed points representing extreme single-land-cover scenarios for Minneapolis (50 % of developed land converted, 100 % allocated to a single class). Stored in `city_cfg['ref_scenarios']` and set as `REF_SCENARIOS` at runtime. **These values are specific to Minneapolis 2021 NLCD data and will differ for other cities** — each city added to the `CITIES` dict must supply its own benchmark values.
 
-| Benchmark | Flood | HM | Interpretation |
-|-----------|-------|----|----------------|
-| Baseline | 24.3 | 0.2719 | Current unmodified land cover |
-| All Food Forest (NLCD 41) | 29.9 | 0.8284 | Every developed pixel → deciduous forest |
-| All Green Infra (NLCD 90) | 83.0 | 0.8633 | Every developed pixel → woody wetlands |
-| All High Density (NLCD 24) | 18.8 | 0.1923 | Every developed pixel → high-intensity development |
+| Benchmark | Flood | CC | Interpretation |
+|-----------|-------|-----|----------------|
+| Baseline | 24.3 | 0.1859 | Current unmodified land cover |
+| All Food Forest (NLCD 41) | 26.7 | 0.3910 | 50 % of developed pixels → deciduous forest |
+| All Green Infra (NLCD 90) | 49.3 | 0.3981 | 50 % of developed pixels → woody wetlands |
+| All High Density (NLCD 24) | 20.5 | 0.1549 | 50 % of developed pixels → high-intensity development |
+
+> **Recomputed 2026-05-08** after the InVEST UCM rework (ET nodata fix, Gaussian convolution at 450 m, canonical energy-savings formula, `UHI_MAX_C = 2.05 °C`). Recorded for transparency:
+>
+> | Benchmark | Old flood | New flood | Old CC | New CC | Notes on the shift |
+> |-----------|----------:|----------:|-------:|-------:|--------------------|
+> | Baseline | 24.3 | 24.3 | 0.2719 | 0.1859 | CC dropped because the sentinel-poisoned ETI term was previously masking ETI≈0; flood unchanged. |
+> | All Food Forest | 29.9 | 26.7 | 0.8284 | 0.3910 | Old values used pct_converted=100; new uses pct_converted=50 to match how the slider actually works. CC also reflects 450 m Gaussian smoothing across un-converted neighbours. |
+> | All Green Infra | 83.0 | 49.3 | 0.8633 | 0.3981 | Same scope correction as above. Flood reduction is still by far the largest of the four benchmarks. |
+> | All High Density | 18.8 | 20.5 | 0.1923 | 0.1549 | Flood slightly higher (less degradation) because pct_converted=50 leaves half the developed land untouched; CC slightly lower because the convolution drags HD-class pixels toward the local mean. |
+>
+> Values are deterministic given `seed=42` in `verify_cooling.py`; re-run that script after any future biophysical-table or InVEST-args change.
 
 ---
 
@@ -543,8 +570,8 @@ Three side-by-side bars comparing the current scenario to the unmodified baselin
 
 | Chart | Y-axis | Baseline value | Scenario value |
 |-------|--------|---------------|----------------|
-| Flood Risk | Mean Curve Number (lower = less runoff) | `BASELINE_CN` (75.7) | `mean_CN` from scenario |
-| Urban Cooling | Heat Mitigation Index (higher = more cooling) | `BASELINE_HM` (0.2719) | `mean_HM` from scenario |
+| Flood Risk | Mean Curve Number (lower = less runoff) | `BASELINE_CN` (Minneapolis: 75.7; San Antonio: 65.97) | `mean_CN` from scenario |
+| Urban Cooling | Cooling Capacity (higher = more cooling) | `BASELINE_HM` — auto-recomputed at module load from the smoothed CC raster; hardcoded value in `CITIES` (MN: 0.1859 post-UCM rework; SA: 0.2917 still pre-convolution) is a documentation placeholder | `mean_hm` from scenario (smoothed CC) |
 | Food Production | Million lbs/year | 0.0 (no food forest in baseline) | `food_mln_lbs` from scenario |
 
 A horizontal dashed line at the baseline value is drawn on the Flood Risk and Cooling charts for visual reference. The Food Production y-axis is scaled to `MAX_FOOD × 1.1` across all pre-computed scenarios.

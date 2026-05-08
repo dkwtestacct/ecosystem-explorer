@@ -29,14 +29,42 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 |------|-------------|
 | `data/flood/LULC_NLCD_2021_MN.tif` | Land use / land cover raster (NLCD 2021) used for CN calculation |
 | `data/flood/soil_group_MN.tif` | Hydrologic soil group raster (values 1–4 = A/B/C/D) |
-| `data/flood/UFR_biophysical_table_MN.csv` | Curve numbers by NLCD lucode × soil group (CN_A, CN_B, CN_C, CN_D) |
+| `data/flood/UFR_biophysical_table_MN.csv` | Curve numbers by NLCD lucode × soil group (CN_A, CN_B, CN_C, CN_D). Includes NLCD code 82 (Cultivated Crops). |
 | `data/flood/Damage_loss_table_MN.csv` | Not currently used in the app |
 | `data/cooling/land_use_2021.tif` | Land use raster used for HM index and spatial scenario mapping |
-| `data/cooling/biophysical_table_urban_cooling.csv` | shade and kc columns per lucode; HM = (shade + kc) / 2 |
+| `data/cooling/biophysical_table_urban_cooling_MN.csv` | shade, Kc, albedo per lucode. Includes NLCD code 82 (Cultivated Crops). |
+| `data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/reference_evapotranspiration_annual.tif` | Reference ET raster (1 km, MN-only). Bilinear-resampled to the 30 m NLCD grid; used in the InVEST CC formula's ETI term. |
+| `data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv` | Per-building-type AC consumption rate (kWh/m²/yr) for the cooling-energy-savings dollar metric. |
+| `data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/buildings.shp` | InVEST-sample building footprints with `type` ∈ {0=other, 1=commercial, 2=residential, 3=industrial}, rasterized at startup as `BUILDINGS_TYPE_RASTER`. |
 
-### San Antonio (placeholder — not yet available)
+### San Antonio (in progress — `available: False`)
 
-Expected at `data/sa/flood/` and `data/sa/cooling/` with the same file structure.
+| File | Description | Status |
+|------|-------------|--------|
+| `data/sa/flood/lulc_nlcd_2021_sa.tif` | Raw NLCD 2021 clipped to SA bbox via MRLC WCS (EPSG:5070, 30 m, 1984×1713 px) | done |
+| `data/sa/flood/land_use_2021_sa.tif` | Canonical SA LULC raster (same CRS/grid) | done |
+| `data/sa/flood/UFR_biophysical_table_SA.csv` | CN values by lucode × soil group | placeholder copy of MN |
+| `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | shade / Kc / albedo per lucode | placeholder copy of MN — SA's hotter/drier climate likely needs lower Kc and shade values for some classes (pending NatCap project tuning) |
+| `data/sa/flood/soil_group_SA.tif` | SSURGO hydrologic soil group rasterized to LULC grid | pending |
+| `data/sa/cooling/reference_evapotranspiration_annual.tif` | Reference ET raster | pending |
+| `data/sa/population/sa_pop_2020.tif` | Census 2020 block totals rasterized to LULC grid | pending |
+| `data/sa/flood/buildings.shp`, `roads.shp`, `tracts.shp` | Bexar County vector layers | pending |
+| `data/sa/flood/Damage_loss_table_SA.csv`, crop-yield table | SA-specific damage rates and crop yields | pending |
+
+LULC fetch + baseline-constant computation is reproducible via
+`download_sa_data.py`. Detailed sourcing notes are in `data/sa/README.md`.
+
+**Canonical CRS for San Antonio: EPSG:5070** (NAD83 / Conus Albers, NLCD's
+native equal-area CRS). Differs from Minneapolis (EPSG:26915 / UTM 15N) —
+equal-area is preferred for SA's larger area-based analyses.
+
+**Biophysical-table naming convention:** every city has its own CN and
+cooling tables, suffixed with the city's two-letter code (`_MN`, `_SA`).
+Each `CITIES` entry declares its filenames via `cn_table_file` and
+`cooling_table_file`; `load_data` joins these against the city's
+`data_dir_flood` / `data_dir_cooling`. Even when SA's values are still
+copies of MN, the per-city files exist so future climate-specific tuning
+doesn't risk affecting Minneapolis.
 
 ---
 
@@ -47,11 +75,14 @@ Cities are defined in the `CITIES` dict near the top of `app.py`. Each entry:
 ```python
 CITIES = {
     'City Name, ST': {
-        'data_dir_flood':   'data/<city>/flood',   # path to flood data directory
-        'data_dir_cooling': 'data/<city>/cooling', # path to cooling data directory
-        'baseline_cn':      <float>,               # mean CN of the unmodified LULC
-        'baseline_hm':      <float>,               # mean HM of the unmodified LULC
-        'available':        True | False,          # False = show "coming soon", block execution
+        'data_dir_flood':     'data/<city>/flood',   # path to flood data directory
+        'data_dir_cooling':   'data/<city>/cooling', # path to cooling data directory
+        'cn_table_file':      'UFR_biophysical_table_<XX>.csv',
+        'cooling_table_file': 'biophysical_table_urban_cooling_<XX>.csv',
+        'baseline_cn':        <float>,               # mean CN of the unmodified LULC
+        'baseline_hm':        <float>,               # mean HM of the unmodified LULC
+        'crs':                '<EPSG code>',         # canonical CRS for this city
+        'available':          True | False,          # False = show "coming soon", block execution
     },
 }
 ```
@@ -63,9 +94,10 @@ CITIES = {
 4. Set `available: True`.
 
 City selection happens in the sidebar **before** data loading. When a city is selected,
-`DATA_DIR_FLOOD`, `DATA_DIR_COOLING`, `BASELINE_CN`, and `BASELINE_HM` are set as
-module-level names from `city_cfg`. All downstream functions reference these names at
-call time (standard Python global resolution), so they automatically use the right values.
+`DATA_DIR_FLOOD`, `DATA_DIR_COOLING`, `CN_TABLE_FILE`, `COOLING_TABLE_FILE`,
+`BASELINE_CN`, and `BASELINE_HM` are set as module-level names from `city_cfg`.
+All downstream functions reference these names at call time (standard Python
+global resolution), so they automatically use the right values.
 
 `load_data(data_dir_flood, data_dir_cooling)` is `@st.cache_data` — different cities get
 separate cache entries via the path parameters.
@@ -81,7 +113,11 @@ separate cache entries via the path parameters.
 | `PIXEL_AREA_ACRES` | 0.222 | Acres per raster pixel |
 | `FOOD_FOREST_LBS_ACRE` | 11,500 | Food forest yield benchmark (lbs/acre/year) — from San Antonio NatCap study |
 | `DESIGN_STORM_INCHES` | 2.0 | Rainfall depth used for the SCS runoff calculation |
-| `HM_TO_FAHRENHEIT` | 4.0 | Calibration factor: 1 HM unit ≈ 4 °F cooling vs fully paved (Minneapolis) |
+| `UHI_MAX_C` | 2.05 | Minneapolis urban-heat-island max anomaly (°C). Source: InVEST `urban_cooling_model_args_MN.json`. Used in CC→ΔT conversion. Should become per-city `city_cfg['uhi_max_c']` once SA's InVEST args are available. |
+| `HM_TO_FAHRENHEIT` | 3.69 | Derived as `UHI_MAX_C × 1.8`. 1 CC unit ≈ 3.69 °F cooling vs fully paved (Minneapolis). |
+| `GREEN_AREA_COOLING_DISTANCE_M` | 450 | Gaussian convolution kernel radius for CC smoothing, from InVEST args JSON. `_CC_SIGMA_PX = 450/30 = 15` at 30 m NLCD resolution. |
+| `COST_PER_KWH_USD` | 0.13 | US average residential electricity price (EIA 2024). Used to convert avoided-AC-kWh into $. |
+| `PIXEL_AREA_M2` | 900 | NLCD 30 × 30 m pixel area in m². Used for cooling energy savings (consumption rate is kWh/(m²·°C)/yr from `energy_consumption.csv`). |
 | `LBS_PER_PERSON_YEAR` | 2,000 | Average American food consumption used to convert lbs → people fed |
 | `DEVELOPED_CODES` | [21, 22, 23] | NLCD lucodes treated as convertible developed land |
 | `CODE_GREEN_INFRA` | 90 | NLCD lucode for woody wetlands (green infrastructure proxy) |
@@ -91,12 +127,19 @@ separate cache entries via the path parameters.
 
 ### City-specific (set at runtime from `city_cfg`)
 
-| Name | Minneapolis value | Meaning |
-|------|-------------------|---------|
-| `BASELINE_CN` | 75.7 | Mean curve number of unmodified developed land |
-| `BASELINE_HM` | 0.2719 | Mean heat mitigation index of unmodified developed land |
-| `DATA_DIR_FLOOD` | `data/flood` | Directory containing flood model inputs |
-| `DATA_DIR_COOLING` | `data/cooling` | Directory containing cooling model inputs |
+| Name | Minneapolis value | San Antonio (preliminary) | Meaning |
+|------|-------------------|---------------------------|---------|
+| `BASELINE_CN` | 75.7 | 65.97 | Mean curve number of unmodified developed land |
+| `BASELINE_HM` | 0.2719 | 0.2917 | Mean cooling capacity (CC = 0.6·shade + 0.2·albedo + 0.2·ETI per InVEST UCM) of unmodified developed land. Reported on the UI as "HM". |
+| `DATA_DIR_FLOOD` | `data/flood` | `data/sa/flood` | Directory containing flood model inputs |
+| `DATA_DIR_COOLING` | `data/cooling` | `data/sa/cooling` | Directory containing cooling model inputs |
+
+SA values are computed by `download_sa_data.py`. They are preliminary:
+CN uses CN_B as a default soil group until SSURGO is rasterized, and HM
+uses a `0.6·shade + 0.2·albedo + 0.2·kc` proxy until SA gets its own
+reference-ET raster (Minneapolis already uses the full InVEST CC formula
+with ET; SA's value will shift slightly once ET is wired in).
+`available` is still `False` in `CITIES['San Antonio, TX']`.
 | `BASELINE_RUNOFF_ACRE_FEET` | computed | Runoff from baseline CN over a 2-inch storm; used for cost-effectiveness ratios |
 
 ### Cost defaults ($/acre, adjustable via sidebar sliders)
@@ -121,6 +164,18 @@ separate cache entries via the path parameters.
   real CDC/ATSDR Heat Vulnerability Index by census tract.
 - **`REF_SCENARIOS`**: hardcoded Minneapolis benchmark points (all-one-landcover extremes) shown
   on the tradeoff plot. Will need to become city-specific when new cities are added.
+- **InVEST Urban Cooling Model**: `_compute_cc_raster` computes per-pixel CC = `0.6·shade + 0.2·albedo + 0.2·ETI`,
+  then **Gaussian-smooths the result with σ = 15 px (450 m)** to spatially propagate cooling onto
+  neighbouring pixels per InVEST's `green_area_cooling_distance` step. The mean of this smoothed
+  CC raster is the `mean_hm` reported in scenario results (UI label: "Cooling Capacity" / "CC").
+  `compute_cooling_energy_savings(cc_raster)` converts ΔCC → ΔT °C (× `UHI_MAX_C`) →
+  kWh saved (× `consumption_rate × pixel_area`) → $/yr (× `COST_PER_KWH_USD`). Per-pixel,
+  not per-building polygon — see `UCM_AUDIT.md` for the open-divergences list, including the
+  pre-existing ET nodata-sentinel issue (Finding #11). Both functions are called inside
+  `evaluate_scenario`. Module-level precompute: `ET_RESIZED`, `MAX_ET_REF`, `BUILDINGS_TYPE_RASTER`,
+  `CONSUMPTION_RATE_PER_PIXEL`, `_BASELINE_HM_RASTER` (the smoothed baseline CC).
+  **`SCENARIO_SCHEMA_VERSION = 8`** (was 7) — bumped after the UCM rework to invalidate cached
+  lookup tables.
 
 ---
 
