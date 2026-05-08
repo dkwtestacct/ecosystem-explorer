@@ -6,6 +6,7 @@ import matplotlib.colors as mcolors
 from matplotlib.patches import Patch
 import plotly.graph_objects as go
 import os
+from pathlib import Path
 
 import rasterio
 from skimage.transform import resize
@@ -251,36 +252,119 @@ except (FileNotFoundError, rasterio.errors.RasterioIOError):
     pop_count_raster = np.ones(cooling_lulc.shape, dtype=np.float32)
     POPULATION_DATA_AVAILABLE = False
 
-# Nature Access: share of residents within ~800 m of natural / green land cover.
-# Implemented as a Euclidean distance transform of the green-pixel mask, NOT a
-# street-network walk model — a proximity proxy, treated as directional only.
-NATURE_CODES      = [41, 42, 43, 52, 71, 90, 95]   # forest / shrub / grass / wetland classes
-ACCESS_DISTANCE_M = 800
-PIXEL_SIZE_M      = 30
+# Nature Access: weighted population-share metric using the official InVEST
+# Urban Nature Access (UNA) biophysical table. Each LULC class has its own
+# `urban_nature` score (0–1) and `search_radius_m`. For each scenario we take,
+# per pixel, the maximum (in_range × score) across all natural classes — a
+# pixel "near" multiple nature types gets the highest of their scores — then
+# weight population by that score. Replaces the earlier hardcoded
+# `NATURE_CODES = [41, 42, 43, 52, 71, 90, 95]` + single-800m-radius approach.
+PIXEL_SIZE_M = 30
+
+from scipy.ndimage import distance_transform_edt as _distance_transform_edt
+
+UNA_TABLE_PATH = Path("data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv")
+UNA_TABLE = pd.read_csv(UNA_TABLE_PATH)
+# Active rows = classes that contribute to nature access (positive score AND
+# a defined search radius). Sorted ascending by score so np.maximum in the
+# loop below ends up with the highest score across all in-range classes.
+UNA_ACTIVE = UNA_TABLE[
+    (UNA_TABLE["urban_nature"] > 0) & UNA_TABLE["search_radius_m"].notna()
+].copy()
+UNA_ACTIVE["lucode"] = UNA_ACTIVE["lucode"].astype(int)
+
+# Pre-compute distance transforms for natural classes whose pixel set never
+# changes across scenarios (the model only converts NLCD 21–24 to GI/FF/HD).
+# This keeps per-scenario evaluation fast: classes 21, 41, 90 are recomputed
+# live; all other natural classes use the pre-built array.
+_DYNAMIC_NATURE_LUCODES = {21, 41, 90}
+PRECOMPUTED_NATURE_DISTANCES = {}
+for _lucode in UNA_ACTIVE["lucode"]:
+    if _lucode in _DYNAMIC_NATURE_LUCODES:
+        continue
+    _mask = (cooling_lulc == _lucode)
+    if _mask.any():
+        PRECOMPUTED_NATURE_DISTANCES[int(_lucode)] = (
+            _distance_transform_edt(~_mask) * PIXEL_SIZE_M
+        )
 
 
 def calculate_nature_access(scenario_lulc, pop_count_raster):
     """
-    Returns (access_pct, people_with_access).
-    pop_count_raster must be per-pixel **counts** (not density). WorldPop "ppp"
-    layers are already counts; clip_worldpop.py preserves that through the
-    area-ratio rescaling.
+    Returns (access_pct, weighted_people_with_access).
+
+    For each LULC class with a positive `urban_nature` score in the InVEST UNA
+    table, compute the in-range mask using that class's `search_radius_m`.
+    Per pixel, the access score is the maximum `score × in_range` across all
+    contributing classes. The reported metric is the population-weighted mean
+    of that score, expressed as a percentage. With a continuous 0–1 score
+    (rather than the previous binary in-or-out flag) this generalizes the old
+    "% of residents with access" framing — a pixel near a class-1.0 forest
+    and a class-0.5 open-space patch counts toward the higher of the two.
+
+    pop_count_raster must be per-pixel **counts** (not density).
+
+    Returns `(access_pct, quality_score, weighted_people)`:
+
+    - `access_pct` — share of residents with access_score above
+      `NATURE_ACCESS_THRESHOLD` (default 0.3). A pedestrian-style headline
+      number: "what fraction of residents reach *meaningful* nature?".
+    - `quality_score` — population-weighted mean access score (0-1). Captures
+      both proximity and nature class quality. The `np.maximum(...)` step
+      below is what prevents double-counting: a pixel near multiple natural
+      classes gets the **highest** of their per-class scores, not the sum.
+    - `weighted_people` — int of `pop × access_score` summed, useful as a
+      population-scale companion number.
     """
-    from scipy.ndimage import distance_transform_edt
-    nature_mask        = np.isin(scenario_lulc, NATURE_CODES)
-    distance_to_nature = distance_transform_edt(~nature_mask) * PIXEL_SIZE_M
-    access_mask        = distance_to_nature <= ACCESS_DISTANCE_M
-    valid_pop          = pop_count_raster > 0
-    total_pop          = pop_count_raster[valid_pop].sum()
+    valid_pop = pop_count_raster > 0
+    total_pop = pop_count_raster[valid_pop].sum()
     if total_pop <= 0:
-        return 0.0, 0
-    pop_with_access = pop_count_raster[access_mask & valid_pop].sum()
-    access_pct      = 100 * pop_with_access / total_pop
-    return round(access_pct, 1), int(pop_with_access)
+        return 0.0, 0.0, 0
+
+    access_score = np.zeros(scenario_lulc.shape, dtype=np.float32)
+    for _, row in UNA_ACTIVE.iterrows():
+        lucode = int(row["lucode"])
+        radius = float(row["search_radius_m"])
+        score  = float(row["urban_nature"])
+        # Use the pre-computed distance transform when the class doesn't change
+        # across scenarios; otherwise rebuild for the current scenario.
+        if lucode in PRECOMPUTED_NATURE_DISTANCES:
+            distance = PRECOMPUTED_NATURE_DISTANCES[lucode]
+        else:
+            mask = (scenario_lulc == lucode)
+            if not mask.any():
+                continue
+            distance = _distance_transform_edt(~mask) * PIXEL_SIZE_M
+        in_range = distance <= radius
+        # MAX (not sum) across classes — prevents double-counting when a pixel
+        # is in range of multiple natural classes simultaneously.
+        np.maximum(access_score, in_range * score, out=access_score)
+
+    weighted_pop_score = (pop_count_raster * access_score)[valid_pop].sum()
+    quality_score = float(weighted_pop_score / total_pop)
+
+    above_threshold = access_score > NATURE_ACCESS_THRESHOLD
+    pop_above_thresh = pop_count_raster[above_threshold & valid_pop].sum()
+    access_pct = 100 * pop_above_thresh / total_pop
+
+    return (
+        round(float(access_pct), 1),
+        round(quality_score, 3),
+        int(weighted_pop_score),
+    )
+
+
+# Threshold for "Nature Access %" — pixels with access_score above this count
+# as having meaningful nature access (binary headline metric). Below this and
+# the resident still has *some* nature score, but it's reported via the
+# continuous Nature Quality Score instead.
+NATURE_ACCESS_THRESHOLD = 0.3
 
 
 BASELINE_FOOD_MLN_LBS = 0.0
-BASELINE_NATURE_ACCESS_PCT, _ = calculate_nature_access(cooling_lulc, pop_count_raster)
+BASELINE_NATURE_ACCESS_PCT, BASELINE_NATURE_QUALITY_SCORE, _ = calculate_nature_access(
+    cooling_lulc, pop_count_raster
+)
 
 
 # ── Urban Wellbeing Score ─────────────────────────────────────────────────────
@@ -292,14 +376,15 @@ DEFAULT_WGT_COOLING = 0.4
 DEFAULT_WGT_NATURE  = 0.4
 
 
-def compute_wellbeing_score(ndvi, hm, nature_pct, w_ndvi, w_cooling, w_nature):
-    """Composite wellbeing index. Inputs are normalized to 0–1 before weighting:
-    NDVI is already 0–1, HM is treated as 0–1 (theoretical max = 1.0), and
-    nature_pct (0–100) is divided by 100. Returned value rounds to 3 decimals."""
+def compute_wellbeing_score(ndvi, hm, nature_quality, w_ndvi, w_cooling, w_nature):
+    """Composite wellbeing index. All inputs are 0–1 already:
+    NDVI is 0–1, HM is treated as 0–1 (theoretical max = 1.0), and
+    `nature_quality` is the population-weighted mean Nature Quality Score
+    from `calculate_nature_access`. Returned value rounds to 3 decimals."""
     return round(float(
         w_ndvi   * ndvi
         + w_cooling * hm
-        + w_nature * nature_pct / 100.0
+        + w_nature * nature_quality
     ), 3)
 
 
@@ -433,13 +518,18 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
     scenario_lulc = cooling_lulc.copy()
-    n_convert = int(len(developed_pixels) * pct_converted / 100)
+    # Sample from the convertible (= developed AND non-building) pool so
+    # conversions land on feasible interstitial spaces (parking lots, lawns,
+    # vacant land) rather than on top of existing structures. Total developed
+    # acreage for runoff baseline scaling still uses the full developed_pixels
+    # array — buildings still produce runoff.
+    n_convert = int(len(CONVERTIBLE_PIXELS) * pct_converted / 100)
 
     rng = np.random.default_rng(seed)
 
     if use_heat_priority and n_convert > 0:
-        # Pull weights specifically for the developed pixels
-        weights = equity_weights[developed_pixels[:, 0], developed_pixels[:, 1]].astype(float)
+        # Pull weights specifically for the convertible pixels
+        weights = equity_weights[CONVERTIBLE_PIXELS[:, 0], CONVERTIBLE_PIXELS[:, 1]].astype(float)
 
         # Robustness check: Ensure no negative or NaN weights
         weights = np.maximum(weights, 0)
@@ -447,13 +537,13 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 
         if weight_sum > 0:
             weights /= weight_sum
-            chosen_idx = rng.choice(len(developed_pixels), size=n_convert, replace=False, p=weights)
+            chosen_idx = rng.choice(len(CONVERTIBLE_PIXELS), size=n_convert, replace=False, p=weights)
         else:
-            chosen_idx = rng.choice(len(developed_pixels), size=n_convert, replace=False)
+            chosen_idx = rng.choice(len(CONVERTIBLE_PIXELS), size=n_convert, replace=False)
     else:
-        chosen_idx = rng.choice(len(developed_pixels), size=n_convert, replace=False)
+        chosen_idx = rng.choice(len(CONVERTIBLE_PIXELS), size=n_convert, replace=False)
 
-    pixels_to_convert = developed_pixels[chosen_idx]
+    pixels_to_convert = CONVERTIBLE_PIXELS[chosen_idx]
 
     n_wet = int(n_convert * green_infrastructure_pct / 100)
     n_for = int(n_convert * food_forest_pct / 100)
@@ -492,15 +582,22 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         + n_hd  * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_HIGH_DENSITY], 1
     )
 
-    nat_pct, nat_people = calculate_nature_access(scenario_lulc, pop_count_raster)
+    nat_pct, nat_quality, nat_people = calculate_nature_access(
+        scenario_lulc, pop_count_raster
+    )
 
     mean_ndvi = compute_mean_ndvi(scenario_lulc)
+    # Wellbeing uses the continuous Nature Quality Score (0–1) rather than the
+    # threshold-based access percentage — quality captures graded proximity
+    # better, which is what the composite is meant to summarize.
     wellbeing_score = compute_wellbeing_score(
-        mean_ndvi, mean_hm, nat_pct, w_ndvi, w_cooling, w_nature
+        mean_ndvi, mean_hm, nat_quality, w_ndvi, w_cooling, w_nature
     )
 
     total_developed_acres = len(developed_pixels) * PIXEL_AREA_ACRES
     total_cost_mln = compute_cost(n_wet, n_for, n_hd, cost_gi, cost_ff, cost_hd)
+    runoff_acft    = cn_to_runoff_acre_feet(mean_cn, total_developed_acres)
+    flood_damage_avoided_usd = compute_flood_damage_avoided(runoff_acft)
 
     return {
         'pct_converted':            pct_converted,
@@ -512,12 +609,14 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'n_hd':                     n_hd,
         'mean_cn':                  mean_cn,
         'flood_reduction':          round(100 - mean_cn, 2),
-        'runoff_acre_feet':         cn_to_runoff_acre_feet(mean_cn, total_developed_acres),
+        'runoff_acre_feet':         runoff_acft,
         'mean_hm':                  mean_hm,
         'cooling_f':                hm_to_fahrenheit_cooling(mean_hm),
+        'flood_damage_avoided_usd': flood_damage_avoided_usd,
         'mean_ndvi':                mean_ndvi,
         'carbon_tons_co2_yr':       carbon_tons_co2_yr,
         'nature_access_pct':        nat_pct,
+        'nature_quality_score':     nat_quality,
         'people_with_nature_access': nat_people,
         'wellbeing_score':          wellbeing_score,
         'food_mln_lbs':             food_mln_lbs,
@@ -531,7 +630,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 3
+SCENARIO_SCHEMA_VERSION = 5
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -567,10 +666,11 @@ def compute_scenario_grid(data_dir_flood, data_dir_cooling,
                     row['carbon_tons_co2_yr'] = _compute_carbon(
                         row['n_wet'], row['n_for'], row['n_hd']
                     )
-                    nature_access_pct, people_with_nature_access = calculate_nature_access(
+                    nature_access_pct, nature_quality_score, people_with_nature_access = calculate_nature_access(
                         result['scenario_lulc'], pop_count_raster
                     )
                     row['nature_access_pct'] = nature_access_pct
+                    row['nature_quality_score'] = nature_quality_score
                     row['people_with_nature_access'] = people_with_nature_access
                     rows.append(row)
     df = pd.DataFrame(rows)
@@ -610,10 +710,11 @@ def compute_lookup_table(data_dir_flood, data_dir_cooling, schema_version=SCENAR
                     entry['carbon_tons_co2_yr'] = _compute_carbon(
                         entry['n_wet'], entry['n_for'], entry['n_hd']
                     )
-                    nature_access_pct, people_with_nature_access = calculate_nature_access(
+                    nature_access_pct, nature_quality_score, people_with_nature_access = calculate_nature_access(
                         result['scenario_lulc'], pop_count_raster
                     )
                     entry['nature_access_pct'] = nature_access_pct
+                    entry['nature_quality_score'] = nature_quality_score
                     entry['people_with_nature_access'] = people_with_nature_access
                     missing = [c for c in REQUIRED_TARGET_COLUMNS if c not in entry]
                     if missing:
@@ -651,6 +752,80 @@ DENSE_SCENARIOS_PATH = "data/scenarios_dense.csv"
 # here lives in the Advanced Settings expander further down — Streamlit reruns
 # top-to-bottom on every interaction, so on the next rerun this read picks up
 # the new value the radio wrote on the previous run.
+# ── Buildings: damage-loss data + footprint mask for siting constraints ──────
+# Loads the InVEST UFR sample buildings shapefile + damage-loss table once. The
+# shapefile drives both the "Flood Damage Avoided" $ metric (sum of footprint
+# area × damage rate, scaled by scenario runoff reduction) AND the
+# building-footprint constraint on pixel selection (conversions are placed only
+# on developed pixels that DON'T contain a building, targeting feasible
+# interstitial spaces — parking lots, lawns, vacant land). Falls back to
+# disabled if the shapefile or CSV is missing so the rest of the app still loads.
+try:
+    import geopandas as _gpd  # noqa: F401  imported lazily so non-flood paths don't pay it
+    from rasterio.features import rasterize as _rasterize
+
+    _BUILDINGS_PATH    = Path("data/invest/flood/UFR_sample_data_MN/buildings.shp")
+    _DAMAGE_TABLE_PATH = Path("data/invest/flood/UFR_sample_data_MN/Damage_loss_table_MN.csv")
+    _buildings = _gpd.read_file(_BUILDINGS_PATH)
+    _damage_table = pd.read_csv(_DAMAGE_TABLE_PATH)
+    # `type` column in the buildings shapefile (0–3) maps to `Type` in the
+    # damage-loss table. Values are damage in $/m² of building footprint.
+    _type_to_damage = dict(zip(_damage_table["Type"], _damage_table["Damage"]))
+    _buildings["damage_rate_usd_m2"] = _buildings["type"].map(_type_to_damage).fillna(0)
+    _buildings["area_m2"] = _buildings.geometry.area
+    _buildings["potential_damage_usd"] = (
+        _buildings["area_m2"] * _buildings["damage_rate_usd_m2"]
+    )
+    TOTAL_POTENTIAL_DAMAGE_USD = float(_buildings["potential_damage_usd"].sum())
+
+    # Rasterize building polygons onto the NLCD grid (CRS already matches —
+    # both are EPSG:26915). Pixels intersecting any building → 1, else 0.
+    with rasterio.open("data/cooling/land_use_2021.tif") as _ref:
+        BUILDINGS_RASTER = _rasterize(
+            ((geom, 1) for geom in _buildings.geometry),
+            out_shape=(_ref.height, _ref.width),
+            transform=_ref.transform,
+            fill=0,
+            dtype="uint8",
+        )
+    BUILDINGS_DATA_AVAILABLE = True
+except Exception:
+    TOTAL_POTENTIAL_DAMAGE_USD = 0.0
+    BUILDINGS_DATA_AVAILABLE = False
+    BUILDINGS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
+
+# Convertible pixels = developed land that is NOT a building footprint. Random
+# (or heat-weighted) sampling in evaluate_scenario draws from this pool, so
+# conversions land on parking lots, lawns, and vacant land rather than on
+# top of existing structures. The full developed_pixels array is still used
+# for runoff baseline scaling (buildings still produce runoff).
+_no_building = BUILDINGS_RASTER[developed_pixels[:, 0], developed_pixels[:, 1]] == 0
+CONVERTIBLE_PIXELS = developed_pixels[_no_building]
+
+# Baseline runoff for the damage scaling — computed inline here because
+# `BASELINE_RUNOFF_ACRE_FEET` (the canonical module-level constant) isn't
+# defined until after the lookup table is built. Same formula either way.
+_BASELINE_RUNOFF_FOR_DAMAGE = cn_to_runoff_acre_feet(
+    BASELINE_CN, len(developed_pixels) * PIXEL_AREA_ACRES
+)
+
+
+def compute_flood_damage_avoided(runoff_acre_feet):
+    """Order-of-magnitude $ damage avoided vs baseline.
+
+    Uses the simplification `avoided = total_potential_damage ×
+    (runoff_reduction_fraction)`, where `runoff_reduction_fraction` is
+    `max(0, baseline - scenario) / baseline`. Caps at zero — scenarios that
+    INCREASE runoff are reported as $0 avoided rather than negative dollars
+    (those regressions show up via the existing Runoff Volume card).
+    """
+    if not BUILDINGS_DATA_AVAILABLE or _BASELINE_RUNOFF_FOR_DAMAGE <= 0:
+        return 0.0
+    reduction = max(0.0, _BASELINE_RUNOFF_FOR_DAMAGE - runoff_acre_feet)
+    fraction  = reduction / _BASELINE_RUNOFF_FOR_DAMAGE
+    return round(TOTAL_POTENTIAL_DAMAGE_USD * fraction, 0)
+
+
 MODEL_QUALITY_OPTIONS = ["Fast prototype", "Balanced", "High resolution"]
 # Random Forest tree counts per mode — implementation detail, not exposed in UI.
 SURROGATE_TREES = {
@@ -1305,8 +1480,10 @@ if lookup_key in lookup_table and not use_heat_priority:
     results['mean_ndvi']    = _fresh['mean_ndvi']
     results['carbon_tons_co2_yr'] = _fresh['carbon_tons_co2_yr']
     results['nature_access_pct']  = _fresh['nature_access_pct']
+    results['nature_quality_score'] = _fresh['nature_quality_score']
     results['people_with_nature_access'] = _fresh['people_with_nature_access']
     results['wellbeing_score']    = _fresh['wellbeing_score']
+    results['flood_damage_avoided_usd'] = _fresh['flood_damage_avoided_usd']
     # Recompute cost with current cost sliders (lookup table used default costs)
     results['total_cost_mln'] = compute_cost(
         results['n_wet'], results['n_for'], results['n_hd'],
@@ -1456,14 +1633,16 @@ eco5.metric(
 st.divider()
 
 st.markdown("#### Human & Social")
-hs1, hs2, _ = st.columns(3)
+hs1, hs2, hs3 = st.columns(3)
 _nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
 _nature_help = (
     "Confidence: Proximity estimate. "
-    "Approximate share of residents in the model area within ~800m of green "
-    "or natural land cover. Model area covers downtown Minneapolis and "
-    "near-neighborhoods (~154,000 residents). Uses Euclidean distance, not "
-    "street-network walking distance. Population from US Census 2020 block data."
+    f"Share of residents in the model area whose access score exceeds "
+    f"{NATURE_ACCESS_THRESHOLD} — using the InVEST UNA biophysical table "
+    "(per-class urban_nature score and search radius). Model area covers "
+    "downtown Minneapolis and near-neighborhoods (~154,000 residents). "
+    "Euclidean distance, not street-network walking. Population from US "
+    "Census 2020 block data."
 ) if POPULATION_DATA_AVAILABLE else (
     "Confidence: Proximity estimate. "
     "Currently using placeholder uniform population weighting — run "
@@ -1490,6 +1669,26 @@ if use_heat_priority:
         "improving equity of green space distribution."
     )
 
+# Nature Quality Score — population-weighted mean access score (0–1). Sits
+# alongside Nature Access % to capture the *graded* quality of nearby green
+# space rather than a pure binary "in / out of buffer" share.
+_nature_quality = results.get('nature_quality_score', 0.0)
+_nature_quality_delta = _nature_quality - BASELINE_NATURE_QUALITY_SCORE
+hs2.metric(
+    "Nature Quality Score",
+    f'{_nature_quality:.3f}',
+    delta=f"{_nature_quality_delta:+.3f} vs baseline",
+    delta_color="normal" if abs(_nature_quality_delta) >= 0.001 else "off",
+    help=(
+        "Confidence: Composite proxy. Population-weighted mean nature access "
+        "quality score (0–1) based on InVEST Urban Nature Access biophysical "
+        "table. Reflects both proximity and quality of nearby green space. "
+        "Each pixel's score is the MAX (not sum) of `urban_nature × in_range` "
+        "across all natural classes — a pixel near multiple nature types gets "
+        "the highest single class score, preventing double-counting."
+    ),
+)
+
 # Urban Wellbeing Score — composite index. Baseline is recomputed each rerun
 # using the *current* weights so the delta stays meaningful when the user tunes
 # weights in Advanced Settings.
@@ -1497,11 +1696,11 @@ _active_w_ndvi    = st.session_state.get("wgt_ndvi",    DEFAULT_WGT_NDVI)
 _active_w_cooling = st.session_state.get("wgt_cooling", DEFAULT_WGT_COOLING)
 _active_w_nature  = st.session_state.get("wgt_nature",  DEFAULT_WGT_NATURE)
 _baseline_wellbeing = compute_wellbeing_score(
-    BASELINE_NDVI, BASELINE_HM, BASELINE_NATURE_ACCESS_PCT,
+    BASELINE_NDVI, BASELINE_HM, BASELINE_NATURE_QUALITY_SCORE,
     _active_w_ndvi, _active_w_cooling, _active_w_nature,
 )
 _wellbeing_delta = results['wellbeing_score'] - _baseline_wellbeing
-hs2.metric(
+hs3.metric(
     "Urban Wellbeing Score",
     f'{results["wellbeing_score"]:.3f}',
     delta=f"{_wellbeing_delta:+.3f} vs baseline",
@@ -1517,7 +1716,7 @@ hs2.metric(
 st.divider()
 
 st.markdown("#### Economic")
-econ1, econ2 = st.columns(2)
+econ1, econ2, econ3 = st.columns(3)
 econ1.metric(
     "Food Production",
     _fmt_food(results['food_mln_lbs']),
@@ -1535,6 +1734,36 @@ econ2.metric(
     delta=None,
     help="Confidence: Order-of-magnitude estimate. Total cost based on $/acre sliders × converted acreage."
 )
+_flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
+if BUILDINGS_DATA_AVAILABLE:
+    econ3.metric(
+        "Flood Damage Avoided",
+        f"${_flood_damage_avoided / 1e6:.1f}M",
+        delta=(
+            f"+${_flood_damage_avoided / 1e6:.1f}M vs baseline"
+            if _flood_damage_avoided >= 1e4 else "no avoided damage"
+        ),
+        delta_color="normal" if _flood_damage_avoided >= 1e4 else "off",
+        help=(
+            "Confidence: Order-of-magnitude estimate. Estimated reduction in "
+            "flood damage costs based on the InVEST damage-loss table by "
+            "building type (Roads $40, Commercial $120, Residential $150, "
+            "Industrial $100 per m²) joined to a 3,788-building footprint "
+            "shapefile. Scales with this scenario's runoff reduction vs "
+            f"baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). Capped at $0 "
+            "for scenarios that increase runoff."
+        ),
+    )
+else:
+    econ3.metric(
+        "Flood Damage Avoided",
+        "—",
+        help=(
+            "Confidence: Order-of-magnitude estimate. Buildings shapefile or "
+            "damage-loss table not loaded — see "
+            "data/invest/flood/UFR_sample_data_MN/."
+        ),
+    )
 
 st.divider()
 
@@ -1577,10 +1806,12 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     _runoff_diff    = results['runoff_acre_feet'] - BASELINE_RUNOFF_ACRE_FEET
     _flood_diff     = results['flood_reduction'] - _baseline_flood
 
+    _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
     comparison_data = {
         'Metric': [
             'Flood Risk Reduction', 'Runoff Volume', 'Temperature Change',
             'Food Production', 'Carbon Sequestration', 'Nature Access', 'NDVI',
+            'Flood Damage Avoided',
         ],
         'Baseline': [
             f'{_baseline_flood:.1f}',
@@ -1590,6 +1821,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             '0 tons CO2e/yr',
             f'{BASELINE_NATURE_ACCESS_PCT:.1f}%',
             f'{BASELINE_NDVI:.3f}',
+            '$0',
         ],
         'This Scenario': [
             f'{results["flood_reduction"]:.1f}',
@@ -1603,6 +1835,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{results["carbon_tons_co2_yr"]:,.0f} tons CO2e/yr',
             f'{results["nature_access_pct"]:.1f}%',
             f'{results["mean_ndvi"]:.3f}',
+            f'${_flood_damage_avoided / 1e6:.1f}M',
         ],
         'Change': [
             f'{_flood_diff:+.1f}',
@@ -1616,6 +1849,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'+{results["carbon_tons_co2_yr"]:,.0f} tons CO2e/yr',
             f'{results["nature_access_pct"] - BASELINE_NATURE_ACCESS_PCT:+.1f} pp',
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
+            f'+${_flood_damage_avoided / 1e6:.1f}M' if _flood_damage_avoided >= 1e4 else '$0',
         ],
     }
 
@@ -1699,9 +1933,13 @@ with st.expander("Assumptions and limitations"):
             "- **Extent caveat:** the NLCD raster only covers ~10.8 km × "
             "10.7 km of downtown Minneapolis (~154,000 residents in extent), "
             "not the full city.\n"
-            "- **Spatial placement is stylized** — converted pixels are picked "
-            "randomly (or heat-weighted), not by real siting constraints, "
-            "parcel ownership, or corridor design.\n"
+            "- **Spatial placement is building-footprint-aware.** Conversions "
+            "are sampled from developed pixels that do NOT contain a building, "
+            "using the InVEST UFR buildings shapefile to mask out structures. "
+            "This targets feasible interstitial spaces (parking lots, lawns, "
+            "vacant lots) but still ignores parcel ownership, corridor design, "
+            "and zoning — placement within the convertible pool is random "
+            "(or heat-weighted in Heat-Priority Mode).\n"
             "- **High-density-only conversion ties baseline:** the model never "
             "removes existing nature, so adding HD alone leaves the buffer "
             "unchanged.\n"
@@ -1734,9 +1972,14 @@ with st.expander("Assumptions and limitations"):
             "benefit (acre-foot prevented, °F cooling, 1,000 people fed). "
             "Returns N/A when the denominator is zero or negative — never "
             "infinite or misleading.\n"
-            "- **Feasibility ignored:** the model assumes all developed land "
-            "is available for conversion. Real projects need site-by-site "
-            "feasibility checks (zoning, ownership, soil, infrastructure).\n"
+            "- **Building footprints excluded.** Conversions never land on top "
+            "of existing buildings — the InVEST UFR buildings shapefile is "
+            "rasterized and subtracted from the candidate pool. Buildings are "
+            "still part of the runoff calculation (they shed water like any "
+            "developed surface), but they're not eligible to be replaced by "
+            "GI/FF/HD. Real projects still need site-by-site feasibility "
+            "checks (zoning, ownership, soil, infrastructure) beyond just "
+            "avoiding building tops.\n"
             "- **Optimized scenarios** come from a Random Forest surrogate. "
             "Verify any suggestion by manually applying it to the main "
             "sliders so the full pixel-level simulation runs."
@@ -2082,10 +2325,13 @@ with tab3:
         "Gray = unchanged developed land. Colors show where conversions occur. "
         "White = outside city boundary. Red wash = heat vulnerability proxy "
         "(NLCD development intensity), with opacity controlled by the slider above.  \n"
-        "Converted pixels are selected randomly across all developed land (or weighted toward "
-        "high heat-exposure areas if that mode is on). Spatial placement does not reflect parcel "
-        "ownership, adjacency, corridors, or neighborhood targeting — real implementation would "
-        "require site-specific siting analysis."
+        "Conversions are placed on developed land excluding building footprints — "
+        "targeting feasible interstitial spaces such as parking lots, lawns, and "
+        "vacant land. The candidate pool is the InVEST UFR buildings shapefile "
+        "subtracted from the NLCD-21/22/23/24 mask; placement within that pool is "
+        "random, or weighted toward higher-intensity-developed pixels when "
+        "Heat-Priority Mode is on. Real implementation would still require "
+        "site-specific siting analysis (zoning, ownership, soil, infrastructure)."
     )
 
 with tab4:
