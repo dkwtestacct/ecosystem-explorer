@@ -30,15 +30,17 @@ CITIES = {
         'available':            True,
         'crs':                  'EPSG:26915',
         # Reference points plotted on the tradeoff scatter. Recomputed via
-        # `verify_cooling.py` (seed=42) after the InVEST UCM rework: ET
-        # nodata fix, Gaussian convolution at 450 m, canonical energy
-        # formula, UHI_MAX_C = 2.05 °C. Each "All X" scenario is
+        # `verify_cooling.py` (seed=42) after switching to the full
+        # Geofabrik OSM road network (62 % AOI coverage vs ~11 % previously),
+        # which shrunk the convertible-pixels pool. Earlier rework also
+        # included: ET nodata fix, Gaussian convolution at 450 m, canonical
+        # energy formula, UHI_MAX_C = 2.05 °C. Each "All X" scenario is
         # pct_converted=50 with 100 % allocation to that single land cover.
         'ref_scenarios': {
             'Baseline':                     {'flood': 24.3,  'cooling': 0.1859, 'color': 'steelblue'},
-            'All Food Forest (NLCD 41)':    {'flood': 26.7,  'cooling': 0.3910, 'color': 'green'},
-            'All Green Infra (NLCD 90)':    {'flood': 49.3,  'cooling': 0.3981, 'color': 'teal'},
-            'All High Density (NLCD 24)':   {'flood': 20.5,  'cooling': 0.1549, 'color': 'red'},
+            'All Food Forest (NLCD 41)':    {'flood': 25.1,  'cooling': 0.2560, 'color': 'green'},
+            'All Green Infra (NLCD 90)':    {'flood': 33.2,  'cooling': 0.2585, 'color': 'teal'},
+            'All High Density (NLCD 24)':   {'flood': 22.9,  'cooling': 0.1720, 'color': 'red'},
         },
     },
     'San Antonio, TX': {
@@ -800,7 +802,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 9   # bumped: ET nodata sentinel masked → ETI term now active in CC
+SCENARIO_SCHEMA_VERSION = 10  # bumped: full Geofabrik OSM road exclusion (62 % AOI coverage) shrunk the convertible-pixels pool, shifting all scenario outputs
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
