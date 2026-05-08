@@ -15,11 +15,14 @@ from sklearn.ensemble import RandomForestRegressor
 # ── City configuration ─────────────────────────────────────────────────────────
 CITIES = {
     'Minneapolis, MN': {
-        'data_dir_flood':   'data/flood',
-        'data_dir_cooling': 'data/cooling',
-        'baseline_cn':      75.7,
-        'baseline_hm':      0.2719,
-        'available':        True,
+        'data_dir_flood':       'data/flood',
+        'data_dir_cooling':     'data/cooling',
+        'baseline_cn':          75.7,
+        'baseline_hm':          0.2719,
+        'pixel_area_acres':     0.222,
+        'food_forest_lbs_acre': 11_500,
+        'available':            True,
+        'crs':                  'EPSG:26915',
         'ref_scenarios': {
             'Baseline':                     {'flood': 24.3,  'cooling': 0.2719, 'color': 'steelblue'},
             'All Food Forest (NLCD 41)':    {'flood': 29.9,  'cooling': 0.8284, 'color': 'green'},
@@ -28,12 +31,19 @@ CITIES = {
         },
     },
     'San Antonio, TX': {
-        'data_dir_flood':   'data/sa/flood',
-        'data_dir_cooling': 'data/sa/cooling',
-        'baseline_cn':      None,
-        'baseline_hm':      None,
-        'available':        False,
-        'ref_scenarios':    {},
+        'data_dir_flood':       'data/sa/flood',
+        'data_dir_cooling':     'data/sa/cooling',
+        'baseline_cn':          None,   # TODO: get from Yingjie or compute from SA LULC
+        'baseline_hm':          None,   # TODO: get from Yingjie or compute from SA biophysical table
+        'pixel_area_acres':     None,   # TODO: compute after LULC download
+        'food_forest_lbs_acre': None,   # TODO: use crop-specific SA yields from project report
+        'available':            False,  # set True when data is ready
+        'crs':                  'EPSG:3857',
+        'notes': (
+            'Data source: NatCap SA Urban Agriculture Project 2023. '
+            'LULC from NLCD 2021. Baseline constants pending — see data/sa/README.md.'
+        ),
+        'ref_scenarios': {},
     },
 }
 
@@ -122,11 +132,13 @@ st.title("🌿 Urban Ecosystem Tradeoff Explorer")
 st.subheader(f"📍 {selected_city}")
 
 if not city_cfg['available']:
-    st.warning(
-        f"**{selected_city}** data is not yet available. "
-        "Select Minneapolis, MN to explore scenarios."
+    st.info(
+        f"**{selected_city}** data is being prepared. Check back soon — "
+        "or contact the team for early access."
     )
-    st.sidebar.info(f"{selected_city} data coming soon — currently showing Minneapolis results.")
+    if city_cfg.get('notes'):
+        st.caption(city_cfg['notes'])
+    st.sidebar.info(f"{selected_city} data coming soon — select Minneapolis, MN for live scenarios.")
     st.stop()
 
 # Runtime constants derived from selected city — functions reference these as globals
@@ -138,7 +150,9 @@ REF_SCENARIOS    = city_cfg['ref_scenarios']
 
 st.markdown(
     "Explore how converting developed land into green infrastructure or food forests "
-    "changes **flood risk**, **urban cooling**, and **food production** across the city."
+    "affects **flood damage risk**, **urban cooling costs**, **food production**, "
+    "**nature access**, and **carbon sequestration** across the city — translating "
+    "ecological changes into concrete impacts for planners and decision-makers."
 )
 st.markdown(
     '- **Green Infrastructure (wetlands)** — best for flood  \n'
@@ -199,12 +213,22 @@ def load_data(data_dir_flood, data_dir_cooling):
 
     soil_resized = resize(soil, lulc.shape, order=0, preserve_range=True).astype(int)
 
-    cooling_bio['HM'] = (cooling_bio['shade'] + cooling_bio['kc']) / 2
-    hm_lookup = dict(zip(cooling_bio['lucode'], cooling_bio['HM']))
-    max_hm_lucode = max(hm_lookup.keys())
-    hm_arr = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
-    for lc, hm in hm_lookup.items():
-        hm_arr[lc] = hm
+    # Per-class shade / Kc / albedo arrays for the full InVEST UCM cooling
+    # capacity formula: CC = 0.6·shade + 0.2·albedo + 0.2·ETI, where ETI is
+    # built per pixel from the ET raster and Kc (see _compute_cc_raster).
+    # We also keep a derived `hm_arr` (= the simplified `(shade + kc) / 2`)
+    # for any legacy paths that reference it; the live CC pipeline supersedes
+    # it everywhere that matters.
+    max_hm_lucode = int(cooling_bio['lucode'].max())
+    shade_arr  = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
+    kc_arr     = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
+    albedo_arr = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
+    for _, row in cooling_bio.iterrows():
+        lc = int(row['lucode'])
+        shade_arr[lc]  = row['shade']
+        kc_arr[lc]     = row['kc']
+        albedo_arr[lc] = row['albedo']
+    hm_arr = (shade_arr + kc_arr) / 2  # legacy compatibility
 
     # ── Equity proxy raster ────────────────────────────────────────────────────
     # TODO: replace with real heat vulnerability index (e.g. CDC/ATSDR HVI by census tract)
@@ -217,12 +241,12 @@ def load_data(data_dir_flood, data_dir_cooling):
 
     return (lulc, soil_resized, cooling_lulc, developed_pixels,
             cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
-            equity_weights)
+            equity_weights, shade_arr, kc_arr, albedo_arr)
 
 
 (lulc, soil_resized, cooling_lulc, developed_pixels,
  cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
- equity_weights) = load_data(DATA_DIR_FLOOD, DATA_DIR_COOLING)
+ equity_weights, shade_arr, kc_arr, albedo_arr) = load_data(DATA_DIR_FLOOD, DATA_DIR_COOLING)
 
 # ── Population raster (for Nature Access metric) ───────────────────────────────
 # Built by download_census_pop.py from US Census 2020 block-level totals,
@@ -251,6 +275,65 @@ try:
 except (FileNotFoundError, rasterio.errors.RasterioIOError):
     pop_count_raster = np.ones(cooling_lulc.shape, dtype=np.float32)
     POPULATION_DATA_AVAILABLE = False
+
+
+# ── Urban Cooling Model: ET raster + energy savings ──────────────────────────
+# Full InVEST UCM cooling-capacity formula:
+#     ETI_pixel = (kc[class] × ET_pixel) / max(ET)
+#     CC_pixel  = 0.6 × shade[class] + 0.2 × albedo[class] + 0.2 × ETI_pixel
+# `mean_hm` reported by `evaluate_scenario` is now the mean CC over valid
+# pixels (replacing the legacy `(shade + kc) / 2` lookup). Per-class shade,
+# kc, and albedo come from `biophysical_table_urban_cooling.csv`; ET comes
+# from `reference_evapotranspiration_annual.tif` (1 km, bilinear-resampled
+# to the 30 m NLCD grid).
+try:
+    with rasterio.open(
+        "data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/"
+        "reference_evapotranspiration_annual.tif"
+    ) as _et_src:
+        _et_raw = _et_src.read(1).astype(float)
+    ET_RESIZED = resize(_et_raw, cooling_lulc.shape, order=1, preserve_range=True)
+    ET_RESIZED[~np.isfinite(ET_RESIZED)] = 0
+    MAX_ET_REF = float(ET_RESIZED.max()) if ET_RESIZED.max() > 0 else 1.0
+    ET_DATA_AVAILABLE = True
+except Exception:
+    ET_RESIZED = np.ones(cooling_lulc.shape, dtype=float)
+    MAX_ET_REF = 1.0
+    ET_DATA_AVAILABLE = False
+
+# Energy consumption per building type (kWh/m²/year) from the InVEST UCM
+# sample table. Used to translate cooling improvement into avoided AC cost.
+try:
+    _energy_df = pd.read_csv(
+        "data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv"
+    )
+    ENERGY_BY_TYPE = dict(zip(_energy_df["type"], _energy_df["consumption"]))
+    ENERGY_TABLE_AVAILABLE = True
+except Exception:
+    ENERGY_BY_TYPE = {}
+    ENERGY_TABLE_AVAILABLE = False
+
+# Cost-per-kWh (US average residential, EIA 2024) and AC-energy-per-°F
+# sensitivity (per RECS 2020). Both are placeholders for an order-of-magnitude
+# story — refine when SA-specific values arrive.
+COST_PER_KWH_USD = 0.13
+AC_KWH_PER_DEG_F = 0.03  # 3% AC drop per °F cooler
+
+
+def _compute_cc_raster(scenario_lulc):
+    """Per-pixel cooling-capacity index per InVEST UCM:
+        CC = 0.6·shade + 0.2·albedo + 0.2·ETI
+        ETI = (kc × ET_ref) / max(ET_ref)
+    NaN where the LULC code is outside the biophysical table."""
+    safe = np.clip(scenario_lulc, 0, len(shade_arr) - 1)
+    shade  = shade_arr[safe]
+    kc     = kc_arr[safe]
+    albedo = albedo_arr[safe]
+    eti = (kc * ET_RESIZED) / MAX_ET_REF
+    cc = 0.6 * shade + 0.2 * albedo + 0.2 * eti
+    cc[(scenario_lulc < 0) | (scenario_lulc >= len(shade_arr))] = np.nan
+    return cc
+
 
 # Nature Access: weighted population-share metric using the official InVEST
 # Urban Nature Access (UNA) biophysical table. Each LULC class has its own
@@ -289,6 +372,33 @@ for _lucode in UNA_ACTIVE["lucode"]:
         )
 
 
+def _compute_access_score_raster(scenario_lulc):
+    """0–1 nature-access score raster for the given scenario LULC.
+
+    For each natural class with a positive `urban_nature` score in the InVEST
+    UNA biophysical table, mask the scenario_lulc, compute distance-to-class,
+    and combine via `np.maximum` (NOT sum) so a pixel near multiple natural
+    classes takes the highest single class score — preventing double-counting.
+    Pre-computed distance arrays are reused for natural classes whose pixel
+    set never changes across scenarios.
+    """
+    access_score = np.zeros(scenario_lulc.shape, dtype=np.float32)
+    for _, row in UNA_ACTIVE.iterrows():
+        lucode = int(row["lucode"])
+        radius = float(row["search_radius_m"])
+        score  = float(row["urban_nature"])
+        if lucode in PRECOMPUTED_NATURE_DISTANCES:
+            distance = PRECOMPUTED_NATURE_DISTANCES[lucode]
+        else:
+            mask = (scenario_lulc == lucode)
+            if not mask.any():
+                continue
+            distance = _distance_transform_edt(~mask) * PIXEL_SIZE_M
+        in_range = distance <= radius
+        np.maximum(access_score, in_range * score, out=access_score)
+    return access_score
+
+
 def calculate_nature_access(scenario_lulc, pop_count_raster):
     """
     Returns (access_pct, weighted_people_with_access).
@@ -311,8 +421,9 @@ def calculate_nature_access(scenario_lulc, pop_count_raster):
       number: "what fraction of residents reach *meaningful* nature?".
     - `quality_score` — population-weighted mean access score (0-1). Captures
       both proximity and nature class quality. The `np.maximum(...)` step
-      below is what prevents double-counting: a pixel near multiple natural
-      classes gets the **highest** of their per-class scores, not the sum.
+      inside `_compute_access_score_raster` is what prevents double-counting:
+      a pixel near multiple natural classes gets the **highest** of their
+      per-class scores, not the sum.
     - `weighted_people` — int of `pop × access_score` summed, useful as a
       population-scale companion number.
     """
@@ -321,24 +432,7 @@ def calculate_nature_access(scenario_lulc, pop_count_raster):
     if total_pop <= 0:
         return 0.0, 0.0, 0
 
-    access_score = np.zeros(scenario_lulc.shape, dtype=np.float32)
-    for _, row in UNA_ACTIVE.iterrows():
-        lucode = int(row["lucode"])
-        radius = float(row["search_radius_m"])
-        score  = float(row["urban_nature"])
-        # Use the pre-computed distance transform when the class doesn't change
-        # across scenarios; otherwise rebuild for the current scenario.
-        if lucode in PRECOMPUTED_NATURE_DISTANCES:
-            distance = PRECOMPUTED_NATURE_DISTANCES[lucode]
-        else:
-            mask = (scenario_lulc == lucode)
-            if not mask.any():
-                continue
-            distance = _distance_transform_edt(~mask) * PIXEL_SIZE_M
-        in_range = distance <= radius
-        # MAX (not sum) across classes — prevents double-counting when a pixel
-        # is in range of multiple natural classes simultaneously.
-        np.maximum(access_score, in_range * score, out=access_score)
+    access_score = _compute_access_score_raster(scenario_lulc)
 
     weighted_pop_score = (pop_count_raster * access_score)[valid_pop].sum()
     quality_score = float(weighted_pop_score / total_pop)
@@ -565,10 +659,12 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     cn_scenario  = cn_table[lulc_idx, soil_clamped]
     mean_cn      = float(cn_scenario[cn_scenario > 0].mean().round(2))
 
-    hm_safe  = np.clip(scenario_lulc, 0, len(hm_arr) - 1)
-    hm_map   = hm_arr[hm_safe].astype(float)
-    hm_map[(scenario_lulc < 0) | (scenario_lulc >= len(hm_arr))] = np.nan
-    valid_hm = hm_map[~np.isnan(hm_map) & (scenario_lulc != NODATA)]
+    # Full InVEST UCM cooling-capacity index (replaces the legacy
+    # `(shade + kc) / 2` lookup). `mean_hm` is now the mean CC value across
+    # valid pixels — same scale as before (0–1, higher = more cooling) but
+    # now factors albedo and per-pixel ET in addition to shade and Kc.
+    cc_map   = _compute_cc_raster(scenario_lulc)
+    valid_hm = cc_map[~np.isnan(cc_map) & (scenario_lulc != NODATA)]
     mean_hm  = float(valid_hm.mean().round(4))
 
     n_food_pixels = int(((scenario_lulc == CODE_FOOD_FOREST) & (cooling_lulc != CODE_FOOD_FOREST)).sum())
@@ -779,19 +875,51 @@ try:
     TOTAL_POTENTIAL_DAMAGE_USD = float(_buildings["potential_damage_usd"].sum())
 
     # Rasterize building polygons onto the NLCD grid (CRS already matches —
-    # both are EPSG:26915). Pixels intersecting any building → 1, else 0.
+    # both are EPSG:26915). BUILDINGS_RASTER is binary (1 = building, 0 = not);
+    # BUILDINGS_TYPE_RASTER carries the building's `type` field (0–3) so the
+    # cooling-energy-savings calculation can look up per-class kWh/m²/year.
+    # Pixels outside any building → -1 in the type raster.
     with rasterio.open("data/cooling/land_use_2021.tif") as _ref:
+        _ref_shape     = (_ref.height, _ref.width)
+        _ref_transform = _ref.transform
         BUILDINGS_RASTER = _rasterize(
             ((geom, 1) for geom in _buildings.geometry),
-            out_shape=(_ref.height, _ref.width),
-            transform=_ref.transform,
+            out_shape=_ref_shape,
+            transform=_ref_transform,
             fill=0,
             dtype="uint8",
+        )
+        BUILDINGS_TYPE_RASTER = _rasterize(
+            ((geom, int(t)) for geom, t in zip(_buildings.geometry, _buildings["type"])),
+            out_shape=_ref_shape,
+            transform=_ref_transform,
+            fill=-1,
+            dtype="int32",
         )
     BUILDINGS_DATA_AVAILABLE = True
 except Exception:
     TOTAL_POTENTIAL_DAMAGE_USD = 0.0
     BUILDINGS_DATA_AVAILABLE = False
+    BUILDINGS_TYPE_RASTER = np.full(cooling_lulc.shape, -1, dtype="int32")
+
+# Per-pixel AC-energy consumption rate (kWh/m²/year) for the cooling-energy
+# savings calculation. Pixels not in any building → 0; building types not in
+# the energy table → 0. Indexed via BUILDINGS_TYPE_RASTER at runtime.
+PIXEL_AREA_M2 = 30 * 30  # NLCD 30 m grid → 900 m² per pixel
+if ENERGY_BY_TYPE:
+    _max_bldg_type = int(max(BUILDINGS_TYPE_RASTER.max(), max(ENERGY_BY_TYPE.keys())))
+    _consumption_lookup = np.zeros(max(_max_bldg_type, 0) + 2, dtype=float)
+    for _t, _c in ENERGY_BY_TYPE.items():
+        if int(_t) >= 0:
+            _consumption_lookup[int(_t)] = float(_c)
+    _safe_type = np.clip(BUILDINGS_TYPE_RASTER, 0, len(_consumption_lookup) - 1)
+    CONSUMPTION_RATE_PER_PIXEL = np.where(
+        BUILDINGS_TYPE_RASTER >= 0,
+        _consumption_lookup[_safe_type],
+        0.0,
+    )
+else:
+    CONSUMPTION_RATE_PER_PIXEL = np.zeros(cooling_lulc.shape, dtype=float)
     BUILDINGS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
 
 # Convertible pixels = developed land that is NOT a building footprint. Random
@@ -801,6 +929,89 @@ except Exception:
 # for runoff baseline scaling (buildings still produce runoff).
 _no_building = BUILDINGS_RASTER[developed_pixels[:, 0], developed_pixels[:, 1]] == 0
 CONVERTIBLE_PIXELS = developed_pixels[_no_building]
+
+
+# ── Census tracts (for neighborhood-level reporting) ──────────────────────────
+# Loads the 27 Hennepin County tracts that intersect the model area, rasterizes
+# them onto the NLCD grid (each pixel labeled with its tract index, or -1 for
+# pixels outside any tract). Used to compute per-tract Nature Access % and
+# Temperature Change against the live scenario.
+try:
+    _TRACTS_PATH = Path("data/invest/flood/UFR_sample_data_MN/admin_boundaries_census_tracts.shp")
+    TRACTS = _gpd.read_file(_TRACTS_PATH)
+    if TRACTS.crs is None or str(TRACTS.crs) != "EPSG:26915":
+        TRACTS = TRACTS.to_crs("EPSG:26915")
+    TRACTS = TRACTS.reset_index(drop=True)
+    with rasterio.open("data/cooling/land_use_2021.tif") as _ref:
+        TRACT_ID_RASTER = _rasterize(
+            ((g, i) for i, g in enumerate(TRACTS.geometry)),
+            out_shape=(_ref.height, _ref.width),
+            transform=_ref.transform,
+            fill=-1,
+            dtype=np.int32,
+        )
+    TRACTS_DATA_AVAILABLE = True
+except Exception:
+    TRACTS = pd.DataFrame()
+    TRACT_ID_RASTER = np.full(cooling_lulc.shape, -1, dtype=np.int32)
+    TRACTS_DATA_AVAILABLE = False
+
+
+def _compute_hm_raster(scenario_lulc):
+    """Per-pixel HM raster — now uses the full InVEST UCM CC formula via
+    `_compute_cc_raster`. Kept under the old `_compute_hm_raster` name so
+    callers (per-tract reporting) don't need to change."""
+    return _compute_cc_raster(scenario_lulc)
+
+
+# Pre-compute baseline rasters once at startup so per-tract aggregates only
+# need to recompute the scenario side on each rerun.
+_BASELINE_ACCESS_SCORE_RASTER = _compute_access_score_raster(cooling_lulc)
+_BASELINE_HM_RASTER          = _compute_hm_raster(cooling_lulc)
+
+
+def compute_per_tract_summary(scenario_lulc):
+    """DataFrame with one row per tract: baseline + scenario Nature Access %
+    and °F change vs the global baseline, plus the difference (improvement)."""
+    if not TRACTS_DATA_AVAILABLE or len(TRACTS) == 0:
+        return pd.DataFrame()
+
+    access_s_raster = _compute_access_score_raster(scenario_lulc)
+    hm_s_raster     = _compute_hm_raster(scenario_lulc)
+
+    above_b = _BASELINE_ACCESS_SCORE_RASTER > NATURE_ACCESS_THRESHOLD
+    above_s = access_s_raster > NATURE_ACCESS_THRESHOLD
+
+    rows = []
+    for i in range(len(TRACTS)):
+        mask = TRACT_ID_RASTER == i
+        if not mask.any():
+            continue
+        pop_in_tract = pop_count_raster[mask].sum()
+        if pop_in_tract <= 0:
+            continue
+        # Population-weighted Nature Access % within the tract
+        b_share = pop_count_raster[mask & above_b].sum() / pop_in_tract
+        s_share = pop_count_raster[mask & above_s].sum() / pop_in_tract
+        # Temperature offset vs city baseline HM, in °F (positive = cooler)
+        valid_hm = mask & ~np.isnan(_BASELINE_HM_RASTER) & ~np.isnan(hm_s_raster)
+        if not valid_hm.any():
+            continue
+        b_hm = _BASELINE_HM_RASTER[valid_hm].mean()
+        s_hm = hm_s_raster[valid_hm].mean()
+        b_temp_f = (b_hm - BASELINE_HM) * HM_TO_FAHRENHEIT
+        s_temp_f = (s_hm - BASELINE_HM) * HM_TO_FAHRENHEIT
+        rows.append({
+            "GEOID":               str(TRACTS.iloc[i].get("GEOID10", i)),
+            "Population":          int(pop_in_tract),
+            "Baseline Access %":   round(100 * b_share, 1),
+            "Scenario Access %":   round(100 * s_share, 1),
+            "Access Δ (pp)":       round(100 * (s_share - b_share), 1),
+            "Baseline Temp (°F)":  round(b_temp_f, 2),
+            "Scenario Temp (°F)":  round(s_temp_f, 2),
+            "Temp Δ (°F cooler)":  round(s_temp_f - b_temp_f, 2),
+        })
+    return pd.DataFrame(rows)
 
 # Baseline runoff for the damage scaling — computed inline here because
 # `BASELINE_RUNOFF_ACRE_FEET` (the canonical module-level constant) isn't
@@ -1018,7 +1229,8 @@ def render_matplotlib(fig):
 
 # ── Matplotlib plots ───────────────────────────────────────────────────────────
 def plot_spatial_map(scenario_lulc, baseline_lulc,
-                     heat_overlay=None, overlay_alpha=0.0):
+                     heat_overlay=None, overlay_alpha=0.0,
+                     tract_value=None, tract_alpha=0.0):
     h, w = scenario_lulc.shape
     rgb = np.full((h, w, 3), mcolors.to_rgb(CHANGE_COLORS['Unchanged']))
 
@@ -1033,22 +1245,40 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.imshow(rgb)
 
-    # Optional red heat-vulnerability overlay. Per-pixel alpha = overlay_alpha
-    # × heat_overlay value (which is 0–1), so low-vulnerability pixels stay
-    # transparent and high-vulnerability ones tint red. With overlay_alpha=0
-    # the overlay is fully invisible.
     legend_handles = [
         Patch(facecolor=CHANGE_COLORS['Unchanged'],            label='Unchanged'),
         Patch(facecolor=CHANGE_COLORS['Green Infrastructure'], label='→ Green Infrastructure'),
         Patch(facecolor=CHANGE_COLORS['Food Forest'],          label='→ Food Forest'),
         Patch(facecolor=CHANGE_COLORS['High Density'],         label='→ High Density'),
     ]
+
+    # Optional red heat-vulnerability overlay. Per-pixel alpha = overlay_alpha
+    # × heat_overlay value (which is 0–1), so low-vulnerability pixels stay
+    # transparent and high-vulnerability ones tint red. With overlay_alpha=0
+    # the overlay is fully invisible.
     if heat_overlay is not None and overlay_alpha > 0:
         overlay_rgba = np.zeros((h, w, 4))
         overlay_rgba[..., 0] = 1.0  # red channel
         overlay_rgba[..., 3] = overlay_alpha * np.clip(heat_overlay, 0.0, 1.0)
         ax.imshow(overlay_rgba)
         legend_handles.append(Patch(facecolor=(1, 0, 0, 0.6), label='Heat vulnerability'))
+
+    # Optional tract-level improvement overlay. tract_value is a per-pixel
+    # float raster (NaN outside any tract); colormap is RdYlGn so positive
+    # improvements are green and regressions are red, centered at 0.
+    if tract_value is not None and tract_alpha > 0:
+        valid = ~np.isnan(tract_value)
+        if valid.any():
+            vmax = max(float(np.abs(tract_value[valid]).max()), 0.1)
+            norm_val = np.zeros_like(tract_value, dtype=float)
+            norm_val[valid] = (tract_value[valid] + vmax) / (2 * vmax)  # → 0..1
+            cmap_rgba = plt.get_cmap("RdYlGn")(np.clip(norm_val, 0.0, 1.0))
+            cmap_rgba[..., 3] = tract_alpha * valid.astype(float)
+            ax.imshow(cmap_rgba)
+            legend_handles.append(
+                Patch(facecolor=(0.0, 0.6, 0.0, 0.6),
+                      label="Neighborhood improvement (green = better)")
+            )
 
     ax.axis('off')
     ax.set_title('Land Use Changes', fontsize=12)
@@ -2075,6 +2305,31 @@ with tab2:
         optimized=st.session_state.optimized_results
     ), use_container_width=True)
 
+    if TRACTS_DATA_AVAILABLE:
+        st.divider()
+        st.markdown("#### Neighborhood breakdown")
+        st.caption(
+            "Top 5 most-improved Census tracts under this scenario, ranked by a "
+            "combined score (Nature Access percentage points + temperature change °F). "
+            "Population-weighted within each tract."
+        )
+        _tracts_summary = compute_per_tract_summary(results['scenario_lulc'])
+        if not _tracts_summary.empty:
+            _tracts_summary["_combined"] = (
+                _tracts_summary["Access Δ (pp)"]
+                + 5 * _tracts_summary["Temp Δ (°F cooler)"]   # weight °F more strongly
+            )
+            _top5 = (
+                _tracts_summary
+                .sort_values("_combined", ascending=False)
+                .head(5)
+                .drop(columns="_combined")
+                .reset_index(drop=True)
+            )
+            st.dataframe(_top5, use_container_width=True, hide_index=True)
+        else:
+            st.caption("No tract-level data could be computed for this scenario.")
+
     st.divider()
     st.markdown("#### Best scenarios by goal")
     st.caption("From the pre-computed scenario library — not surrogate predictions.")
@@ -2317,9 +2572,47 @@ with tab3:
         ),
     )
 
+    # Optional neighborhood-improvement overlay — colors each tract by its
+    # population-weighted Nature Access change (pp), using a diverging RdYlGn
+    # colormap centered at 0. Only rendered when the toggle below is on.
+    _tract_overlay_value = None
+    _tract_overlay_alpha = 0.0
+    if TRACTS_DATA_AVAILABLE:
+        _show_tracts = st.toggle(
+            "Show neighborhood improvement overlay",
+            value=False,
+            help=(
+                "Color each Census tract by its Nature Access change vs baseline "
+                "(green = improved, red = worse). Computed live for the current "
+                "scenario."
+            ),
+        )
+        if _show_tracts:
+            _tract_overlay_alpha = st.slider(
+                "Neighborhood overlay opacity",
+                0.0, 1.0, 0.5, 0.05,
+            )
+            _tracts_summary_map = compute_per_tract_summary(results['scenario_lulc'])
+            if not _tracts_summary_map.empty:
+                _imp_lookup = np.zeros(len(TRACTS), dtype=np.float32)
+                _geoid_to_idx = {str(g): i for i, g in enumerate(TRACTS["GEOID10"])}
+                for _, _srow in _tracts_summary_map.iterrows():
+                    _tidx = _geoid_to_idx.get(str(_srow["GEOID"]))
+                    if _tidx is not None:
+                        _imp_lookup[_tidx] = float(_srow["Access Δ (pp)"])
+                # Per-pixel: pixels in a tract get that tract's improvement
+                # value; pixels outside any tract become NaN so the overlay
+                # only renders where it has data.
+                _tract_overlay_value = np.where(
+                    TRACT_ID_RASTER >= 0,
+                    _imp_lookup[np.maximum(TRACT_ID_RASTER, 0)],
+                    np.nan,
+                )
+
     render_matplotlib(plot_spatial_map(
         results['scenario_lulc'], cooling_lulc,
         heat_overlay=equity_weights, overlay_alpha=overlay_opacity,
+        tract_value=_tract_overlay_value, tract_alpha=_tract_overlay_alpha,
     ))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
