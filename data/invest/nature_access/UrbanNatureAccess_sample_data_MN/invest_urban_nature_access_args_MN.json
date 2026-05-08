@@ -1,0 +1,18 @@
+{
+    "args": {
+        "admin_boundaries_vector_path": "AOI_admin_boundaries_census_tracts.shp",
+        "aggregate_by_pop_group": false,
+        "decay_function": "exponential",
+        "lulc_attribute_table": "LULC_attribute_table_UNA.csv",
+        "lulc_raster_path": "LULC_NLCD_2021.tif",
+        "population_group_radii_table": "",
+        "population_raster_path": "total_population_census_2010.tif",
+        "results_suffix": "",
+        "search_radius": "1000",
+        "search_radius_mode": "uniform radius",
+        "urban_nature_demand": "250",
+        "workspace_dir": ""
+    },
+    "invest_version": "3.14.3.post868+g965126f5b",
+    "model_name": "natcap.invest.urban_nature_access"
+}

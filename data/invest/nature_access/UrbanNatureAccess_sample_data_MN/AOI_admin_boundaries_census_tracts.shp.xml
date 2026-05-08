@@ -1,0 +1,1058 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata xml:lang="en">
+	<Esri>
+		<CreaDate>20240220</CreaDate>
+		<CreaTime>11121300</CreaTime>
+		<ArcGISFormat>1.0</ArcGISFormat>
+		<ArcGISstyle>FGDC CSDGM Metadata</ArcGISstyle>
+		<SyncOnce>FALSE</SyncOnce>
+		<DataProperties>
+			<itemProps>
+				<itemName Sync="TRUE">admin_boundaries_census_tracts</itemName>
+				<imsContentType Sync="TRUE">002</imsContentType>
+				<itemLocation>
+					<linkage Sync="TRUE">file://\\LAPTOP-29NPL9E4\D$\training\UrbanNatureAccess\Bio179_data_and_homework\UNA_sample_data_MN\admin_boundaries_census_tracts</linkage>
+					<protocol Sync="TRUE">Local Area Network</protocol>
+				</itemLocation>
+				<itemSize Sync="TRUE">0.000</itemSize>
+			</itemProps>
+			<coordRef>
+				<type Sync="TRUE">Projected</type>
+				<geogcsn Sync="TRUE">GCS_North_American_1983</geogcsn>
+				<projcsn Sync="TRUE">NAD_1983_UTM_Zone_15N</projcsn>
+				<peXml Sync="TRUE">&lt;ProjectedCoordinateSystem xsi:type='typens:ProjectedCoordinateSystem' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' xmlns:xs='http://www.w3.org/2001/XMLSchema' xmlns:typens='http://www.esri.com/schemas/ArcGIS/3.2.0'&gt;&lt;WKT&gt;PROJCS[&amp;quot;NAD_1983_UTM_Zone_15N&amp;quot;,GEOGCS[&amp;quot;GCS_North_American_1983&amp;quot;,DATUM[&amp;quot;D_North_American_1983&amp;quot;,SPHEROID[&amp;quot;GRS_1980&amp;quot;,6378137.0,298.257222101]],PRIMEM[&amp;quot;Greenwich&amp;quot;,0.0],UNIT[&amp;quot;Degree&amp;quot;,0.0174532925199433]],PROJECTION[&amp;quot;Transverse_Mercator&amp;quot;],PARAMETER[&amp;quot;False_Easting&amp;quot;,500000.0],PARAMETER[&amp;quot;False_Northing&amp;quot;,0.0],PARAMETER[&amp;quot;Central_Meridian&amp;quot;,-93.0],PARAMETER[&amp;quot;Scale_Factor&amp;quot;,0.9996],PARAMETER[&amp;quot;Latitude_Of_Origin&amp;quot;,0.0],UNIT[&amp;quot;Meter&amp;quot;,1.0],AUTHORITY[&amp;quot;EPSG&amp;quot;,26915]]&lt;/WKT&gt;&lt;XOrigin&gt;-5120900&lt;/XOrigin&gt;&lt;YOrigin&gt;-9998100&lt;/YOrigin&gt;&lt;XYScale&gt;450445547.3910538&lt;/XYScale&gt;&lt;ZOrigin&gt;-100000&lt;/ZOrigin&gt;&lt;ZScale&gt;10000&lt;/ZScale&gt;&lt;MOrigin&gt;-100000&lt;/MOrigin&gt;&lt;MScale&gt;10000&lt;/MScale&gt;&lt;XYTolerance&gt;0.001&lt;/XYTolerance&gt;&lt;ZTolerance&gt;0.001&lt;/ZTolerance&gt;&lt;MTolerance&gt;0.001&lt;/MTolerance&gt;&lt;HighPrecision&gt;true&lt;/HighPrecision&gt;&lt;WKID&gt;26915&lt;/WKID&gt;&lt;LatestWKID&gt;26915&lt;/LatestWKID&gt;&lt;/ProjectedCoordinateSystem&gt;</peXml>
+				<csUnits Sync="TRUE">Linear Unit: Meter (1.000000)</csUnits>
+			</coordRef>
+			<lineage>
+				<Process ToolSource="C:\Program Files (x86)\ArcGIS\Desktop10.0\ArcToolbox\Toolboxes\Data Management Tools.tbx\CopyFeatures" Date="20110408" Time="105004">CopyFeatures L:\av_themes\demographics\census_2010_tiger\tract_2010.shp "Database Connections\kotzmj@GISLibrary.sde\GISLibrary.DBO.Demographics\GISLibrary.DBO.tract_2010" # 0 0 0</Process>
+				<Process ToolSource="c:\program files (x86)\arcgis\desktop10.5\ArcToolbox\Toolboxes\Data Management Tools.tbx\MigrateStorage" Date="20170911" Time="131810">MigrateStorage K:\Projects\_Enterprise\SQLServerArcGISUpgrade\TestConnectionFiles\SDE@GISLibrary.sde\GISLibrary.DBO.Demographics\GISLibrary.DBO.Census2010TigerTract GEOMETRY</Process>
+				<Process Name="Feature Class to Feature Class" ToolSource="c:\program files (x86)\arcgis\desktop10.7\ArcToolbox\Toolboxes\Conversion Tools.tbx\FeatureClassToFeatureClass" Date="20210225" Time="001447">FeatureClassToFeatureClass "Database Connections\SDE@GISLibrary.sde\GISLibrary.DBO.Demographics\GISLibrary.DBO.Census2010TigerTract" N:\CommDev\Research\Research\EquityConsiderationsData\3_Shapefiles\Working.gdb EquityConsiderations_TractsOverview # "GEOID10 "GEOID10" true true false 11 Text 0 0 ,First,#,Database Connections\SDE@GISLibrary.sde\GISLibrary.DBO.Demographics\GISLibrary.DBO.Census2010TigerTract,GEOID10,-1,-1" #</Process>
+				<Process Name="Join Field" ToolSource="c:\program files (x86)\arcgis\desktop10.7\ArcToolbox\Toolboxes\Data Management Tools.tbx\JoinField" Date="20210225" Time="001626">JoinField N:\CommDev\Research\Research\EquityConsiderationsData\3_Shapefiles\Working.gdb\EquityConsiderations_TractsOverview GEOID10 N:\CommDev\Research\Research\EquityConsiderationsData\3_Shapefiles\Working.gdb\EquityConsiderationsOverview TR10 TR10;CTU_PRMRY;PCTU_PRMRY;PCTU_WHOLE;WS_PRMRY;SD_PRMRY;TR_OPPZONE;TR_QUALIF;TR_EJ;TR_EDA;HUTOT_MC;HHTOT_MC;HHOWN_MC;HHRNT_MC;POPTOT_MC;HUTOT_ACS;HHTOT_ACS;HHOWN_ACS;HHRNT_ACS;POPTOT_ACS;P_0017;P_1834;P_3564;P_65UP;PHHSIZE1;PHHSIZE2_4;PHHSIZE5UP;AVGHHSIZE;P_USBORN;PMIG_GE10;P_ENGLIMIT;PMV;MV_MDYR;PD_ANY;PWHITENH;PBLACKNH;PASIANNH;PHISPPOP;PAMINDNH;POTHMULTNH;PBIPOC;PLURALRACE;PPLURALRAC;PBANC_AFRI;PBANC_AFAM;PARAC_AIND;PARAC_HMON;PLAT_MEXI;PLAT_PUER;PIND_DAKO;PIND_OJIB;PMENA_EGYP;PMENA_LEBA;PWANC_GERM;PWANC_NORW;PPOV185;ACP;ACP_NYRS;PPOV500;ACA;ACA_NYRS;MDHHINC14;MDHHINCNOW;PHHI_QNTL1;PHHI_QNTL3;PHHI_QNTL5;PWK_FTYR;PWK_NOWORK;MDERN_FTYR;HOLC_PGRN;HOLC_PBLU;HOLC_PYLW;HOLC_PRED;HOLC_PNR;RRCOV_NUM;RRCOV_PCT;POWNHOME;PCOSTBURD;PCOSTBURDR;PCOSTBURDO;GRSRENT14;GRSRENTNOW;MD_EMV_2014;MD_EMV_NOW;AFF14_LE60;AFFNW_LE60;POZIP_SAME;N_EVICTED;P_EVICTED;PHH_NOVEH;PHFTRANSIT;COMM_TOTAL;PCOMM_LT5;PCOMM_GE20;COMMLENGTH;PCOMMDRIVE;PCOMMTRANS;PCOMMOTHER;JOB_TOTAL;PJOB_LT5;PJOB_GE20;RP_NETCHG;NRP_TOTAL;MI_TO_LIBR;MI_TO_PHAR;MI_TO_POST;N_DAYCARE;AVG_TEMP;PRIM_FLOOD;GHG_RES_PC;GHG_COM_PE;ENV_PM25</Process>
+				<Process ToolSource="c:\program files (x86)\arcgis\desktop10.7\ArcToolbox\Toolboxes\Data Management Tools.tbx\CopyFeatures" Date="20210225" Time="001704">CopyFeatures N:\CommDev\Research\Research\EquityConsiderationsData\3_Shapefiles\Working.gdb\EquityConsiderations_TractsOverview N:\CommDev\Research\Research\EquityConsiderationsData\3_Shapefiles\Current\EquityConsiderations_TractsOverview.shp # 0 0 0</Process>
+				<Process ToolSource="C:\program files\arcgis\server\ArcToolbox\Toolboxes\Conversion Tools.tbx\FeatureClassToFeatureClass" Date="20210920" Time="235208">FeatureClassToFeatureClass /var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview /var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\shp EquityConsiderationsTractsOverview.shp # "GEOID10 "GEOID10" true true false 11 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,GEOID10,-1,-1;Shape_Leng "Shape_Leng" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,Shape_Leng,-1,-1;TR10 "TR10" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,TR10,-1,-1;CTU_PRMRY "CTU_PRMRY" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,CTU_PRMRY,-1,-1;PCTU_PRMRY "PCTU_PRMRY" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCTU_PRMRY,-1,-1;PCTU_WHOLE "PCTU_WHOLE" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCTU_WHOLE,-1,-1;WS_PRMRY "WS_PRMRY" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,WS_PRMRY,-1,-1;SD_PRMRY "SD_PRMRY" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,SD_PRMRY,-1,-1;TR_OPPZONE "TR_OPPZONE" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,TR_OPPZONE,-1,-1;TR_QUALIF "TR_QUALIF" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,TR_QUALIF,-1,-1;TR_EJ "TR_EJ" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,TR_EJ,-1,-1;TR_EDA "TR_EDA" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,TR_EDA,-1,-1;HUTOT_MC "HUTOT_MC" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HUTOT_MC,-1,-1;HHTOT_MC "HHTOT_MC" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HHTOT_MC,-1,-1;HHOWN_MC "HHOWN_MC" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HHOWN_MC,-1,-1;HHRNT_MC "HHRNT_MC" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HHRNT_MC,-1,-1;POPTOT_MC "POPTOT_MC" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,POPTOT_MC,-1,-1;HUTOT_ACS "HUTOT_ACS" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HUTOT_ACS,-1,-1;HHTOT_ACS "HHTOT_ACS" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HHTOT_ACS,-1,-1;HHOWN_ACS "HHOWN_ACS" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HHOWN_ACS,-1,-1;HHRNT_ACS "HHRNT_ACS" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HHRNT_ACS,-1,-1;POPTOT_ACS "POPTOT_ACS" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,POPTOT_ACS,-1,-1;P_0017 "P_0017" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,P_0017,-1,-1;P_1834 "P_1834" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,P_1834,-1,-1;P_3564 "P_3564" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,P_3564,-1,-1;P_65UP "P_65UP" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,P_65UP,-1,-1;PHHSIZE1 "PHHSIZE1" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PHHSIZE1,-1,-1;PHHSIZE2_4 "PHHSIZE2_4" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PHHSIZE2_4,-1,-1;PHHSIZE5UP "PHHSIZE5UP" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PHHSIZE5UP,-1,-1;AVGHHSIZE "AVGHHSIZE" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,AVGHHSIZE,-1,-1;P_USBORN "P_USBORN" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,P_USBORN,-1,-1;PMIG_GE10 "PMIG_GE10" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PMIG_GE10,-1,-1;P_ENGLIMIT "P_ENGLIMIT" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,P_ENGLIMIT,-1,-1;PMV "PMV" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PMV,-1,-1;MV_MDYR "MV_MDYR" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,MV_MDYR,-1,-1;PD_ANY "PD_ANY" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PD_ANY,-1,-1;PWHITENH "PWHITENH" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PWHITENH,-1,-1;PBLACKNH "PBLACKNH" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PBLACKNH,-1,-1;PASIANNH "PASIANNH" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PASIANNH,-1,-1;PHISPPOP "PHISPPOP" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PHISPPOP,-1,-1;PAMINDNH "PAMINDNH" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PAMINDNH,-1,-1;POTHMULTNH "POTHMULTNH" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,POTHMULTNH,-1,-1;PBIPOC "PBIPOC" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PBIPOC,-1,-1;PLURALRACE "PLURALRACE" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PLURALRACE,-1,-1;PPLURALRAC "PPLURALRAC" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PPLURALRAC,-1,-1;PBANC_AFRI "PBANC_AFRI" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PBANC_AFRI,-1,-1;PBANC_AFAM "PBANC_AFAM" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PBANC_AFAM,-1,-1;PARAC_AIND "PARAC_AIND" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PARAC_AIND,-1,-1;PARAC_HMON "PARAC_HMON" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PARAC_HMON,-1,-1;PLAT_MEXI "PLAT_MEXI" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PLAT_MEXI,-1,-1;PLAT_PUER "PLAT_PUER" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PLAT_PUER,-1,-1;PIND_DAKO "PIND_DAKO" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PIND_DAKO,-1,-1;PIND_OJIB "PIND_OJIB" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PIND_OJIB,-1,-1;PMENA_EGYP "PMENA_EGYP" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PMENA_EGYP,-1,-1;PMENA_LEBA "PMENA_LEBA" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PMENA_LEBA,-1,-1;PWANC_GERM "PWANC_GERM" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PWANC_GERM,-1,-1;PWANC_NORW "PWANC_NORW" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PWANC_NORW,-1,-1;PPOV185 "PPOV185" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PPOV185,-1,-1;ACP "ACP" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,ACP,-1,-1;ACP_NYRS "ACP_NYRS" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,ACP_NYRS,-1,-1;PPOV500 "PPOV500" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PPOV500,-1,-1;ACA "ACA" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,ACA,-1,-1;ACA_NYRS "ACA_NYRS" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,ACA_NYRS,-1,-1;MDHHINC14 "MDHHINC14" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,MDHHINC14,-1,-1;MDHHINCNOW "MDHHINCNOW" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,MDHHINCNOW,-1,-1;PHHI_QNTL1 "PHHI_QNTL1" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PHHI_QNTL1,-1,-1;PHHI_QNTL3 "PHHI_QNTL3" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PHHI_QNTL3,-1,-1;PHHI_QNTL5 "PHHI_QNTL5" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PHHI_QNTL5,-1,-1;PWK_FTYR "PWK_FTYR" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PWK_FTYR,-1,-1;PWK_NOWORK "PWK_NOWORK" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PWK_NOWORK,-1,-1;MDERN_FTYR "MDERN_FTYR" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,MDERN_FTYR,-1,-1;HOLC_PGRN "HOLC_PGRN" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HOLC_PGRN,-1,-1;HOLC_PBLU "HOLC_PBLU" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HOLC_PBLU,-1,-1;HOLC_PYLW "HOLC_PYLW" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HOLC_PYLW,-1,-1;HOLC_PRED "HOLC_PRED" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HOLC_PRED,-1,-1;HOLC_PNR "HOLC_PNR" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,HOLC_PNR,-1,-1;RRCOV_NUM "RRCOV_NUM" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,RRCOV_NUM,-1,-1;RRCOV_PCT "RRCOV_PCT" true true false 254 Text 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,RRCOV_PCT,-1,-1;POWNHOME "POWNHOME" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,POWNHOME,-1,-1;PCOSTBURD "PCOSTBURD" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCOSTBURD,-1,-1;PCOSTBURDR "PCOSTBURDR" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCOSTBURDR,-1,-1;PCOSTBURDO "PCOSTBURDO" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCOSTBURDO,-1,-1;GRSRENT14 "GRSRENT14" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,GRSRENT14,-1,-1;GRSRENTNOW "GRSRENTNOW" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,GRSRENTNOW,-1,-1;MD_EMV_201 "MD_EMV_201" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,MD_EMV_201,-1,-1;MD_EMV_NOW "MD_EMV_NOW" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,MD_EMV_NOW,-1,-1;AFF14_LE60 "AFF14_LE60" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,AFF14_LE60,-1,-1;AFFNW_LE60 "AFFNW_LE60" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,AFFNW_LE60,-1,-1;POZIP_SAME "POZIP_SAME" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,POZIP_SAME,-1,-1;N_EVICTED "N_EVICTED" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,N_EVICTED,-1,-1;P_EVICTED "P_EVICTED" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,P_EVICTED,-1,-1;PHH_NOVEH "PHH_NOVEH" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PHH_NOVEH,-1,-1;PHFTRANSIT "PHFTRANSIT" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PHFTRANSIT,-1,-1;COMM_TOTAL "COMM_TOTAL" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,COMM_TOTAL,-1,-1;PCOMM_LT5 "PCOMM_LT5" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCOMM_LT5,-1,-1;PCOMM_GE20 "PCOMM_GE20" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCOMM_GE20,-1,-1;COMMLENGTH "COMMLENGTH" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,COMMLENGTH,-1,-1;PCOMMDRIVE "PCOMMDRIVE" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCOMMDRIVE,-1,-1;PCOMMTRANS "PCOMMTRANS" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCOMMTRANS,-1,-1;PCOMMOTHER "PCOMMOTHER" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PCOMMOTHER,-1,-1;JOB_TOTAL "JOB_TOTAL" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,JOB_TOTAL,-1,-1;PJOB_LT5 "PJOB_LT5" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PJOB_LT5,-1,-1;PJOB_GE20 "PJOB_GE20" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PJOB_GE20,-1,-1;RP_NETCHG "RP_NETCHG" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,RP_NETCHG,-1,-1;NRP_TOTAL "NRP_TOTAL" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,NRP_TOTAL,-1,-1;MI_TO_LIBR "MI_TO_LIBR" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,MI_TO_LIBR,-1,-1;MI_TO_PHAR "MI_TO_PHAR" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,MI_TO_PHAR,-1,-1;MI_TO_POST "MI_TO_POST" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,MI_TO_POST,-1,-1;N_DAYCARE "N_DAYCARE" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,N_DAYCARE,-1,-1;AVG_TEMP "AVG_TEMP" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,AVG_TEMP,-1,-1;PRIM_FLOOD "PRIM_FLOOD" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,PRIM_FLOOD,-1,-1;GHG_RES_PC "GHG_RES_PC" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,GHG_RES_PC,-1,-1;GHG_COM_PE "GHG_COM_PE" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,GHG_COM_PE,-1,-1;ENV_PM25 "ENV_PM25" true true false 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,ENV_PM25,-1,-1;Shape_Le_1 "Shape_Le_1" false true true 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,Shape_Length,-1,-1;Shape_Area "Shape_Area" false true true 8 Double 0 0 ,First,#,/var/ftp/gdrs_temp/update\us_mn_state_metc\society_equity_considerations\fgdb\society_equity_considerations.gdb\EquityConsiderationsTractsOverview,Shape_Area,-1,-1" #</Process>
+				<Process ToolSource="c:\program files\arcgis\pro\Resources\ArcToolbox\toolboxes\Conversion Tools.tbx\ExportFeatures" Date="20240131" Time="173958">ExportFeatures EquityConsiderationsTractsOverview D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\EquityConsiderationsTractsOverview_UC.shp # NOT_USE_ALIAS "GEOID10 "GEOID10" true true false 11 Text 0 0,First,#,EquityConsiderationsTractsOverview,GEOID10,0,10;Shape_Leng "Shape_Leng" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,Shape_Leng,-1,-1;TR10 "TR10" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,TR10,0,253;CTU_PRMRY "CTU_PRMRY" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,CTU_PRMRY,0,253;PCTU_PRMRY "PCTU_PRMRY" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCTU_PRMRY,-1,-1;PCTU_WHOLE "PCTU_WHOLE" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCTU_WHOLE,-1,-1;WS_PRMRY "WS_PRMRY" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,WS_PRMRY,0,253;SD_PRMRY "SD_PRMRY" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,SD_PRMRY,0,253;TR_OPPZONE "TR_OPPZONE" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,TR_OPPZONE,-1,-1;TR_QUALIF "TR_QUALIF" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,TR_QUALIF,-1,-1;TR_EJ "TR_EJ" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,TR_EJ,-1,-1;TR_EDA "TR_EDA" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,TR_EDA,-1,-1;HUTOT_MC "HUTOT_MC" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,HUTOT_MC,-1,-1;HHTOT_MC "HHTOT_MC" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,HHTOT_MC,-1,-1;HHOWN_MC "HHOWN_MC" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,HHOWN_MC,-1,-1;HHRNT_MC "HHRNT_MC" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,HHRNT_MC,-1,-1;POPTOT_MC "POPTOT_MC" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,POPTOT_MC,-1,-1;HUTOT_ACS "HUTOT_ACS" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,HUTOT_ACS,-1,-1;HHTOT_ACS "HHTOT_ACS" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,HHTOT_ACS,-1,-1;HHOWN_ACS "HHOWN_ACS" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,HHOWN_ACS,-1,-1;HHRNT_ACS "HHRNT_ACS" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,HHRNT_ACS,-1,-1;POPTOT_ACS "POPTOT_ACS" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,POPTOT_ACS,-1,-1;P_0017 "P_0017" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,P_0017,-1,-1;P_1834 "P_1834" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,P_1834,-1,-1;P_3564 "P_3564" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,P_3564,-1,-1;P_65UP "P_65UP" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,P_65UP,-1,-1;PHHSIZE1 "PHHSIZE1" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PHHSIZE1,-1,-1;PHHSIZE2_4 "PHHSIZE2_4" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PHHSIZE2_4,-1,-1;PHHSIZE5UP "PHHSIZE5UP" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PHHSIZE5UP,-1,-1;AVGHHSIZE "AVGHHSIZE" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,AVGHHSIZE,-1,-1;P_USBORN "P_USBORN" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,P_USBORN,-1,-1;PMIG_GE10 "PMIG_GE10" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PMIG_GE10,-1,-1;P_ENGLIMIT "P_ENGLIMIT" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,P_ENGLIMIT,-1,-1;PMV "PMV" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PMV,-1,-1;MV_MDYR "MV_MDYR" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,MV_MDYR,-1,-1;PD_ANY "PD_ANY" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PD_ANY,-1,-1;PWHITENH "PWHITENH" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PWHITENH,-1,-1;PBLACKNH "PBLACKNH" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PBLACKNH,-1,-1;PASIANNH "PASIANNH" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PASIANNH,-1,-1;PHISPPOP "PHISPPOP" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PHISPPOP,-1,-1;PAMINDNH "PAMINDNH" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PAMINDNH,-1,-1;POTHMULTNH "POTHMULTNH" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,POTHMULTNH,-1,-1;PBIPOC "PBIPOC" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PBIPOC,-1,-1;PLURALRACE "PLURALRACE" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,PLURALRACE,0,253;PPLURALRAC "PPLURALRAC" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PPLURALRAC,-1,-1;PBANC_AFRI "PBANC_AFRI" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PBANC_AFRI,-1,-1;PBANC_AFAM "PBANC_AFAM" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PBANC_AFAM,-1,-1;PARAC_AIND "PARAC_AIND" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PARAC_AIND,-1,-1;PARAC_HMON "PARAC_HMON" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PARAC_HMON,-1,-1;PLAT_MEXI "PLAT_MEXI" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PLAT_MEXI,-1,-1;PLAT_PUER "PLAT_PUER" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PLAT_PUER,-1,-1;PIND_DAKO "PIND_DAKO" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PIND_DAKO,-1,-1;PIND_OJIB "PIND_OJIB" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PIND_OJIB,-1,-1;PMENA_EGYP "PMENA_EGYP" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PMENA_EGYP,-1,-1;PMENA_LEBA "PMENA_LEBA" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PMENA_LEBA,-1,-1;PWANC_GERM "PWANC_GERM" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PWANC_GERM,-1,-1;PWANC_NORW "PWANC_NORW" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PWANC_NORW,-1,-1;PPOV185 "PPOV185" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PPOV185,-1,-1;ACP "ACP" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,ACP,-1,-1;ACP_NYRS "ACP_NYRS" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,ACP_NYRS,-1,-1;PPOV500 "PPOV500" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PPOV500,-1,-1;ACA "ACA" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,ACA,-1,-1;ACA_NYRS "ACA_NYRS" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,ACA_NYRS,-1,-1;MDHHINC14 "MDHHINC14" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,MDHHINC14,-1,-1;MDHHINCNOW "MDHHINCNOW" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,MDHHINCNOW,-1,-1;PHHI_QNTL1 "PHHI_QNTL1" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PHHI_QNTL1,-1,-1;PHHI_QNTL3 "PHHI_QNTL3" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PHHI_QNTL3,-1,-1;PHHI_QNTL5 "PHHI_QNTL5" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PHHI_QNTL5,-1,-1;PWK_FTYR "PWK_FTYR" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PWK_FTYR,-1,-1;PWK_NOWORK "PWK_NOWORK" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PWK_NOWORK,-1,-1;MDERN_FTYR "MDERN_FTYR" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,MDERN_FTYR,-1,-1;HOLC_PGRN "HOLC_PGRN" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,HOLC_PGRN,0,253;HOLC_PBLU "HOLC_PBLU" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,HOLC_PBLU,0,253;HOLC_PYLW "HOLC_PYLW" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,HOLC_PYLW,0,253;HOLC_PRED "HOLC_PRED" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,HOLC_PRED,0,253;HOLC_PNR "HOLC_PNR" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,HOLC_PNR,0,253;RRCOV_NUM "RRCOV_NUM" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,RRCOV_NUM,0,253;RRCOV_PCT "RRCOV_PCT" true true false 254 Text 0 0,First,#,EquityConsiderationsTractsOverview,RRCOV_PCT,0,253;POWNHOME "POWNHOME" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,POWNHOME,-1,-1;PCOSTBURD "PCOSTBURD" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCOSTBURD,-1,-1;PCOSTBURDR "PCOSTBURDR" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCOSTBURDR,-1,-1;PCOSTBURDO "PCOSTBURDO" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCOSTBURDO,-1,-1;GRSRENT14 "GRSRENT14" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,GRSRENT14,-1,-1;GRSRENTNOW "GRSRENTNOW" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,GRSRENTNOW,-1,-1;MD_EMV_201 "MD_EMV_201" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,MD_EMV_201,-1,-1;MD_EMV_NOW "MD_EMV_NOW" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,MD_EMV_NOW,-1,-1;AFF14_LE60 "AFF14_LE60" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,AFF14_LE60,-1,-1;AFFNW_LE60 "AFFNW_LE60" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,AFFNW_LE60,-1,-1;POZIP_SAME "POZIP_SAME" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,POZIP_SAME,-1,-1;N_EVICTED "N_EVICTED" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,N_EVICTED,-1,-1;P_EVICTED "P_EVICTED" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,P_EVICTED,-1,-1;PHH_NOVEH "PHH_NOVEH" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PHH_NOVEH,-1,-1;PHFTRANSIT "PHFTRANSIT" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PHFTRANSIT,-1,-1;COMM_TOTAL "COMM_TOTAL" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,COMM_TOTAL,-1,-1;PCOMM_LT5 "PCOMM_LT5" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCOMM_LT5,-1,-1;PCOMM_GE20 "PCOMM_GE20" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCOMM_GE20,-1,-1;COMMLENGTH "COMMLENGTH" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,COMMLENGTH,-1,-1;PCOMMDRIVE "PCOMMDRIVE" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCOMMDRIVE,-1,-1;PCOMMTRANS "PCOMMTRANS" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCOMMTRANS,-1,-1;PCOMMOTHER "PCOMMOTHER" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PCOMMOTHER,-1,-1;JOB_TOTAL "JOB_TOTAL" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,JOB_TOTAL,-1,-1;PJOB_LT5 "PJOB_LT5" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PJOB_LT5,-1,-1;PJOB_GE20 "PJOB_GE20" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PJOB_GE20,-1,-1;RP_NETCHG "RP_NETCHG" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,RP_NETCHG,-1,-1;NRP_TOTAL "NRP_TOTAL" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,NRP_TOTAL,-1,-1;MI_TO_LIBR "MI_TO_LIBR" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,MI_TO_LIBR,-1,-1;MI_TO_PHAR "MI_TO_PHAR" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,MI_TO_PHAR,-1,-1;MI_TO_POST "MI_TO_POST" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,MI_TO_POST,-1,-1;N_DAYCARE "N_DAYCARE" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,N_DAYCARE,-1,-1;AVG_TEMP "AVG_TEMP" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,AVG_TEMP,-1,-1;PRIM_FLOOD "PRIM_FLOOD" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,PRIM_FLOOD,-1,-1;GHG_RES_PC "GHG_RES_PC" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,GHG_RES_PC,-1,-1;GHG_COM_PE "GHG_COM_PE" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,GHG_COM_PE,-1,-1;ENV_PM25 "ENV_PM25" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,ENV_PM25,-1,-1;Shape_Le_1 "Shape_Le_1" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,Shape_Le_1,-1,-1;Shape_Area "Shape_Area" true true false 19 Double 0 0,First,#,EquityConsiderationsTractsOverview,Shape_Area,-1,-1" #</Process><Process ToolSource="c:\program files\arcgis\pro\Resources\ArcToolbox\toolboxes\Data Management Tools.tbx\Rename" Date="20240131" Time="174146">Rename D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\EquityConsiderationsTractsOverview_UC.shp D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\Equity_Considerations_census_tracts_UC.shp ShapeFile</Process><Process ToolSource="c:\program files\arcgis\pro\Resources\ArcToolbox\toolboxes\Conversion Tools.tbx\ExportFeatures" Date="20240205" Time="191148">ExportFeatures UC_new_MN_data\Equity_Considerations_census_tracts_UC D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\admin_boundaries_census_tracts.shp # NOT_USE_ALIAS "GEOID10 "GEOID10" true true false 11 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,GEOID10,0,10;Shape_Leng "Shape_Leng" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,Shape_Leng,-1,-1;TR10 "TR10" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,TR10,0,253;CTU_PRMRY "CTU_PRMRY" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,CTU_PRMRY,0,253;PCTU_PRMRY "PCTU_PRMRY" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCTU_PRMRY,-1,-1;PCTU_WHOLE "PCTU_WHOLE" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCTU_WHOLE,-1,-1;WS_PRMRY "WS_PRMRY" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,WS_PRMRY,0,253;SD_PRMRY "SD_PRMRY" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,SD_PRMRY,0,253;TR_OPPZONE "TR_OPPZONE" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,TR_OPPZONE,-1,-1;TR_QUALIF "TR_QUALIF" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,TR_QUALIF,-1,-1;TR_EJ "TR_EJ" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,TR_EJ,-1,-1;TR_EDA "TR_EDA" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,TR_EDA,-1,-1;HUTOT_MC "HUTOT_MC" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HUTOT_MC,-1,-1;HHTOT_MC "HHTOT_MC" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HHTOT_MC,-1,-1;HHOWN_MC "HHOWN_MC" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HHOWN_MC,-1,-1;HHRNT_MC "HHRNT_MC" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HHRNT_MC,-1,-1;POPTOT_MC "POPTOT_MC" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,POPTOT_MC,-1,-1;HUTOT_ACS "HUTOT_ACS" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HUTOT_ACS,-1,-1;HHTOT_ACS "HHTOT_ACS" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HHTOT_ACS,-1,-1;HHOWN_ACS "HHOWN_ACS" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HHOWN_ACS,-1,-1;HHRNT_ACS "HHRNT_ACS" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HHRNT_ACS,-1,-1;POPTOT_ACS "POPTOT_ACS" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,POPTOT_ACS,-1,-1;P_0017 "P_0017" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,P_0017,-1,-1;P_1834 "P_1834" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,P_1834,-1,-1;P_3564 "P_3564" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,P_3564,-1,-1;P_65UP "P_65UP" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,P_65UP,-1,-1;PHHSIZE1 "PHHSIZE1" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PHHSIZE1,-1,-1;PHHSIZE2_4 "PHHSIZE2_4" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PHHSIZE2_4,-1,-1;PHHSIZE5UP "PHHSIZE5UP" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PHHSIZE5UP,-1,-1;AVGHHSIZE "AVGHHSIZE" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,AVGHHSIZE,-1,-1;P_USBORN "P_USBORN" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,P_USBORN,-1,-1;PMIG_GE10 "PMIG_GE10" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PMIG_GE10,-1,-1;P_ENGLIMIT "P_ENGLIMIT" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,P_ENGLIMIT,-1,-1;PMV "PMV" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PMV,-1,-1;MV_MDYR "MV_MDYR" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,MV_MDYR,-1,-1;PD_ANY "PD_ANY" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PD_ANY,-1,-1;PWHITENH "PWHITENH" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PWHITENH,-1,-1;PBLACKNH "PBLACKNH" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PBLACKNH,-1,-1;PASIANNH "PASIANNH" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PASIANNH,-1,-1;PHISPPOP "PHISPPOP" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PHISPPOP,-1,-1;PAMINDNH "PAMINDNH" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PAMINDNH,-1,-1;POTHMULTNH "POTHMULTNH" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,POTHMULTNH,-1,-1;PBIPOC "PBIPOC" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PBIPOC,-1,-1;PLURALRACE "PLURALRACE" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PLURALRACE,0,253;PPLURALRAC "PPLURALRAC" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PPLURALRAC,-1,-1;PBANC_AFRI "PBANC_AFRI" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PBANC_AFRI,-1,-1;PBANC_AFAM "PBANC_AFAM" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PBANC_AFAM,-1,-1;PARAC_AIND "PARAC_AIND" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PARAC_AIND,-1,-1;PARAC_HMON "PARAC_HMON" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PARAC_HMON,-1,-1;PLAT_MEXI "PLAT_MEXI" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PLAT_MEXI,-1,-1;PLAT_PUER "PLAT_PUER" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PLAT_PUER,-1,-1;PIND_DAKO "PIND_DAKO" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PIND_DAKO,-1,-1;PIND_OJIB "PIND_OJIB" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PIND_OJIB,-1,-1;PMENA_EGYP "PMENA_EGYP" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PMENA_EGYP,-1,-1;PMENA_LEBA "PMENA_LEBA" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PMENA_LEBA,-1,-1;PWANC_GERM "PWANC_GERM" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PWANC_GERM,-1,-1;PWANC_NORW "PWANC_NORW" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PWANC_NORW,-1,-1;PPOV185 "PPOV185" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PPOV185,-1,-1;ACP "ACP" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,ACP,-1,-1;ACP_NYRS "ACP_NYRS" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,ACP_NYRS,-1,-1;PPOV500 "PPOV500" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PPOV500,-1,-1;ACA "ACA" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,ACA,-1,-1;ACA_NYRS "ACA_NYRS" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,ACA_NYRS,-1,-1;MDHHINC14 "MDHHINC14" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,MDHHINC14,-1,-1;MDHHINCNOW "MDHHINCNOW" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,MDHHINCNOW,-1,-1;PHHI_QNTL1 "PHHI_QNTL1" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PHHI_QNTL1,-1,-1;PHHI_QNTL3 "PHHI_QNTL3" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PHHI_QNTL3,-1,-1;PHHI_QNTL5 "PHHI_QNTL5" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PHHI_QNTL5,-1,-1;PWK_FTYR "PWK_FTYR" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PWK_FTYR,-1,-1;PWK_NOWORK "PWK_NOWORK" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PWK_NOWORK,-1,-1;MDERN_FTYR "MDERN_FTYR" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,MDERN_FTYR,-1,-1;HOLC_PGRN "HOLC_PGRN" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HOLC_PGRN,0,253;HOLC_PBLU "HOLC_PBLU" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HOLC_PBLU,0,253;HOLC_PYLW "HOLC_PYLW" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HOLC_PYLW,0,253;HOLC_PRED "HOLC_PRED" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HOLC_PRED,0,253;HOLC_PNR "HOLC_PNR" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,HOLC_PNR,0,253;RRCOV_NUM "RRCOV_NUM" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,RRCOV_NUM,0,253;RRCOV_PCT "RRCOV_PCT" true true false 254 Text 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,RRCOV_PCT,0,253;POWNHOME "POWNHOME" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,POWNHOME,-1,-1;PCOSTBURD "PCOSTBURD" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCOSTBURD,-1,-1;PCOSTBURDR "PCOSTBURDR" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCOSTBURDR,-1,-1;PCOSTBURDO "PCOSTBURDO" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCOSTBURDO,-1,-1;GRSRENT14 "GRSRENT14" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,GRSRENT14,-1,-1;GRSRENTNOW "GRSRENTNOW" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,GRSRENTNOW,-1,-1;MD_EMV_201 "MD_EMV_201" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,MD_EMV_201,-1,-1;MD_EMV_NOW "MD_EMV_NOW" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,MD_EMV_NOW,-1,-1;AFF14_LE60 "AFF14_LE60" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,AFF14_LE60,-1,-1;AFFNW_LE60 "AFFNW_LE60" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,AFFNW_LE60,-1,-1;POZIP_SAME "POZIP_SAME" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,POZIP_SAME,-1,-1;N_EVICTED "N_EVICTED" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,N_EVICTED,-1,-1;P_EVICTED "P_EVICTED" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,P_EVICTED,-1,-1;PHH_NOVEH "PHH_NOVEH" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PHH_NOVEH,-1,-1;PHFTRANSIT "PHFTRANSIT" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PHFTRANSIT,-1,-1;COMM_TOTAL "COMM_TOTAL" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,COMM_TOTAL,-1,-1;PCOMM_LT5 "PCOMM_LT5" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCOMM_LT5,-1,-1;PCOMM_GE20 "PCOMM_GE20" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCOMM_GE20,-1,-1;COMMLENGTH "COMMLENGTH" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,COMMLENGTH,-1,-1;PCOMMDRIVE "PCOMMDRIVE" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCOMMDRIVE,-1,-1;PCOMMTRANS "PCOMMTRANS" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCOMMTRANS,-1,-1;PCOMMOTHER "PCOMMOTHER" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PCOMMOTHER,-1,-1;JOB_TOTAL "JOB_TOTAL" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,JOB_TOTAL,-1,-1;PJOB_LT5 "PJOB_LT5" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PJOB_LT5,-1,-1;PJOB_GE20 "PJOB_GE20" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PJOB_GE20,-1,-1;RP_NETCHG "RP_NETCHG" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,RP_NETCHG,-1,-1;NRP_TOTAL "NRP_TOTAL" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,NRP_TOTAL,-1,-1;MI_TO_LIBR "MI_TO_LIBR" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,MI_TO_LIBR,-1,-1;MI_TO_PHAR "MI_TO_PHAR" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,MI_TO_PHAR,-1,-1;MI_TO_POST "MI_TO_POST" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,MI_TO_POST,-1,-1;N_DAYCARE "N_DAYCARE" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,N_DAYCARE,-1,-1;AVG_TEMP "AVG_TEMP" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,AVG_TEMP,-1,-1;PRIM_FLOOD "PRIM_FLOOD" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,PRIM_FLOOD,-1,-1;GHG_RES_PC "GHG_RES_PC" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,GHG_RES_PC,-1,-1;GHG_COM_PE "GHG_COM_PE" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,GHG_COM_PE,-1,-1;ENV_PM25 "ENV_PM25" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,ENV_PM25,-1,-1;Shape_Le_1 "Shape_Le_1" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,Shape_Le_1,-1,-1;Shape_Area "Shape_Area" true true false 19 Double 0 0,First,#,UC_new_MN_data\Equity_Considerations_census_tracts_UC,Shape_Area,-1,-1" #</Process><Process ToolSource="c:\program files\arcgis\pro\Resources\ArcToolbox\toolboxes\Data Management Tools.tbx\DeleteField" Date="20240205" Time="191223">DeleteField admin_boundaries_census_tracts Shape_Leng;PCTU_PRMRY;PCTU_WHOLE;WS_PRMRY;SD_PRMRY;TR_OPPZONE;TR_QUALIF;TR_EJ;TR_EDA;HUTOT_MC;HHTOT_MC;HHOWN_MC;HHRNT_MC;POPTOT_MC;HUTOT_ACS;HHTOT_ACS;HHOWN_ACS;HHRNT_ACS;POPTOT_ACS;P_0017;P_1834;P_3564;P_65UP;PHHSIZE1;PHHSIZE2_4;PHHSIZE5UP;AVGHHSIZE;P_USBORN;PMIG_GE10;P_ENGLIMIT;PMV;MV_MDYR;PD_ANY;PWHITENH;PBLACKNH;PASIANNH;PHISPPOP;PAMINDNH;POTHMULTNH;PBIPOC;PLURALRACE;PPLURALRAC;PBANC_AFRI;PBANC_AFAM;PARAC_AIND;PARAC_HMON;PLAT_MEXI;PLAT_PUER;PIND_DAKO;PIND_OJIB;PMENA_EGYP;PMENA_LEBA;PWANC_GERM;PWANC_NORW;PPOV185;ACP;ACP_NYRS;PPOV500;ACA;ACA_NYRS;MDHHINC14;MDHHINCNOW;PHHI_QNTL1;PHHI_QNTL3;PHHI_QNTL5;PWK_FTYR;PWK_NOWORK;MDERN_FTYR;HOLC_PGRN;HOLC_PBLU;HOLC_PYLW;HOLC_PRED;HOLC_PNR;RRCOV_NUM;RRCOV_PCT;POWNHOME;PCOSTBURD;PCOSTBURDR;PCOSTBURDO;GRSRENT14;GRSRENTNOW;MD_EMV_201;MD_EMV_NOW;AFF14_LE60;AFFNW_LE60;POZIP_SAME;N_EVICTED;P_EVICTED;PHH_NOVEH;PHFTRANSIT;COMM_TOTAL;PCOMM_LT5;PCOMM_GE20;COMMLENGTH;PCOMMDRIVE;PCOMMTRANS;PCOMMOTHER;JOB_TOTAL;PJOB_LT5;PJOB_GE20;RP_NETCHG;NRP_TOTAL;MI_TO_LIBR;MI_TO_PHAR;MI_TO_POST;N_DAYCARE;AVG_TEMP;PRIM_FLOOD;GHG_RES_PC;GHG_COM_PE;ENV_PM25;Shape_Le_1;Shape_Area "Delete Fields"</Process><Process ToolSource="c:\program files\arcgis\pro\Resources\ArcToolbox\toolboxes\Data Management Tools.tbx\CopyMultiple" Date="20240220" Time="111213">CopyMultiple "D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\admin_boundaries_census_tracts.shp shapefile_polygon;D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\Equity_Considerations_census_tracts.shp shapefile_polygon;D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\LULC_NLCD_2021.tif raster_file_general;D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\total_population_census_2010.tif raster_file_general;D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\attribute_table_UNA.csv text_csv" D:\training\UrbanNatureAccess\Bio179_data_and_homework\UNA_sample_data_MN admin_boundaries_census_tracts;Equity_Considerations_census_tracts;LULC_NLCD_2021;total_population_census_2010;attribute_table_UNA "admin_boundaries_census_tracts FeatureClass admin_boundaries_census_tracts.shp #;Equity_Considerations_census_tracts FeatureClass Equity_Considerations_census_tracts.shp #;LULC_NLCD_2021.tif RasterDataset LULC_NLCD_2021.tif #;total_population_census_2010.tif RasterDataset total_population_census_2010.tif #"</Process><Process ToolSource="c:\program files\arcgis\pro\Resources\ArcToolbox\Toolboxes\Data Management Tools.tbx\Rename" Date="20250403" Time="084013">Rename "D:\training\Urban_InVEST\Urban_model_sample_data_same_AOI_Minneapolis_to_update\Urban model sample data same AOI Minneapolis\UrbanNatureAccess_sample_data\admin_boundaries_census_tracts.shp" "D:\training\Urban_InVEST\Urban_model_sample_data_same_AOI_Minneapolis_to_update\Urban model sample data same AOI Minneapolis\UrbanNatureAccess_sample_data\AOI_admin_boundaries_census_tracts.shp" ShapeFile</Process></lineage>
+			<copyHistory><copy source="D:\training\UrbanNatureAccess\Bio179_data_and_homework\new_MN_sample_data\admin_boundaries_census_tracts" dest="\\LAPTOP-29NPL9E4\D$\training\UrbanNatureAccess\Bio179_data_and_homework\UNA_sample_data_MN\admin_boundaries_census_tracts" date="20240220" time="11121300"></copy></copyHistory></DataProperties>
+		<SyncDate>20240205</SyncDate>
+		<SyncTime>19114700</SyncTime>
+		<ModDate>20240205</ModDate>
+		<ModTime>19114700</ModTime>
+	</Esri>
+	<dataIdInfo>
+		<envirDesc Sync="TRUE">Microsoft Windows 10 Version 10.0 (Build 19045) ; Esri ArcGIS 13.2.0.49743</envirDesc>
+		<dataLang>
+			<languageCode value="eng" country="USA"/>
+			<countryCode value="USA" Sync="TRUE"/>
+		</dataLang>
+		<idCitation>
+			<resTitle Sync="TRUE">admin_boundaries_census_tracts</resTitle>
+			<presForm>
+				<PresFormCd value="005"/>
+			</presForm>
+		</idCitation>
+		<descKeys>
+			<thesaName uuidref="723f6998-058e-11dc-8314-0800200c9a66"/>
+			<keyword Sync="TRUE">002</keyword>
+		</descKeys>
+		<spatRpType>
+			<SpatRepTypCd value="001"/>
+		</spatRpType>
+	</dataIdInfo>
+	<mdLang>
+		<languageCode value="eng"/>
+		<countryCode value="USA" Sync="TRUE"/>
+	</mdLang>
+	<distInfo>
+		<distFormat>
+			<formatName Sync="TRUE">Shapefile</formatName>
+		</distFormat>
+		<distTranOps>
+			<transSize Sync="TRUE">0.000</transSize>
+		</distTranOps>
+	</distInfo>
+	<mdHrLv>
+		<ScopeCd value="005"/>
+	</mdHrLv>
+	<mdHrLvName Sync="TRUE">dataset</mdHrLvName>
+	<refSysInfo>
+		<RefSystem>
+			<refSysID>
+				<identCode code="26915"/>
+				<idCodeSpace Sync="TRUE">EPSG</idCodeSpace>
+				<idVersion Sync="TRUE">6.11(3.0.1)</idVersion>
+			</refSysID>
+		</RefSystem>
+	</refSysInfo>
+	<spdoinfo>
+		<ptvctinf><esriterm Name="admin_boundaries_census_tracts"><efeatyp Sync="TRUE">Simple</efeatyp><efeageom code="4" Sync="TRUE"></efeageom><esritopo Sync="TRUE">FALSE</esritopo><efeacnt Sync="TRUE">0</efeacnt><spindex Sync="TRUE">FALSE</spindex><linrefer Sync="TRUE">FALSE</linrefer></esriterm></ptvctinf></spdoinfo>
+	<spatRepInfo>
+		<VectSpatRep><geometObjs Name="admin_boundaries_census_tracts"><geoObjTyp><GeoObjTypCd value="002" Sync="TRUE"></GeoObjTypCd></geoObjTyp><geoObjCnt Sync="TRUE">0</geoObjCnt></geometObjs><topLvl><TopoLevCd value="001" Sync="TRUE"></TopoLevCd></topLvl></VectSpatRep></spatRepInfo>
+	<eainfo>
+		<detailed Name="admin_boundaries_census_tracts">
+			<enttyp>
+				<enttypl Sync="TRUE">admin_boundaries_census_tracts</enttypl>
+				<enttypt Sync="TRUE">Feature Class</enttypt>
+				<enttypc Sync="TRUE">0</enttypc>
+			</enttyp>
+			<attr>
+				<attrlabl Sync="TRUE">FID</attrlabl>
+				<attalias Sync="TRUE">FID</attalias>
+				<attrtype Sync="TRUE">OID</attrtype>
+				<attwidth Sync="TRUE">4</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+				<attrdef Sync="TRUE">Internal feature number.</attrdef>
+				<attrdefs Sync="TRUE">Esri</attrdefs>
+				<attrdomv>
+					<udom Sync="TRUE">Sequential unique whole numbers that are automatically generated.</udom>
+				</attrdomv>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">GEOID10</attrlabl>
+				<attalias Sync="TRUE">GEOID10</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">11</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">Shape</attrlabl>
+				<attalias Sync="TRUE">Shape</attalias>
+				<attrtype Sync="TRUE">Geometry</attrtype>
+				<attwidth Sync="TRUE">0</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+				<attrdef Sync="TRUE">Feature geometry.</attrdef>
+				<attrdefs Sync="TRUE">ESRI</attrdefs>
+				<attrdomv>
+					<udom Sync="TRUE">Coordinates defining the features.</udom>
+				</attrdomv>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">Shape_Leng</attrlabl>
+				<attalias Sync="TRUE">Shape_Leng</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">TR10</attrlabl>
+				<attalias Sync="TRUE">TR10</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">CTU_PRMRY</attrlabl>
+				<attalias Sync="TRUE">CTU_PRMRY</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCTU_PRMRY</attrlabl>
+				<attalias Sync="TRUE">PCTU_PRMRY</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCTU_WHOLE</attrlabl>
+				<attalias Sync="TRUE">PCTU_WHOLE</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">WS_PRMRY</attrlabl>
+				<attalias Sync="TRUE">WS_PRMRY</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">SD_PRMRY</attrlabl>
+				<attalias Sync="TRUE">SD_PRMRY</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">TR_OPPZONE</attrlabl>
+				<attalias Sync="TRUE">TR_OPPZONE</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">TR_QUALIF</attrlabl>
+				<attalias Sync="TRUE">TR_QUALIF</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">TR_EJ</attrlabl>
+				<attalias Sync="TRUE">TR_EJ</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">TR_EDA</attrlabl>
+				<attalias Sync="TRUE">TR_EDA</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HUTOT_MC</attrlabl>
+				<attalias Sync="TRUE">HUTOT_MC</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HHTOT_MC</attrlabl>
+				<attalias Sync="TRUE">HHTOT_MC</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HHOWN_MC</attrlabl>
+				<attalias Sync="TRUE">HHOWN_MC</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HHRNT_MC</attrlabl>
+				<attalias Sync="TRUE">HHRNT_MC</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">POPTOT_MC</attrlabl>
+				<attalias Sync="TRUE">POPTOT_MC</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HUTOT_ACS</attrlabl>
+				<attalias Sync="TRUE">HUTOT_ACS</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HHTOT_ACS</attrlabl>
+				<attalias Sync="TRUE">HHTOT_ACS</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HHOWN_ACS</attrlabl>
+				<attalias Sync="TRUE">HHOWN_ACS</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HHRNT_ACS</attrlabl>
+				<attalias Sync="TRUE">HHRNT_ACS</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">POPTOT_ACS</attrlabl>
+				<attalias Sync="TRUE">POPTOT_ACS</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">P_0017</attrlabl>
+				<attalias Sync="TRUE">P_0017</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">P_1834</attrlabl>
+				<attalias Sync="TRUE">P_1834</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">P_3564</attrlabl>
+				<attalias Sync="TRUE">P_3564</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">P_65UP</attrlabl>
+				<attalias Sync="TRUE">P_65UP</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PHHSIZE1</attrlabl>
+				<attalias Sync="TRUE">PHHSIZE1</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PHHSIZE2_4</attrlabl>
+				<attalias Sync="TRUE">PHHSIZE2_4</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PHHSIZE5UP</attrlabl>
+				<attalias Sync="TRUE">PHHSIZE5UP</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">AVGHHSIZE</attrlabl>
+				<attalias Sync="TRUE">AVGHHSIZE</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">P_USBORN</attrlabl>
+				<attalias Sync="TRUE">P_USBORN</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PMIG_GE10</attrlabl>
+				<attalias Sync="TRUE">PMIG_GE10</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">P_ENGLIMIT</attrlabl>
+				<attalias Sync="TRUE">P_ENGLIMIT</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PMV</attrlabl>
+				<attalias Sync="TRUE">PMV</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">MV_MDYR</attrlabl>
+				<attalias Sync="TRUE">MV_MDYR</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PD_ANY</attrlabl>
+				<attalias Sync="TRUE">PD_ANY</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PWHITENH</attrlabl>
+				<attalias Sync="TRUE">PWHITENH</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PBLACKNH</attrlabl>
+				<attalias Sync="TRUE">PBLACKNH</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PASIANNH</attrlabl>
+				<attalias Sync="TRUE">PASIANNH</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PHISPPOP</attrlabl>
+				<attalias Sync="TRUE">PHISPPOP</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PAMINDNH</attrlabl>
+				<attalias Sync="TRUE">PAMINDNH</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">POTHMULTNH</attrlabl>
+				<attalias Sync="TRUE">POTHMULTNH</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PBIPOC</attrlabl>
+				<attalias Sync="TRUE">PBIPOC</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PLURALRACE</attrlabl>
+				<attalias Sync="TRUE">PLURALRACE</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PPLURALRAC</attrlabl>
+				<attalias Sync="TRUE">PPLURALRAC</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PBANC_AFRI</attrlabl>
+				<attalias Sync="TRUE">PBANC_AFRI</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PBANC_AFAM</attrlabl>
+				<attalias Sync="TRUE">PBANC_AFAM</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PARAC_AIND</attrlabl>
+				<attalias Sync="TRUE">PARAC_AIND</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PARAC_HMON</attrlabl>
+				<attalias Sync="TRUE">PARAC_HMON</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PLAT_MEXI</attrlabl>
+				<attalias Sync="TRUE">PLAT_MEXI</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PLAT_PUER</attrlabl>
+				<attalias Sync="TRUE">PLAT_PUER</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PIND_DAKO</attrlabl>
+				<attalias Sync="TRUE">PIND_DAKO</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PIND_OJIB</attrlabl>
+				<attalias Sync="TRUE">PIND_OJIB</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PMENA_EGYP</attrlabl>
+				<attalias Sync="TRUE">PMENA_EGYP</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PMENA_LEBA</attrlabl>
+				<attalias Sync="TRUE">PMENA_LEBA</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PWANC_GERM</attrlabl>
+				<attalias Sync="TRUE">PWANC_GERM</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PWANC_NORW</attrlabl>
+				<attalias Sync="TRUE">PWANC_NORW</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PPOV185</attrlabl>
+				<attalias Sync="TRUE">PPOV185</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">ACP</attrlabl>
+				<attalias Sync="TRUE">ACP</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">ACP_NYRS</attrlabl>
+				<attalias Sync="TRUE">ACP_NYRS</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PPOV500</attrlabl>
+				<attalias Sync="TRUE">PPOV500</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">ACA</attrlabl>
+				<attalias Sync="TRUE">ACA</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">ACA_NYRS</attrlabl>
+				<attalias Sync="TRUE">ACA_NYRS</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">MDHHINC14</attrlabl>
+				<attalias Sync="TRUE">MDHHINC14</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">MDHHINCNOW</attrlabl>
+				<attalias Sync="TRUE">MDHHINCNOW</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PHHI_QNTL1</attrlabl>
+				<attalias Sync="TRUE">PHHI_QNTL1</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PHHI_QNTL3</attrlabl>
+				<attalias Sync="TRUE">PHHI_QNTL3</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PHHI_QNTL5</attrlabl>
+				<attalias Sync="TRUE">PHHI_QNTL5</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PWK_FTYR</attrlabl>
+				<attalias Sync="TRUE">PWK_FTYR</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PWK_NOWORK</attrlabl>
+				<attalias Sync="TRUE">PWK_NOWORK</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">MDERN_FTYR</attrlabl>
+				<attalias Sync="TRUE">MDERN_FTYR</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HOLC_PGRN</attrlabl>
+				<attalias Sync="TRUE">HOLC_PGRN</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HOLC_PBLU</attrlabl>
+				<attalias Sync="TRUE">HOLC_PBLU</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HOLC_PYLW</attrlabl>
+				<attalias Sync="TRUE">HOLC_PYLW</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HOLC_PRED</attrlabl>
+				<attalias Sync="TRUE">HOLC_PRED</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">HOLC_PNR</attrlabl>
+				<attalias Sync="TRUE">HOLC_PNR</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">RRCOV_NUM</attrlabl>
+				<attalias Sync="TRUE">RRCOV_NUM</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">RRCOV_PCT</attrlabl>
+				<attalias Sync="TRUE">RRCOV_PCT</attalias>
+				<attrtype Sync="TRUE">String</attrtype>
+				<attwidth Sync="TRUE">254</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">POWNHOME</attrlabl>
+				<attalias Sync="TRUE">POWNHOME</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCOSTBURD</attrlabl>
+				<attalias Sync="TRUE">PCOSTBURD</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCOSTBURDR</attrlabl>
+				<attalias Sync="TRUE">PCOSTBURDR</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCOSTBURDO</attrlabl>
+				<attalias Sync="TRUE">PCOSTBURDO</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">GRSRENT14</attrlabl>
+				<attalias Sync="TRUE">GRSRENT14</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">GRSRENTNOW</attrlabl>
+				<attalias Sync="TRUE">GRSRENTNOW</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">MD_EMV_201</attrlabl>
+				<attalias Sync="TRUE">MD_EMV_201</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">MD_EMV_NOW</attrlabl>
+				<attalias Sync="TRUE">MD_EMV_NOW</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">AFF14_LE60</attrlabl>
+				<attalias Sync="TRUE">AFF14_LE60</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">AFFNW_LE60</attrlabl>
+				<attalias Sync="TRUE">AFFNW_LE60</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">POZIP_SAME</attrlabl>
+				<attalias Sync="TRUE">POZIP_SAME</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">N_EVICTED</attrlabl>
+				<attalias Sync="TRUE">N_EVICTED</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">P_EVICTED</attrlabl>
+				<attalias Sync="TRUE">P_EVICTED</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PHH_NOVEH</attrlabl>
+				<attalias Sync="TRUE">PHH_NOVEH</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PHFTRANSIT</attrlabl>
+				<attalias Sync="TRUE">PHFTRANSIT</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">COMM_TOTAL</attrlabl>
+				<attalias Sync="TRUE">COMM_TOTAL</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCOMM_LT5</attrlabl>
+				<attalias Sync="TRUE">PCOMM_LT5</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCOMM_GE20</attrlabl>
+				<attalias Sync="TRUE">PCOMM_GE20</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">COMMLENGTH</attrlabl>
+				<attalias Sync="TRUE">COMMLENGTH</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCOMMDRIVE</attrlabl>
+				<attalias Sync="TRUE">PCOMMDRIVE</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCOMMTRANS</attrlabl>
+				<attalias Sync="TRUE">PCOMMTRANS</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PCOMMOTHER</attrlabl>
+				<attalias Sync="TRUE">PCOMMOTHER</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">JOB_TOTAL</attrlabl>
+				<attalias Sync="TRUE">JOB_TOTAL</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PJOB_LT5</attrlabl>
+				<attalias Sync="TRUE">PJOB_LT5</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PJOB_GE20</attrlabl>
+				<attalias Sync="TRUE">PJOB_GE20</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">RP_NETCHG</attrlabl>
+				<attalias Sync="TRUE">RP_NETCHG</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">NRP_TOTAL</attrlabl>
+				<attalias Sync="TRUE">NRP_TOTAL</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">MI_TO_LIBR</attrlabl>
+				<attalias Sync="TRUE">MI_TO_LIBR</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">MI_TO_PHAR</attrlabl>
+				<attalias Sync="TRUE">MI_TO_PHAR</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">MI_TO_POST</attrlabl>
+				<attalias Sync="TRUE">MI_TO_POST</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">N_DAYCARE</attrlabl>
+				<attalias Sync="TRUE">N_DAYCARE</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">AVG_TEMP</attrlabl>
+				<attalias Sync="TRUE">AVG_TEMP</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">PRIM_FLOOD</attrlabl>
+				<attalias Sync="TRUE">PRIM_FLOOD</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">GHG_RES_PC</attrlabl>
+				<attalias Sync="TRUE">GHG_RES_PC</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">GHG_COM_PE</attrlabl>
+				<attalias Sync="TRUE">GHG_COM_PE</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">ENV_PM25</attrlabl>
+				<attalias Sync="TRUE">ENV_PM25</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">Shape_Le_1</attrlabl>
+				<attalias Sync="TRUE">Shape_Le_1</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+			</attr>
+			<attr>
+				<attrlabl Sync="TRUE">Shape_Area</attrlabl>
+				<attalias Sync="TRUE">Shape_Area</attalias>
+				<attrtype Sync="TRUE">Double</attrtype>
+				<attwidth Sync="TRUE">19</attwidth>
+				<atprecis Sync="TRUE">0</atprecis>
+				<attscale Sync="TRUE">0</attscale>
+				<attrdef Sync="TRUE">Area of feature in internal units squared.</attrdef>
+				<attrdefs Sync="TRUE">Esri</attrdefs>
+				<attrdomv>
+					<udom Sync="TRUE">Positive real numbers that are automatically generated.</udom>
+				</attrdomv>
+			</attr>
+		</detailed>
+	</eainfo>
+	<mdDateSt Sync="TRUE">20240205</mdDateSt>
+</metadata>

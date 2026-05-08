@@ -1,0 +1,15 @@
+lucode,lulc_desc,urban_nature,search_radius_m
+11,Open Water,1,5000
+21,"Developed, Open Space",0.5,1000
+22,"Developed, Low Intensity",0,
+23,"Developed, Medium Intensity",0,
+24,"Developed, High Intensity",0,
+31,Barren Land,0,
+41,Deciduous Forest,1,5000
+42,Evergreen Forest,1,5000
+43,Mixed Forest,1,5000
+52,Shrub/Scrub,1,2500
+71,Herbaceous,1,2500
+81,Hay/Pasture,0.5,500
+90,Woody Wetlands,1,3500
+95,Emergent Herbaceous Wetlands,1,2500

@@ -666,6 +666,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     cc_map   = _compute_cc_raster(scenario_lulc)
     valid_hm = cc_map[~np.isnan(cc_map) & (scenario_lulc != NODATA)]
     mean_hm  = float(valid_hm.mean().round(4))
+    cooling_energy_savings_usd = compute_cooling_energy_savings(cc_map)
 
     n_food_pixels = int(((scenario_lulc == CODE_FOOD_FOREST) & (cooling_lulc != CODE_FOOD_FOREST)).sum())
     food_mln_lbs  = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
@@ -709,6 +710,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'mean_hm':                  mean_hm,
         'cooling_f':                hm_to_fahrenheit_cooling(mean_hm),
         'flood_damage_avoided_usd': flood_damage_avoided_usd,
+        'cooling_energy_savings_usd': cooling_energy_savings_usd,
         'mean_ndvi':                mean_ndvi,
         'carbon_tons_co2_yr':       carbon_tons_co2_yr,
         'nature_access_pct':        nat_pct,
@@ -726,7 +728,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 5
+SCENARIO_SCHEMA_VERSION = 7
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -900,7 +902,40 @@ try:
 except Exception:
     TOTAL_POTENTIAL_DAMAGE_USD = 0.0
     BUILDINGS_DATA_AVAILABLE = False
+    BUILDINGS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
     BUILDINGS_TYPE_RASTER = np.full(cooling_lulc.shape, -1, dtype="int32")
+
+# OSM road network (citywide) — unioned into BUILDINGS_RASTER so the
+# convertible-pixel mask excludes both buildings AND streets. The InVEST
+# UFR shapefile only covers a small downtown rectangle and includes only
+# 277 road polygons; OSM gives the full street network. Built offline by
+# `download_osm_roads.py` and committed to the repo.
+try:
+    _OSM_ROADS_PATH = Path("data/osm/minneapolis_roads.geojson")
+    if _OSM_ROADS_PATH.exists():
+        _roads_gdf = _gpd.read_file(_OSM_ROADS_PATH)
+        if _roads_gdf.crs is None or str(_roads_gdf.crs) != "EPSG:26915":
+            _roads_gdf = _roads_gdf.to_crs("EPSG:26915")
+        with rasterio.open("data/cooling/land_use_2021.tif") as _ref:
+            ROADS_RASTER = _rasterize(
+                ((g, 1) for g in _roads_gdf.geometry),
+                out_shape=(_ref.height, _ref.width),
+                transform=_ref.transform,
+                fill=0,
+                dtype="uint8",
+            )
+        # Union into BUILDINGS_RASTER so any downstream code that consumes
+        # "non-convertible developed land" (CONVERTIBLE_PIXELS, the spatial
+        # map's heat overlay, the per-tract aggregation) sees roads as
+        # already excluded — same semantics as buildings.
+        BUILDINGS_RASTER = np.maximum(BUILDINGS_RASTER, ROADS_RASTER)
+        OSM_ROADS_AVAILABLE = True
+    else:
+        ROADS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
+        OSM_ROADS_AVAILABLE = False
+except Exception:
+    ROADS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
+    OSM_ROADS_AVAILABLE = False
 
 # Per-pixel AC-energy consumption rate (kWh/m²/year) for the cooling-energy
 # savings calculation. Pixels not in any building → 0; building types not in
@@ -964,10 +999,38 @@ def _compute_hm_raster(scenario_lulc):
     return _compute_cc_raster(scenario_lulc)
 
 
+def compute_cooling_energy_savings(scenario_cc_raster):
+    """Annual avoided AC cost ($/yr) for buildings under the active scenario.
+
+    Per pixel: `ΔT_°F = (CC_scenario − CC_baseline) × HM_TO_FAHRENHEIT`. The
+    avoided fraction of AC consumption is approximated linearly as
+    `ΔT_°F × AC_KWH_PER_DEG_F` (~3 % per °F, RECS 2020), clamped ≥ 0. Per-pixel
+    savings = `avoided_fraction × consumption × pixel_area × $/kWh`, summed
+    over building pixels. Returns 0 when buildings, the energy table, or the
+    ET raster are unavailable. Order-of-magnitude — refine with a calibrated
+    AC-energy-vs-temperature curve when available.
+    """
+    if not (BUILDINGS_DATA_AVAILABLE and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE):
+        return 0.0
+    delta_cc = scenario_cc_raster - _BASELINE_HM_RASTER
+    delta_t_f = delta_cc * HM_TO_FAHRENHEIT
+    avoided = np.clip(delta_t_f * AC_KWH_PER_DEG_F, 0.0, 1.0)
+    per_pixel = avoided * CONSUMPTION_RATE_PER_PIXEL * PIXEL_AREA_M2 * COST_PER_KWH_USD
+    valid = (BUILDINGS_TYPE_RASTER >= 0) & np.isfinite(per_pixel)
+    return round(float(per_pixel[valid].sum()), 0)
+
+
 # Pre-compute baseline rasters once at startup so per-tract aggregates only
 # need to recompute the scenario side on each rerun.
 _BASELINE_ACCESS_SCORE_RASTER = _compute_access_score_raster(cooling_lulc)
 _BASELINE_HM_RASTER          = _compute_hm_raster(cooling_lulc)
+
+# Override the static `BASELINE_HM` from CITIES with the actual mean of the
+# baseline CC raster — keeps the reference value in sync with whatever the
+# current InVEST UCM pipeline produces. The CITIES value is now documentary.
+_valid_base_cc = _BASELINE_HM_RASTER[~np.isnan(_BASELINE_HM_RASTER)]
+if _valid_base_cc.size > 0:
+    BASELINE_HM = float(_valid_base_cc.mean().round(4))
 
 
 def compute_per_tract_summary(scenario_lulc):
@@ -1714,6 +1777,7 @@ if lookup_key in lookup_table and not use_heat_priority:
     results['people_with_nature_access'] = _fresh['people_with_nature_access']
     results['wellbeing_score']    = _fresh['wellbeing_score']
     results['flood_damage_avoided_usd'] = _fresh['flood_damage_avoided_usd']
+    results['cooling_energy_savings_usd'] = _fresh['cooling_energy_savings_usd']
     # Recompute cost with current cost sliders (lookup table used default costs)
     results['total_cost_mln'] = compute_cost(
         results['n_wet'], results['n_for'], results['n_hd'],
@@ -1946,7 +2010,7 @@ hs3.metric(
 st.divider()
 
 st.markdown("#### Economic")
-econ1, econ2, econ3 = st.columns(3)
+econ1, econ2, econ3, econ4 = st.columns(4)
 econ1.metric(
     "Food Production",
     _fmt_food(results['food_mln_lbs']),
@@ -1995,6 +2059,39 @@ else:
         ),
     )
 
+_energy_savings = results.get('cooling_energy_savings_usd', 0.0)
+_energy_available = (
+    BUILDINGS_DATA_AVAILABLE and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE
+)
+if _energy_available:
+    econ4.metric(
+        "Cooling Energy Savings",
+        f"${_energy_savings / 1e6:.2f}M/yr",
+        delta=(
+            f"+${_energy_savings / 1e6:.2f}M/yr vs baseline"
+            if _energy_savings >= 1e3 else "no avoided energy cost"
+        ),
+        delta_color="normal" if _energy_savings >= 1e3 else "off",
+        help=(
+            "Confidence: Order-of-magnitude estimate. Estimated avoided air "
+            "conditioning energy costs from urban cooling improvement. Based "
+            "on InVEST Urban Cooling Model: per-pixel ΔT in °F (= ΔCC × 4) "
+            "× 3% AC reduction per °F × per-class consumption (kWh/m²/yr from "
+            "energy_consumption.csv) × pixel area × $0.13/kWh, summed over "
+            "building pixels. Capped at $0 for scenarios that warm the city."
+        ),
+    )
+else:
+    econ4.metric(
+        "Cooling Energy Savings",
+        "—",
+        help=(
+            "Confidence: Order-of-magnitude estimate. ET raster, energy table, "
+            "or buildings shapefile not loaded — see "
+            "data/invest/cooling/UrbanCooling_sample_data/."
+        ),
+    )
+
 st.divider()
 
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
@@ -2037,11 +2134,12 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     _flood_diff     = results['flood_reduction'] - _baseline_flood
 
     _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
+    _energy_savings_table = results.get('cooling_energy_savings_usd', 0.0)
     comparison_data = {
         'Metric': [
             'Flood Risk Reduction', 'Runoff Volume', 'Temperature Change',
             'Food Production', 'Carbon Sequestration', 'Nature Access', 'NDVI',
-            'Flood Damage Avoided',
+            'Flood Damage Avoided', 'Cooling Energy Savings',
         ],
         'Baseline': [
             f'{_baseline_flood:.1f}',
@@ -2052,6 +2150,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{BASELINE_NATURE_ACCESS_PCT:.1f}%',
             f'{BASELINE_NDVI:.3f}',
             '$0',
+            '$0/yr',
         ],
         'This Scenario': [
             f'{results["flood_reduction"]:.1f}',
@@ -2066,6 +2165,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{results["nature_access_pct"]:.1f}%',
             f'{results["mean_ndvi"]:.3f}',
             f'${_flood_damage_avoided / 1e6:.1f}M',
+            f'${_energy_savings_table / 1e6:.2f}M/yr',
         ],
         'Change': [
             f'{_flood_diff:+.1f}',
@@ -2080,6 +2180,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{results["nature_access_pct"] - BASELINE_NATURE_ACCESS_PCT:+.1f} pp',
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
             f'+${_flood_damage_avoided / 1e6:.1f}M' if _flood_damage_avoided >= 1e4 else '$0',
+            f'+${_energy_savings_table / 1e6:.2f}M/yr' if _energy_savings_table >= 1e3 else '$0/yr',
         ],
     }
 
@@ -2202,14 +2303,15 @@ with st.expander("Assumptions and limitations"):
             "benefit (acre-foot prevented, °F cooling, 1,000 people fed). "
             "Returns N/A when the denominator is zero or negative — never "
             "infinite or misleading.\n"
-            "- **Building footprints excluded.** Conversions never land on top "
-            "of existing buildings — the InVEST UFR buildings shapefile is "
-            "rasterized and subtracted from the candidate pool. Buildings are "
-            "still part of the runoff calculation (they shed water like any "
-            "developed surface), but they're not eligible to be replaced by "
-            "GI/FF/HD. Real projects still need site-by-site feasibility "
-            "checks (zoning, ownership, soil, infrastructure) beyond just "
-            "avoiding building tops.\n"
+            "- **Buildings and roads excluded.** Conversions never land on "
+            "top of existing buildings or road infrastructure — the InVEST "
+            "UFR buildings shapefile and a citywide OpenStreetMap road "
+            "network (fetched once via `download_osm_roads.py`) are both "
+            "rasterized, unioned, and subtracted from the candidate pool. "
+            "Both are still part of the runoff calculation (they shed water "
+            "like any developed surface), but they're not eligible to be "
+            "replaced by GI/FF/HD. Real projects still need site-by-site "
+            "feasibility checks (zoning, ownership, soil, infrastructure).\n"
             "- **Optimized scenarios** come from a Random Forest surrogate. "
             "Verify any suggestion by manually applying it to the main "
             "sliders so the full pixel-level simulation runs."
@@ -2618,13 +2720,15 @@ with tab3:
         "Gray = unchanged developed land. Colors show where conversions occur. "
         "White = outside city boundary. Red wash = heat vulnerability proxy "
         "(NLCD development intensity), with opacity controlled by the slider above.  \n"
-        "Conversions are placed on developed land excluding building footprints — "
-        "targeting feasible interstitial spaces such as parking lots, lawns, and "
-        "vacant land. The candidate pool is the InVEST UFR buildings shapefile "
-        "subtracted from the NLCD-21/22/23/24 mask; placement within that pool is "
-        "random, or weighted toward higher-intensity-developed pixels when "
-        "Heat-Priority Mode is on. Real implementation would still require "
-        "site-specific siting analysis (zoning, ownership, soil, infrastructure)."
+        "Conversions target feasible interstitial spaces — building footprints "
+        "and road infrastructure are excluded citywide using OpenStreetMap "
+        "road network data unioned with the InVEST UFR buildings shapefile. "
+        "The remaining candidate pool covers parking lots, lawns, and vacant "
+        "land within the NLCD-21/22/23/24 developed mask. Placement within "
+        "that pool is random, or weighted toward higher-intensity-developed "
+        "pixels when Heat-Priority Mode is on. Real implementation would "
+        "still require site-specific siting analysis (zoning, ownership, "
+        "soil, infrastructure)."
     )
 
 with tab4:

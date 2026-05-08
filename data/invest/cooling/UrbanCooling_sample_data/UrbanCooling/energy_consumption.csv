@@ -1,0 +1,5 @@
+type,type_desc,consumption
+0,other,10
+1,commercial,30
+2,residential,20
+3,industrial,25
