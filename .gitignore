@@ -25,3 +25,6 @@ data/osm/minnesota/
 
 # Local on-disk cache (osmnx / Streamlit scratch)
 cache/
+
+# Expanded Minneapolis NLCD — parked, not yet integrated (see check_expanded_coverage.py)
+data/minneapolis_expanded/

@@ -592,3 +592,9 @@ Pixel-level raster showing which developed pixels changed and to what land cover
 | White | Outside city boundary (`NODATA = -128`) |
 
 When heat-priority mode is on, teal/green/red pixels are concentrated in higher-intensity developed areas rather than uniformly distributed.
+
+---
+
+## Known Limitations
+
+**Full-city NLCD coverage:** A 374 × 607 pixel raster covering the full Minneapolis city boundary (148.9 km²) has been downloaded but is not yet integrated. Integration requires a matching SSURGO hydrologic soil group raster for the expanded extent — the current soil raster covers only ~71 km² of the 204 km² expanded AOI. The existing model also extrapolates soil values via `resize()` at the edges of the current 122 km² AOI. SSURGO data for full Hennepin County can be downloaded from <https://websoilsurvey.nrcs.usda.gov>. See `download_minneapolis_nlcd.py` and `check_expanded_coverage.py` for the analysis.

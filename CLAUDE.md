@@ -192,6 +192,18 @@ with ET; SA's value will shift slightly once ET is wired in).
 
 ---
 
+## Blocked / pending work
+
+- **Full Minneapolis extent integration — BLOCKED on SSURGO soil raster.** A 374 × 607 px expanded
+  NLCD raster covering the full 148.9 km² city boundary has been downloaded to
+  `data/minneapolis_expanded/lulc_nlcd_2021_mpls_full.tif` (gitignored) but is not wired into the
+  app. Current `data/flood/soil_group_MN.tif` covers only ~71 km² of the 204 km² expanded extent.
+  Need full Hennepin County SSURGO data via <https://websoilsurvey.nrcs.usda.gov>, rasterized to
+  match the new grid. See `check_expanded_coverage.py` for the coverage analysis. Population
+  raster and OSM clip would also need regeneration on the new grid.
+
+---
+
 ## Coding conventions
 
 - **No bare globals for city data** — always pull city-specific values from `city_cfg` or the
