@@ -6,8 +6,16 @@ the UI metric cards would display. Then re-imports with UHI_MAX_C = 3.0 to
 show the calibration sensitivity.
 """
 
+import argparse
+import os
 import sys
 import importlib.util
+
+
+# `CITY_KEY` controls which `CITIES[...]` entry the headless harness selects.
+# Default is the downtown Minneapolis view; pass `--city "Minneapolis Full, MN"`
+# (or any other available city) on the command line to override.
+CITY_KEY = os.environ.get("VERIFY_COOLING_CITY", "Minneapolis, MN")
 
 
 def _stub_streamlit():
@@ -54,10 +62,19 @@ def _stub_streamlit():
         # Streamlit widgets accept (label, options=..., value=..., key=...)
         if "value" in kwargs:
             return kwargs["value"]
-        if "options" in kwargs and kwargs["options"]:
-            opts = list(kwargs["options"])
-            idx  = kwargs.get("index", 0) or 0
-            return opts[idx]
+        opts = kwargs.get("options") or (args[1] if len(args) > 1 and isinstance(args[1], (list, tuple)) else None)
+        if opts:
+            label = args[0] if args and isinstance(args[0], str) else ""
+            # If this is the city picker, honour CITY_KEY (or its
+            # "(coming soon)" variant). Fallback to default index 0.
+            if "City" in label:
+                want_active = CITY_KEY
+                want_unavail = f"{CITY_KEY} (coming soon)"
+                for o in opts:
+                    if o == want_active or o == want_unavail:
+                        return o
+            idx = kwargs.get("index", 0) or 0
+            return list(opts)[idx]
         if args and isinstance(args[0], str):
             label = args[0]
             return _defaults.get(kwargs.get("key", label), 0)
@@ -196,10 +213,20 @@ def report(m, label):
 
 
 if __name__ == "__main__":
-    print("Loading app.py with default UHI_MAX_C = 2.05 (Minneapolis InVEST args)…")
-    m1 = load_app()
-    report(m1, "DEFAULT: UHI_MAX_C = 2.05 °C")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--city", default=CITY_KEY,
+                        help="CITIES key to select (default: 'Minneapolis, MN'). "
+                             "Override via CLI or VERIFY_COOLING_CITY env var.")
+    parser.add_argument("--no-uhi-sweep", action="store_true",
+                        help="Skip the UHI=3.0 alternate run.")
+    args = parser.parse_args()
+    CITY_KEY = args.city  # update module-level so the stub's _widget sees it
 
-    print("\nReloading with UHI_MAX_C = 3.0 (upper bound for dense urban areas)…")
-    m2 = load_app(uhi_override=3.0)
-    report(m2, "ALTERNATE: UHI_MAX_C = 3.0 °C")
+    print(f"Loading app.py with default UHI_MAX_C = 2.05, city = {CITY_KEY!r} ...")
+    m1 = load_app()
+    report(m1, f"DEFAULT: UHI_MAX_C = 2.05 °C  ({CITY_KEY})")
+
+    if not args.no_uhi_sweep:
+        print("\nReloading with UHI_MAX_C = 3.0 (upper bound for dense urban areas)…")
+        m2 = load_app(uhi_override=3.0)
+        report(m2, f"ALTERNATE: UHI_MAX_C = 3.0 °C  ({CITY_KEY})")

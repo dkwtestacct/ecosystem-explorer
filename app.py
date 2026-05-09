@@ -102,7 +102,15 @@ CITIES = {
             'metrics return $0 because OSM buildings lack per-type codes — '
             'spatial-placement mask still works. See REFERENCE.md.'
         ),
-        'ref_scenarios': {},
+        # Recomputed via verify_cooling.py --city "Minneapolis Full, MN" (seed=42)
+        # against the expanded EPSG:5070 grid. Each "All X" scenario is
+        # pct_converted=50 with 100 % allocation to that single land cover.
+        'ref_scenarios': {
+            'Baseline':                     {'flood': 22.3,  'cooling': 0.1600, 'color': 'steelblue'},
+            'All Food Forest (NLCD 41)':    {'flood': 23.9,  'cooling': 0.2821, 'color': 'green'},
+            'All Green Infra (NLCD 90)':    {'flood': 37.0,  'cooling': 0.2864, 'color': 'teal'},
+            'All High Density (NLCD 24)':   {'flood': 19.5,  'cooling': 0.1383, 'color': 'red'},
+        },
     },
     'San Antonio, TX': {
         'data_dir_flood':       'data/sa/flood',
