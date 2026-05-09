@@ -433,6 +433,17 @@ UNA_ACTIVE = UNA_TABLE[
 ].copy()
 UNA_ACTIVE["lucode"] = UNA_ACTIVE["lucode"].astype(int)
 
+# Cap search radii at 1000 m. The InVEST UNA defaults of 5000 m for water /
+# forest / wetland classes treat those as "regional" amenities — appropriate
+# for a county-scale recreation study, but for an urban walking-distance
+# access metric on a 10.8 × 10.7 km AOI any single water pixel (Lake Calhoun,
+# Mississippi River, etc.) would mark essentially every other pixel as "has
+# nature access" — which is what produced the 100 % baseline. 1000 m
+# corresponds to a ~12-minute walk and matches the InVEST table's own value
+# for "Developed, Open Space" (urban parks).
+NATURE_RADIUS_CAP_M = 1000
+UNA_ACTIVE["search_radius_m"] = UNA_ACTIVE["search_radius_m"].clip(upper=NATURE_RADIUS_CAP_M)
+
 # Pre-compute distance transforms for natural classes whose pixel set never
 # changes across scenarios (the model only converts NLCD 21–24 to GI/FF/HD).
 # This keeps per-scenario evaluation fast: classes 21, 41, 90 are recomputed
@@ -805,7 +816,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 11  # bumped: tightened OSM road filter (Option B — drop sub-pixel-width surfaces); road mask now ~29 % AOI
+SCENARIO_SCHEMA_VERSION = 12  # bumped: nature-access search radii capped at 1000 m (UNA defaults to 5000 m saturate the AOI); dynamic BASELINE_CN override
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -1116,6 +1127,18 @@ _BASELINE_HM_RASTER          = _compute_hm_raster(cooling_lulc)
 _valid_base_cc = _BASELINE_HM_RASTER[~np.isnan(_BASELINE_HM_RASTER)]
 if _valid_base_cc.size > 0:
     BASELINE_HM = float(_valid_base_cc.mean().round(4))
+
+# Same idea for BASELINE_CN — recompute from the unmodified LULC × soil grid
+# using exactly the same lookup `evaluate_scenario` uses (app.py:744-748), so
+# the flood-delta card reads "0.0 vs baseline" at pct_converted=0 instead of
+# whatever drift the hardcoded 75.7 had vs the live computation.
+_baseline_lulc_safe = np.clip(cooling_lulc, 0, len(lucode_idx_arr) - 1)
+_baseline_lulc_idx  = lucode_idx_arr[_baseline_lulc_safe]
+_baseline_soil      = np.clip(soil_resized, 1, 4)
+_baseline_cn_grid   = cn_table[_baseline_lulc_idx, _baseline_soil]
+_valid_base_cn      = _baseline_cn_grid[_baseline_cn_grid > 0]
+if _valid_base_cn.size > 0:
+    BASELINE_CN = float(_valid_base_cn.mean().round(2))
 
 
 def compute_per_tract_summary(scenario_lulc):
@@ -2079,10 +2102,16 @@ _baseline_wellbeing = compute_wellbeing_score(
     _active_w_ndvi, _active_w_cooling, _active_w_nature,
 )
 _wellbeing_delta = results['wellbeing_score'] - _baseline_wellbeing
+# Display a clean "0.000" when within the per-component rounding noise of
+# the underlying inputs (NDVI, HM, nature_quality each rounded to 3–4 dp).
+_wellbeing_delta_str = (
+    "0.000 vs baseline" if abs(_wellbeing_delta) < 0.001
+    else f"{_wellbeing_delta:+.3f} vs baseline"
+)
 hs3.metric(
     "Urban Wellbeing Score",
     f'{results["wellbeing_score"]:.3f}',
-    delta=f"{_wellbeing_delta:+.3f} vs baseline",
+    delta=_wellbeing_delta_str,
     delta_color="normal" if abs(_wellbeing_delta) >= 0.001 else "off",
     help=(
         "Confidence: Composite proxy. "

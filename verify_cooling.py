@@ -66,8 +66,10 @@ def _stub_streamlit():
     class _ContextNoop:
         def __enter__(self): return self
         def __exit__(self, *a): return False
-        def __getattr__(self, k): return _ContextNoop._noop
+        def __getattr__(self, k): return self  # chained calls return self too
         def __call__(self, *a, **kw): return self
+        def progress(self, *a, **kw): return self  # st.progress(...).progress(...)
+        def empty(self, *a, **kw): return self
         @staticmethod
         def _noop(*a, **kw): return None
 
@@ -106,7 +108,7 @@ def _stub_streamlit():
                 return lambda spec, **kw: [_ContextNoop() for _ in
                                             (spec if hasattr(spec, "__len__") else range(spec))]
             if name in ("expander", "container", "form", "popover", "status",
-                         "empty", "spinner", "chat_message"):
+                         "empty", "spinner", "chat_message", "progress"):
                 return lambda *a, **kw: _ContextNoop()
             if name == "cache_data":
                 return lambda *a, **kw: (a[0] if a and callable(a[0]) else (lambda f: f))
