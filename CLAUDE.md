@@ -203,13 +203,19 @@ with ET; SA's value will shift slightly once ET is wired in).
 
 ## Blocked / pending work
 
-- **Full Minneapolis extent integration — BLOCKED on SSURGO soil raster.** A 374 × 607 px expanded
-  NLCD raster covering the full 148.9 km² city boundary has been downloaded to
-  `data/minneapolis_expanded/lulc_nlcd_2021_mpls_full.tif` (gitignored) but is not wired into the
-  app. Current `data/flood/soil_group_MN.tif` covers only ~71 km² of the 204 km² expanded extent.
-  Need full Hennepin County SSURGO data via <https://websoilsurvey.nrcs.usda.gov>, rasterized to
-  match the new grid. See `check_expanded_coverage.py` for the coverage analysis. Population
-  raster and OSM clip would also need regeneration on the new grid.
+- **Full Minneapolis extent — RESOLVED 2026-05-09.** `'Minneapolis Full, MN'` is a live city
+  in CITIES with `available=True`. Pipeline: SSURGO via SDA REST API → process_ssurgo.py → 
+  soil_group_mpls_full.tif; Census 2020 → process_pop_expanded.py → pop_mpls_full.tif;
+  Geofabrik state OSM → process_osm_expanded.py → roads_mpls_full.geojson + buildings_mpls_full.geojson;
+  TIGER 2020 → tracts_hennepin.shp. Buildings use **Option A semantics**: OSM polygons mask
+  for spatial placement, but per-type dollar metrics (energy savings, flood damage avoided) return
+  "—" with explanatory tooltips because OSM has no type codes (see REFERENCE.md). Schema bumped 12 → 13.
+- **load_data parameterization (2026-05-09).** `load_data()` now takes `lulc_file`, `soil_file`,
+  `cooling_lulc_file` from `city_cfg`. Module-level loaders for ET, energy table, UNA table,
+  buildings, roads, and tracts also read from city_cfg. Biophysical tables (CN + cooling) use a
+  fallback path via `_resolve_table()` so cities with custom data_dirs (Mpls Full pointing at
+  `data/minneapolis_expanded/`) can still reference the project-shared tables in `data/flood/`
+  and `data/cooling/`. EPSG:26915 hardcodes replaced with `city_cfg['crs']`.
 
 ---
 

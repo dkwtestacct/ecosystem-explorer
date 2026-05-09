@@ -19,6 +19,20 @@ CITIES = {
         'data_dir_cooling':     'data/cooling',
         'cn_table_file':        'UFR_biophysical_table_MN.csv',
         'cooling_table_file':   'biophysical_table_urban_cooling_MN.csv',
+        # Path keys consumed by load_data + module-level loaders. lulc_file
+        # and soil_file resolve relative to data_dir_flood; cooling_lulc_file
+        # to data_dir_cooling. Everything else is a project-relative path.
+        'lulc_file':            'LULC_NLCD_2021_MN.tif',
+        'soil_file':            'soil_group_MN.tif',
+        'cooling_lulc_file':    'land_use_2021.tif',
+        'pop_file':             'data/population/minneapolis_pop_2020.tif',
+        'roads_file':           'data/osm/minneapolis_roads.geojson',
+        'buildings_file':       'data/invest/flood/UFR_sample_data_MN/buildings.shp',
+        'damage_table_file':    'data/invest/flood/UFR_sample_data_MN/Damage_loss_table_MN.csv',
+        'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
+        'et_file':              'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/reference_evapotranspiration_annual.tif',
+        'tracts_file':          'data/invest/flood/UFR_sample_data_MN/admin_boundaries_census_tracts.shp',
+        'una_table_file':       'data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv',
         'baseline_cn':          75.7,
         # 0.1859 = mean(smoothed CC) on the MN baseline LULC after the InVEST
         # UCM rework (ET nodata fix, Gaussian convolution, canonical formula).
@@ -50,29 +64,43 @@ CITIES = {
         'data_dir_flood':       'data/minneapolis_expanded',
         'data_dir_cooling':     'data/minneapolis_expanded',
         # Reuses the MN biophysical tables — same NLCD class space, same
-        # USDA-standard CN values; no city-specific tuning yet.
+        # USDA-standard CN values; no city-specific tuning yet. The cooling
+        # tables sit under data/cooling/ and data/flood/ (NOT under
+        # data_dir_cooling/data_dir_flood). load_data tries each in turn.
         'cn_table_file':        'UFR_biophysical_table_MN.csv',
         'cooling_table_file':   'biophysical_table_urban_cooling_MN.csv',
-        # Forward-compatible filename keys (not yet read by load_data — that
-        # still hardcodes LULC_NLCD_2021_MN.tif / soil_group_MN.tif). When
-        # this entry is flipped to `available=True`, load_data will need to
-        # learn to use these keys instead.
         'lulc_file':            'lulc_nlcd_2021_mpls_full.tif',
         'soil_file':            'soil_group_mpls_full.tif',
-        'pop_file':             'pop_mpls_full.tif',
+        # Same file used for both flood and cooling (the InVEST sample MN
+        # split is a downtown-only artifact — full city is one raster).
+        'cooling_lulc_file':    'lulc_nlcd_2021_mpls_full.tif',
+        'pop_file':             'data/minneapolis_expanded/pop_mpls_full.tif',
+        'roads_file':           'data/minneapolis_expanded/roads_mpls_full.geojson',
+        # OSM buildings have no per-type codes, so per-type lookups (energy
+        # savings, flood damage avoided) degrade to $0 with explanatory
+        # tooltips; the BUILDINGS_RASTER mask still works for spatial
+        # placement. See REFERENCE.md "Option A buildings semantics".
+        'buildings_file':       'data/minneapolis_expanded/buildings_mpls_full.geojson',
+        'damage_table_file':    'data/invest/flood/UFR_sample_data_MN/Damage_loss_table_MN.csv',
+        'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
+        # Reuse the InVEST sample ET raster; bilinear-extrapolates beyond its
+        # native ~10 × 10 km extent at the AOI corners. Order-of-magnitude OK.
+        'et_file':              'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/reference_evapotranspiration_annual.tif',
+        'tracts_file':          'data/minneapolis_expanded/tracts_hennepin.shp',
+        'una_table_file':       'data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv',
         'baseline_cn':          None,    # computed dynamically at module load
         'baseline_hm':          None,    # computed dynamically at module load
         'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
         'food_forest_lbs_acre': 11_500,
-        'available':            False,   # flip True after verifying baselines
+        'available':            True,    # flipped after refactor + verify
         'crs':                  'EPSG:5070',
         'notes': (
             'Full city coverage 204 km² vs 122 km² downtown. Same biophysical '
             'tables as Minneapolis, MN. SSURGO soil + Census 2020 population '
             'rasterized to a 374 × 607 EPSG:5070 grid; Geofabrik OSM re-clipped '
-            'to the same extent. Hardcoded filename loaders in load_data() '
-            'still need to be parameterized via the *_file keys before '
-            'available can flip True.'
+            'to the same extent. Cooling-energy-savings and flood-damage-avoided '
+            'metrics return $0 because OSM buildings lack per-type codes — '
+            'spatial-placement mask still works. See REFERENCE.md.'
         ),
         'ref_scenarios': {},
     },
@@ -81,6 +109,18 @@ CITIES = {
         'data_dir_cooling':     'data/sa/cooling',
         'cn_table_file':        'UFR_biophysical_table_SA.csv',
         'cooling_table_file':   'biophysical_table_urban_cooling_SA.csv',
+        # Path keys (forward-compatible — SA inputs not yet available).
+        'lulc_file':            'land_use_2021_sa.tif',
+        'soil_file':            None,   # SSURGO Bexar Co — TODO
+        'cooling_lulc_file':    'land_use_2021_sa.tif',
+        'pop_file':             None,   # Bexar Co Census 2020 — TODO
+        'roads_file':           None,   # OSM SA — TODO
+        'buildings_file':       None,
+        'damage_table_file':    None,   # SA project deliverables — TODO
+        'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
+        'et_file':              None,   # SA-specific ET — TODO
+        'tracts_file':          None,
+        'una_table_file':       'data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv',
         # Preliminary values from download_sa_data.py: CN uses CN_B as default
         # soil group (pending SSURGO), HM uses 0.6*shade + 0.2*albedo + 0.2*kc
         # proxy (pending reference-ET).
@@ -203,6 +243,10 @@ DATA_DIR_FLOOD     = city_cfg['data_dir_flood']
 DATA_DIR_COOLING   = city_cfg['data_dir_cooling']
 CN_TABLE_FILE      = city_cfg['cn_table_file']
 COOLING_TABLE_FILE = city_cfg['cooling_table_file']
+LULC_FILE          = city_cfg['lulc_file']
+SOIL_FILE          = city_cfg['soil_file']
+COOLING_LULC_FILE  = city_cfg['cooling_lulc_file']
+CITY_CRS           = city_cfg['crs']
 BASELINE_CN        = city_cfg['baseline_cn']
 BASELINE_HM        = city_cfg['baseline_hm']
 REF_SCENARIOS      = city_cfg['ref_scenarios']
@@ -238,17 +282,30 @@ with st.expander("How this prototype works", expanded=False):
     )
 
 # ── Data loading ───────────────────────────────────────────────────────────────
-@st.cache_data
-def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_file):
-    bio = pd.read_csv(f'{data_dir_flood}/{cn_table_file}')
+def _resolve_table(data_dir, filename, *fallback_dirs):
+    """Try `data_dir/filename` first, fall back to each `fallback_dirs/filename`.
+    Used so cities pointing at custom data_dirs (e.g. data/minneapolis_expanded)
+    can still reference the project-shared biophysical tables in data/flood
+    or data/cooling without a copy. Raises FileNotFoundError if none match."""
+    candidates = [f'{data_dir}/{filename}'] + [f'{d}/{filename}' for d in fallback_dirs]
+    for p in candidates:
+        if Path(p).exists():
+            return p
+    raise FileNotFoundError(f"could not find {filename}; tried: {candidates}")
 
-    with rasterio.open(f'{data_dir_flood}/LULC_NLCD_2021_MN.tif') as src:
+
+@st.cache_data
+def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_file,
+              lulc_file, soil_file, cooling_lulc_file):
+    bio = pd.read_csv(_resolve_table(data_dir_flood, cn_table_file, "data/flood"))
+
+    with rasterio.open(f'{data_dir_flood}/{lulc_file}') as src:
         lulc = src.read(1)
-    with rasterio.open(f'{data_dir_flood}/soil_group_MN.tif') as src:
+    with rasterio.open(f'{data_dir_flood}/{soil_file}') as src:
         soil = src.read(1)
 
-    cooling_bio = pd.read_csv(f'{data_dir_cooling}/{cooling_table_file}')
-    with rasterio.open(f'{data_dir_cooling}/land_use_2021.tif') as src:
+    cooling_bio = pd.read_csv(_resolve_table(data_dir_cooling, cooling_table_file, "data/cooling"))
+    with rasterio.open(f'{data_dir_cooling}/{cooling_lulc_file}') as src:
         cooling_lulc = src.read(1)
 
     developed_pixels = np.argwhere(np.isin(cooling_lulc, DEVELOPED_CODES))
@@ -306,7 +363,8 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
 (lulc, soil_resized, cooling_lulc, developed_pixels,
  cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
  equity_weights, shade_arr, kc_arr, albedo_arr) = load_data(
-    DATA_DIR_FLOOD, DATA_DIR_COOLING, CN_TABLE_FILE, COOLING_TABLE_FILE)
+    DATA_DIR_FLOOD, DATA_DIR_COOLING, CN_TABLE_FILE, COOLING_TABLE_FILE,
+    LULC_FILE, SOIL_FILE, COOLING_LULC_FILE)
 
 # ── Population raster (for Nature Access metric) ───────────────────────────────
 # Built by download_census_pop.py from US Census 2020 block-level totals,
@@ -326,13 +384,13 @@ def load_population_data(pop_path, target_shape):
         return data
 
 
+_POP_FILE = city_cfg.get("pop_file")
 try:
-    pop_count_raster = load_population_data(
-        "data/population/minneapolis_pop_2020.tif",
-        cooling_lulc.shape,
-    )
+    if _POP_FILE is None:
+        raise FileNotFoundError("pop_file not configured")
+    pop_count_raster = load_population_data(_POP_FILE, cooling_lulc.shape)
     POPULATION_DATA_AVAILABLE = True
-except (FileNotFoundError, rasterio.errors.RasterioIOError):
+except (FileNotFoundError, rasterio.errors.RasterioIOError, TypeError):
     pop_count_raster = np.ones(cooling_lulc.shape, dtype=np.float32)
     POPULATION_DATA_AVAILABLE = False
 
@@ -347,11 +405,11 @@ except (FileNotFoundError, rasterio.errors.RasterioIOError):
 # `biophysical_table_urban_cooling_MN.csv`); ET comes
 # from `reference_evapotranspiration_annual.tif` (1 km, bilinear-resampled
 # to the 30 m NLCD grid).
+_ET_FILE = city_cfg.get("et_file")
 try:
-    with rasterio.open(
-        "data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/"
-        "reference_evapotranspiration_annual.tif"
-    ) as _et_src:
+    if _ET_FILE is None:
+        raise FileNotFoundError("et_file not configured")
+    with rasterio.open(_ET_FILE) as _et_src:
         _et_raw = _et_src.read(1).astype(float)
         _et_nodata = _et_src.nodata
     # The MN reference-ET raster uses 65535 as a nodata sentinel; np.isfinite
@@ -377,10 +435,11 @@ except Exception:
 
 # Energy consumption per building type (kWh/m²/year) from the InVEST UCM
 # sample table. Used to translate cooling improvement into avoided AC cost.
+_ENERGY_TABLE_FILE = city_cfg.get("energy_table_file")
 try:
-    _energy_df = pd.read_csv(
-        "data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv"
-    )
+    if _ENERGY_TABLE_FILE is None:
+        raise FileNotFoundError("energy_table_file not configured")
+    _energy_df = pd.read_csv(_ENERGY_TABLE_FILE)
     ENERGY_BY_TYPE = dict(zip(_energy_df["type"], _energy_df["consumption"]))
     ENERGY_TABLE_AVAILABLE = True
 except Exception:
@@ -453,7 +512,7 @@ PIXEL_SIZE_M = 30
 
 from scipy.ndimage import distance_transform_edt as _distance_transform_edt
 
-UNA_TABLE_PATH = Path("data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv")
+UNA_TABLE_PATH = Path(city_cfg["una_table_file"])
 UNA_TABLE = pd.read_csv(UNA_TABLE_PATH)
 # Active rows = classes that contribute to nature access (positive score AND
 # a defined search radius). Sorted ascending by score so np.maximum in the
@@ -846,7 +905,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 12  # bumped: nature-access search radii capped at 1000 m (UNA defaults to 5000 m saturate the AOI); dynamic BASELINE_CN override
+SCENARIO_SCHEMA_VERSION = 13  # bumped: load_data parameterized via city_cfg path keys; new 'Minneapolis Full, MN' city with EPSG:5070 grid + Option A buildings semantics
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -976,46 +1035,73 @@ DENSE_SCENARIOS_PATH = "data/scenarios_dense.csv"
 # on developed pixels that DON'T contain a building, targeting feasible
 # interstitial spaces — parking lots, lawns, vacant land). Falls back to
 # disabled if the shapefile or CSV is missing so the rest of the app still loads.
+import geopandas as _gpd  # used by buildings/roads/tracts blocks below
+from rasterio.features import rasterize as _rasterize
+
+# Load the cooling LULC once more for shape + transform (cheap — just metadata).
+# Used as the rasterization template for buildings, roads, tracts.
+with rasterio.open(f"{DATA_DIR_COOLING}/{COOLING_LULC_FILE}") as _ref:
+    _REF_SHAPE     = (_ref.height, _ref.width)
+    _REF_TRANSFORM = _ref.transform
+
+# BUILDINGS_HAVE_TYPES distinguishes the InVEST-sample case (per-building
+# `type` ∈ {0,1,2,3} → energy / damage lookups) from the OSM-only case
+# (just polygons, no per-type metadata). When False, BUILDINGS_RASTER still
+# masks for spatial-placement — only the dollar metrics degrade to $0. See
+# UCM_AUDIT.md / REFERENCE.md "Option A buildings semantics".
+BUILDINGS_HAVE_TYPES = False
+_BUILDINGS_FILE  = city_cfg.get("buildings_file")
+_DAMAGE_TABLE_FILE = city_cfg.get("damage_table_file")
+
 try:
-    import geopandas as _gpd  # noqa: F401  imported lazily so non-flood paths don't pay it
-    from rasterio.features import rasterize as _rasterize
+    if not _BUILDINGS_FILE:
+        raise FileNotFoundError("buildings_file not configured")
+    _buildings = _gpd.read_file(_BUILDINGS_FILE)
+    if _buildings.crs is None or str(_buildings.crs) != CITY_CRS:
+        _buildings = _buildings.to_crs(CITY_CRS)
 
-    _BUILDINGS_PATH    = Path("data/invest/flood/UFR_sample_data_MN/buildings.shp")
-    _DAMAGE_TABLE_PATH = Path("data/invest/flood/UFR_sample_data_MN/Damage_loss_table_MN.csv")
-    _buildings = _gpd.read_file(_BUILDINGS_PATH)
-    _damage_table = pd.read_csv(_DAMAGE_TABLE_PATH)
-    # `type` column in the buildings shapefile (0–3) maps to `Type` in the
-    # damage-loss table. Values are damage in $/m² of building footprint.
-    _type_to_damage = dict(zip(_damage_table["Type"], _damage_table["Damage"]))
-    _buildings["damage_rate_usd_m2"] = _buildings["type"].map(_type_to_damage).fillna(0)
-    _buildings["area_m2"] = _buildings.geometry.area
-    _buildings["potential_damage_usd"] = (
-        _buildings["area_m2"] * _buildings["damage_rate_usd_m2"]
-    )
-    TOTAL_POTENTIAL_DAMAGE_USD = float(_buildings["potential_damage_usd"].sum())
-
-    # Rasterize building polygons onto the NLCD grid (CRS already matches —
-    # both are EPSG:26915). BUILDINGS_RASTER is binary (1 = building, 0 = not);
-    # BUILDINGS_TYPE_RASTER carries the building's `type` field (0–3) so the
-    # cooling-energy-savings calculation can look up per-class kWh/m²/year.
-    # Pixels outside any building → -1 in the type raster.
-    with rasterio.open("data/cooling/land_use_2021.tif") as _ref:
-        _ref_shape     = (_ref.height, _ref.width)
-        _ref_transform = _ref.transform
-        BUILDINGS_RASTER = _rasterize(
-            ((geom, 1) for geom in _buildings.geometry),
-            out_shape=_ref_shape,
-            transform=_ref_transform,
-            fill=0,
-            dtype="uint8",
+    # Detect whether the loaded shapefile carries valid per-building type codes.
+    # The InVEST sample uses integer codes 0–3; OSM/Geofabrik just has
+    # `fclass = 'building'` and no type column.
+    if "type" in _buildings.columns:
+        _types_clean = pd.to_numeric(_buildings["type"], errors="coerce").dropna()
+        BUILDINGS_HAVE_TYPES = (
+            len(_types_clean) > 0 and _types_clean.between(0, 3).all()
         )
+
+    if BUILDINGS_HAVE_TYPES and _DAMAGE_TABLE_FILE:
+        _damage_table = pd.read_csv(_DAMAGE_TABLE_FILE)
+        _type_to_damage = dict(zip(_damage_table["Type"], _damage_table["Damage"]))
+        _buildings["damage_rate_usd_m2"] = (
+            _buildings["type"].map(_type_to_damage).fillna(0)
+        )
+        _buildings["area_m2"] = _buildings.geometry.area
+        _buildings["potential_damage_usd"] = (
+            _buildings["area_m2"] * _buildings["damage_rate_usd_m2"]
+        )
+        TOTAL_POTENTIAL_DAMAGE_USD = float(_buildings["potential_damage_usd"].sum())
+    else:
+        TOTAL_POTENTIAL_DAMAGE_USD = 0.0
+
+    # Always rasterize the building footprints — the spatial-placement mask
+    # works regardless of type-code availability.
+    BUILDINGS_RASTER = _rasterize(
+        ((geom, 1) for geom in _buildings.geometry),
+        out_shape=_REF_SHAPE,
+        transform=_REF_TRANSFORM,
+        fill=0,
+        dtype="uint8",
+    )
+    if BUILDINGS_HAVE_TYPES:
         BUILDINGS_TYPE_RASTER = _rasterize(
             ((geom, int(t)) for geom, t in zip(_buildings.geometry, _buildings["type"])),
-            out_shape=_ref_shape,
-            transform=_ref_transform,
+            out_shape=_REF_SHAPE,
+            transform=_REF_TRANSFORM,
             fill=-1,
             dtype="int32",
         )
+    else:
+        BUILDINGS_TYPE_RASTER = np.full(_REF_SHAPE, -1, dtype="int32")
     BUILDINGS_DATA_AVAILABLE = True
 except Exception:
     TOTAL_POTENTIAL_DAMAGE_USD = 0.0
@@ -1028,29 +1114,22 @@ except Exception:
 # UFR shapefile only covers a small downtown rectangle and includes only
 # 277 road polygons; OSM gives the full street network. Built offline by
 # `download_osm_roads.py` and committed to the repo.
+_ROADS_FILE = city_cfg.get("roads_file")
 try:
-    _OSM_ROADS_PATH = Path("data/osm/minneapolis_roads.geojson")
-    if _OSM_ROADS_PATH.exists():
-        _roads_gdf = _gpd.read_file(_OSM_ROADS_PATH)
-        if _roads_gdf.crs is None or str(_roads_gdf.crs) != "EPSG:26915":
-            _roads_gdf = _roads_gdf.to_crs("EPSG:26915")
-        with rasterio.open("data/cooling/land_use_2021.tif") as _ref:
-            ROADS_RASTER = _rasterize(
-                ((g, 1) for g in _roads_gdf.geometry),
-                out_shape=(_ref.height, _ref.width),
-                transform=_ref.transform,
-                fill=0,
-                dtype="uint8",
-            )
-        # Union into BUILDINGS_RASTER so any downstream code that consumes
-        # "non-convertible developed land" (CONVERTIBLE_PIXELS, the spatial
-        # map's heat overlay, the per-tract aggregation) sees roads as
-        # already excluded — same semantics as buildings.
-        BUILDINGS_RASTER = np.maximum(BUILDINGS_RASTER, ROADS_RASTER)
-        OSM_ROADS_AVAILABLE = True
-    else:
-        ROADS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
-        OSM_ROADS_AVAILABLE = False
+    if not _ROADS_FILE or not Path(_ROADS_FILE).exists():
+        raise FileNotFoundError(f"roads_file not configured or missing: {_ROADS_FILE}")
+    _roads_gdf = _gpd.read_file(_ROADS_FILE)
+    if _roads_gdf.crs is None or str(_roads_gdf.crs) != CITY_CRS:
+        _roads_gdf = _roads_gdf.to_crs(CITY_CRS)
+    ROADS_RASTER = _rasterize(
+        ((g, 1) for g in _roads_gdf.geometry),
+        out_shape=_REF_SHAPE,
+        transform=_REF_TRANSFORM,
+        fill=0,
+        dtype="uint8",
+    )
+    BUILDINGS_RASTER = np.maximum(BUILDINGS_RASTER, ROADS_RASTER)
+    OSM_ROADS_AVAILABLE = True
 except Exception:
     ROADS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
     OSM_ROADS_AVAILABLE = False
@@ -1089,20 +1168,21 @@ CONVERTIBLE_PIXELS = developed_pixels[_no_building]
 # them onto the NLCD grid (each pixel labeled with its tract index, or -1 for
 # pixels outside any tract). Used to compute per-tract Nature Access % and
 # Temperature Change against the live scenario.
+_TRACTS_FILE = city_cfg.get("tracts_file")
 try:
-    _TRACTS_PATH = Path("data/invest/flood/UFR_sample_data_MN/admin_boundaries_census_tracts.shp")
-    TRACTS = _gpd.read_file(_TRACTS_PATH)
-    if TRACTS.crs is None or str(TRACTS.crs) != "EPSG:26915":
-        TRACTS = TRACTS.to_crs("EPSG:26915")
+    if not _TRACTS_FILE:
+        raise FileNotFoundError("tracts_file not configured")
+    TRACTS = _gpd.read_file(_TRACTS_FILE)
+    if TRACTS.crs is None or str(TRACTS.crs) != CITY_CRS:
+        TRACTS = TRACTS.to_crs(CITY_CRS)
     TRACTS = TRACTS.reset_index(drop=True)
-    with rasterio.open("data/cooling/land_use_2021.tif") as _ref:
-        TRACT_ID_RASTER = _rasterize(
-            ((g, i) for i, g in enumerate(TRACTS.geometry)),
-            out_shape=(_ref.height, _ref.width),
-            transform=_ref.transform,
-            fill=-1,
-            dtype=np.int32,
-        )
+    TRACT_ID_RASTER = _rasterize(
+        ((g, i) for i, g in enumerate(TRACTS.geometry)),
+        out_shape=_REF_SHAPE,
+        transform=_REF_TRANSFORM,
+        fill=-1,
+        dtype=np.int32,
+    )
     TRACTS_DATA_AVAILABLE = True
 except Exception:
     TRACTS = pd.DataFrame()
@@ -1134,7 +1214,11 @@ def compute_cooling_energy_savings(scenario_cc_raster):
     `t_air_average_radius` aggregation), but the per-pixel CC raster is now
     Gaussian-smoothed at 450 m before reaching this function.
     """
-    if not (BUILDINGS_DATA_AVAILABLE and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE):
+    # BUILDINGS_HAVE_TYPES gates the per-type kWh/(m²·°C) lookup. Without it
+    # (e.g. OSM-only buildings for the expanded MN view) the cooling-energy-
+    # savings dollar metric isn't meaningful — return $0 cleanly.
+    if not (BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES
+            and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE):
         return 0.0
     delta_cc = scenario_cc_raster - _BASELINE_HM_RASTER
     delta_t_c = np.clip(delta_cc * UHI_MAX_C, 0.0, None)
@@ -1231,7 +1315,10 @@ def compute_flood_damage_avoided(runoff_acre_feet):
     INCREASE runoff are reported as $0 avoided rather than negative dollars
     (those regressions show up via the existing Runoff Volume card).
     """
-    if not BUILDINGS_DATA_AVAILABLE or _BASELINE_RUNOFF_FOR_DAMAGE <= 0:
+    # Per-type damage rates from Damage_loss_table_MN.csv keyed on the
+    # buildings shapefile `type` column. Without per-building type codes
+    # we can't compute potential damage at all — return $0.
+    if not (BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES) or _BASELINE_RUNOFF_FOR_DAMAGE <= 0:
         return 0.0
     reduction = max(0.0, _BASELINE_RUNOFF_FOR_DAMAGE - runoff_acre_feet)
     fraction  = reduction / _BASELINE_RUNOFF_FOR_DAMAGE
@@ -2173,7 +2260,7 @@ econ2.metric(
     help="Confidence: Order-of-magnitude estimate. Total cost based on $/acre sliders × converted acreage."
 )
 _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
-if BUILDINGS_DATA_AVAILABLE:
+if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
     econ3.metric(
         "Flood Damage Avoided",
         f"${_flood_damage_avoided / 1e6:.1f}M",
@@ -2193,19 +2280,28 @@ if BUILDINGS_DATA_AVAILABLE:
         ),
     )
 else:
+    _help_no_types = (
+        "Building-type data not available for this extent — requires per-building "
+        "type codes (InVEST sample uses 0=other, 1=commercial, 2=residential, "
+        "3=industrial) to look up damage rates from Damage_loss_table_MN.csv. "
+        "OSM-only building polygons don't carry these codes. Spatial placement "
+        "mask is still active."
+    )
     econ3.metric(
         "Flood Damage Avoided",
         "—",
         help=(
-            "Confidence: Order-of-magnitude estimate. Buildings shapefile or "
-            "damage-loss table not loaded — see "
-            "data/invest/flood/UFR_sample_data_MN/."
+            "Confidence: Order-of-magnitude estimate. " + _help_no_types
+            if BUILDINGS_DATA_AVAILABLE
+            else "Confidence: Order-of-magnitude estimate. Buildings shapefile or "
+                 "damage-loss table not loaded — see data/invest/flood/UFR_sample_data_MN/."
         ),
     )
 
 _energy_savings = results.get('cooling_energy_savings_usd', 0.0)
 _energy_available = (
-    BUILDINGS_DATA_AVAILABLE and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE
+    BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES
+    and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE
 )
 if _energy_available:
     econ4.metric(
@@ -2226,15 +2322,22 @@ if _energy_available:
         ),
     )
 else:
-    econ4.metric(
-        "Cooling Energy Savings",
-        "—",
-        help=(
+    if BUILDINGS_DATA_AVAILABLE and not BUILDINGS_HAVE_TYPES:
+        _help_text = (
+            "Confidence: Order-of-magnitude estimate. Building-type data not "
+            "available for this extent — requires per-building type codes "
+            "(InVEST sample uses 0=other, 1=commercial, 2=residential, "
+            "3=industrial) to look up energy_consumption.csv kWh/(m²·°C) rates. "
+            "OSM-only buildings don't carry these codes. Spatial placement "
+            "mask is still active."
+        )
+    else:
+        _help_text = (
             "Confidence: Order-of-magnitude estimate. ET raster, energy table, "
             "or buildings shapefile not loaded — see "
             "data/invest/cooling/UrbanCooling_sample_data/."
-        ),
-    )
+        )
+    econ4.metric("Cooling Energy Savings", "—", help=_help_text)
 
 st.divider()
 

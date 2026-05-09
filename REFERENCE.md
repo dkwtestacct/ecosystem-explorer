@@ -597,4 +597,12 @@ When heat-priority mode is on, teal/green/red pixels are concentrated in higher-
 
 ## Known Limitations
 
-**Full-city NLCD coverage:** A 374 × 607 pixel raster covering the full Minneapolis city boundary (148.9 km²) has been downloaded but is not yet integrated. Integration requires a matching SSURGO hydrologic soil group raster for the expanded extent — the current soil raster covers only ~71 km² of the 204 km² expanded AOI. The existing model also extrapolates soil values via `resize()` at the edges of the current 122 km² AOI. SSURGO data for full Hennepin County can be downloaded from <https://websoilsurvey.nrcs.usda.gov>. See `download_minneapolis_nlcd.py` and `check_expanded_coverage.py` for the analysis.
+**Full-city NLCD coverage** *(integrated 2026-05-09)*: A 374 × 607 EPSG:5070 raster covering the full Minneapolis city boundary (148.9 km²) is now wired up as the `'Minneapolis Full, MN'` city. SSURGO soil group raster (Hennepin County via the SDA REST API), Census 2020 population (Hennepin block totals), Hennepin tracts (TIGER 2020), and OSM buildings + roads (Geofabrik state extract, Option B road filter) have all been re-rasterized to the expanded grid. See `download_ssurgo.py`, `process_ssurgo.py`, `process_pop_expanded.py`, `process_osm_expanded.py`, and `verify_expanded_baselines.py` for the ingestion pipeline.
+
+**Option A buildings semantics for Minneapolis Full:** OSM-only building polygons (185,490) lack the per-type codes (0=other, 1=commercial, 2=residential, 3=industrial) that the InVEST sample shapefile carries for downtown Minneapolis. Per-type lookups (energy_consumption.csv kWh/(m²·°C), Damage_loss_table_MN.csv $/m²) are therefore unavailable for the expanded city. The app handles this via a `BUILDINGS_HAVE_TYPES` flag detected at module load:
+
+- **Spatial-placement mask**: BUILDINGS_RASTER is built from the OSM polygons regardless and unioned into the non-convertible mask, so green-conversions still avoid building footprints. ✓ Works.
+- **Cooling Energy Savings card**: returns "—" with tooltip *"Building-type data not available for this extent — requires per-building type codes (InVEST sample uses 0=other, 1=commercial, 2=residential, 3=industrial) to look up energy_consumption.csv kWh/(m²·°C) rates. OSM-only buildings don't carry these codes. Spatial placement mask is still active."*
+- **Flood Damage Avoided card**: same treatment.
+
+To add per-type metrics for Minneapolis Full, the buildings would need to come from a richer source (Overpass API with `building=*` subkey preserved, or City of Minneapolis assessor parcel data). Currently out of scope.
