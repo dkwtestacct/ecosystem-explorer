@@ -46,6 +46,36 @@ CITIES = {
             'All High Density (NLCD 24)':   {'flood': 21.4,  'cooling': 0.1607, 'color': 'red'},
         },
     },
+    'Minneapolis Full, MN': {
+        'data_dir_flood':       'data/minneapolis_expanded',
+        'data_dir_cooling':     'data/minneapolis_expanded',
+        # Reuses the MN biophysical tables — same NLCD class space, same
+        # USDA-standard CN values; no city-specific tuning yet.
+        'cn_table_file':        'UFR_biophysical_table_MN.csv',
+        'cooling_table_file':   'biophysical_table_urban_cooling_MN.csv',
+        # Forward-compatible filename keys (not yet read by load_data — that
+        # still hardcodes LULC_NLCD_2021_MN.tif / soil_group_MN.tif). When
+        # this entry is flipped to `available=True`, load_data will need to
+        # learn to use these keys instead.
+        'lulc_file':            'lulc_nlcd_2021_mpls_full.tif',
+        'soil_file':            'soil_group_mpls_full.tif',
+        'pop_file':             'pop_mpls_full.tif',
+        'baseline_cn':          None,    # computed dynamically at module load
+        'baseline_hm':          None,    # computed dynamically at module load
+        'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
+        'food_forest_lbs_acre': 11_500,
+        'available':            False,   # flip True after verifying baselines
+        'crs':                  'EPSG:5070',
+        'notes': (
+            'Full city coverage 204 km² vs 122 km² downtown. Same biophysical '
+            'tables as Minneapolis, MN. SSURGO soil + Census 2020 population '
+            'rasterized to a 374 × 607 EPSG:5070 grid; Geofabrik OSM re-clipped '
+            'to the same extent. Hardcoded filename loaders in load_data() '
+            'still need to be parameterized via the *_file keys before '
+            'available can flip True.'
+        ),
+        'ref_scenarios': {},
+    },
     'San Antonio, TX': {
         'data_dir_flood':       'data/sa/flood',
         'data_dir_cooling':     'data/sa/cooling',
