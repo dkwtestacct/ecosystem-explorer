@@ -45,10 +45,10 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | `data/sa/flood/land_use_2021_sa.tif` | Canonical SA LULC raster (same CRS/grid) | done |
 | `data/sa/flood/UFR_biophysical_table_SA.csv` | CN values by lucode × soil group | placeholder copy of MN |
 | `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | shade / Kc / albedo per lucode | placeholder copy of MN — SA's hotter/drier climate likely needs lower Kc and shade values for some classes (pending NatCap project tuning) |
-| `data/sa/flood/soil_group_SA.tif` | SSURGO hydrologic soil group rasterized to LULC grid | pending |
-| `data/sa/cooling/reference_evapotranspiration_annual.tif` | Reference ET raster | pending |
+| `data/sa/flood/soil_group_sa.tif` | SSURGO hydrologic soil group rasterized to LULC grid | pending |
+| `data/sa/cooling/et_annual_sa.tif` | Reference ET raster (CGIAR Global-AI/ET0 v3.1) | pending |
 | `data/sa/population/sa_pop_2020.tif` | Census 2020 block totals rasterized to LULC grid | pending |
-| `data/sa/flood/buildings.shp`, `roads.shp`, `tracts.shp` | Bexar County vector layers | pending |
+| `data/sa/roads_sa.geojson`, `data/sa/buildings_sa.geojson`, `data/sa/tracts_bexar.shp` | Bexar County vector layers | pending |
 | `data/sa/flood/Damage_loss_table_SA.csv`, crop-yield table | SA-specific damage rates and crop yields | pending |
 
 LULC fetch + baseline-constant computation is reproducible via
@@ -171,7 +171,7 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   on the tradeoff plot. Will need to become city-specific when new cities are added.
 - **InVEST Urban Cooling Model**: `_compute_cc_raster` computes per-pixel CC = `0.6·shade + 0.2·albedo + 0.2·ETI`,
   then **Gaussian-smooths the result with σ = 15 px (450 m)** to spatially propagate cooling onto
-  neighbouring pixels per InVEST's `green_area_cooling_distance` step. The mean of this smoothed
+  neighboring pixels per InVEST's `green_area_cooling_distance` step. The mean of this smoothed
   CC raster is the `mean_hm` reported in scenario results (UI label: "Cooling Capacity" / "CC").
   `compute_cooling_energy_savings(cc_raster)` converts ΔCC → ΔT °C (× `UHI_MAX_C`) →
   kWh saved (× `consumption_rate × pixel_area`) → $/yr (× `COST_PER_KWH_USD`). Per-pixel,
