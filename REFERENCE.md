@@ -638,3 +638,5 @@ When heat-priority mode is on, teal/green/red pixels are concentrated in higher-
 - **Flood Damage Avoided card**: same treatment.
 
 To add per-type metrics for Minneapolis Full, the buildings would need to come from a richer source (Overpass API with `building=*` subkey preserved, or City of Minneapolis assessor parcel data). Currently out of scope.
+
+**Nature Access saturates at 100 % for all scenarios in the Minneapolis Full extent** — the city's park network and lakes mean every resident is within 1 km of natural land cover. Use **Nature Quality Score** for scenario discrimination in this view (the population-weighted continuous companion metric still varies meaningfully). The downtown Minneapolis view (smaller extent) does not saturate and shows meaningful variation, with baseline ≈ 69.7 %. Tightening `NATURE_RADIUS_CAP_M` to e.g. 500 m city-specifically would restore variation for Minneapolis Full but would break direct comparison with the downtown view; not done.

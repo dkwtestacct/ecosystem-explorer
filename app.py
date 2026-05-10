@@ -27,6 +27,7 @@ CITIES = {
         'cooling_lulc_file':    'land_use_2021.tif',
         'pop_file':             'data/population/minneapolis_pop_2020.tif',
         'roads_file':           'data/osm/minneapolis_roads.geojson',
+        'dense_scenarios_file': 'data/scenarios_dense_mpls.csv',
         'buildings_file':       'data/invest/flood/UFR_sample_data_MN/buildings.shp',
         'damage_table_file':    'data/invest/flood/UFR_sample_data_MN/Damage_loss_table_MN.csv',
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
@@ -76,6 +77,7 @@ CITIES = {
         'cooling_lulc_file':    'lulc_nlcd_2021_mpls_full.tif',
         'pop_file':             'data/minneapolis_expanded/pop_mpls_full.tif',
         'roads_file':           'data/minneapolis_expanded/roads_mpls_full.geojson',
+        'dense_scenarios_file': 'data/scenarios_dense_mpls_full.csv',
         # OSM buildings have no per-type codes, so per-type lookups (energy
         # savings, flood damage avoided) degrade to $0 with explanatory
         # tooltips; the BUILDINGS_RASTER mask still works for spatial
@@ -123,6 +125,7 @@ CITIES = {
         'cooling_lulc_file':    'land_use_2021_sa.tif',
         'pop_file':             None,   # Bexar Co Census 2020 — TODO
         'roads_file':           None,   # OSM SA — TODO
+        'dense_scenarios_file': None,   # surrogate training grid — TODO
         'buildings_file':       None,
         'damage_table_file':    None,   # SA project deliverables — TODO
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
@@ -1030,7 +1033,7 @@ def compute_pareto(df):
     return df[is_efficient]
 
 
-DENSE_SCENARIOS_PATH = "data/scenarios_dense.csv"
+DENSE_SCENARIOS_PATH = city_cfg.get("dense_scenarios_file") or "data/scenarios_dense.csv"
 # Read the model-quality selection from session_state. The radio that writes
 # here lives in the Advanced Settings expander further down — Streamlit reruns
 # top-to-bottom on every interaction, so on the next rerun this read picks up
@@ -1353,13 +1356,25 @@ with st.spinner("Loading data and pre-computing scenarios..."):
         scenario_df = pd.DataFrame(list(lookup_table.values()))
         ACTIVE_MODEL_QUALITY = "high"
     elif _requested_model_quality == "Balanced":
-        if os.path.exists(DENSE_SCENARIOS_PATH):
-            scenario_df = pd.read_csv(DENSE_SCENARIOS_PATH)
+        _dense_configured = city_cfg.get("dense_scenarios_file")
+        if _dense_configured and os.path.exists(_dense_configured):
+            scenario_df = pd.read_csv(_dense_configured)
         else:
-            st.warning(
-                f"⚠️ `{DENSE_SCENARIOS_PATH}` not found — recomputing on the fly. "
-                "Run `python3 precompute_scenarios.py` once to skip this on future startups."
-            )
+            if not _dense_configured:
+                st.warning(
+                    f"⚠️ Balanced mode: no `dense_scenarios_file` configured for "
+                    f"{selected_city!r} — recomputing on the fly. Add the path to "
+                    f"the CITIES entry once you've run "
+                    f"`python3 precompute_scenarios.py --city '{selected_city}' "
+                    f"--output data/scenarios_dense_<city>.csv`."
+                )
+            else:
+                st.warning(
+                    f"⚠️ Balanced mode: `{_dense_configured}` not found — "
+                    f"recomputing on the fly. Run "
+                    f"`python3 precompute_scenarios.py --city '{selected_city}' "
+                    f"--output {_dense_configured}` once to skip this on future startups."
+                )
             scenario_df = compute_scenario_grid(
                 DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=5, step_alloc=10
             )
