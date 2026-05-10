@@ -27,6 +27,11 @@ data/osm/minnesota/
 data/osm/texas.shp.zip
 data/osm/texas/
 
+# SA buildings as raw GeoJSON (185 MB, exceeds GitHub's 100 MB hard limit).
+# The repo tracks data/sa/buildings_sa.gpkg (92 MB) instead — same content
+# in a binary format. Regenerate via download_osm_sa.py if needed.
+data/sa/buildings_sa.geojson
+
 # TIGER 2020 source bundles — kept under data/sa/ but the raw zip + extracted
 # directory are regenerable; only the city-filtered shapefile is tracked.
 data/sa/tracts_bexar/

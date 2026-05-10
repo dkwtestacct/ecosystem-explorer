@@ -37,7 +37,7 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | `data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv` | Per-building-type AC consumption rate (kWh/m²/yr) for the cooling-energy-savings dollar metric. |
 | `data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/buildings.shp` | InVEST-sample building footprints with `type` ∈ {0=other, 1=commercial, 2=residential, 3=industrial}, rasterized at startup as `BUILDINGS_TYPE_RASTER`. |
 
-### San Antonio (in progress — `available: False`)
+### San Antonio (`available: True` as of 2026-05-10)
 
 | File | Description | Status |
 |------|-------------|--------|
@@ -45,14 +45,25 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | `data/sa/flood/land_use_2021_sa.tif` | Canonical SA LULC raster (same CRS/grid) | done |
 | `data/sa/flood/UFR_biophysical_table_SA.csv` | CN values by lucode × soil group | placeholder copy of MN |
 | `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | shade / Kc / albedo per lucode | placeholder copy of MN — SA's hotter/drier climate likely needs lower Kc and shade values for some classes (pending NatCap project tuning) |
-| `data/sa/flood/soil_group_sa.tif` | SSURGO hydrologic soil group rasterized to LULC grid | pending |
-| `data/sa/cooling/et_annual_sa.tif` | Reference ET raster (CGIAR Global-AI/ET0 v3.1) | pending |
-| `data/sa/population/sa_pop_2020.tif` | Census 2020 block totals rasterized to LULC grid | pending |
-| `data/sa/roads_sa.geojson`, `data/sa/buildings_sa.geojson`, `data/sa/tracts_bexar.shp` | Bexar County vector layers | pending |
-| `data/sa/flood/Damage_loss_table_SA.csv`, crop-yield table | SA-specific damage rates and crop yields | pending |
+| `data/sa/flood/soil_group_sa.tif` | SSURGO hydrologic soil group rasterized to LULC grid | done (TX029, 49 % D-class clay-rich Vertisols) |
+| `data/sa/cooling/et_annual_sa.tif` | Reference ET raster (CGIAR Global-AI/ET0 v3.1, 1,580–1,716 mm/yr) | done |
+| `data/sa/population/sa_pop_2020.tif` | Census 2020 block totals rasterized to LULC grid | done (1.91 M in raster) |
+| `data/sa/roads_sa.geojson` | OSM roads (Geofabrik TX, Option B filter) | done (55,553 segments) |
+| `data/sa/buildings_sa.gpkg` | OSM buildings (Geofabrik TX, GeoPackage; raw GeoJSON 185 MB exceeded GitHub limit) | done (345,900 polygons) |
+| `data/sa/tracts_bexar.shp` | TIGER 2020 Bexar County tracts | done (375 tracts) |
+| `data/sa/flood/Damage_loss_table_SA.csv`, crop-yield table | SA-specific damage rates and crop yields | pending — Option A semantics in the meantime ($0 dollar metrics) |
 
-LULC fetch + baseline-constant computation is reproducible via
-`download_sa_data.py`. Detailed sourcing notes are in `data/sa/README.md`.
+Pipeline scripts: `download_sa_data.py` (NLCD), `download_ssurgo_sa.py` +
+`process_ssurgo_sa.py` (soil), `download_census_pop_sa.py` (population),
+`download_et_sa.py` (CGIAR ET0), `download_osm_sa.py` (roads + buildings),
+`process_tracts_sa.py` (tracts), `verify_sa_baselines.py` (baseline check).
+Detailed sourcing notes in `data/sa/README.md`.
+
+OSM buildings carry `type` as OSM strings ('house', 'apartments', 'retail', …)
+not the integer 0–3 codes InVEST expects, so SA uses **Option A buildings
+semantics**: spatial-placement mask works, energy/damage $ cards display "—"
+with explanatory tooltip. Mapping OSM strings → InVEST codes is a future
+enhancement; see REFERENCE.md.
 
 **Canonical CRS for San Antonio: EPSG:5070** (NAD83 / Conus Albers, NLCD's
 native equal-area CRS). Differs from Minneapolis (EPSG:26915 / UTM 15N) —
@@ -117,6 +128,7 @@ separate cache entries via the path parameters.
 | `HM_TO_FAHRENHEIT` | 3.69 | Derived as `UHI_MAX_C × 1.8`. 1 CC unit ≈ 3.69 °F cooling vs fully paved (Minneapolis). |
 | `GREEN_AREA_COOLING_DISTANCE_M` | 450 | Gaussian convolution kernel radius for CC smoothing, from InVEST args JSON. `_CC_SIGMA_PX = 450/30 = 15` at 30 m NLCD resolution. |
 | `COST_PER_KWH_USD` | 0.13 | US average residential electricity price (EIA 2024). Used to convert avoided-AC-kWh into $. |
+| `EPA_SOCIAL_COST_CARBON` | 190 | $/ton CO2e — EPA 2023 final rule "Methodology for Estimating the Social Cost of Greenhouse Gases", central estimate at 2 % discount rate for 2030 emissions. Multiplied by `carbon_tons_co2_yr` to produce the Avoided Carbon Cost dollar metric. |
 | `PIXEL_AREA_M2` | 900 | NLCD 30 × 30 m pixel area in m². Used for cooling energy savings (consumption rate is kWh/(m²·°C)/yr from `energy_consumption.csv`). |
 | `NATURE_RADIUS_CAP_M` | 1000 | Upper cap applied to every `search_radius_m` in the InVEST UNA table. Without this cap, water/forest classes (5 km radius) saturate the AOI to 100 % nature access. Caps at ~12-min walking distance, matches the table's own value for "Developed, Open Space" (urban parks). |
 | `RR_0_1_NDVI_DEPRESSION` | 0.96 | InVEST UMH relative risk per 0.1 NDVI increase, depression. Source: Liu et al. 2023 meta-analysis. |
@@ -190,14 +202,18 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   unioning with buildings, **~65 % of developed pixels (NLCD 21–24) remain convertible**
   (33,357 of 51,430). Rasterization is unbuffered line-to-pixel via `rasterio.features.rasterize`
   with `dtype="uint8"`; output is binary 0/1.
-- **`SCENARIO_SCHEMA_VERSION = 14`** — bump on every change that shifts `evaluate_scenario`
+- **`SCENARIO_SCHEMA_VERSION = 15`** — bump on every change that shifts `evaluate_scenario`
   outputs so cached lookup tables get regenerated. Recent bumps: 7→8 (UCM rework: ET fix,
   Gaussian convolution, canonical energy formula); 8→9 (ET nodata sentinel masked);
   9→10 (full Geofabrik OSM road network, 62 % AOI); 10→11 (Option B road filter, ~29 % AOI);
   11→12 (NATURE_RADIUS_CAP_M = 1000 m fixes nature-access saturation; BASELINE_CN now dynamically
   computed at module load); 12→13 (load_data parameterized via city_cfg path keys; Minneapolis
-  Full activated); **13→14 (InVEST Urban Mental Health v3.19.0 added — preventable_mh_cases +
-  avoided_mh_cost_usd as new surrogate targets, replaces Urban Wellbeing Score metric card).**
+  Full activated); 13→14 (InVEST Urban Mental Health v3.19.0 added — preventable_mh_cases +
+  avoided_mh_cost_usd as new surrogate targets, replaces Urban Wellbeing Score metric card);
+  **14→15 (San Antonio activated with full pipeline: SSURGO TX029 + Census Bexar +
+  CGIAR ET0 + TIGER 48 + Geofabrik TX OSM; new EPA Social Cost of Carbon dollar
+  metric in Economic row; pre-flight data-check function added; PIXEL_AREA_ACRES
+  harmonized to 0.2224 globally).**
 - **Dynamic baselines.** Both `BASELINE_HM` (line ~1129) and `BASELINE_CN` (line ~1138) are
   overridden at module load with values computed directly from the unmodified LULC raster, using
   the same lookups `evaluate_scenario` uses. The `CITIES['<city>']['baseline_hm' / 'baseline_cn']`
@@ -269,10 +285,12 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   👥 Human & Social (4 cards in 4 columns: Nature Access, Nature Quality Score, Preventable
   MH Cases, Avoided MH Costs — the InVEST Urban Mental Health v3.19.0 outputs replaced the
   earlier weighted-composite Wellbeing Score),
-  💵 Economic (4 cards in 4 columns: Food Production, Est. Implementation Cost, Flood
-  Damage Avoided, Cooling Energy Savings),
+  💵 Economic (5 cards in two rows: row 1 has Food Production + Est. Implementation Cost
+  in 2 columns; row 2 has Flood Damage Avoided + Cooling Energy Savings + Avoided Carbon
+  Cost in 3 columns — the EPA Social Cost of Carbon dollar metric is `carbon_tons_co2_yr ×
+  EPA_SOCIAL_COST_CARBON`, deterministic so not in the surrogate),
   📊 Cost Effectiveness (3 sub-ratios under their own header). Each group is separated by
-  `st.divider()`. **13 metric cards total**. Keep this grouping when adding new metrics — place
+  `st.divider()`. **14 metric cards total**. Keep this grouping when adding new metrics — place
   new cards in the section that matches their category rather than appending to a flat list.
 - **NDVI is a synthetic proxy** — values come from a per-NLCD-code lookup
   (`NDVI_PROXY` plus `NDVI_OTHER_DEVELOPED` / `NDVI_OTHER_NATURAL` defaults), not from

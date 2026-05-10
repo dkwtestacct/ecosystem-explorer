@@ -40,7 +40,7 @@ CITIES = {
         # Auto-recomputed at module load from `_BASELINE_HM_RASTER`, so this
         # value is only a documentation placeholder.
         'baseline_hm':          0.1859,
-        'pixel_area_acres':     0.222,
+        'pixel_area_acres':     0.2224,
         'food_forest_lbs_acre': 11_500,
         'available':            True,
         'crs':                  'EPSG:26915',
@@ -127,20 +127,34 @@ CITIES = {
         #     full Bexar 2.0 M)
         #   - CGIAR Global-AI/ET0 v3.1 via download_et_sa.py (1,580–1,716
         #     mm/yr, ~50 % above MN's ~1,150 mm/yr)
-        # Still TODO: roads (OSM TX state extract), buildings (SA project
-        # deliverables), damage table, tracts (TIGER 48), dense scenarios.
-        # `available=False` until at least roads + buildings land.
+        # All blocking inputs sourced 2026-05-09 / 10:
+        #   roads + buildings: Geofabrik TX state extract + Option B filter
+        #     (55,553 road segments, 345,900 building polygons in SA bbox).
+        #     Buildings stored as GeoPackage (binary, 92 MB) because the
+        #     equivalent GeoJSON exceeds GitHub's 100 MB hard limit.
+        #   tracts: TIGER 2020 (375 Bexar tracts).
+        # Still TODO: SA-specific damage table + dense surrogate grid (the
+        # latter is built automatically by precompute_scenarios.py once the
+        # city is `available=True`).
+        # OSM buildings carry `type` as OSM strings ('house', 'apartments',
+        # ...) not the integer 0–3 codes InVEST expects, so SA uses Option A
+        # buildings semantics: spatial-placement mask works, energy/damage
+        # cards display "—" with explanatory tooltip.
         'lulc_file':            'land_use_2021_sa.tif',
         'soil_file':            'soil_group_sa.tif',
-        'cooling_lulc_file':    'land_use_2021_sa.tif',
+        # SA has one canonical LULC raster shared between flood + cooling;
+        # MN's separate cooling LULC is an InVEST-sample convention. Use a
+        # relative-path traversal from data_dir_cooling so we don't have to
+        # duplicate the 4 MB file.
+        'cooling_lulc_file':    '../flood/land_use_2021_sa.tif',
         'pop_file':             'data/sa/population/sa_pop_2020.tif',
-        'roads_file':           None,   # OSM SA — TODO
-        'dense_scenarios_file': None,   # surrogate training grid — TODO
-        'buildings_file':       None,   # SA project deliverables — TODO
+        'roads_file':           'data/sa/roads_sa.geojson',
+        'dense_scenarios_file': 'data/scenarios_dense_sa.csv',  # built by precompute_scenarios.py
+        'buildings_file':       'data/sa/buildings_sa.gpkg',
         'damage_table_file':    None,   # SA project deliverables — TODO
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
         'et_file':              'data/sa/cooling/et_annual_sa.tif',
-        'tracts_file':          None,   # TIGER 48 tracts — TODO
+        'tracts_file':          'data/sa/tracts_bexar.shp',
         'una_table_file':       'data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv',
         # Live baselines from verify_sa_baselines.py (real SSURGO TX029, CGIAR
         # ET0 v3.1, full InVEST UCM CC pipeline). Documentation only — the
@@ -149,8 +163,8 @@ CITIES = {
         'baseline_hm':          0.2866,
         'baseline_ndvi':        0.4242,
         'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
-        'food_forest_lbs_acre': None,    # TODO: use crop-specific SA yields from project report
-        'available':            False,   # set True when soil/population/ET inputs are ready
+        'food_forest_lbs_acre': 11_500,  # placeholder — TODO: SA-specific pecan/fig/mulberry/nopal benchmark
+        'available':            True,
         'crs':                  'EPSG:5070',
         'notes': (
             'Data source: NatCap SA Urban Agriculture Project 2023. '
@@ -159,16 +173,21 @@ CITIES = {
             'reference ET from CGIAR Global-AI/ET0 v3.1 (1,580–1,716 mm/yr). '
             'Baseline constants computed via verify_sa_baselines.py.'
         ),
-        # Baseline only for now — the four "All X" reference scenarios will
-        # be populated once roads/buildings land and the city flips to
-        # available=True (computable via verify_cooling.py --city "San Antonio, TX").
+        # Recomputed via verify_cooling.py --city "San Antonio, TX" (seed=42)
+        # against the SA EPSG:5070 grid. Each "All X" scenario is
+        # pct_converted=50 with 100 % allocation to that single land cover.
+        # Energy/damage $-savings columns are 0 by Option A (OSM buildings
+        # carry string types, not the integer 0–3 codes InVEST expects).
         'ref_scenarios': {
-            'Baseline': {'flood': 23.5, 'cooling': 0.2866, 'color': 'steelblue'},
+            'Baseline':                     {'flood': 23.5, 'cooling': 0.2866, 'color': 'steelblue'},
+            'All Food Forest (NLCD 41)':    {'flood': 24.3, 'cooling': 0.3633, 'color': 'green'},
+            'All Green Infra (NLCD 90)':    {'flood': 33.5, 'cooling': 0.3660, 'color': 'teal'},
+            'All High Density (NLCD 24)':   {'flood': 22.0, 'cooling': 0.2697, 'color': 'red'},
         },
     },
 }
 
-PIXEL_AREA_ACRES     = 0.222
+PIXEL_AREA_ACRES     = 0.2224  # 30 m × 30 m = 900 m² ÷ 4046.86 m²/acre. Same in EPSG:26915 (UTM) and EPSG:5070 (Albers); UTM ground-area distortion at MN is ~0.05 %, well within rounding.
 FOOD_FOREST_LBS_ACRE = 11_500
 
 DEVELOPED_CODES   = [21, 22, 23]
@@ -266,6 +285,73 @@ if not city_cfg['available']:
         st.caption(city_cfg['notes'])
     st.sidebar.info(f"{selected_city} data coming soon — select Minneapolis, MN for live scenarios.")
     st.stop()
+
+
+def _preflight_data_check(city_cfg, city_name):
+    """Verify all *required* input files referenced by the active city's
+    config exist on disk before load_data() runs. Surfaces missing files
+    with a clear st.error() + st.stop() instead of a cryptic rasterio /
+    geopandas exception 50 lines deep in the data-loading pipeline.
+
+    Files with graceful-degradation fallbacks elsewhere (population, OSM
+    roads / buildings, ET, tracts, energy table, dense scenarios CSV,
+    damage table) are NOT in the required list — they have try/except
+    paths that disable the corresponding metric or feature when missing.
+    """
+    missing = []
+
+    # Tables that resolve via _resolve_table (try city dir first, then
+    # the project-shared data/flood or data/cooling fallback).
+    for key, fallback_dir in [
+        ("cn_table_file",      "data/flood"),
+        ("cooling_table_file", "data/cooling"),
+    ]:
+        fname = city_cfg.get(key)
+        if not fname:
+            missing.append(f"`{key}` is not configured for {city_name}")
+            continue
+        candidates = [
+            f"{city_cfg['data_dir_flood']}/{fname}",
+            f"{city_cfg['data_dir_cooling']}/{fname}",
+            f"{fallback_dir}/{fname}",
+        ]
+        if not any(Path(p).exists() for p in candidates):
+            missing.append(f"`{key}` ({fname}): tried {candidates}")
+
+    # Direct-path or dir+file rasters that load_data() opens unconditionally.
+    for key, base_key in [
+        ("lulc_file",         "data_dir_flood"),
+        ("soil_file",         "data_dir_flood"),
+        ("cooling_lulc_file", "data_dir_cooling"),
+    ]:
+        fname = city_cfg.get(key)
+        base  = city_cfg.get(base_key)
+        if not (fname and base):
+            missing.append(f"`{key}` or `{base_key}` is not configured")
+            continue
+        path = Path(f"{base}/{fname}").resolve()
+        if not path.exists():
+            missing.append(f"`{key}` resolves to a missing file: {base}/{fname}")
+
+    # The InVEST UNA biophysical table is required (no graceful fallback;
+    # the nature_access metric reads it at module load).
+    una = city_cfg.get("una_table_file")
+    if not una or not Path(una).exists():
+        missing.append(f"`una_table_file` missing: {una}")
+
+    if missing:
+        st.error(
+            f"**Cannot load {city_name}** — required input files are missing.\n\n"
+            + "\n".join(f"- {m}" for m in missing)
+            + "\n\nFix the paths in `CITIES['{city}']` or run the corresponding "
+              f"`download_*` / `process_*` script. The selected city is marked "
+              f"`available=True` but the loader can't find what it needs."
+        )
+        st.stop()
+
+
+_preflight_data_check(city_cfg, selected_city)
+
 
 # Runtime constants derived from selected city — functions reference these as globals
 DATA_DIR_FLOOD     = city_cfg['data_dir_flood']
@@ -478,6 +564,15 @@ except Exception:
 # Cost-per-kWh (US average residential, EIA 2024). Used to convert
 # avoided-AC-kWh into $.
 COST_PER_KWH_USD = 0.13
+
+# EPA Social Cost of Carbon — central estimate, 2 % discount rate, 2030
+# emissions, EPA 2023 final rule "Methodology for Estimating the Social
+# Cost of Greenhouse Gases" (Nov 2023). Multiplied by `carbon_tons_co2_yr`
+# to get an "avoided-damage" dollar value at the federal-guideline rate.
+# This is a deterministic linear function of carbon, so it's NOT added to
+# REQUIRED_TARGET_COLUMNS (the surrogate already learns carbon; we
+# multiply by this constant post-hoc).
+EPA_SOCIAL_COST_CARBON = 190
 
 # NOTE: there used to be an `AC_KWH_PER_DEG_F = 0.03` fractional-AC-sensitivity
 # constant here, applied as an extra multiplier in the energy-savings formula.
@@ -933,6 +1028,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         + n_wet * PIXEL_AREA_ACRES * rate_gi
         + n_hd  * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_HIGH_DENSITY], 1
     )
+    avoided_carbon_cost_usd = round(carbon_tons_co2_yr * EPA_SOCIAL_COST_CARBON, 0)
 
     nat_pct, nat_quality, nat_people = calculate_nature_access(
         scenario_lulc, pop_count_raster
@@ -968,6 +1064,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'cooling_energy_savings_usd': cooling_energy_savings_usd,
         'mean_ndvi':                mean_ndvi,
         'carbon_tons_co2_yr':       carbon_tons_co2_yr,
+        'avoided_carbon_cost_usd':  avoided_carbon_cost_usd,
         'nature_access_pct':        nat_pct,
         'nature_quality_score':     nat_quality,
         'people_with_nature_access': nat_people,
@@ -984,7 +1081,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 14  # bumped: InVEST Urban Mental Health model added (preventable_mh_cases + avoided_mh_cost_usd as new surrogate targets)
+SCENARIO_SCHEMA_VERSION = 15  # bumped: 'San Antonio, TX' available=True (full input pipeline live: SSURGO TX029 + Census Bexar + CGIAR ET0 + TIGER 48 tracts + Geofabrik OSM TX)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -1890,30 +1987,7 @@ else:
 
 st.sidebar.divider()
 
-# ── Cost sliders ──────────────────────────────────────────────────────────────
-st.sidebar.subheader("Implementation Costs ($/acre)")
-cost_gi = st.sidebar.slider("Green Infrastructure ($/acre)", 5_000, 150_000,
-                              DEFAULT_COST_GI, 5_000,
-                              help="Typical range: $20,000–$100,000/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.")
-cost_ff = st.sidebar.slider("Food Forest ($/acre)", 1_000, 50_000,
-                              DEFAULT_COST_FF, 1_000,
-                              help="Typical range: $5,000–$20,000/acre for food forest establishment. Default is an illustrative estimate — adjust to reflect local project costs.")
-cost_hd = st.sidebar.slider("High Density Infill ($/acre)", 1_000, 50_000,
-                              DEFAULT_COST_HD, 1_000,
-                              help="Marginal cost of additional impervious development. Default is an illustrative estimate — adjust to reflect local project costs.")
-
-st.sidebar.divider()
-
-# ── Spatial priority ──────────────────────────────────────────────────────────
-st.sidebar.subheader("Heat-Weighted Conversion")
-use_heat_priority = st.sidebar.toggle(
-    "Target High Heat-Exposure Areas",
-    value=False,
-    help="When enabled, the model prioritizes converting land in areas with higher heat-exposure intensity."
-)
-
-st.sidebar.divider()
-
+# ── Quick Start — preset scenarios ───────────────────────────────────────────
 st.sidebar.subheader("Quick Start — Try a Scenario")
 st.sidebar.caption("Click any button to load a preset scenario instantly.")
 
@@ -2023,6 +2097,30 @@ with st.sidebar.container(border=True):
 
 st.sidebar.divider()
 
+# ── Spatial priority ──────────────────────────────────────────────────────────
+st.sidebar.subheader("Spatial Priority")
+use_heat_priority = st.sidebar.toggle(
+    "Target High Heat-Exposure Areas",
+    value=False,
+    help="When enabled, the model prioritizes converting land in areas with higher heat-exposure intensity."
+)
+
+st.sidebar.divider()
+
+# ── Cost sliders (collapsed expander) ────────────────────────────────────────
+with st.sidebar.expander("Implementation Costs ($/acre)", expanded=False):
+    cost_gi = st.slider("Green Infrastructure ($/acre)", 5_000, 150_000,
+                        DEFAULT_COST_GI, 5_000,
+                        help="Typical range: $20,000–$100,000/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.")
+    cost_ff = st.slider("Food Forest ($/acre)", 1_000, 50_000,
+                        DEFAULT_COST_FF, 1_000,
+                        help="Typical range: $5,000–$20,000/acre for food forest establishment. Default is an illustrative estimate — adjust to reflect local project costs.")
+    cost_hd = st.slider("High Density Infill ($/acre)", 1_000, 50_000,
+                        DEFAULT_COST_HD, 1_000,
+                        help="Marginal cost of additional impervious development. Default is an illustrative estimate — adjust to reflect local project costs.")
+
+st.sidebar.divider()
+
 with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
     st.slider(
         "Food Forest carbon rate (tons CO2e/acre/yr)",
@@ -2079,6 +2177,7 @@ if lookup_key in lookup_table and not use_heat_priority:
     results['people_fed']   = _fresh['people_fed']
     results['mean_ndvi']    = _fresh['mean_ndvi']
     results['carbon_tons_co2_yr'] = _fresh['carbon_tons_co2_yr']
+    results['avoided_carbon_cost_usd'] = _fresh['avoided_carbon_cost_usd']
     results['nature_access_pct']  = _fresh['nature_access_pct']
     results['nature_quality_score'] = _fresh['nature_quality_score']
     results['people_with_nature_access'] = _fresh['people_with_nature_access']
@@ -2333,7 +2432,8 @@ hs4.metric(
 st.divider()
 
 st.markdown("#### Economic")
-econ1, econ2, econ3, econ4 = st.columns(4)
+# Row 1: Food Production + Implementation Cost (the two scenario-input-driven cards)
+econ1, econ2 = st.columns(2)
 econ1.metric(
     "Food Production",
     _fmt_food(results['food_mln_lbs']),
@@ -2351,6 +2451,11 @@ econ2.metric(
     delta=None,
     help="Confidence: Order-of-magnitude estimate. Total cost based on $/acre sliders × converted acreage."
 )
+
+# Row 2: the three model-derived dollar metrics (each computed downstream
+# from the scenario, not directly from the user's sliders).
+econ3, econ4, econ5 = st.columns(3)
+
 _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
 if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
     econ3.metric(
@@ -2431,6 +2536,29 @@ else:
         )
     econ4.metric("Cooling Energy Savings", "—", help=_help_text)
 
+# Avoided Carbon Cost — deterministic from carbon_tons_co2_yr × EPA SCC.
+# Always available regardless of buildings/ET data, since it's purely a
+# function of the converted-pixel carbon flux.
+_avoided_carbon = results.get('avoided_carbon_cost_usd', 0.0)
+econ5.metric(
+    "Avoided Carbon Cost",
+    f"${_avoided_carbon / 1e6:.2f}M/yr" if abs(_avoided_carbon) >= 1e4 else f"${_avoided_carbon:,.0f}/yr",
+    delta=(
+        f"+${_avoided_carbon / 1e6:.2f}M/yr vs baseline" if _avoided_carbon >= 1e4
+        else "$0/yr vs baseline" if abs(_avoided_carbon) < 1
+        else f"${_avoided_carbon:,.0f}/yr vs baseline"
+    ),
+    delta_color="normal" if _avoided_carbon >= 1 else "off",
+    help=(
+        "Confidence: Model-based estimate. "
+        f"Annual carbon value at EPA Social Cost of Carbon (${EPA_SOCIAL_COST_CARBON}/ton CO2e, "
+        "EPA 2023 final rule, 2 % discount rate, 2030 emissions). Represents "
+        "the estimated economic damage avoided per ton of CO2e sequestered "
+        "based on federal guidelines. Linear in `carbon_tons_co2_yr` so "
+        "scales directly with the carbon-rate sliders in Advanced Settings."
+    ),
+)
+
 st.divider()
 
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
@@ -2474,11 +2602,12 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
 
     _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
     _energy_savings_table = results.get('cooling_energy_savings_usd', 0.0)
+    _avoided_carbon_table = results.get('avoided_carbon_cost_usd', 0.0)
     comparison_data = {
         'Metric': [
             'Flood Risk Reduction', 'Runoff Volume', 'Temperature Change',
             'Food Production', 'Carbon Sequestration', 'Nature Access', 'NDVI',
-            'Flood Damage Avoided', 'Cooling Energy Savings',
+            'Flood Damage Avoided', 'Cooling Energy Savings', 'Avoided Carbon Cost',
         ],
         'Baseline': [
             f'{_baseline_flood:.1f}',
@@ -2489,6 +2618,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{BASELINE_NATURE_ACCESS_PCT:.1f}%',
             f'{BASELINE_NDVI:.3f}',
             '$0',
+            '$0/yr',
             '$0/yr',
         ],
         'This Scenario': [
@@ -2505,6 +2635,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{results["mean_ndvi"]:.3f}',
             f'${_flood_damage_avoided / 1e6:.1f}M',
             f'${_energy_savings_table / 1e6:.2f}M/yr',
+            f'${_avoided_carbon_table / 1e6:.2f}M/yr' if abs(_avoided_carbon_table) >= 1e4 else f'${_avoided_carbon_table:,.0f}/yr',
         ],
         'Change': [
             f'{_flood_diff:+.1f}',
@@ -2520,6 +2651,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
             f'+${_flood_damage_avoided / 1e6:.1f}M' if _flood_damage_avoided >= 1e4 else '$0',
             f'+${_energy_savings_table / 1e6:.2f}M/yr' if _energy_savings_table >= 1e3 else '$0/yr',
+            f'+${_avoided_carbon_table / 1e6:.2f}M/yr' if _avoided_carbon_table >= 1e4 else f'+${_avoided_carbon_table:,.0f}/yr' if _avoided_carbon_table >= 1 else '$0/yr',
         ],
     }
 
@@ -2695,16 +2827,11 @@ st.write(
     f"to high-density development, {mode_text}."
 )
 
-if st.session_state.get("just_optimized"):
-    st.info(
-        "Click the **Tradeoff Analysis** tab above to see your optimization results."
-    )
-
 tab1, tab2, tab3, tab4 = st.tabs(["Scenario", "Tradeoff Analysis", "Map View", "Reference"])
 
 with tab1:
     st.subheader("Outcome Comparison")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         fig, ax = plt.subplots(figsize=(5, 5))
@@ -2742,6 +2869,20 @@ with tab1:
         ax.set_title('Food Production', fontsize=16, fontweight='bold')
         ax.set_ylabel('Food Production\n(million lbs/year)', fontsize=12)
         ax.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
+        ax.tick_params(labelsize=12)
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
+
+    with col4:
+        fig, ax = plt.subplots(figsize=(5, 5))
+        _max_carbon = max(scenario_df['carbon_tons_co2_yr'].max() * 1.1, 1.0)
+        ax.bar(['Baseline', 'This Scenario'],
+               [0, results['carbon_tons_co2_yr']],
+               color=['#5b8db8', '#7b4fa6'])
+        ax.set_title('Carbon Sequestration', fontsize=16, fontweight='bold')
+        ax.set_ylabel('Carbon (tons CO2e/year)\n(higher = more sequestration)', fontsize=12)
+        ax.set_ylim(0, _max_carbon)
         ax.tick_params(labelsize=12)
         plt.tight_layout()
         st.pyplot(fig, use_container_width=True)
@@ -3075,18 +3216,22 @@ with tab3:
     ))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
-        "White = outside city boundary. Red wash = heat vulnerability proxy "
-        "(NLCD development intensity), with opacity controlled by the slider above.  \n"
-        "Conversions target feasible interstitial spaces — building footprints "
-        "and road infrastructure are excluded citywide using OpenStreetMap "
-        "road network data unioned with the InVEST UFR buildings shapefile. "
-        "The remaining candidate pool covers parking lots, lawns, and vacant "
-        "land within the NLCD-21/22/23/24 developed mask. Placement within "
-        "that pool is random, or weighted toward higher-intensity-developed "
-        "pixels when Heat-Priority Mode is on. Real implementation would "
-        "still require site-specific siting analysis (zoning, ownership, "
-        "soil, infrastructure)."
+        "White = outside city boundary. Red wash = heat vulnerability proxy, "
+        "opacity controlled by the slider above."
     )
+
+    with st.expander("Assumptions and limitations", expanded=False):
+        st.markdown(
+            "Conversions target feasible interstitial spaces — building footprints "
+            "and road infrastructure are excluded citywide using OpenStreetMap "
+            "road network data unioned with the city's buildings shapefile. "
+            "The remaining candidate pool covers parking lots, lawns, and vacant "
+            "land within the NLCD-21/22/23/24 developed mask. Placement within "
+            "that pool is random, or weighted toward higher-intensity-developed "
+            "pixels when Heat-Priority Mode is on. Real implementation would "
+            "still require site-specific siting analysis (zoning, ownership, "
+            "soil, infrastructure)."
+        )
 
 with tab4:
     st.markdown("## Methodology & Data Sources")

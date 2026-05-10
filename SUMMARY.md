@@ -6,16 +6,15 @@ The Ecosystem Explorer simulates how reallocating developed urban land across th
 
 ---
 
-## Two cities supported
+## Three cities supported
 
 | City | Extent | CRS | Buildings | Notes |
 |------|--------|-----|-----------|-------|
 | **Minneapolis, MN** (downtown) | 360 × 356 px ≈ 122.8 km² | EPSG:26915 (UTM 15N) | InVEST sample, 3,788 polygons with type codes 0–3 | Original view; full per-type dollar metrics. |
 | **Minneapolis Full, MN** | 374 × 607 px ≈ 204.3 km² | EPSG:5070 (Conus Albers) | OSM, 185,490 polygons, no type codes | Full city + suburb fringe; **Option A** buildings semantics — see below. |
+| **San Antonio, TX** | 1984 × 1713 px ≈ 3,058 km² | EPSG:5070 (Conus Albers) | OSM Geofabrik TX, 345,900 polygons (string types) | Bexar County. Soil 49 % D-class Vertisols (clay) vs Hennepin's 0 %. Annual PET ~1,650 mm/yr (50 % above Minneapolis). **Option A** buildings semantics. |
 
-The city picker lives in the sidebar. Each city has its own cached lookup table; switching between them takes ~30 s the first time and is instant after.
-
-A third entry, **San Antonio, TX**, is scaffolded with `available=False` until SSURGO + Census + ET inputs are sourced.
+The city picker lives in the sidebar. Each city has its own cached lookup table; switching between them takes ~30 s the first time (longer for SA's larger raster) and is instant after.
 
 ---
 
@@ -29,9 +28,9 @@ A third entry, **San Antonio, TX**, is scaffolded with `available=False` until S
 
 ---
 
-## 13 metric cards across three categories
+## 14 metric cards across three categories
 
-The Scenario tab is organized as **Ecological (5) · Human & Social (4) · Economic (4)**. Every tooltip starts with a one-line confidence label so users can gauge methodological strength at a glance.
+The Scenario tab is organized as **Ecological (5) · Human & Social (4) · Economic (5, in two rows)**. Every tooltip starts with a one-line confidence label so users can gauge methodological strength at a glance.
 
 ### Ecological (5)
 
@@ -52,14 +51,15 @@ The Scenario tab is organized as **Ecological (5) · Human & Social (4) · Econo
 | Preventable MH Cases | depression + anxiety cases/yr (InVEST UMH) | Model-based estimate |
 | Avoided MH Costs | $/yr healthcare burden avoided | Model-based estimate |
 
-### Economic (4)
+### Economic (5, in two rows)
 
-| Metric | Unit | Confidence label |
-|--------|------|-----------|
-| Food Production | M lbs/yr from food forest pixels | Provisional assumption |
-| Est. Implementation Cost | $M total ($/acre slider × converted area) | Order-of-magnitude estimate |
-| Flood Damage Avoided | $ from runoff-reduction × per-building damage rate | Order-of-magnitude estimate |
-| Cooling Energy Savings | $/yr from per-building avoided AC consumption | Order-of-magnitude estimate |
+| Metric | Row | Unit | Confidence label |
+|--------|-----|------|-----------|
+| Food Production | 1 | M lbs/yr from food forest pixels | Provisional assumption |
+| Est. Implementation Cost | 1 | $M total ($/acre slider × converted area) | Order-of-magnitude estimate |
+| Flood Damage Avoided | 2 | $ from runoff-reduction × per-building damage rate | Order-of-magnitude estimate |
+| Cooling Energy Savings | 2 | $/yr from per-building avoided AC consumption | Order-of-magnitude estimate |
+| Avoided Carbon Cost | 2 | $/yr at EPA Social Cost of Carbon ($190/ton CO2e, EPA 2023) | Model-based estimate |
 
 A **Cost Effectiveness** sub-section under Economic exposes three ratios: $/ac-ft prevented · $/°F cooling · $/1,000 people fed. Lower is better; N/A when the denominator is zero or negative.
 
@@ -91,7 +91,7 @@ A **Cost Effectiveness** sub-section under Economic exposes three ratios: $/ac-f
 
 ## How to use it (the headline features)
 
-- **Scenario tab** — slider-driven scenario builder showing all 13 metric cards plus a collapsible **Baseline vs Scenario Comparison** table that color-codes improvements (green) vs regressions (red, with runoff treated as inverse).
+- **Scenario tab** — slider-driven scenario builder showing all 14 metric cards plus a collapsible **Baseline vs Scenario Comparison** table that color-codes improvements (green) vs regressions (red, with runoff treated as inverse).
 - **Tradeoff Analysis tab** — Plotly chart of the entire scenario space with the active scenario, saved scenarios, optimizer suggestions, and Pareto frontier overlaid. Per-city `REF_SCENARIOS` (Baseline, All Food Forest, All Green Infra, All High Density at 50 % conversion) plot as colored markers. Below: **Best Scenarios by Goal** (five canonical winners drawn from the pre-computed library, each with an Apply button), then a Save-this-scenario flow with named saved scenarios.
 - **Map View tab** — spatial map of where conversions occur, plus a heat-vulnerability red-wash overlay slider (default opacity 0.3). Map renders via matplotlib `imshow` (pixel-row/column space), so EPSG:5070 and EPSG:26915 cities both render correctly without per-CRS handling.
 - **Smart Scenario Search optimizer** — Random Forest surrogate trained on the live scenario grid; samples 10,000 random (pct, GI%, FF%) combinations against user-set minimums on flood, cooling, food, and carbon, and returns up to 5 Pareto-efficient suggestions.
@@ -101,13 +101,12 @@ A **Cost Effectiveness** sub-section under Economic exposes three ratios: $/ac-f
 
 ## Baseline constants (live, per city)
 
-| Constant | Minneapolis (downtown) | Minneapolis Full | Computation |
-|---|---:|---:|---|
-| `BASELINE_CN` | 75.67 | 77.68 | Mean CN over `cn_table[lulc_idx, soil]` for the unmodified LULC × soil grid |
-| `BASELINE_HM` (= mean CC) | 0.1859 | 0.1600 | Mean of the smoothed-CC raster |
-| `BASELINE_NDVI` | 0.2326 | 0.2072 | Mean of synthetic NDVI proxy |
-| `BASELINE_NATURE_ACCESS_PCT` | 69.7 % | recomputed live | InVEST UNA with 1 km radius cap |
-| Population | ~154 K | 463,794 | Hennepin Census 2020 blocks |
+| Constant | Mpls downtown | Mpls Full | San Antonio | Computation |
+|---|---:|---:|---:|---|
+| `BASELINE_CN` | 75.67 | 77.68 | 76.54 | Mean CN over `cn_table[lulc_idx, soil]` for the unmodified LULC × soil grid |
+| `BASELINE_HM` (= mean CC) | 0.1859 | 0.1600 | 0.2866 | Mean of the smoothed-CC raster |
+| `BASELINE_NDVI` | 0.2326 | 0.2072 | 0.4242 | Mean of synthetic NDVI proxy |
+| Population | ~154 K | 463,794 | 1,906,323 | Census 2020 county-level totals in the bbox |
 
 Both `BASELINE_CN` and `BASELINE_HM` are dynamically overridden at module load, so the hardcoded values in `CITIES['<city>']['baseline_cn'/'baseline_hm']` are documentation only — the live values track whatever the current pipeline produces.
 
