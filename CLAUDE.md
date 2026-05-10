@@ -119,6 +119,13 @@ separate cache entries via the path parameters.
 | `COST_PER_KWH_USD` | 0.13 | US average residential electricity price (EIA 2024). Used to convert avoided-AC-kWh into $. |
 | `PIXEL_AREA_M2` | 900 | NLCD 30 × 30 m pixel area in m². Used for cooling energy savings (consumption rate is kWh/(m²·°C)/yr from `energy_consumption.csv`). |
 | `NATURE_RADIUS_CAP_M` | 1000 | Upper cap applied to every `search_radius_m` in the InVEST UNA table. Without this cap, water/forest classes (5 km radius) saturate the AOI to 100 % nature access. Caps at ~12-min walking distance, matches the table's own value for "Developed, Open Space" (urban parks). |
+| `RR_0_1_NDVI_DEPRESSION` | 0.96 | InVEST UMH relative risk per 0.1 NDVI increase, depression. Source: Liu et al. 2023 meta-analysis. |
+| `RR_0_1_NDVI_ANXIETY` | 0.97 | Same, anxiety. |
+| `BIR_DEPRESSION` | 0.21 | Baseline depression prevalence (CDC 2023, ever-diagnosed). |
+| `BIR_ANXIETY` | 0.19 | Baseline anxiety prevalence. |
+| `COST_PER_DEPRESSION_CASE_USD` | 8467 | Annual cost-of-illness per case (US nominal). InVEST docs cite ~$11K USD-PPP — our default is slightly lower. |
+| `COST_PER_ANXIETY_CASE_USD` | 5765 | Same, anxiety. |
+| `UMH_SEARCH_RADIUS_M` | 300 | InVEST UMH NDVI exposure radius (Li et al. 2025); 21-pixel uniform_filter at 30 m NLCD resolution. Pre-computed `_UMH_KERNEL = 21`. |
 | `LBS_PER_PERSON_YEAR` | 2,000 | Average American food consumption used to convert lbs → people fed |
 | `DEVELOPED_CODES` | [21, 22, 23] | NLCD lucodes treated as convertible developed land |
 | `CODE_GREEN_INFRA` | 90 | NLCD lucode for woody wetlands (green infrastructure proxy) |
@@ -190,8 +197,10 @@ with ET; SA's value will shift slightly once ET is wired in).
   outputs so cached lookup tables get regenerated. Recent bumps: 7→8 (UCM rework: ET fix,
   Gaussian convolution, canonical energy formula); 8→9 (ET nodata sentinel masked);
   9→10 (full Geofabrik OSM road network, 62 % AOI); 10→11 (Option B road filter, ~29 % AOI);
-  **11→12 (NATURE_RADIUS_CAP_M = 1000 m fixes nature-access saturation; BASELINE_CN now dynamically
-  computed at module load).**
+  11→12 (NATURE_RADIUS_CAP_M = 1000 m fixes nature-access saturation; BASELINE_CN now dynamically
+  computed at module load); 12→13 (load_data parameterized via city_cfg path keys; Minneapolis
+  Full activated); **13→14 (InVEST Urban Mental Health v3.19.0 added — preventable_mh_cases +
+  avoided_mh_cost_usd as new surrogate targets, replaces Urban Wellbeing Score metric card).**
 - **Dynamic baselines.** Both `BASELINE_HM` (line ~1129) and `BASELINE_CN` (line ~1138) are
   overridden at module load with values computed directly from the unmodified LULC raster, using
   the same lookups `evaluate_scenario` uses. The `CITIES['<city>']['baseline_hm' / 'baseline_cn']`

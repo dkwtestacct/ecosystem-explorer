@@ -700,17 +700,91 @@ CARBON_SEQ_RATES = {
 }
 
 
+def _lulc_to_ndvi_raster(lulc_array):
+    """Per-pixel NDVI proxy raster (same shape as lulc, dtype float32). Used
+    by compute_mean_ndvi (which then takes the mean) and by the InVEST UMH
+    pipeline (which Gaussian-smooths it within a 300 m search radius).
+    Pixels with NODATA become NDVI_OTHER_NATURAL (a benign default — the UMH
+    delta zeros out at NODATA pixels because both baseline and scenario use
+    the same fill there)."""
+    ndvi_map = np.full(lulc_array.shape, NDVI_OTHER_NATURAL, dtype=np.float32)
+    for code in _DEVELOPED_ALL:
+        ndvi_map[lulc_array == code] = NDVI_OTHER_DEVELOPED
+    for code, val in NDVI_PROXY.items():
+        ndvi_map[lulc_array == code] = val
+    return ndvi_map
+
+
 def compute_mean_ndvi(lulc_array):
     """Area-weighted mean NDVI proxy across all valid (non-NODATA) pixels."""
-    valid = lulc_array[lulc_array != NODATA]
-    if valid.size == 0:
+    valid_mask = lulc_array != NODATA
+    if not valid_mask.any():
         return float('nan')
-    ndvi_map = np.full(valid.shape, NDVI_OTHER_NATURAL, dtype=np.float32)
-    for code in _DEVELOPED_ALL:
-        ndvi_map[valid == code] = NDVI_OTHER_DEVELOPED
-    for code, val in NDVI_PROXY.items():
-        ndvi_map[valid == code] = val
-    return float(round(ndvi_map.mean(), 4))
+    return float(round(_lulc_to_ndvi_raster(lulc_array)[valid_mask].mean(), 4))
+
+
+# ── InVEST Urban Mental Health Model (v3.19.0) ────────────────────────────────
+# Implements the canonical InVEST UMH preventable-cases formula:
+#   NE_i = uniform_filter(NDVI_i, search_radius)        per-pixel exposure
+#   ΔNE_i = NE_scenario_i − NE_baseline_i
+#   RR_i = exp( ln(RR_0.1) × 10 × ΔNE_i )               relative risk
+#   PF_i = 1 − RR_i                                     preventable fraction
+#   PC_i = PF_i × BIR × population_i                    preventable cases
+#   $    = Σ PC_i × cost_per_case
+#
+# Constants below are the user-supplied defaults at the time of integration:
+#   RR per 0.1 NDVI from Liu et al. 2023 meta-analysis (the InVEST UMH
+#   reference) — depression 0.96 (4 % reduction per 0.1 NDVI), anxiety 0.97.
+#   Baseline incidence/prevalence from CDC 2023; cost-of-illness figures are
+#   plausible mid-range values (InVEST docs cite $11,000 USD-PPP/case as a
+#   default — our values are slightly lower, US-only nominal). All values
+#   should be replaced with locally-calibrated numbers for production work.
+RR_0_1_NDVI_DEPRESSION       = 0.96
+RR_0_1_NDVI_ANXIETY          = 0.97
+BIR_DEPRESSION               = 0.21
+BIR_ANXIETY                  = 0.19
+COST_PER_DEPRESSION_CASE_USD = 8467
+COST_PER_ANXIETY_CASE_USD    = 5765
+UMH_SEARCH_RADIUS_M          = 300   # Li et al. 2025; ~10 px at 30 m NLCD
+
+# Pre-compute the constant box-filter size (= 2r + 1 in pixels) at module load.
+_UMH_KERNEL = max(1, 2 * int(UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M) + 1)
+_UMH_LN_RR_DEPRESSION = float(np.log(RR_0_1_NDVI_DEPRESSION))
+_UMH_LN_RR_ANXIETY    = float(np.log(RR_0_1_NDVI_ANXIETY))
+
+
+from scipy.ndimage import uniform_filter as _uniform_filter
+
+
+def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count):
+    """Return (preventable_mh_cases, avoided_mh_cost_usd) for the scenario.
+
+    `baseline_ne_raster` is the smoothed NE raster for the unmodified LULC
+    (precomputed once at module load — see _BASELINE_NE_RASTER below). We
+    compute the scenario-side NE on the fly, take ΔNE, apply the InVEST UMH
+    formula per pixel, and sum population-weighted preventable cases. Returns
+    (0.0, 0.0) if the population raster isn't loaded — there's nothing to
+    weight by."""
+    if not POPULATION_DATA_AVAILABLE:
+        return 0.0, 0.0
+    ne_scenario = _uniform_filter(
+        _lulc_to_ndvi_raster(scenario_lulc), size=_UMH_KERNEL, mode="nearest"
+    )
+    delta_ne = ne_scenario - baseline_ne_raster
+
+    rr_dep = np.exp(_UMH_LN_RR_DEPRESSION * 10 * delta_ne)
+    rr_anx = np.exp(_UMH_LN_RR_ANXIETY    * 10 * delta_ne)
+    pf_dep = 1.0 - rr_dep
+    pf_anx = 1.0 - rr_anx
+
+    pc_dep = pf_dep * BIR_DEPRESSION * pop_count
+    pc_anx = pf_anx * BIR_ANXIETY    * pop_count
+    total_pc = float((pc_dep + pc_anx).sum())
+    avoided_cost = float((
+        pc_dep * COST_PER_DEPRESSION_CASE_USD
+        + pc_anx * COST_PER_ANXIETY_CASE_USD
+    ).sum())
+    return round(total_pc, 1), round(avoided_cost, 0)
 
 
 def cn_to_runoff_acre_feet(mean_cn, total_developed_acres):
@@ -884,6 +958,12 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     runoff_acft    = cn_to_runoff_acre_feet(mean_cn, total_developed_acres)
     flood_damage_avoided_usd = compute_flood_damage_avoided(runoff_acft)
 
+    # InVEST UMH preventable mental health cases + avoided cost (depression +
+    # anxiety, NDVI-mediated). Returns (0, 0) if population data isn't loaded.
+    preventable_mh_cases, avoided_mh_cost_usd = calculate_mental_health_impact(
+        scenario_lulc, _BASELINE_NE_RASTER, pop_count_raster,
+    )
+
     return {
         'pct_converted':            pct_converted,
         'green_infrastructure_pct': green_infrastructure_pct,
@@ -905,6 +985,8 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'nature_quality_score':     nat_quality,
         'people_with_nature_access': nat_people,
         'wellbeing_score':          wellbeing_score,
+        'preventable_mh_cases':     preventable_mh_cases,
+        'avoided_mh_cost_usd':      avoided_mh_cost_usd,
         'food_mln_lbs':             food_mln_lbs,
         'people_fed':               food_to_people_fed(food_mln_lbs),
         'total_cost_mln':           total_cost_mln,
@@ -916,7 +998,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 13  # bumped: load_data parameterized via city_cfg path keys; new 'Minneapolis Full, MN' city with EPSG:5070 grid + Option A buildings semantics
+SCENARIO_SCHEMA_VERSION = 14  # bumped: InVEST Urban Mental Health model added (preventable_mh_cases + avoided_mh_cost_usd as new surrogate targets)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -924,6 +1006,7 @@ SCENARIO_SCHEMA_VERSION = 13  # bumped: load_data parameterized via city_cfg pat
 REQUIRED_TARGET_COLUMNS = [
     'flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet',
     'carbon_tons_co2_yr', 'nature_access_pct',
+    'preventable_mh_cases', 'avoided_mh_cost_usd',
 ]
 
 
@@ -1245,6 +1328,11 @@ def compute_cooling_energy_savings(scenario_cc_raster):
 # need to recompute the scenario side on each rerun.
 _BASELINE_ACCESS_SCORE_RASTER = _compute_access_score_raster(cooling_lulc)
 _BASELINE_HM_RASTER          = _compute_hm_raster(cooling_lulc)
+# Smoothed NDVI exposure for the unmodified LULC — feeds the InVEST UMH ΔNE
+# computation. Precompute once because the baseline doesn't change per scenario.
+_BASELINE_NE_RASTER = _uniform_filter(
+    _lulc_to_ndvi_raster(cooling_lulc), size=_UMH_KERNEL, mode="nearest"
+)
 
 # Override the static `BASELINE_HM` from CITIES with the actual mean of the
 # baseline CC raster — keeps the reference value in sync with whatever the
@@ -2175,7 +2263,7 @@ eco5.metric(
 st.divider()
 
 st.markdown("#### Human & Social")
-hs1, hs2, hs3 = st.columns(3)
+hs1, hs2, hs3, hs4 = st.columns(4)
 _nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
 _nature_help = (
     "Confidence: Proximity estimate. "
@@ -2231,33 +2319,47 @@ hs2.metric(
     ),
 )
 
-# Urban Wellbeing Score — composite index. Baseline is recomputed each rerun
-# using the *current* weights so the delta stays meaningful when the user tunes
-# weights in Advanced Settings.
-_active_w_ndvi    = st.session_state.get("wgt_ndvi",    DEFAULT_WGT_NDVI)
-_active_w_cooling = st.session_state.get("wgt_cooling", DEFAULT_WGT_COOLING)
-_active_w_nature  = st.session_state.get("wgt_nature",  DEFAULT_WGT_NATURE)
-_baseline_wellbeing = compute_wellbeing_score(
-    BASELINE_NDVI, BASELINE_HM, BASELINE_NATURE_QUALITY_SCORE,
-    _active_w_ndvi, _active_w_cooling, _active_w_nature,
-)
-_wellbeing_delta = results['wellbeing_score'] - _baseline_wellbeing
-# Display a clean "0.000" when within the per-component rounding noise of
-# the underlying inputs (NDVI, HM, nature_quality each rounded to 3–4 dp).
-_wellbeing_delta_str = (
-    "0.000 vs baseline" if abs(_wellbeing_delta) < 0.001
-    else f"{_wellbeing_delta:+.3f} vs baseline"
-)
+# InVEST Urban Mental Health (v3.19.0): two cards. Both are zero at the
+# unmodified baseline by construction (ΔNE = 0 → PF = 0 → PC = 0).
+_mh_cases = results.get('preventable_mh_cases', 0.0)
+_mh_cost  = results.get('avoided_mh_cost_usd', 0.0)
 hs3.metric(
-    "Urban Wellbeing Score",
-    f'{results["wellbeing_score"]:.3f}',
-    delta=_wellbeing_delta_str,
-    delta_color="normal" if abs(_wellbeing_delta) >= 0.001 else "off",
+    "Preventable MH Cases",
+    f'{_mh_cases:,.0f} cases/yr',
+    delta=(
+        f"+{_mh_cases:,.0f} vs baseline" if _mh_cases >= 1
+        else "0 vs baseline" if abs(_mh_cases) < 1
+        else f"{_mh_cases:,.0f} vs baseline"
+    ),
+    delta_color="normal" if _mh_cases >= 1 else ("inverse" if _mh_cases <= -1 else "off"),
     help=(
-        "Confidence: Composite proxy. "
-        "Composite index combining NDVI (vegetation), urban cooling, and nature "
-        "access. Weights are provisional and adjustable in Advanced Settings. "
-        "Treat as directional only — not a validated mental health model."
+        "Confidence: Model-based estimate. Estimated preventable depression "
+        "and anxiety cases from the scenario's NDVI exposure change. Based on "
+        "the InVEST Urban Mental Health model (v3.19.0): per-pixel "
+        "ΔNE = NE_scenario − NE_baseline (smoothed at 300 m), "
+        "RR = exp(ln(RR₀.₁) × 10 × ΔNE), "
+        "PC = (1 − RR) × baseline_prevalence × population. "
+        "Effect sizes from Liu et al. 2023 meta-analysis; baseline prevalence "
+        "from CDC 2023 (depression 21 %, anxiety 19 %). Returns 0 at baseline "
+        "and for scenarios with no greenness change."
+    ),
+)
+hs4.metric(
+    "Avoided MH Costs",
+    f'${_mh_cost / 1e6:.2f}M/yr',
+    delta=(
+        f"+${_mh_cost / 1e6:.2f}M/yr vs baseline" if _mh_cost >= 1e3
+        else "$0/yr vs baseline" if abs(_mh_cost) < 1e3
+        else f"-${abs(_mh_cost) / 1e6:.2f}M/yr vs baseline"
+    ),
+    delta_color="normal" if _mh_cost >= 1e3 else ("inverse" if _mh_cost <= -1e3 else "off"),
+    help=(
+        "Confidence: Model-based estimate. Avoided healthcare cost = "
+        "preventable_cases × per-case cost-of-illness. Per-case costs: "
+        f"${COST_PER_DEPRESSION_CASE_USD:,}/depression, "
+        f"${COST_PER_ANXIETY_CASE_USD:,}/anxiety (US nominal; InVEST default "
+        "is ~$11K USD-PPP/case). Sums depression + anxiety. Order-of-"
+        "magnitude — see REFERENCE.md for full caveats."
     ),
 )
 
@@ -2473,7 +2575,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
 with st.expander("Assumptions and limitations"):
     _assumption_tabs = st.tabs([
         "Flood & Runoff", "Temperature", "Food", "Carbon",
-        "Nature Access", "Wellbeing Score", "Costs",
+        "Nature Access", "Mental Health (UMH)", "Costs",
     ])
     with _assumption_tabs[0]:
         st.markdown(
@@ -2555,17 +2657,31 @@ with st.expander("Assumptions and limitations"):
         )
     with _assumption_tabs[5]:
         st.markdown(
-            "- **Composite, not validated:** weighted combination of NDVI "
-            "(synthetic), CC (cooling proxy), and Nature Access %. Each input "
-            "carries its own uncertainty.\n"
-            "- **Weights are arbitrary** until empirically validated against a "
-            "local quality-of-life or self-reported wellbeing dataset. "
-            "Defaults (0.2 / 0.4 / 0.4) are a reasonable starting point, not a "
-            "claim of correctness.\n"
-            "- **Not a mental health model.** Useful for cross-scenario "
-            "ranking, not for population-health inference.\n"
-            "- **Not in the surrogate** — wellbeing is computed live from "
-            "current weights, but the optimizer doesn't search over it."
+            "- **Method:** InVEST Urban Mental Health Model (v3.19.0). "
+            "Per-pixel `ΔNE = NE_scenario − NE_baseline` (NE = NDVI smoothed "
+            "with a 300 m box-filter exposure radius), "
+            "`RR = exp(ln(RR₀.₁) × 10 × ΔNE)`, "
+            "`PC = (1 − RR) × baseline_prevalence × population`. Two outcomes "
+            "are summed: depression and anxiety.\n"
+            "- **Effect sizes** from Liu et al. 2023 meta-analysis on green "
+            "space and mental health: RR per 0.1 NDVI = 0.96 (depression) / "
+            "0.97 (anxiety) — i.e. 4 % / 3 % reduction per 0.1 NDVI gain.\n"
+            "- **Baseline prevalence (US):** 21 % depression, 19 % anxiety "
+            "(CDC 2023). These are best interpreted as ever-diagnosed / "
+            "lifetime prevalence; using them with the InVEST formula treats "
+            "them as the at-risk pool.\n"
+            "- **Cost-of-illness:** $8,467/depression case, $5,765/anxiety "
+            "case (US nominal). InVEST docs cite ~$11K USD-PPP/case as a "
+            "default — our values are slightly lower.\n"
+            "- **Caveats:** NDVI is a synthetic per-NLCD-class proxy here, "
+            "not satellite-derived; uniform_filter is a box rather than a "
+            "Gaussian; baseline-vs-scenario comparison assumes the population "
+            "raster is unchanged across scenarios; the model captures only "
+            "the *direct* exposure pathway, not air-quality or social-"
+            "cohesion mechanisms.\n"
+            "- **Not in the surrogate** — UMH outputs are computed live but "
+            "are now in the surrogate target list (REQUIRED_TARGET_COLUMNS), "
+            "so future training cycles will pick them up."
         )
     with _assumption_tabs[6]:
         st.markdown(
