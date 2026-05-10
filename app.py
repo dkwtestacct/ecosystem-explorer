@@ -1732,7 +1732,7 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, max_runoff, min_
 # ── Plotting helpers ───────────────────────────────────────────────────────────
 def render_matplotlib(fig):
     try:
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
     finally:
         plt.close(fig)
 
@@ -2697,7 +2697,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
         return 'color: gray'
 
     _styled = _comparison_df.style.map(_color_change, subset=['Change'])
-    st.dataframe(_styled, use_container_width=True, hide_index=True)
+    st.dataframe(_styled, width='stretch', hide_index=True)
 
 with st.expander("Assumptions and limitations"):
     _assumption_tabs = st.tabs([
@@ -2872,7 +2872,7 @@ with tab1:
         ax.set_ylim(0, 100)
         ax.tick_params(labelsize=12)
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     with col2:
@@ -2886,7 +2886,7 @@ with tab1:
         ax.set_ylim(0, 1.1)
         ax.tick_params(labelsize=12)
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     with col3:
@@ -2899,7 +2899,7 @@ with tab1:
         ax.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
         ax.tick_params(labelsize=12)
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
     with col4:
@@ -2913,7 +2913,7 @@ with tab1:
         ax.set_ylim(0, _max_carbon)
         ax.tick_params(labelsize=12)
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
         plt.close(fig)
 
 with tab2:
@@ -2931,7 +2931,7 @@ with tab2:
         lookup_table=lookup_table,
         saved=st.session_state.saved_scenarios,
         optimized=st.session_state.optimized_results
-    ), use_container_width=True)
+    ), width='stretch')
 
     if TRACTS_DATA_AVAILABLE:
         st.divider()
@@ -2954,7 +2954,7 @@ with tab2:
                 .drop(columns="_combined")
                 .reset_index(drop=True)
             )
-            st.dataframe(_top5, use_container_width=True, hide_index=True)
+            st.dataframe(_top5, width='stretch', hide_index=True)
         else:
             st.caption("No tract-level data could be computed for this scenario.")
 
@@ -3085,9 +3085,9 @@ with tab2:
             )
             with st.expander("Show uncertainty bands", expanded=False):
                 st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
-                             use_container_width=True, hide_index=True)
+                             width='stretch', hide_index=True)
             st.dataframe(opt[display_cols].rename(columns=_col_rename),
-                         use_container_width=True, hide_index=True)
+                         width='stretch', hide_index=True)
             st.caption(
                 "Note: suggestions with small amounts of High Density (2–10%) may "
                 "reflect surrogate approximation — consider setting HD to 0% when applying."
@@ -3175,7 +3175,7 @@ with tab2:
                 type="primary",
             )
 
-            st.dataframe(df_saved[show_cols], use_container_width=True, hide_index=True)
+            st.dataframe(df_saved[show_cols], width='stretch', hide_index=True)
 
             st.caption(
                 "Note: saved scenarios are lost on page refresh — download the CSV to keep them."
