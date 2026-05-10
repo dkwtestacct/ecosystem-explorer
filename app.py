@@ -166,14 +166,13 @@ CITIES = {
         'baseline_ndvi':        0.4242,
         'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
         'food_forest_lbs_acre': 11_500,  # placeholder — TODO: SA-specific pecan/fig/mulberry/nopal benchmark
-        # Temporarily False on Streamlit Cloud — even with the deferred
-        # lookup-table fix below, SA's 3.4 M-pixel raster + 0.5 GB of input
-        # data + the High-Resolution lookup compute risk OOM-killing the
-        # 1 GB free-tier worker. Re-enable once `data/scenarios_dense_sa.csv`
-        # is committed (currently being computed offline by precompute_scenarios.py)
-        # so Balanced mode skips the heavy compute, AND once we've verified
-        # SA fits in memory on the cloud at Fast/Balanced.
-        'available':            False,
+        # Re-enabled now that data/scenarios_dense_sa.csv is committed
+        # (Balanced mode reads the precomputed grid instead of recomputing
+        # the 25–50 min lookup table) and the High-Resolution lookup compute
+        # is deferred behind explicit user opt-in. Fast mode still computes
+        # a coarse grid live; if that turns out to OOM the 1 GB free-tier
+        # worker, flip back to False.
+        'available':            True,
         'crs':                  'EPSG:5070',
         'notes': (
             'Data source: NatCap SA Urban Agriculture Project 2023. '
