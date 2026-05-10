@@ -272,6 +272,15 @@ _city_labels = [
 _selected_label = st.sidebar.selectbox("City", _city_labels, index=0)
 selected_city   = _city_names[_city_labels.index(_selected_label)]
 city_cfg        = CITIES[selected_city]
+
+_CITY_CAPTIONS = {
+    "Minneapolis, MN":      "Downtown and near-neighborhoods — 123 km², ~154k residents.",
+    "Minneapolis Full, MN": "Full city boundary — 204 km², ~464k residents.",
+    "San Antonio, TX":      "Bexar County area — ~1.9M residents.",
+}
+_caption = _CITY_CAPTIONS.get(selected_city)
+if _caption:
+    st.sidebar.caption(_caption)
 st.sidebar.divider()
 
 # ── City-aware header ──────────────────────────────────────────────────────────
