@@ -28,3 +28,13 @@ cache/
 
 # Expanded Minneapolis NLCD — parked, not yet integrated (see check_expanded_coverage.py)
 data/minneapolis_expanded/
+
+# CGIAR Global-AI/ET0 v3.1 zip + extracted source TIFF (~865 MB total) —
+# regenerate via download_et_sa.py. The clipped data/sa/cooling/et_annual_sa.tif
+# (~9 MB) IS tracked since it's the actual model input.
+data/sa/cooling/cgiar_et0/
+
+# SA SSURGO source shapefile (~18 MB; regenerate via download_ssurgo_sa.py).
+# The rasterized output data/sa/flood/soil_group_sa.tif (~116 KB) IS tracked.
+data/sa/flood/ssurgo_bexar_hsg.*
+data/sa/flood/ssurgo_hydgrp_bexar.csv

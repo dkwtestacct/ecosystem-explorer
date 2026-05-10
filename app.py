@@ -119,18 +119,28 @@ CITIES = {
         'data_dir_cooling':     'data/sa/cooling',
         'cn_table_file':        'UFR_biophysical_table_SA.csv',
         'cooling_table_file':   'biophysical_table_urban_cooling_SA.csv',
-        # Path keys (forward-compatible — SA inputs not yet available).
+        # Path keys. Inputs sourced 2026-05-09:
+        #   - SSURGO via download_ssurgo_sa.py (TX029, 6,090 polygons,
+        #     44 % D-class clay-rich vs Hennepin's 0 % pure-D)
+        #   - Census 2020 pop via download_census_pop_sa.py (Bexar 48029,
+        #     1,906,325 people in raster — between SA proper 1.4 M and
+        #     full Bexar 2.0 M)
+        #   - CGIAR Global-AI/ET0 v3.1 via download_et_sa.py (1,580–1,716
+        #     mm/yr, ~50 % above MN's ~1,150 mm/yr)
+        # Still TODO: roads (OSM TX state extract), buildings (SA project
+        # deliverables), damage table, tracts (TIGER 48), dense scenarios.
+        # `available=False` until at least roads + buildings land.
         'lulc_file':            'land_use_2021_sa.tif',
-        'soil_file':            None,   # SSURGO Bexar Co — TODO
+        'soil_file':            'soil_group_sa.tif',
         'cooling_lulc_file':    'land_use_2021_sa.tif',
-        'pop_file':             None,   # Bexar Co Census 2020 — TODO
+        'pop_file':             'data/sa/population/sa_pop_2020.tif',
         'roads_file':           None,   # OSM SA — TODO
         'dense_scenarios_file': None,   # surrogate training grid — TODO
-        'buildings_file':       None,
+        'buildings_file':       None,   # SA project deliverables — TODO
         'damage_table_file':    None,   # SA project deliverables — TODO
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
-        'et_file':              None,   # SA-specific ET — TODO
-        'tracts_file':          None,
+        'et_file':              'data/sa/cooling/et_annual_sa.tif',
+        'tracts_file':          None,   # TIGER 48 tracts — TODO
         'una_table_file':       'data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv',
         # Preliminary values from download_sa_data.py: CN uses CN_B as default
         # soil group (pending SSURGO), HM uses 0.6*shade + 0.2*albedo + 0.2*kc
