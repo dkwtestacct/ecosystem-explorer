@@ -166,7 +166,14 @@ CITIES = {
         'baseline_ndvi':        0.4242,
         'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
         'food_forest_lbs_acre': 11_500,  # placeholder — TODO: SA-specific pecan/fig/mulberry/nopal benchmark
-        'available':            True,
+        # Temporarily False on Streamlit Cloud — even with the deferred
+        # lookup-table fix below, SA's 3.4 M-pixel raster + 0.5 GB of input
+        # data + the High-Resolution lookup compute risk OOM-killing the
+        # 1 GB free-tier worker. Re-enable once `data/scenarios_dense_sa.csv`
+        # is committed (currently being computed offline by precompute_scenarios.py)
+        # so Balanced mode skips the heavy compute, AND once we've verified
+        # SA fits in memory on the cloud at Fast/Balanced.
+        'available':            False,
         'crs':                  'EPSG:5070',
         'notes': (
             'Data source: NatCap SA Urban Agriculture Project 2023. '
@@ -1529,15 +1536,24 @@ _requested_model_quality = st.session_state.get("model_quality", MODEL_QUALITY_O
 N_ESTIMATORS = SURROGATE_TREES[_requested_model_quality]
 
 with st.spinner("Loading data and pre-computing scenarios..."):
-    # The lookup table is built unconditionally — it powers instant slider
-    # response throughout the app, and it doubles as the High-resolution
-    # training set (no extra compute needed).
-    lookup_table = compute_lookup_table(DATA_DIR_FLOOD, DATA_DIR_COOLING)
-
+    # The lookup table is the most expensive thing the app ever computes —
+    # 2,541 scenarios × per-pixel rasters can take 25–50 minutes for SA
+    # (3.4 M pixels). On Streamlit Cloud free tier (1 GB RAM, ~5 min
+    # health-check window) that's fatal. So we now build it ONLY when the
+    # user explicitly picks High Resolution mode. Fast prototype (default)
+    # and Balanced both skip it entirely.
+    #
+    # The slider-response path (`if lookup_key in lookup_table` further
+    # down) gracefully falls through to a fresh evaluate_scenario call when
+    # the table is empty — slightly slower per-slider but functional. The
+    # "Best scenarios by goal" section also falls back to scenario_df when
+    # lookup_table is empty.
     if _requested_model_quality == "High resolution":
+        lookup_table = compute_lookup_table(DATA_DIR_FLOOD, DATA_DIR_COOLING)
         scenario_df = pd.DataFrame(list(lookup_table.values()))
         ACTIVE_MODEL_QUALITY = "high"
     elif _requested_model_quality == "Balanced":
+        lookup_table = {}
         _dense_configured = city_cfg.get("dense_scenarios_file")
         if _dense_configured and os.path.exists(_dense_configured):
             scenario_df = pd.read_csv(_dense_configured)
@@ -1562,6 +1578,7 @@ with st.spinner("Loading data and pre-computing scenarios..."):
             )
         ACTIVE_MODEL_QUALITY = "balanced"
     else:  # Fast prototype
+        lookup_table = {}
         scenario_df = compute_scenario_grid(
             DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=10, step_alloc=25
         )
@@ -2945,7 +2962,10 @@ with tab2:
     st.markdown("#### Best scenarios by goal")
     st.caption("From the pre-computed scenario library — not surrogate predictions.")
 
-    lookup_df = pd.DataFrame(lookup_table.values())
+    # Best-scenarios-by-goal uses the lookup table when High Resolution mode
+    # built one; otherwise falls back to the scenario_df the active mode is
+    # using (Fast prototype: ~90 scenarios; Balanced: ~726 scenarios).
+    lookup_df = pd.DataFrame(lookup_table.values()) if lookup_table else scenario_df
     _norm_flood = lookup_df['flood_reduction'] / max(lookup_df['flood_reduction'].max(), 1e-9)
     _norm_hm    = lookup_df['mean_hm']         / max(lookup_df['mean_hm'].max(),         1e-9)
     _norm_food  = lookup_df['food_mln_lbs']    / max(lookup_df['food_mln_lbs'].max(),    1e-9)
