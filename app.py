@@ -142,11 +142,12 @@ CITIES = {
         'et_file':              'data/sa/cooling/et_annual_sa.tif',
         'tracts_file':          None,   # TIGER 48 tracts — TODO
         'una_table_file':       'data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv',
-        # Preliminary values from download_sa_data.py: CN uses CN_B as default
-        # soil group (pending SSURGO), HM uses 0.6*shade + 0.2*albedo + 0.2*kc
-        # proxy (pending reference-ET).
-        'baseline_cn':          65.97,
-        'baseline_hm':          0.2917,
+        # Live baselines from verify_sa_baselines.py (real SSURGO TX029, CGIAR
+        # ET0 v3.1, full InVEST UCM CC pipeline). Documentation only — the
+        # live override at module load recomputes these from the rasters.
+        'baseline_cn':          76.54,
+        'baseline_hm':          0.2866,
+        'baseline_ndvi':        0.4242,
         'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
         'food_forest_lbs_acre': None,    # TODO: use crop-specific SA yields from project report
         'available':            False,   # set True when soil/population/ET inputs are ready
