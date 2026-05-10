@@ -39,8 +39,19 @@ data/sa/tracts_bexar/
 # Local on-disk cache (osmnx / Streamlit scratch)
 cache/
 
-# Expanded Minneapolis NLCD — parked, not yet integrated (see check_expanded_coverage.py)
-data/minneapolis_expanded/
+# Minneapolis Full inputs — the runtime-needed files (LULC, soil, pop, tracts,
+# roads, buildings.gpkg) ARE tracked. The bulky regenerable source data is not.
+# Raw Hennepin SSURGO shapefile (~47 MB) — regenerable via download_ssurgo.py
+# + process_ssurgo.py; only soil_group_mpls_full.tif is used at runtime.
+data/minneapolis_expanded/ssurgo_hennepin_hsg.*
+# SDA tabular dump (regenerable).
+data/minneapolis_expanded/ssurgo_hydgrp_hennepin.csv
+# Raw TIGER state-wide tract download — only the filtered tracts_hennepin.shp
+# (in the parent dir) is tracked.
+data/minneapolis_expanded/tracts_hennepin/
+# 102 MB raw GeoJSON exceeds GitHub's 100 MB hard limit; tracked file is
+# buildings_mpls_full.gpkg (49 MB binary).
+data/minneapolis_expanded/buildings_mpls_full.geojson
 
 # CGIAR Global-AI/ET0 v3.1 zip + extracted source TIFF (~865 MB total) —
 # regenerate via download_et_sa.py. The clipped data/sa/cooling/et_annual_sa.tif

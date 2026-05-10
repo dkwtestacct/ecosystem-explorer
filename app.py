@@ -82,7 +82,9 @@ CITIES = {
         # savings, flood damage avoided) degrade to $0 with explanatory
         # tooltips; the BUILDINGS_RASTER mask still works for spatial
         # placement. See REFERENCE.md "Option A buildings semantics".
-        'buildings_file':       'data/minneapolis_expanded/buildings_mpls_full.geojson',
+        # GeoPackage — the equivalent GeoJSON was 102 MB, over GitHub's 100 MB
+        # hard limit; .gpkg compresses the same 185,490 polygons to 49 MB.
+        'buildings_file':       'data/minneapolis_expanded/buildings_mpls_full.gpkg',
         'damage_table_file':    'data/invest/flood/UFR_sample_data_MN/Damage_loss_table_MN.csv',
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
         # Reuse the InVEST sample ET raster; bilinear-extrapolates beyond its
