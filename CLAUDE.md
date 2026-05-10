@@ -125,7 +125,7 @@ separate cache entries via the path parameters.
 | `BIR_ANXIETY` | 0.19 | Baseline anxiety prevalence. |
 | `COST_PER_DEPRESSION_CASE_USD` | 8467 | Annual cost-of-illness per case (US nominal). InVEST docs cite ~$11K USD-PPP — our default is slightly lower. |
 | `COST_PER_ANXIETY_CASE_USD` | 5765 | Same, anxiety. |
-| `UMH_SEARCH_RADIUS_M` | 300 | InVEST UMH NDVI exposure radius (Li et al. 2025); 21-pixel uniform_filter at 30 m NLCD resolution. Pre-computed `_UMH_KERNEL = 21`. |
+| `UMH_SEARCH_RADIUS_M` | 300 | InVEST UMH NDVI exposure radius (Li et al. 2025). Pre-computed `_UMH_SIGMA_PX = 10` (= 300 m / 30 m px). NE raster is Gaussian-smoothed with `scipy.ndimage.gaussian_filter`, matching InVEST canonical behavior. |
 | `LBS_PER_PERSON_YEAR` | 2,000 | Average American food consumption used to convert lbs → people fed |
 | `DEVELOPED_CODES` | [21, 22, 23] | NLCD lucodes treated as convertible developed land |
 | `CODE_GREEN_INFRA` | 90 | NLCD lucode for woody wetlands (green infrastructure proxy) |

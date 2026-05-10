@@ -29,9 +29,9 @@ A third entry, **San Antonio, TX**, is scaffolded with `available=False` until S
 
 ---
 
-## 12 metric cards across three categories
+## 13 metric cards across three categories
 
-The Scenario tab is organized as **Ecological (5) · Human & Social (3) · Economic (4)**. Every tooltip starts with a one-line confidence label so users can gauge methodological strength at a glance.
+The Scenario tab is organized as **Ecological (5) · Human & Social (4) · Economic (4)**. Every tooltip starts with a one-line confidence label so users can gauge methodological strength at a glance.
 
 ### Ecological (5)
 
@@ -43,13 +43,14 @@ The Scenario tab is organized as **Ecological (5) · Human & Social (3) · Econo
 | Carbon Sequestration | t CO2e/yr from converted pixels (k notation above 1,000) | Provisional assumption |
 | NDVI | mean vegetation index 0–1 | Synthetic proxy |
 
-### Human & Social (3)
+### Human & Social (4)
 
 | Metric | Unit | Confidence label |
 |--------|------|-----------|
 | Nature Access | % of residents whose access score exceeds 0.3 | Proximity estimate |
 | Nature Quality Score | population-weighted mean access score 0–1 | Composite proxy |
-| Urban Wellbeing Score | weighted composite 0–1 (NDVI + cooling + access) | Composite proxy |
+| Preventable MH Cases | depression + anxiety cases/yr (InVEST UMH) | Model-based estimate |
+| Avoided MH Costs | $/yr healthcare burden avoided | Model-based estimate |
 
 ### Economic (4)
 
@@ -72,7 +73,7 @@ A **Cost Effectiveness** sub-section under Economic exposes three ratios: $/ac-f
 - **Carbon Sequestration** — Counts only newly converted pixels × per-cover rates from `CARBON_SEQ_RATES` (default 3.5 / 2.0 / 0.0 t CO2e/acre/yr for FF / GI / HD). Rates are user-overridable in Advanced Settings.
 - **NDVI** — Synthetic proxy assigned per-NLCD-code (woody wetlands 0.70, food forest 0.75, high-density 0.10). Not derived from satellite imagery.
 - **Nature Access & Nature Quality Score** — InVEST Urban Nature Access biophysical table (per-class `urban_nature` score and `search_radius_m`). Search radii **capped at 1,000 m** (`NATURE_RADIUS_CAP_M`) so water/forest classes don't saturate the AOI. Per pixel, the access score is the *maximum* of `urban_nature × in_range` across all natural classes — a pixel near multiple nature types takes the highest single class (prevents double-counting). **Nature Access**: % of population with access score > 0.3. **Nature Quality Score**: population-weighted mean access score (continuous companion). Population from US Census 2020 block totals.
-- **Urban Wellbeing Score** — Weighted composite of normalized NDVI, smoothed CC, and Nature Quality Score. Default weights (0.2 / 0.4 / 0.4) sum to 1.0; sliders in Advanced Settings let users retune. Not a validated mental-health model. Deltas below 0.001 display as "0.000 vs baseline".
+- **Preventable MH Cases & Avoided MH Costs** — InVEST Urban Mental Health Model (v3.19.0). Per-pixel `NE = gaussian_filter(NDVI_proxy, σ = 300 m / 30 m px = 10 px)`; `ΔNE = NE_scenario − NE_baseline`; `RR = exp(ln(RR₀.₁) × 10 × ΔNE)`; `PC = (1 − RR) × baseline_prevalence × population`. Two outcomes summed (depression + anxiety). Effect sizes from Liu et al. 2023 meta-analysis (RR 0.96 / 0.97 per 0.1 NDVI gain), prevalence from CDC 2023 (21 % / 19 % ever-diagnosed), cost-of-illness $8,467 / $5,765 per case (US nominal; InVEST docs cite ~$11K USD-PPP default). Replaced the earlier weighted-composite Wellbeing Score.
 - **Food Production** — Food-forest pixel count × 0.222 acres/pixel × 11,500 lbs/acre/year (NatCap benchmark, mature managed system).
 - **Flood Damage Avoided** — Per-building potential damage from `Damage_loss_table_MN.csv` (per-type $/m² × footprint area), scaled by the scenario's runoff reduction vs baseline. **Returns $0 for Minneapolis Full** (Option A).
 - **Est. Implementation Cost** — Sum of converted acres × per-acre cost slider for each land-use class.
@@ -94,7 +95,7 @@ A **Cost Effectiveness** sub-section under Economic exposes three ratios: $/ac-f
 - **Tradeoff Analysis tab** — Plotly chart of the entire scenario space with the active scenario, saved scenarios, optimizer suggestions, and Pareto frontier overlaid. Per-city `REF_SCENARIOS` (Baseline, All Food Forest, All Green Infra, All High Density at 50 % conversion) plot as colored markers. Below: **Best Scenarios by Goal** (five canonical winners drawn from the pre-computed library, each with an Apply button), then a Save-this-scenario flow with named saved scenarios.
 - **Map View tab** — spatial map of where conversions occur, plus a heat-vulnerability red-wash overlay slider (default opacity 0.3). Map renders via matplotlib `imshow` (pixel-row/column space), so EPSG:5070 and EPSG:26915 cities both render correctly without per-CRS handling.
 - **Smart Scenario Search optimizer** — Random Forest surrogate trained on the live scenario grid; samples 10,000 random (pct, GI%, FF%) combinations against user-set minimums on flood, cooling, food, and carbon, and returns up to 5 Pareto-efficient suggestions.
-- **Advanced Settings (sidebar)** — overrides for Food Forest carbon rate, Green Infrastructure carbon rate, three Urban Wellbeing Score weight sliders, and a **Model Quality Mode** radio (Fast prototype / Balanced / High resolution) that swaps the surrogate's training set between 90, ~726, and 2,541 scenarios with corresponding tree-count adjustments.
+- **Advanced Settings (sidebar)** — overrides for Food Forest carbon rate, Green Infrastructure carbon rate, and a **Model Quality Mode** radio (Fast prototype / Balanced / High resolution) that swaps the surrogate's training set between 90, ~726, and 2,541 scenarios with corresponding tree-count adjustments.
 
 ---
 
@@ -121,7 +122,7 @@ Both `BASELINE_CN` and `BASELINE_HM` are dynamically overridden at module load, 
 - **Carbon and food rates are provisional** — defaults come from broad regional benchmarks (USDA NRCS, NatCap), not site-specific data.
 - **Wellbeing weights are arbitrary** until empirically validated against a local quality-of-life dataset. Treat as directional only — explicitly not a mental-health model.
 - **Implementation costs are illustrative** — per-acre values are order-of-magnitude placeholders.
-- **Surrogate covers ecological + carbon outcomes only** — not wellbeing, not cost, not heat-priority placement effects. Verify any promising surrogate suggestion through the main sliders.
+- **Surrogate covers ecological + carbon + UMH outcomes** — not cost, not heat-priority placement effects. Verify any promising surrogate suggestion through the main sliders.
 
 ---
 

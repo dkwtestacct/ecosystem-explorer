@@ -649,27 +649,6 @@ BASELINE_NATURE_ACCESS_PCT, BASELINE_NATURE_QUALITY_SCORE, _ = calculate_nature_
 )
 
 
-# ── Urban Wellbeing Score ─────────────────────────────────────────────────────
-# Composite index combining vegetation (NDVI), urban cooling (mean HM), and
-# nature access %. Weights are *provisional* — see REFERENCE.md "Urban
-# Wellbeing Score" section for the full caveat. Defaults sum to 1.0.
-DEFAULT_WGT_NDVI    = 0.2
-DEFAULT_WGT_COOLING = 0.4
-DEFAULT_WGT_NATURE  = 0.4
-
-
-def compute_wellbeing_score(ndvi, hm, nature_quality, w_ndvi, w_cooling, w_nature):
-    """Composite wellbeing index. All inputs are 0–1 already:
-    NDVI is 0–1, HM is treated as 0–1 (theoretical max = 1.0), and
-    `nature_quality` is the population-weighted mean Nature Quality Score
-    from `calculate_nature_access`. Returned value rounds to 3 decimals."""
-    return round(float(
-        w_ndvi   * ndvi
-        + w_cooling * hm
-        + w_nature * nature_quality
-    ), 3)
-
-
 # ── Metric translation helpers ─────────────────────────────────────────────────
 # NDVI proxy: synthetic per-NLCD greenness values (0–1, higher = denser vegetation).
 # Not derived from satellite imagery — assigned by land cover type as a placeholder
@@ -725,7 +704,7 @@ def compute_mean_ndvi(lulc_array):
 
 # ── InVEST Urban Mental Health Model (v3.19.0) ────────────────────────────────
 # Implements the canonical InVEST UMH preventable-cases formula:
-#   NE_i = uniform_filter(NDVI_i, search_radius)        per-pixel exposure
+#   NE_i = gaussian_filter(NDVI_i, sigma=search_radius/pixel_size)  per-pixel exposure
 #   ΔNE_i = NE_scenario_i − NE_baseline_i
 #   RR_i = exp( ln(RR_0.1) × 10 × ΔNE_i )               relative risk
 #   PF_i = 1 − RR_i                                     preventable fraction
@@ -747,13 +726,12 @@ COST_PER_DEPRESSION_CASE_USD = 8467
 COST_PER_ANXIETY_CASE_USD    = 5765
 UMH_SEARCH_RADIUS_M          = 300   # Li et al. 2025; ~10 px at 30 m NLCD
 
-# Pre-compute the constant box-filter size (= 2r + 1 in pixels) at module load.
-_UMH_KERNEL = max(1, 2 * int(UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M) + 1)
+# InVEST UMH uses Gaussian-smoothed NDVI exposure within the search radius.
+# `sigma_pixels = UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M` matches the canonical
+# InVEST behavior (search radius interpreted as kernel σ).
+_UMH_SIGMA_PX = UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M     # = 10.0 at 30 m / 300 m
 _UMH_LN_RR_DEPRESSION = float(np.log(RR_0_1_NDVI_DEPRESSION))
 _UMH_LN_RR_ANXIETY    = float(np.log(RR_0_1_NDVI_ANXIETY))
-
-
-from scipy.ndimage import uniform_filter as _uniform_filter
 
 
 def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count):
@@ -767,8 +745,8 @@ def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count)
     weight by."""
     if not POPULATION_DATA_AVAILABLE:
         return 0.0, 0.0
-    ne_scenario = _uniform_filter(
-        _lulc_to_ndvi_raster(scenario_lulc), size=_UMH_KERNEL, mode="nearest"
+    ne_scenario = _gaussian_filter(
+        _lulc_to_ndvi_raster(scenario_lulc), sigma=_UMH_SIGMA_PX, mode="nearest"
     )
     delta_ne = ne_scenario - baseline_ne_raster
 
@@ -863,10 +841,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
                       cost_ff=DEFAULT_COST_FF,
                       cost_hd=DEFAULT_COST_HD,
                       carbon_rate_ff=None,
-                      carbon_rate_gi=None,
-                      w_ndvi=DEFAULT_WGT_NDVI,
-                      w_cooling=DEFAULT_WGT_COOLING,
-                      w_nature=DEFAULT_WGT_NATURE):
+                      carbon_rate_gi=None):
     """
     Convert a random (or equity-weighted) sample of developed pixels to the specified
     land use mix, then compute flood risk, urban cooling, food production, and cost.
@@ -946,12 +921,6 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     )
 
     mean_ndvi = compute_mean_ndvi(scenario_lulc)
-    # Wellbeing uses the continuous Nature Quality Score (0–1) rather than the
-    # threshold-based access percentage — quality captures graded proximity
-    # better, which is what the composite is meant to summarize.
-    wellbeing_score = compute_wellbeing_score(
-        mean_ndvi, mean_hm, nat_quality, w_ndvi, w_cooling, w_nature
-    )
 
     total_developed_acres = len(developed_pixels) * PIXEL_AREA_ACRES
     total_cost_mln = compute_cost(n_wet, n_for, n_hd, cost_gi, cost_ff, cost_hd)
@@ -984,7 +953,6 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'nature_access_pct':        nat_pct,
         'nature_quality_score':     nat_quality,
         'people_with_nature_access': nat_people,
-        'wellbeing_score':          wellbeing_score,
         'preventable_mh_cases':     preventable_mh_cases,
         'avoided_mh_cost_usd':      avoided_mh_cost_usd,
         'food_mln_lbs':             food_mln_lbs,
@@ -1330,8 +1298,8 @@ _BASELINE_ACCESS_SCORE_RASTER = _compute_access_score_raster(cooling_lulc)
 _BASELINE_HM_RASTER          = _compute_hm_raster(cooling_lulc)
 # Smoothed NDVI exposure for the unmodified LULC — feeds the InVEST UMH ΔNE
 # computation. Precompute once because the baseline doesn't change per scenario.
-_BASELINE_NE_RASTER = _uniform_filter(
-    _lulc_to_ndvi_raster(cooling_lulc), size=_UMH_KERNEL, mode="nearest"
+_BASELINE_NE_RASTER = _gaussian_filter(
+    _lulc_to_ndvi_raster(cooling_lulc), sigma=_UMH_SIGMA_PX, mode="nearest"
 )
 
 # Override the static `BASELINE_HM` from CITIES with the actual mean of the
@@ -2076,18 +2044,6 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
     )
     st.caption(f"Active: {len(scenario_df):,} training scenarios.")
 
-    st.divider()
-
-    st.markdown("**Urban Wellbeing Score weights**")
-    st.caption("Weights are provisional — adjust to reflect local research priorities.")
-    wgt_ndvi    = st.slider("NDVI weight",         0.0, 1.0, DEFAULT_WGT_NDVI,    0.05, key="wgt_ndvi")
-    wgt_cooling = st.slider("Cooling weight",      0.0, 1.0, DEFAULT_WGT_COOLING, 0.05, key="wgt_cooling")
-    wgt_nature  = st.slider("Nature Access weight", 0.0, 1.0, DEFAULT_WGT_NATURE,  0.05, key="wgt_nature")
-    st.caption(
-        f"Current weights sum to {wgt_ndvi + wgt_cooling + wgt_nature:.2f} — "
-        "ideally should sum to 1.0."
-    )
-
 # ── Main panel ─────────────────────────────────────────────────────────────────
 lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
 if lookup_key in lookup_table and not use_heat_priority:
@@ -2098,9 +2054,6 @@ if lookup_key in lookup_table and not use_heat_priority:
         use_heat_priority=False, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
         carbon_rate_ff=st.session_state.carbon_rate_ff,
         carbon_rate_gi=st.session_state.carbon_rate_gi,
-        w_ndvi=st.session_state.get("wgt_ndvi", DEFAULT_WGT_NDVI),
-        w_cooling=st.session_state.get("wgt_cooling", DEFAULT_WGT_COOLING),
-        w_nature=st.session_state.get("wgt_nature", DEFAULT_WGT_NATURE),
     )
     results['scenario_lulc'] = _fresh['scenario_lulc']
     # Food values are recomputed live — lookup table may predate the n_food_pixels fix
@@ -2111,7 +2064,6 @@ if lookup_key in lookup_table and not use_heat_priority:
     results['nature_access_pct']  = _fresh['nature_access_pct']
     results['nature_quality_score'] = _fresh['nature_quality_score']
     results['people_with_nature_access'] = _fresh['people_with_nature_access']
-    results['wellbeing_score']    = _fresh['wellbeing_score']
     results['flood_damage_avoided_usd'] = _fresh['flood_damage_avoided_usd']
     results['cooling_energy_savings_usd'] = _fresh['cooling_energy_savings_usd']
     # Recompute cost with current cost sliders (lookup table used default costs)
@@ -2125,9 +2077,6 @@ else:
         use_heat_priority=use_heat_priority, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
         carbon_rate_ff=st.session_state.carbon_rate_ff,
         carbon_rate_gi=st.session_state.carbon_rate_gi,
-        w_ndvi=st.session_state.get("wgt_ndvi", DEFAULT_WGT_NDVI),
-        w_cooling=st.session_state.get("wgt_cooling", DEFAULT_WGT_COOLING),
-        w_nature=st.session_state.get("wgt_nature", DEFAULT_WGT_NATURE),
     )
 
 # ── Top metric cards ───────────────────────────────────────────────────────────
@@ -2624,9 +2573,8 @@ with st.expander("Assumptions and limitations"):
             "- **Default rates** are provisional regional USDA NRCS / IPCC "
             "values: Food Forest 3.5 t CO2e/acre/yr, Green Infrastructure "
             "2.0 t CO2e/acre/yr, High Density 0.0. Wide published ranges (e.g. "
-            "1.76–18.2 for managed food forests) — adjust the sliders in "
-            "**Advanced Settings → Urban Wellbeing Score weights** Food Forest "
-            "and Green Infrastructure carbon rate sliders.\n"
+            "1.76–18.2 for managed food forests) — adjust the Food Forest "
+            "and Green Infrastructure carbon-rate sliders in **Advanced Settings**.\n"
             "- **Not locally calibrated.** Refine with site-specific data when "
             "available."
         )
@@ -2658,8 +2606,9 @@ with st.expander("Assumptions and limitations"):
     with _assumption_tabs[5]:
         st.markdown(
             "- **Method:** InVEST Urban Mental Health Model (v3.19.0). "
-            "Per-pixel `ΔNE = NE_scenario − NE_baseline` (NE = NDVI smoothed "
-            "with a 300 m box-filter exposure radius), "
+            "Per-pixel `ΔNE = NE_scenario − NE_baseline` (NE = NDVI Gaussian-"
+            "smoothed with σ = 300 m / 30 m px = 10 px, matching InVEST canonical "
+            "behavior), "
             "`RR = exp(ln(RR₀.₁) × 10 × ΔNE)`, "
             "`PC = (1 − RR) × baseline_prevalence × population`. Two outcomes "
             "are summed: depression and anxiety.\n"
@@ -2674,11 +2623,10 @@ with st.expander("Assumptions and limitations"):
             "case (US nominal). InVEST docs cite ~$11K USD-PPP/case as a "
             "default — our values are slightly lower.\n"
             "- **Caveats:** NDVI is a synthetic per-NLCD-class proxy here, "
-            "not satellite-derived; uniform_filter is a box rather than a "
-            "Gaussian; baseline-vs-scenario comparison assumes the population "
-            "raster is unchanged across scenarios; the model captures only "
-            "the *direct* exposure pathway, not air-quality or social-"
-            "cohesion mechanisms.\n"
+            "not satellite-derived; baseline-vs-scenario comparison assumes "
+            "the population raster is unchanged across scenarios; the model "
+            "captures only the *direct* exposure pathway, not air-quality or "
+            "social-cohesion mechanisms.\n"
             "- **Not in the surrogate** — UMH outputs are computed live but "
             "are now in the surrogate target list (REQUIRED_TARGET_COLUMNS), "
             "so future training cycles will pick them up."
