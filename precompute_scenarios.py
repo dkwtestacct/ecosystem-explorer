@@ -23,11 +23,24 @@ duplicating their logic here. The precompute itself runs in roughly another
 """
 from __future__ import annotations
 
+import argparse
+import os
 import sys
 import time
 from pathlib import Path
 
 import pandas as pd
+
+
+# CLI: --city overrides the city the streamlit stub selects, --output overrides
+# the CSV destination. Defaults preserve the original Minneapolis-only behavior.
+_parser = argparse.ArgumentParser(description=__doc__)
+_parser.add_argument("--city", default=os.environ.get("PRECOMPUTE_CITY", "Minneapolis, MN"),
+                     help="CITIES key to select (default: 'Minneapolis, MN').")
+_parser.add_argument("--output", default=None,
+                     help="CSV output path (default: data/scenarios_dense.csv).")
+_args = _parser.parse_args()
+CITY_KEY = _args.city
 
 
 # ── 1. Stub streamlit so importing app.py doesn't try to render a UI ──────────
@@ -67,7 +80,14 @@ class _StubSt:
         # Widget functions need to return sensible defaults so app.py's
         # downstream code (.index(...), arithmetic, etc.) doesn't break.
         if name == "selectbox":
-            return lambda label, options, **kw: options[0] if options else None
+            def _sb(label, options, **kw):
+                if not options: return None
+                if "City" in str(label):
+                    for o in options:
+                        if o == CITY_KEY or o == f"{CITY_KEY} (coming soon)":
+                            return o
+                return options[0]
+            return _sb
         if name == "radio":
             return lambda label, options, **kw: options[0] if options else None
         if name == "multiselect":
@@ -159,8 +179,11 @@ print(f"  ff:  {FF_RANGE}")
 print(f"In-app sparse grid (for comparison): {len(app.scenario_df):,} scenarios")
 print(f"Density factor: {len(combos) / len(app.scenario_df):.1f}x\n")
 
-OUT_PATH = Path("data/scenarios_dense.csv")
+_DEFAULT_OUT = "data/scenarios_dense.csv"
+OUT_PATH = Path(_args.output or _DEFAULT_OUT)
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+print(f"\nCity:    {CITY_KEY}")
+print(f"Output:  {OUT_PATH}")
 
 rows = []
 _t_loop = time.time()
@@ -172,10 +195,11 @@ for i, (pct, gi, ff) in enumerate(combos, start=1):
     row["carbon_tons_co2_yr"] = app._compute_carbon(
         row["n_wet"], row["n_for"], row["n_hd"]
     )
-    nature_pct, nature_people = app.calculate_nature_access(
+    nature_pct, nature_quality, nature_people = app.calculate_nature_access(
         result["scenario_lulc"], app.pop_count_raster
     )
     row["nature_access_pct"] = nature_pct
+    row["nature_quality_score"] = nature_quality
     row["people_with_nature_access"] = nature_people
     rows.append(row)
 
