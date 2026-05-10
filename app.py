@@ -153,10 +153,17 @@ CITIES = {
         'crs':                  'EPSG:5070',
         'notes': (
             'Data source: NatCap SA Urban Agriculture Project 2023. '
-            'LULC from NLCD 2021. Baseline constants are preliminary — '
-            'see data/sa/README.md.'
+            'LULC from NLCD 2021, SSURGO from USDA SDA (TX029, 44 % D-class), '
+            'population from Census 2020 Bexar (FIPS 48029, 1.91 M in raster), '
+            'reference ET from CGIAR Global-AI/ET0 v3.1 (1,580–1,716 mm/yr). '
+            'Baseline constants computed via verify_sa_baselines.py.'
         ),
-        'ref_scenarios': {},
+        # Baseline only for now — the four "All X" reference scenarios will
+        # be populated once roads/buildings land and the city flips to
+        # available=True (computable via verify_cooling.py --city "San Antonio, TX").
+        'ref_scenarios': {
+            'Baseline': {'flood': 23.5, 'cooling': 0.2866, 'color': 'steelblue'},
+        },
     },
 }
 

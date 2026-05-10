@@ -23,6 +23,14 @@ data/population/usa_pop_2020.tif
 data/osm/minnesota.shp.zip
 data/osm/minnesota/
 
+# Geofabrik Texas state-wide download + extract — regenerate via download_osm_sa.py
+data/osm/texas.shp.zip
+data/osm/texas/
+
+# TIGER 2020 source bundles — kept under data/sa/ but the raw zip + extracted
+# directory are regenerable; only the city-filtered shapefile is tracked.
+data/sa/tracts_bexar/
+
 # Local on-disk cache (osmnx / Streamlit scratch)
 cache/
 

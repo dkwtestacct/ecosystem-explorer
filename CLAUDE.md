@@ -135,19 +135,16 @@ separate cache entries via the path parameters.
 
 ### City-specific (set at runtime from `city_cfg`)
 
-| Name | Minneapolis value | San Antonio (preliminary) | Meaning |
-|------|-------------------|---------------------------|---------|
-| `BASELINE_CN` | 75.7 | 65.97 | Mean curve number of unmodified developed land |
-| `BASELINE_HM` | 0.2719 | 0.2917 | Mean cooling capacity (CC = 0.6·shade + 0.2·albedo + 0.2·ETI per InVEST UCM) of unmodified developed land. Reported on the UI as "HM". |
-| `DATA_DIR_FLOOD` | `data/flood` | `data/sa/flood` | Directory containing flood model inputs |
-| `DATA_DIR_COOLING` | `data/cooling` | `data/sa/cooling` | Directory containing cooling model inputs |
+| Name | MN downtown | MN Full | San Antonio | Meaning |
+|------|------------:|--------:|------------:|---------|
+| `BASELINE_CN` | 75.67 | 77.68 | 76.54 | Mean curve number of unmodified land × soil grid |
+| `BASELINE_HM` (= mean CC) | 0.1859 | 0.1600 | 0.2866 | Mean Cooling Capacity (`0.6·shade + 0.2·albedo + 0.2·ETI`) over the AOI |
+| `BASELINE_NDVI` | 0.2326 | 0.2072 | 0.4242 | Mean synthetic NDVI proxy |
+| Population | ~154 K | 463,794 | 1,906,323 | Census 2020 county-level totals in the bbox |
 
-SA values are computed by `download_sa_data.py`. They are preliminary:
-CN uses CN_B as a default soil group until SSURGO is rasterized, and HM
-uses a `0.6·shade + 0.2·albedo + 0.2·kc` proxy until SA gets its own
-reference-ET raster (Minneapolis already uses the full InVEST CC formula
-with ET; SA's value will shift slightly once ET is wired in).
-`available` is still `False` in `CITIES['San Antonio, TX']`.
+All three numeric baselines are dynamically recomputed at module load (the hardcoded values in `CITIES[city]['baseline_*']` are documentation only — the live overrides keep them in sync with the current pipeline).
+
+> **Cross-city `BASELINE_HM` caveat:** SA's HM is *higher* than both Minneapolis values despite SA being the hotter city. This is **not** a result of higher absolute ET — the InVEST CC formula's ETI term normalises ET within each AOI (`Kc × ET / max(ET)`), so absolute mm/yr cancels out. The real driver is the shade term (weight 0.6, dominant): SA's bbox contains 14.9 % forest+woody-wetland pixels (NLCD 41/42/43/90, all with `shade=1`) versus 2.7 % in MN downtown and 1.8 % in MN Full. SA's mean shade across the AOI (0.198) is 3.4× MN downtown's (0.059). When comparing scenario impact across cities, prefer **CC deltas** over absolute CC values. See REFERENCE.md "Cross-city Cooling Capacity comparison" for the full breakdown.
 | `BASELINE_RUNOFF_ACRE_FEET` | computed | Runoff from baseline CN over a 2-inch storm; used for cost-effectiveness ratios |
 
 ### Cost defaults ($/acre, adjustable via sidebar sliders)

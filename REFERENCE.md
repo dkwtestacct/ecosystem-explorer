@@ -168,6 +168,24 @@ The Ecological section is laid out in two rows: a 3-column row with **Flood Risk
 
 ---
 
+### Cross-city Cooling Capacity comparison — what NOT to read into the numbers
+
+The InVEST UCM Cooling Capacity formula `CC = 0.6·shade + 0.2·albedo + 0.2·ETI` produces baseline values that vary across cities, and the variation is **not** primarily driven by climate. ETI is normalized inside each AOI as `Kc × ET / max(ET_in_AOI)` — so absolute ET (mm/yr) cancels out via the division. Only the **per-class Kc lookup** and the spatial gradient of ET *within* each city's bbox affect the ETI term. The shade term (weight 0.6, dominant) and albedo term (weight 0.2) are pure land-cover lookups with no climate dependence at all.
+
+Empirical comparison across the three available cities:
+
+| City | natural % | forest+wetland % | mean shade | mean Kc | `BASELINE_HM` (mean CC) |
+|---|---:|---:|---:|---:|---:|
+| Minneapolis (downtown) | 51.6 % | 2.7 % | 0.059 | 0.242 | **0.1859** |
+| Minneapolis Full | 8.3 % | 1.8 % | 0.073 | 0.397 | **0.1600** |
+| San Antonio | 55.4 % | **14.9 %** | **0.198** | 0.684 | **0.2866** |
+
+San Antonio's baseline CC is **54 % higher than Minneapolis downtown** — a planner's instinct might be that this is a result of SA's higher annual ET (1,650 mm/yr vs MN's 1,140), but the data shows otherwise. SA's mean shade is **3.4× MN downtown's** because SA's bbox contains 14.9 % forest + woody-wetland pixels (NLCD 41 + 90, both with shade=1) versus only 2.7 % in MN downtown's bbox. The 0.6 weight on the shade term means that single difference accounts for ~80 % of the CC gap. Higher absolute ET in SA contributes ~zero to CC because the formula cancels it.
+
+**Takeaway for cross-city interpretation:** higher CC values in a hotter city do **not** mean the model is "rewarding" hot climates with cooling potential. They mean the city's *land cover composition* (specifically, the share of high-shade NLCD classes 41/42/43/90) is more vegetated. To compare the *effectiveness of greening interventions* across cities, look at scenario-vs-baseline CC deltas, not absolute CC values.
+
+---
+
 ### Cooling Energy Savings
 
 | Field | Detail |
