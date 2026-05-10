@@ -136,4 +136,4 @@ Both `BASELINE_CN` and `BASELINE_HM` are dynamically overridden at module load, 
 | Random Forest surrogate | Rapid scenario search at query time | Trains on 90 / ~726 / 2,541 rows depending on Model Quality Mode |
 | Surrogate sampling at optimization time | Explore wide tradeoff space | ~10,000 random candidates per Optimize click |
 
-`SCENARIO_SCHEMA_VERSION = 13` invalidates cached lookup tables across changes to the metric schema. Per-city caches don't collide because the cache key includes the data directory and filename arguments to `load_data`.
+`SCENARIO_SCHEMA_VERSION = 14` invalidates cached lookup tables across changes to the metric schema. Per-city caches don't collide because the cache key includes the data directory and filename arguments to `load_data`.

@@ -190,7 +190,7 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   unioning with buildings, **~65 % of developed pixels (NLCD 21–24) remain convertible**
   (33,357 of 51,430). Rasterization is unbuffered line-to-pixel via `rasterio.features.rasterize`
   with `dtype="uint8"`; output is binary 0/1.
-- **`SCENARIO_SCHEMA_VERSION = 11`** — bump on every change that shifts `evaluate_scenario`
+- **`SCENARIO_SCHEMA_VERSION = 14`** — bump on every change that shifts `evaluate_scenario`
   outputs so cached lookup tables get regenerated. Recent bumps: 7→8 (UCM rework: ET fix,
   Gaussian convolution, canonical energy formula); 8→9 (ET nodata sentinel masked);
   9→10 (full Geofabrik OSM road network, 62 % AOI); 10→11 (Option B road filter, ~29 % AOI);
@@ -266,12 +266,14 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
 - **Metric cards are grouped into four labeled sections** — 🌿 Ecological (5 cards in two
   rows: row 1 has Flood Risk Reduction, Temperature Change, and Runoff Volume in 3 columns;
   row 2 has Carbon Sequestration and NDVI in 2 columns),
-  👥 Human & Social (only Nature Access for now — Mental Health Index has been removed
-  pending real implementation, and NDVI moved to Ecological since it's a vegetation
-  measure, not a social one),
-  📈 Economic (2 cards), 📊 Cost Effectiveness (3 cards). Each group is separated by
-  `st.divider()`. Keep this grouping when adding new metrics — place new cards in the section
-  that matches their category rather than appending to a flat list.
+  👥 Human & Social (4 cards in 4 columns: Nature Access, Nature Quality Score, Preventable
+  MH Cases, Avoided MH Costs — the InVEST Urban Mental Health v3.19.0 outputs replaced the
+  earlier weighted-composite Wellbeing Score),
+  💵 Economic (4 cards in 4 columns: Food Production, Est. Implementation Cost, Flood
+  Damage Avoided, Cooling Energy Savings),
+  📊 Cost Effectiveness (3 sub-ratios under their own header). Each group is separated by
+  `st.divider()`. **13 metric cards total**. Keep this grouping when adding new metrics — place
+  new cards in the section that matches their category rather than appending to a flat list.
 - **NDVI is a synthetic proxy** — values come from a per-NLCD-code lookup
   (`NDVI_PROXY` plus `NDVI_OTHER_DEVELOPED` / `NDVI_OTHER_NATURAL` defaults), not from
   satellite imagery. `BASELINE_NDVI` is computed once at startup from the unmodified
@@ -291,22 +293,22 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   defaults when the kwargs are `None`. The precomputed lookup table is built with defaults,
   but `carbon_tons_co2_yr` is recomputed live in the lookup-refresh path so slider changes
   always take effect.
-- **Urban Wellbeing Score is a weighted composite** — `compute_wellbeing_score(ndvi, hm,
-  nature_pct, w_ndvi, w_cooling, w_nature)` returns
-  `w_ndvi*ndvi + w_cooling*hm + w_nature*nature_pct/100` rounded to 3dp. Defaults
-  `DEFAULT_WGT_NDVI=0.2`, `DEFAULT_WGT_COOLING=0.4`, `DEFAULT_WGT_NATURE=0.4` sum to 1.0.
-  Three sliders in Advanced Settings (`wgt_ndvi`, `wgt_cooling`, `wgt_nature`) are read
-  via `st.session_state.get(key, DEFAULT_*)` at both `evaluate_scenario` call sites — same
-  pattern as the carbon rates, but using `.get()` with explicit defaults so first-run
-  ordering doesn't matter. The Human & Social card recomputes `_baseline_wellbeing`
-  every rerun against `BASELINE_NDVI`, `BASELINE_HM`, `BASELINE_NATURE_ACCESS_PCT`, and
-  the **currently selected** weights, so changing weights doesn't make the delta
-  misleading. Wellbeing is **not** in the surrogate's training targets — the optimizer
-  doesn't search over it; cached scenario_df rows reflect default-weight wellbeing only.
-  Help text explicitly disclaims any validated mental-health interpretation.
-- **The surrogate predicts six outputs** — `train_surrogate` fits the Random Forest on
+- **InVEST Urban Mental Health Model (v3.19.0)** — `calculate_mental_health_impact(scenario_lulc,
+  baseline_ne_raster, pop_count)` returns `(preventable_mh_cases, avoided_mh_cost_usd)`. Per-pixel
+  formula: NE = `gaussian_filter(NDVI_proxy, sigma=10 px)` (10 px = 300 m at 30 m NLCD per
+  Li et al. 2025); ΔNE = NE_scenario − NE_baseline; RR = `exp(ln(RR₀.₁) × 10 × ΔNE)`;
+  PC = `(1 − RR) × baseline_prevalence × population`. Sums depression + anxiety. Constants:
+  `RR_0_1_NDVI_DEPRESSION=0.96`, `RR_0_1_NDVI_ANXIETY=0.97` (Liu et al. 2023 meta-analysis);
+  `BIR_DEPRESSION=0.21`, `BIR_ANXIETY=0.19` (CDC 2023 ever-diagnosed); per-case cost-of-illness
+  $8,467 / $5,765 (US nominal). Returns (0, 0) at the unmodified baseline by construction.
+  `_BASELINE_NE_RASTER` is precomputed once at module load. The previous `compute_wellbeing_score`
+  composite + `wgt_ndvi/wgt_cooling/wgt_nature` sliders + `DEFAULT_WGT_*` constants have been
+  removed entirely — UMH outputs are derived from peer-reviewed effect sizes rather than
+  user-tunable weights, so there's nothing to expose in the sidebar.
+- **The surrogate predicts eight outputs** — `train_surrogate` fits the Random Forest on
   `[flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet, carbon_tons_co2_yr,
-  nature_access_pct]`, so `predict_with_uncertainty` returns `(n, 6)` arrays.
+  nature_access_pct, preventable_mh_cases, avoided_mh_cost_usd]`, so `predict_with_uncertainty`
+  returns `(n, 8)` arrays.
   `optimize_scenario` adds a `min_carbon` constraint (`mean_preds[:, 4] >= min_carbon`)
   alongside the existing flood, cooling, food, and runoff filters. The carbon column flows
   into the candidate DataFrame (with `carbon_lower` / `carbon_upper` uncertainty bands) and
