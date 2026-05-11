@@ -225,13 +225,17 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
 
 ## Blocked / pending work
 
-- **Full Minneapolis extent — RESOLVED 2026-05-09.** `'Minneapolis Full, MN'` is a live city
-  in CITIES with `available=True`. Pipeline: SSURGO via SDA REST API → process_ssurgo.py → 
-  soil_group_mpls_full.tif; Census 2020 → process_pop_expanded.py → pop_mpls_full.tif;
-  Geofabrik state OSM → process_osm_expanded.py → roads_mpls_full.geojson + buildings_mpls_full.geojson;
-  TIGER 2020 → tracts_hennepin.shp. Buildings use **Option A semantics**: OSM polygons mask
-  for spatial placement, but per-type dollar metrics (energy savings, flood damage avoided) return
-  "—" with explanatory tooltips because OSM has no type codes (see REFERENCE.md). Schema bumped 12 → 13.
+- **Full Minneapolis extent — RESOLVED 2026-05-09, HIDDEN FROM UI 2026-05-11.**
+  `'Minneapolis Full, MN'` is a live city in CITIES but `available=False` so it does NOT appear in
+  the sidebar selector. Reason: per-building-type dollar metrics (Flood Damage Avoided, Cooling
+  Energy Savings) require InVEST sample buildings with `type` ∈ {0,1,2,3}, which only cover the
+  downtown extent — Mpls Full uses OSM polygons with no type codes (Option A), so those cards
+  degrade to "—". Showing only the downtown city in the UI keeps the metric coverage complete.
+  All pipeline + rasters + verified baselines remain in the repo; flip back to `True` once a
+  typed building dataset exists for the expanded area. Pipeline: SSURGO via SDA REST API →
+  process_ssurgo.py → soil_group_mpls_full.tif; Census 2020 → process_pop_expanded.py →
+  pop_mpls_full.tif; Geofabrik state OSM → process_osm_expanded.py → roads_mpls_full.geojson +
+  buildings_mpls_full.gpkg; TIGER 2020 → tracts_hennepin.shp. Schema bumped 12 → 13.
 - **load_data parameterization (2026-05-09).** `load_data()` now takes `lulc_file`, `soil_file`,
   `cooling_lulc_file` from `city_cfg`. Module-level loaders for ET, energy table, UNA table,
   buildings, roads, and tracts also read from city_cfg. Biophysical tables (CN + cooling) use a

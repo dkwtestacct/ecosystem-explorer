@@ -368,7 +368,7 @@ A plain-language summary of the current scenario settings, displayed below the m
 | Field | Detail |
 |-------|--------|
 | **Type** | Selectbox |
-| **Options** | All keys from the `CITIES` dict; unavailable cities are labeled "(coming soon)". Currently available: **Minneapolis, MN** (downtown, 122.8 km², EPSG:26915, InVEST sample buildings with type codes) and **Minneapolis Full, MN** (full city + suburb fringe, 204.3 km², EPSG:5070, OSM buildings without type codes — see Option A in Known Limitations). |
+| **Options** | All keys from the `CITIES` dict; unavailable cities are labeled "(coming soon)" and may be hidden entirely. Currently available in the UI: **Minneapolis, MN** (downtown, 122.8 km², EPSG:26915, InVEST sample buildings with type codes) and **San Antonio, TX** (Bexar County, EPSG:5070, OSM buildings — Option A). **Minneapolis Full, MN** is implemented in the codebase but `available=False` pending per-building-type data for the expanded area — see "Why Minneapolis = downtown extent" below. |
 | **Effect** | Selecting an available city sets the city's `data_dir_flood` / `data_dir_cooling` / `lulc_file` / `soil_file` / `cooling_lulc_file` / `pop_file` / `roads_file` / `buildings_file` / `damage_table_file` / `energy_table_file` / `et_file` / `tracts_file` / `una_table_file` / `crs` and triggers a one-time per-city lookup-table regeneration (~30 s). Per-city Streamlit caches don't collide. Selecting an unavailable city shows a warning and stops the app. |
 
 ---
@@ -649,6 +649,8 @@ When heat-priority mode is on, teal/green/red pixels are concentrated in higher-
 ---
 
 ## Known Limitations
+
+**Why Minneapolis = downtown extent in the UI** *(2026-05-11)*: Minneapolis, MN uses the downtown and near-neighborhoods extent (123 km², ~154k residents) rather than the full city boundary. This extent was chosen because it has complete metric coverage including Flood Damage Avoided and Cooling Energy Savings, which require per-building-type data only available in the InVEST UFR sample dataset. The full city extent (204 km², ~464k residents) is implemented in the codebase as Minneapolis Full, MN but hidden from the UI pending per-building-type data for the expanded area. To re-expose it, flip `CITIES['Minneapolis Full, MN']['available']` back to `True` — all upstream pipeline, rasters, and verified baselines are still in place.
 
 **Full-city NLCD coverage** *(integrated 2026-05-09)*: A 374 × 607 EPSG:5070 raster covering the full Minneapolis city boundary (148.9 km²) is now wired up as the `'Minneapolis Full, MN'` city. SSURGO soil group raster (Hennepin County via the SDA REST API), Census 2020 population (Hennepin block totals), Hennepin tracts (TIGER 2020), and OSM buildings + roads (Geofabrik state extract, Option B road filter) have all been re-rasterized to the expanded grid. See `download_ssurgo.py`, `process_ssurgo.py`, `process_pop_expanded.py`, `process_osm_expanded.py`, and `verify_expanded_baselines.py` for the ingestion pipeline.
 

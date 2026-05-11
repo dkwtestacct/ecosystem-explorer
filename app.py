@@ -42,6 +42,7 @@ CITIES = {
         'baseline_hm':          0.1859,
         'pixel_area_acres':     0.2224,
         'food_forest_lbs_acre': 11_500,
+        'uhi_max_c':            2.05,   # InVEST UCM args JSON for the MN AOI
         'available':            True,
         'crs':                  'EPSG:26915',
         # Reference points plotted on the tradeoff scatter. Recomputed via
@@ -96,7 +97,16 @@ CITIES = {
         'baseline_hm':          None,    # computed dynamically at module load
         'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
         'food_forest_lbs_acre': 11_500,
-        'available':            True,    # flipped after refactor + verify
+        'uhi_max_c':            2.05,    # same MN AOI climate as downtown
+        # Hidden from the UI pending per-building-type data for the expanded
+        # area. OSM-derived buildings carry no `type` codes, so the
+        # Flood Damage Avoided and Cooling Energy Savings $-metrics degrade
+        # to $0 — incomplete coverage relative to the downtown extent (which
+        # uses the InVEST UFR sample shapefile with `type` ∈ {0,1,2,3}).
+        # Flip back to True once a typed building dataset for the expanded
+        # area exists. The pipeline / data are still tracked; only the UI
+        # entry is suppressed.
+        'available':            False,
         'crs':                  'EPSG:5070',
         'notes': (
             'Full city coverage 204 km² vs 122 km² downtown. Same biophysical '
@@ -165,7 +175,18 @@ CITIES = {
         'baseline_hm':          0.2866,
         'baseline_ndvi':        0.4242,
         'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
-        'food_forest_lbs_acre': 11_500,  # placeholder — TODO: SA-specific pecan/fig/mulberry/nopal benchmark
+        # Conservative SA-specific estimate for a pecan / fig / mulberry / nopal
+        # mix (per NatCap SA Urban Agriculture project report). No published
+        # per-crop yield numbers were shipped with the SA inputs, so 8,500 is
+        # a placeholder set below the 11,500 MN benchmark to reflect lower
+        # productivity in hot semi-arid climate. Replace with the project's
+        # weighted average once those yield benchmarks are documented.
+        'food_forest_lbs_acre': 8_500,
+        # No NatCap-published InVEST UCM args JSON for SA. 3.5 °C is a
+        # defensible estimate for the hot semi-arid (Köppen BSh) climate —
+        # significantly more extreme than MN's 2.05 °C. Replace with the
+        # official value if one is published. ΔT in °F = ΔCC × 6.3.
+        'uhi_max_c':            3.5,
         # Re-enabled now that data/scenarios_dense_sa.csv is committed
         # (Balanced mode reads the precomputed grid instead of recomputing
         # the 25–50 min lookup table) and the High-Resolution lookup compute
@@ -196,7 +217,7 @@ CITIES = {
 }
 
 PIXEL_AREA_ACRES     = 0.2224  # 30 m × 30 m = 900 m² ÷ 4046.86 m²/acre. Same in EPSG:26915 (UTM) and EPSG:5070 (Albers); UTM ground-area distortion at MN is ~0.05 %, well within rounding.
-FOOD_FOREST_LBS_ACRE = 11_500
+# FOOD_FOREST_LBS_ACRE is city-dependent — see "── City-derived constants ──" below.
 
 DEVELOPED_CODES   = [21, 22, 23]
 CODE_GREEN_INFRA  = 90
@@ -212,13 +233,8 @@ DEFAULT_COST_HD   =  5_000   # High density development
 # ── Metric translation constants ───────────────────────────────────────────────
 # SCS design storm: 2-inch rainfall event (typical minor storm)
 DESIGN_STORM_INCHES   = 2.0
-# Urban heat-island anomaly for Minneapolis: maximum temperature difference
-# between fully-paved and rural-reference pixels. Source: InVEST UCM args JSON
-# for the MN AOI (`uhi_max=2.05`, `t_ref=23.2`). One CC unit therefore maps to
-# UHI_MAX_C in °C, or UHI_MAX_C × 1.8 in °F. When SA's InVEST args are
-# retrieved, this should become a per-city `city_cfg['uhi_max_c']`.
-UHI_MAX_C             = 2.05
-HM_TO_FAHRENHEIT      = UHI_MAX_C * 1.8   # = 3.69 °F per CC unit (MN-calibrated)
+# UHI_MAX_C, HM_TO_FAHRENHEIT, and FOOD_FOREST_LBS_ACRE are city-dependent and
+# initialized after city_cfg is built (see "── City-derived constants ──" below).
 # Food: average American consumes ~2,000 lbs of food per year
 LBS_PER_PERSON_YEAR   = 2_000
 
@@ -278,6 +294,17 @@ _city_labels = [
 _selected_label = st.sidebar.selectbox("City", _city_labels, index=0)
 selected_city   = _city_names[_city_labels.index(_selected_label)]
 city_cfg        = CITIES[selected_city]
+
+# ── City-derived constants ────────────────────────────────────────────────────
+# Values that depend on the active city's climate / project parameters.
+#   uhi_max_c — InVEST UCM urban heat-island anomaly (°C). MN: 2.05 from the
+#     InVEST args JSON for the MN AOI; SA: 3.5 estimate for Köppen BSh.
+#   food_forest_lbs_acre — annual yield benchmark for the food-forest land
+#     cover. MN: 11,500 (NatCap MN benchmark); SA: 8,500 placeholder pending
+#     project-report numbers for the pecan/fig/mulberry/nopal mix.
+UHI_MAX_C            = city_cfg['uhi_max_c']
+HM_TO_FAHRENHEIT     = UHI_MAX_C * 1.8
+FOOD_FOREST_LBS_ACRE = city_cfg['food_forest_lbs_acre']
 
 _CITY_CAPTIONS = {
     "Minneapolis, MN":      "Downtown and near-neighborhoods — 123 km², ~154k residents.",
@@ -2466,7 +2493,21 @@ econ1.metric(
     _fmt_food(results['food_mln_lbs']),
     delta=_food_delta_str,
     delta_color="normal" if _people_fed > 0 else "off",
-    help="Confidence: Provisional assumption. Counts only food forest pixels created by this scenario (not pre-existing deciduous forest). Yield estimated at 11,500 lbs/acre/year based on NatCap food forest benchmarks — treat as directional only."
+    help=(
+        "Confidence: Provisional assumption. Counts only food forest pixels "
+        "created by this scenario (not pre-existing deciduous forest). "
+        f"Yield estimated at {FOOD_FOREST_LBS_ACRE:,} lbs/acre/year for "
+        f"{selected_city} — "
+        + (
+            "NatCap MN food forest benchmark."
+            if selected_city.startswith("Minneapolis")
+            else "placeholder for the pecan/fig/mulberry/nopal mix per the "
+                 "NatCap SA Urban Agriculture project report; below the MN "
+                 "benchmark to reflect hot semi-arid productivity. Replace "
+                 "with project-published weighted average when available."
+        )
+        + " Treat as directional only."
+    )
 )
 if results['food_mln_lbs'] == 0:
     econ1.caption(
@@ -2725,9 +2766,11 @@ with st.expander("Assumptions and limitations"):
             "- **Reported value:** mean(CC) across the AOI, labeled CC. This "
             "approximates but is not identical to the canonical InVEST Heat "
             "Mitigation Index (HMI) — see UCM_AUDIT.md.\n"
-            "- **Calibration:** 3.69 °F per CC unit, from Minneapolis "
-            "`uhi_max = 2.05 °C` in the InVEST args JSON. Not independently "
-            "calibrated for MN — treat the °F output as ±2 °F at best.\n"
+            f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per CC unit "
+            f"({selected_city}: `uhi_max = {UHI_MAX_C:.2f} °C`). MN values "
+            "come from the InVEST UCM args JSON; SA's 3.5 °C is an estimate "
+            "for hot semi-arid climate (no published InVEST args). Treat the "
+            "°F output as ±2 °F at best.\n"
             "- **Not captured:** wind, humidity, urban geometry, building "
             "materials, anthropogenic heat. The model sees land cover only."
         )
