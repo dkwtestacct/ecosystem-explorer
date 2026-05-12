@@ -51,6 +51,7 @@ CITIES = {
         'uhi_max_c':            2.05,   # InVEST UCM args JSON for the MN AOI
         'available':            True,
         'crs':                  'EPSG:26915',
+        'precomputed_dir':      'data/precomputed/minneapolis_mn',
         # Reference points plotted on the tradeoff scatter. Recomputed via
         # `verify_cooling.py` (seed=42) after the OSM road filter was
         # tightened (Option B: drop footway/cycleway/steps/service/path/
@@ -114,6 +115,7 @@ CITIES = {
         # entry is suppressed.
         'available':            False,
         'crs':                  'EPSG:5070',
+        'precomputed_dir':      'data/precomputed/minneapolis_full_mn',
         'notes': (
             'Full city coverage 204 km² vs 122 km² downtown. Same biophysical '
             'tables as Minneapolis, MN. SSURGO soil + Census 2020 population '
@@ -201,6 +203,7 @@ CITIES = {
         # worker, flip back to False.
         'available':            True,
         'crs':                  'EPSG:5070',
+        'precomputed_dir':      'data/sa/precomputed',
         'notes': (
             'Data source: NatCap SA Urban Agriculture Project 2023. '
             'LULC from NLCD 2021, SSURGO from USDA SDA (TX029, 44 % D-class), '
@@ -715,15 +718,63 @@ UNA_ACTIVE["search_radius_m"] = UNA_ACTIVE["search_radius_m"].clip(upper=NATURE_
 # This keeps per-scenario evaluation fast: classes 21, 41, 90 are recomputed
 # live; all other natural classes use the pre-built array.
 _DYNAMIC_NATURE_LUCODES = {21, 41, 90}
+# Disk cache for the static nature-class distance fields. Each
+# distance_transform_edt call on SA's 1713×1984 grid takes seconds and
+# allocates a ~13.6 MB float32 working array; doing five of them on every
+# Streamlit rerun is the single biggest avoidable startup cost. We persist
+# the float32 outputs under city_cfg['precomputed_dir'] as one .npy per
+# static lucode and reload them next boot. The compute path is preserved as
+# a fallback so cities without checked-in artifacts (or new cities mid-
+# onboarding) still work.
+_PRECOMP_DIR = city_cfg.get("precomputed_dir")
+if _PRECOMP_DIR:
+    Path(_PRECOMP_DIR).mkdir(parents=True, exist_ok=True)
+
 PRECOMPUTED_NATURE_DISTANCES = {}
-for _lucode in UNA_ACTIVE["lucode"]:
-    if _lucode in _DYNAMIC_NATURE_LUCODES:
-        continue
+_static_lucodes = [
+    int(lc) for lc in UNA_ACTIVE["lucode"]
+    if int(lc) not in _DYNAMIC_NATURE_LUCODES
+]
+_loaded_any_from_cache = False
+_computed_any = False
+for _lucode in _static_lucodes:
+    cache_file = (
+        Path(_PRECOMP_DIR) / f"nature_distance_{_lucode}.npy"
+        if _PRECOMP_DIR else None
+    )
+    if cache_file is not None and cache_file.exists():
+        try:
+            arr = np.load(cache_file)
+            if arr.shape == cooling_lulc.shape and arr.dtype == np.float32:
+                PRECOMPUTED_NATURE_DISTANCES[_lucode] = arr
+                _loaded_any_from_cache = True
+                continue
+        except Exception:
+            pass
     _mask = (cooling_lulc == _lucode)
-    if _mask.any():
-        PRECOMPUTED_NATURE_DISTANCES[int(_lucode)] = (
-            _distance_transform_edt(~_mask) * PIXEL_SIZE_M
-        ).astype(np.float32)
+    if not _mask.any():
+        continue
+    arr = (_distance_transform_edt(~_mask) * PIXEL_SIZE_M).astype(np.float32)
+    PRECOMPUTED_NATURE_DISTANCES[_lucode] = arr
+    _computed_any = True
+    if cache_file is not None:
+        try:
+            np.save(cache_file, arr)
+        except Exception:
+            pass
+
+if _computed_any:
+    print(
+        f"[BOOT] PRECOMPUTED_NATURE_DISTANCES computed and cached to disk "
+        f"({len(PRECOMPUTED_NATURE_DISTANCES)} arrays in {_PRECOMP_DIR})",
+        flush=True,
+    )
+else:
+    print(
+        f"[BOOT] PRECOMPUTED_NATURE_DISTANCES loaded from cache "
+        f"({len(PRECOMPUTED_NATURE_DISTANCES)} arrays from {_PRECOMP_DIR})",
+        flush=True,
+    )
 
 
 def _compute_access_score_raster(scenario_lulc):
