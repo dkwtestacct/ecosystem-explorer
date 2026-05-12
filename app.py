@@ -665,25 +665,44 @@ _CC_SIGMA_PX = GREEN_AREA_COOLING_DISTANCE_M / 30  # 30 m NLCD pixels → σ = 1
 def _compute_cc_raster_pure(scenario_lulc, shade_arr, kc_arr, albedo_arr, et_resized, max_et_ref):
     """Pure variant — all per-city deps explicit. Used by `_load_city_runtime_state`
     to compute the baseline CC raster before the module-level aliases for
-    `shade_arr`, `kc_arr`, etc. have been rebound."""
-    safe = np.clip(scenario_lulc, 0, len(shade_arr) - 1)
-    shade  = shade_arr[safe]
-    kc     = kc_arr[safe]
-    albedo = albedo_arr[safe]
-    eti = (kc * et_resized) / max_et_ref
-    cc_raw = 0.6 * shade + 0.2 * albedo + 0.2 * eti
-    nan_mask = (scenario_lulc < 0) | (scenario_lulc >= len(shade_arr)) | ~np.isfinite(cc_raw)
+    `shade_arr`, `kc_arr`, etc. have been rebound.
 
+    Memory-tight: peak transient is ~3 full-AOI float32 buffers (cc + tmp +
+    transient indexing result) plus one int32 safe-index array. The original
+    expression-tree allocation peaked at ~7 simultaneously-live buffers via
+    the `0.6*shade + 0.2*albedo + 0.2*eti` chain. Same operation order =
+    bit-identical output."""
+    safe = np.clip(scenario_lulc, 0, len(shade_arr) - 1)
+    # Build cc in-place: cc = 0.6*shade + 0.2*albedo + 0.2*eti.
+    # Fancy indexing returns fresh arrays, so cc and tmp are uniquely owned
+    # and safe to mutate.
+    cc = shade_arr[safe]
+    cc *= 0.6
+    tmp = albedo_arr[safe]
+    tmp *= 0.2
+    cc += tmp
+    np.multiply(kc_arr[safe], et_resized, out=tmp)   # tmp = kc * et_resized
+    tmp /= max_et_ref                                 # tmp = eti
+    tmp *= 0.2                                        # tmp = 0.2 * eti
+    cc += tmp
+    del tmp
+
+    nan_mask = (scenario_lulc < 0) | (scenario_lulc >= len(shade_arr)) | ~np.isfinite(cc)
     # Fill NaNs with the valid-pixel mean before convolving, then restore. The
     # alternative — letting NaN propagate — would zero out a 15-px ring around
     # every nodata pixel and visibly bleed onto the AOI interior.
     if nan_mask.any():
-        fill = float(np.nan_to_num(cc_raw[~nan_mask], nan=0.0).mean()) if (~nan_mask).any() else 0.0
-        cc_filled = np.where(nan_mask, fill, cc_raw)
-    else:
-        cc_filled = cc_raw
+        if (~nan_mask).any():
+            fill = float(np.nan_to_num(cc[~nan_mask], nan=0.0).mean())
+        else:
+            fill = 0.0
+        cc[nan_mask] = fill
 
-    cc = _gaussian_filter(cc_filled.astype(np.float32), sigma=_CC_SIGMA_PX, mode="nearest")
+    if cc.dtype != np.float32:
+        cc = cc.astype(np.float32)
+    # In-place Gaussian convolution — `output=cc` reuses the buffer instead of
+    # allocating a fresh one. scipy's separable filter handles aliasing safely.
+    _gaussian_filter(cc, sigma=_CC_SIGMA_PX, mode="nearest", output=cc)
     cc[nan_mask] = np.nan
     return cc
 
@@ -749,7 +768,10 @@ def _compute_access_score_raster_pure(scenario_lulc, una_active, precomputed_nat
             mask = (scenario_lulc == lucode)
             if not mask.any():
                 continue
-            distance = _distance_transform_edt(~mask) * PIXEL_SIZE_M
+            # Cast to float32 immediately — `_distance_transform_edt` returns
+            # float64, doubling the per-call transient on a hot path that runs
+            # ~3 times per scenario for the dynamic lucodes (21/41/90).
+            distance = (_distance_transform_edt(~mask) * PIXEL_SIZE_M).astype(np.float32, copy=False)
         in_range = distance <= radius
         np.maximum(access_score, in_range * score, out=access_score)
     return access_score
@@ -881,12 +903,16 @@ def _lulc_to_ndvi_raster(lulc_array):
     return ndvi_map
 
 
-def compute_mean_ndvi(lulc_array):
-    """Area-weighted mean NDVI proxy across all valid (non-NODATA) pixels."""
+def compute_mean_ndvi(lulc_array, ndvi_raster=None):
+    """Area-weighted mean NDVI proxy across all valid (non-NODATA) pixels.
+    Pass `ndvi_raster=` to reuse a precomputed raster (saves the per-call
+    allocation when the caller already has one in hand)."""
     valid_mask = lulc_array != NODATA
     if not valid_mask.any():
         return float('nan')
-    return float(round(_lulc_to_ndvi_raster(lulc_array)[valid_mask].mean(), 4))
+    if ndvi_raster is None:
+        ndvi_raster = _lulc_to_ndvi_raster(lulc_array)
+    return float(round(ndvi_raster[valid_mask].mean(), 4))
 
 
 # ── InVEST Urban Mental Health Model (v3.19.0) ────────────────────────────────
@@ -921,7 +947,7 @@ _UMH_LN_RR_DEPRESSION = float(np.log(RR_0_1_NDVI_DEPRESSION))
 _UMH_LN_RR_ANXIETY    = float(np.log(RR_0_1_NDVI_ANXIETY))
 
 
-def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count):
+def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count, ndvi_raster=None):
     """Return (preventable_mh_cases, avoided_mh_cost_usd) for the scenario.
 
     `baseline_ne_raster` is the smoothed NE raster for the unmodified LULC
@@ -929,11 +955,17 @@ def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count)
     compute the scenario-side NE on the fly, take ΔNE, apply the InVEST UMH
     formula per pixel, and sum population-weighted preventable cases. Returns
     (0.0, 0.0) if the population raster isn't loaded — there's nothing to
-    weight by."""
+    weight by.
+
+    Pass `ndvi_raster=` to reuse a precomputed scenario NDVI raster (saves
+    one full-AOI allocation when `evaluate_scenario` already built one for
+    `compute_mean_ndvi`)."""
     if not POPULATION_DATA_AVAILABLE:
         return 0.0, 0.0
+    if ndvi_raster is None:
+        ndvi_raster = _lulc_to_ndvi_raster(scenario_lulc)
     ne_scenario = _gaussian_filter(
-        _lulc_to_ndvi_raster(scenario_lulc), sigma=_UMH_SIGMA_PX, mode="nearest"
+        ndvi_raster, sigma=_UMH_SIGMA_PX, mode="nearest"
     )
     delta_ne = ne_scenario - baseline_ne_raster
 
@@ -1109,7 +1141,10 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         scenario_lulc, pop_count_raster
     )
 
-    mean_ndvi = compute_mean_ndvi(scenario_lulc)
+    # Build the scenario NDVI raster once and pass to both consumers. Saves
+    # one full-AOI float32 allocation per evaluate_scenario call.
+    scenario_ndvi = _lulc_to_ndvi_raster(scenario_lulc)
+    mean_ndvi = compute_mean_ndvi(scenario_lulc, ndvi_raster=scenario_ndvi)
 
     total_developed_acres = len(developed_pixels) * PIXEL_AREA_ACRES
     total_cost_mln = compute_cost(n_wet, n_for, n_hd, cost_gi, cost_ff, cost_hd)
@@ -1120,6 +1155,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     # anxiety, NDVI-mediated). Returns (0, 0) if population data isn't loaded.
     preventable_mh_cases, avoided_mh_cost_usd = calculate_mental_health_impact(
         scenario_lulc, _BASELINE_NE_RASTER, pop_count_raster,
+        ndvi_raster=scenario_ndvi,
     )
 
     return {
@@ -1324,14 +1360,17 @@ def compute_cooling_energy_savings(scenario_cc_raster):
     if not (BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES
             and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE):
         return 0.0
-    delta_cc = scenario_cc_raster - _BASELINE_HM_RASTER
-    delta_t_c = np.clip(delta_cc * UHI_MAX_C, 0.0, None)
-    kwh_saved_per_pixel = (
-        CONSUMPTION_RATE_PER_PIXEL * delta_t_c * PIXEL_AREA_M2
-    )
-    usd_per_pixel = kwh_saved_per_pixel * COST_PER_KWH_USD
-    valid = (BUILDINGS_TYPE_RASTER >= 0) & np.isfinite(usd_per_pixel)
-    return round(float(usd_per_pixel[valid].sum()), 0)
+    # Single scratch buffer reused through the entire chain. Original
+    # code allocated four full-AOI float32 buffers (delta_cc, delta_t_c,
+    # kwh_saved_per_pixel, usd_per_pixel) — this collapses to one.
+    buf = scenario_cc_raster - _BASELINE_HM_RASTER       # buf = delta_cc
+    np.multiply(buf, UHI_MAX_C, out=buf)                  # buf = delta_cc * UHI
+    np.clip(buf, 0.0, None, out=buf)                      # buf = delta_t_c
+    np.multiply(buf, CONSUMPTION_RATE_PER_PIXEL, out=buf) # buf = delta_t * consumption
+    np.multiply(buf, PIXEL_AREA_M2, out=buf)              # buf = kwh saved
+    np.multiply(buf, COST_PER_KWH_USD, out=buf)           # buf = usd per pixel
+    valid = (BUILDINGS_TYPE_RASTER >= 0) & np.isfinite(buf)
+    return round(float(buf[valid].sum()), 0)
 
 
 # ── City runtime state loader ─────────────────────────────────────────────────
