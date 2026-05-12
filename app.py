@@ -1,4 +1,5 @@
 import streamlit as st
+print("[BOOT] imports done", flush=True)
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -215,6 +216,7 @@ CITIES = {
         },
     },
 }
+print("[BOOT] CITIES dict defined", flush=True)
 
 PIXEL_AREA_ACRES     = 0.2224  # 30 m × 30 m = 900 m² ÷ 4046.86 m²/acre. Same in EPSG:26915 (UTM) and EPSG:5070 (Albers); UTM ground-area distortion at MN is ~0.05 %, well within rounding.
 # FOOD_FOREST_LBS_ACRE is city-dependent — see "── City-derived constants ──" below.
@@ -524,6 +526,7 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
  equity_weights, shade_arr, kc_arr, albedo_arr) = load_data(
     DATA_DIR_FLOOD, DATA_DIR_COOLING, CN_TABLE_FILE, COOLING_TABLE_FILE,
     LULC_FILE, SOIL_FILE, COOLING_LULC_FILE)
+print(f"[BOOT] load_data returned (cooling_lulc shape={cooling_lulc.shape})", flush=True)
 
 # ── Population raster (for Nature Access metric) ───────────────────────────────
 # Built by download_census_pop.py from US Census 2020 block-level totals,
@@ -591,6 +594,7 @@ except Exception:
     ET_RESIZED = np.ones(cooling_lulc.shape, dtype=float)
     MAX_ET_REF = 1.0
     ET_DATA_AVAILABLE = False
+print(f"[BOOT] ET raster resized (available={ET_DATA_AVAILABLE})", flush=True)
 
 # Energy consumption per building type (kWh/m²/year) from the InVEST UCM
 # sample table. Used to translate cooling improvement into avoided AC cost.
@@ -1329,6 +1333,7 @@ except Exception:
     BUILDINGS_DATA_AVAILABLE = False
     BUILDINGS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
     BUILDINGS_TYPE_RASTER = np.full(cooling_lulc.shape, -1, dtype="int32")
+print(f"[BOOT] BUILDINGS_TYPE_RASTER rasterized (available={BUILDINGS_DATA_AVAILABLE})", flush=True)
 
 # OSM road network (citywide) — unioned into BUILDINGS_RASTER so the
 # convertible-pixel mask excludes both buildings AND streets. The InVEST
@@ -1455,11 +1460,13 @@ def compute_cooling_energy_savings(scenario_cc_raster):
 # need to recompute the scenario side on each rerun.
 _BASELINE_ACCESS_SCORE_RASTER = _compute_access_score_raster(cooling_lulc)
 _BASELINE_HM_RASTER          = _compute_hm_raster(cooling_lulc)
+print("[BOOT] _BASELINE_HM_RASTER computed", flush=True)
 # Smoothed NDVI exposure for the unmodified LULC — feeds the InVEST UMH ΔNE
 # computation. Precompute once because the baseline doesn't change per scenario.
 _BASELINE_NE_RASTER = _gaussian_filter(
     _lulc_to_ndvi_raster(cooling_lulc), sigma=_UMH_SIGMA_PX, mode="nearest"
 )
+print("[BOOT] _BASELINE_NE_RASTER computed", flush=True)
 
 # Override the static `BASELINE_HM` from CITIES with the actual mean of the
 # baseline CC raster — keeps the reference value in sync with whatever the
@@ -1479,6 +1486,7 @@ _baseline_cn_grid   = cn_table[_baseline_lulc_idx, _baseline_soil]
 _valid_base_cn      = _baseline_cn_grid[_baseline_cn_grid > 0]
 if _valid_base_cn.size > 0:
     BASELINE_CN = float(_valid_base_cn.mean().round(2))
+print(f"[BOOT] dynamic BASELINE_CN/BASELINE_HM overrides done (CN={BASELINE_CN}, HM={BASELINE_HM})", flush=True)
 
 
 def compute_per_tract_summary(scenario_lulc):
@@ -3326,3 +3334,5 @@ with st.expander("Intended Use", expanded=False):
         "- Precise impact prediction\n"
         "- Final policy or investment decisions without further analysis"
     )
+
+print("[BOOT] end-of-module", flush=True)
