@@ -544,7 +544,7 @@ def load_population_data(pop_path, target_shape):
             1, out_shape=target_shape,
             resampling=rasterio.enums.Resampling.bilinear,
         )
-        data = data.astype(float)
+        data = data.astype(np.float32)
         if src.nodata is not None:
             data[data == src.nodata] = 0
         data[data < 0] = 0
@@ -577,7 +577,7 @@ try:
     if _ET_FILE is None:
         raise FileNotFoundError("et_file not configured")
     with rasterio.open(_ET_FILE) as _et_src:
-        _et_raw = _et_src.read(1).astype(float)
+        _et_raw = _et_src.read(1).astype(np.float32)
         _et_nodata = _et_src.nodata
     # The MN reference-ET raster uses 65535 as a nodata sentinel; np.isfinite
     # treats that as a valid float, so a previous version of this code
@@ -588,15 +588,15 @@ try:
         _et_raw[_et_raw == _et_nodata] = np.nan
     _et_raw[_et_raw > 10_000] = np.nan   # belt-and-braces against any other sentinels
     _et_raw[_et_raw < 0]      = np.nan
-    ET_RESIZED = resize(_et_raw, cooling_lulc.shape, order=1, preserve_range=True)
+    ET_RESIZED = resize(_et_raw, cooling_lulc.shape, order=1, preserve_range=True).astype(np.float32)
     # Fill NaNs introduced by resize() interpolating across nodata pixels with
     # the field median so the convolution downstream sees a smooth ET surface.
     _finite = np.isfinite(ET_RESIZED)
-    ET_RESIZED = np.where(_finite, ET_RESIZED, np.nanmedian(ET_RESIZED[_finite]))
+    ET_RESIZED = np.where(_finite, ET_RESIZED, np.nanmedian(ET_RESIZED[_finite])).astype(np.float32)
     MAX_ET_REF = float(ET_RESIZED.max()) if ET_RESIZED.max() > 0 else 1.0
     ET_DATA_AVAILABLE = True
 except Exception:
-    ET_RESIZED = np.ones(cooling_lulc.shape, dtype=float)
+    ET_RESIZED = np.ones(cooling_lulc.shape, dtype=np.float32)
     MAX_ET_REF = 1.0
     ET_DATA_AVAILABLE = False
 print(f"[BOOT] ET raster resized (available={ET_DATA_AVAILABLE})", flush=True)
@@ -723,7 +723,7 @@ for _lucode in UNA_ACTIVE["lucode"]:
     if _mask.any():
         PRECOMPUTED_NATURE_DISTANCES[int(_lucode)] = (
             _distance_transform_edt(~_mask) * PIXEL_SIZE_M
-        )
+        ).astype(np.float32)
 
 
 def _compute_access_score_raster(scenario_lulc):
@@ -1371,7 +1371,7 @@ except Exception:
 PIXEL_AREA_M2 = 30 * 30  # NLCD 30 m grid → 900 m² per pixel
 if ENERGY_BY_TYPE:
     _max_bldg_type = int(max(BUILDINGS_TYPE_RASTER.max(), max(ENERGY_BY_TYPE.keys())))
-    _consumption_lookup = np.zeros(max(_max_bldg_type, 0) + 2, dtype=float)
+    _consumption_lookup = np.zeros(max(_max_bldg_type, 0) + 2, dtype=np.float32)
     for _t, _c in ENERGY_BY_TYPE.items():
         if int(_t) >= 0:
             _consumption_lookup[int(_t)] = float(_c)
@@ -1379,10 +1379,10 @@ if ENERGY_BY_TYPE:
     CONSUMPTION_RATE_PER_PIXEL = np.where(
         BUILDINGS_TYPE_RASTER >= 0,
         _consumption_lookup[_safe_type],
-        0.0,
-    )
+        np.float32(0.0),
+    ).astype(np.float32)
 else:
-    CONSUMPTION_RATE_PER_PIXEL = np.zeros(cooling_lulc.shape, dtype=float)
+    CONSUMPTION_RATE_PER_PIXEL = np.zeros(cooling_lulc.shape, dtype=np.float32)
     BUILDINGS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
 
 # Convertible pixels = developed land that is NOT a building footprint. Random
