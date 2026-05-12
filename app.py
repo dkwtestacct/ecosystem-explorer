@@ -279,14 +279,6 @@ if "optimized_results" not in st.session_state:
     st.session_state.optimized_results = None
 if "active_example_scenario" not in st.session_state:
     st.session_state.active_example_scenario = None
-# Slider apply state — used by "Apply" button from optimizer
-if "slider_pct_converted" not in st.session_state:
-    st.session_state.slider_pct_converted = 10
-if "slider_gi_pct" not in st.session_state:
-    st.session_state.slider_gi_pct = 0
-if "slider_ff_pct" not in st.session_state:
-    st.session_state.slider_ff_pct = 0
-
 # Apply any pending slider values before sliders are rendered
 if "_pending_pct" in st.session_state:
     st.session_state.slider_pct_converted = st.session_state.pop("_pending_pct")
@@ -301,6 +293,17 @@ if "_pending_pct" in st.session_state:
 _city_names = [name for name, cfg in CITIES.items() if cfg['available']]
 selected_city = st.sidebar.selectbox("City", _city_names, index=0)
 city_cfg = CITIES[selected_city]
+
+# Reset scenario sliders when the city changes so a new city renders against
+# its own defaults instead of inheriting the previous city's slider state.
+# Runs BEFORE the sidebar widgets are instantiated. Preset buttons set
+# `_pending_*` and trigger `st.rerun()`; on that rerun the city has not
+# changed so this branch is skipped and the preset wins.
+if st.session_state.get('_prev_city_key') != selected_city:
+    for _k in ('slider_pct_converted', 'slider_gi_pct', 'slider_ff_pct'):
+        st.session_state.pop(_k, None)
+    st.session_state.active_example_scenario = None
+    st.session_state._prev_city_key = selected_city
 
 # ── City-derived constants ────────────────────────────────────────────────────
 # Values that depend on the active city's climate / project parameters.
@@ -2278,6 +2281,13 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 st.sidebar.header("Land Use Scenario")
 
+# Seed slider defaults via session_state (not via widget `value=` kwarg) so
+# the city-change reset above composes cleanly and Streamlit does not warn
+# about a key being set both via the widget default and the Session State API.
+st.session_state.setdefault("slider_pct_converted", 10)
+st.session_state.setdefault("slider_gi_pct", 0)
+st.session_state.setdefault("slider_ff_pct", 0)
+
 pct_converted = st.sidebar.slider(
     "% of developed land to convert", 0, 50,
     key="slider_pct_converted",
@@ -2292,12 +2302,10 @@ st.sidebar.caption(
 
 green_infrastructure_pct = st.sidebar.number_input(
     "Green Infrastructure %", 0, 100,
-    value=st.session_state.get("slider_gi_pct", 0),
     step=5, key="slider_gi_pct"
 )
 food_forest_pct = st.sidebar.number_input(
     "Food Forest %", 0, 100,
-    value=st.session_state.get("slider_ff_pct", 0),
     step=5, key="slider_ff_pct"
 )
 
