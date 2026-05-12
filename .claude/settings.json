@@ -15,10 +15,30 @@
       "Bash(file:*)",
       "Bash(stat:*)",
       "Bash(du:*)",
+      "Bash(awk:*)",
+      "Bash(sed:*)",
+      "Bash(diff:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(echo:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(touch:*)",
+      "Bash(chmod:*)",
       "Bash(python:*)",
       "Bash(python3:*)",
       "Bash(pip:*)",
+      "Bash(pip3:*)",
       "Bash(streamlit:*)",
+      "Bash(uv:*)",
+      "Bash(/usr/bin/time:*)",
+      "Bash(ps:*)",
+      "Bash(pgrep:*)",
+      "Bash(pkill:*)",
+      "Bash(kill:*)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)",
       "Bash(git status)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -27,7 +47,10 @@
       "Bash(git commit:*)",
       "Bash(git branch:*)",
       "Bash(git checkout:*)",
-      "Bash(/usr/bin/time:*)"
+      "Bash(git stash:*)",
+      "Bash(git restore:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)"
     ],
     "ask": [
       "Bash(git push:*)",
@@ -41,7 +64,12 @@
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
       "Bash(rm -rf /:*)",
-      "Bash(sudo:*)"
+      "Bash(rm -rf ~:*)",
+      "Bash(sudo:*)",
+      "Bash(curl:* | sh)",
+      "Bash(curl:* | bash)",
+      "Bash(wget:* | sh)",
+      "Bash(wget:* | bash)"
     ]
   }
 }
