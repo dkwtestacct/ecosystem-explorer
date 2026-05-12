@@ -301,14 +301,12 @@ if "_pending_pct" in st.session_state:
     # active_example_scenario is set by the button handler before _pending_ keys are written
 
 # ── City selection ─────────────────────────────────────────────────────────────
-_city_names  = list(CITIES.keys())
-_city_labels = [
-    name if CITIES[name]['available'] else f"{name} (coming soon)"
-    for name in _city_names
-]
-_selected_label = st.sidebar.selectbox("City", _city_labels, index=0)
-selected_city   = _city_names[_city_labels.index(_selected_label)]
-city_cfg        = CITIES[selected_city]
+# Only available cities surface in the dropdown. Unavailable entries (e.g.
+# Minneapolis Full) stay in the CITIES dict so scripts/tests can still
+# reference them by key, but they are hidden from the UI.
+_city_names = [name for name, cfg in CITIES.items() if cfg['available']]
+selected_city = st.sidebar.selectbox("City", _city_names, index=0)
+city_cfg = CITIES[selected_city]
 
 # ── City-derived constants ────────────────────────────────────────────────────
 # Values that depend on the active city's climate / project parameters.
@@ -334,17 +332,6 @@ st.sidebar.divider()
 # ── City-aware header ──────────────────────────────────────────────────────────
 st.title("🌿 Urban Ecosystem Tradeoff Explorer")
 st.subheader(f"📍 {selected_city}")
-
-if not city_cfg['available']:
-    st.info(
-        f"**{selected_city}** data is being prepared. Check back soon — "
-        "or contact the team for early access."
-    )
-    if city_cfg.get('notes'):
-        st.caption(city_cfg['notes'])
-    st.sidebar.info(f"{selected_city} data coming soon — select Minneapolis, MN for live scenarios.")
-    st.stop()
-
 
 def _preflight_data_check(city_cfg, city_name):
     """Verify all *required* input files referenced by the active city's
