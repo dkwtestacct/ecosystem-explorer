@@ -216,31 +216,81 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   CGIAR ET0 + TIGER 48 + Geofabrik TX OSM; new EPA Social Cost of Carbon dollar
   metric in Economic row; pre-flight data-check function added; PIXEL_AREA_ACRES
   harmonized to 0.2224 globally).**
+- **City runtime state (`CityState` + `_load_city_runtime_state`).** All heavy
+  per-city allocations — rasters from `load_data`, the population raster, the
+  resized ET raster, building/road/tract rasterisations, the static nature-
+  distance fields, the baseline CC / NE / access-score rasters, plus the
+  derived `baseline_hm` / `baseline_cn` scalars — live in an immutable
+  `CityState` NamedTuple built by `@st.cache_resource def
+  _load_city_runtime_state(city_key: str) -> CityState`. Cached on `city_key`
+  so the heavy work runs at most once per (city, session); Streamlit reruns
+  fetch the same NamedTuple from cache instantly instead of re-allocating.
+  This is the single architectural fix that made the app fit Streamlit
+  Cloud's 1 GB ceiling. After the loader returns, module-level globals
+  (`cooling_lulc`, `ET_RESIZED`, `BUILDINGS_RASTER`, ...) are aliased to the
+  matching state members via pointer rebinding — downstream function bodies
+  read them as bare names without parameter threading. **The two baseline
+  scalars `_CURRENT_CITY_STATE.baseline_hm` / `.baseline_cn` are intentionally
+  NOT aliased to module-level** — every downstream call site reads them via
+  the state handle. This prevents silent staleness if a future code path
+  fails to refresh a global on city switch (arrays would crash on shape
+  mismatch; scalars would just produce wrong-but-plausible numbers). The
+  cached `compute_scenario_grid` and `compute_lookup_table` take a leading-
+  underscore `_state` (skip-hashed) plus an explicit `city_key` (hashed
+  cache discriminator).
+- **`plot_spatial_map` memory pattern.** Matplotlib `imshow` layers in this
+  function used to peak at ~378 MB transient per slider rerun on SA's
+  1713×1984 AOI — the single biggest avoidable allocation after the
+  cache_resource refactor. Two mitigations:
+  (1) **uint8 RGB / RGBA layers.** The base `rgb` array and the heat-overlay
+  `overlay_rgba` array are `np.uint8` instead of `float64` (matplotlib
+  imshow accepts uint8 directly). The tract-overlay cmap output stays
+  `float32` because fractional alpha matters there.
+  (2) **Aspect-preserving downsample to `_PLOT_MAX_DIM = 1024`** via
+  `scipy.ndimage.zoom`, applied once at the top of the function before any
+  layer is built. `order=0` (nearest-neighbor) for the integer LULC raster
+  (category integrity must be preserved); `order=1` (bilinear) for
+  continuous overlays. `tract_value` is `nan_to_num`'d before bilinear
+  zoom with a separate nearest-neighbor pass on the validity mask to gate
+  the cmap alpha. Streamlit displays the figure at ~600 px wide regardless,
+  so rendering the full AOI is wasted memory.
 - **Precomputed static rasters.** Module-level allocations that are static for the
   lifetime of the deploy can be persisted to `<city_cfg['precomputed_dir']>/<artifact>.npy`
-  and reloaded on next boot instead of recomputed on every Streamlit rerun. Currently
-  only `PRECOMPUTED_NATURE_DISTANCES` uses this pattern: one float32 .npy per static
-  nature lucode (11, 42, 43, 52, 71, 81, 95) under `nature_distance_<lucode>.npy`. The
-  loader validates `arr.shape == cooling_lulc.shape and arr.dtype == np.float32` before
-  trusting the cache; on mismatch it falls back to live compute and re-saves. Live
-  compute is preserved as a fallback so cities mid-onboarding (no checked-in
-  artifacts yet) still work. Boot sentinel `[BOOT] PRECOMPUTED_NATURE_DISTANCES
-  loaded from cache | computed and cached to disk` reports which path ran.
-  Per-city cache locations: `data/precomputed/minneapolis_mn`,
-  `data/precomputed/minneapolis_full_mn`, `data/sa/precomputed`. To regenerate
-  for a city, delete the directory and re-run the app (or `precompute_scenarios.py`)
-  for that city.
-- **Dynamic baselines.** Both `BASELINE_HM` (line ~1129) and `BASELINE_CN` (line ~1138) are
-  overridden at module load with values computed directly from the unmodified LULC raster, using
-  the same lookups `evaluate_scenario` uses. The `CITIES['<city>']['baseline_hm' / 'baseline_cn']`
-  values are now documentation-only — the live overrides keep them in sync with whatever the
-  current InVEST UCM / CN pipeline produces, so scenario deltas at `pct_converted=0` come out as
-  exactly 0 instead of drifting by 0.03–0.9 from version-skew between hardcoded and live values.
+  and reloaded inside `_load_city_runtime_state` instead of recomputed on first
+  cache miss. Currently only `PRECOMPUTED_NATURE_DISTANCES` uses this pattern:
+  one `float32` `.npy` per static nature lucode (11, 42, 43, 52, 71, 81, 95)
+  under `nature_distance_<lucode>.npy`. The loader validates
+  `arr.shape == cooling_lulc.shape and arr.dtype == np.float32` before
+  trusting the cache; on mismatch it falls back to live compute and re-saves.
+  Live compute is preserved as a fallback so cities mid-onboarding (no
+  checked-in artifacts yet) still work. Per-city cache locations:
+  `data/precomputed/minneapolis_mn`, `data/precomputed/minneapolis_full_mn`,
+  `data/sa/precomputed`. To regenerate for a city, delete the directory and
+  re-run the app (or `precompute_scenarios.py`) for that city.
+- **Dynamic baselines.** `baseline_hm` and `baseline_cn` are computed inside
+  `_load_city_runtime_state` from the unmodified LULC raster, using the same
+  lookups `evaluate_scenario` uses. The
+  `CITIES['<city>']['baseline_hm' / 'baseline_cn']` values are
+  documentation-only. Live values are read everywhere as
+  `_CURRENT_CITY_STATE.baseline_hm` / `.baseline_cn` (see CityState entry
+  above for why these two scalars get the explicit-state-handle treatment).
 
 ---
 
 ## Blocked / pending work
 
+- **San Antonio stable on Streamlit Cloud (2026-05-11).** The 1011 keepalive
+  loop OOM on slider interaction was resolved by a stack of changes:
+  float32 downcast of module-level geospatial arrays, disk-cached static
+  nature-distance fields, `@st.cache_resource`-backed `_load_city_runtime_state`
+  (so heavy work runs once per session per city instead of every rerun),
+  in-place ops in the `_compute_cc_raster_pure` chain, and uint8 +
+  1024px-cap downsample in `plot_spatial_map` (which was allocating
+  ~378 MB transient per rerun on the SA AOI before the fix). SA is the
+  default test bed for any future memory-sensitive change.
+- **Heat Vulnerability Index — still pending.** The `equity_weights`
+  raster is a proxy (NLCD intensity-coded), not a real CDC/ATSDR HVI by
+  census tract. Replacing it is the next data-quality upgrade.
 - **Full Minneapolis extent — RESOLVED 2026-05-09, HIDDEN FROM UI 2026-05-11.**
   `'Minneapolis Full, MN'` is a live city in CITIES but `available=False` so it does NOT appear in
   the sidebar selector. Reason: per-building-type dollar metrics (Flood Damage Avoided, Cooling
@@ -273,9 +323,20 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   of pixels, or anywhere precision loss could shift a metric output. When in
   doubt, downcast — float32 carries 24-bit mantissa precision (~7 decimal digits)
   which is well beyond the precision of any geospatial input we ingest.
-- **No bare globals for city data** — always pull city-specific values from `city_cfg` or the
-  derived runtime names (`BASELINE_CN`, `BASELINE_HM`, etc.). Don't hardcode Minneapolis values
-  outside of the `CITIES` dict.
+- **No bare globals for city data** — always pull city-specific values from
+  `city_cfg`, the derived runtime aliases (`cooling_lulc`, `ET_RESIZED`,
+  `BUILDINGS_RASTER`, ...), or the explicit-state handle
+  `_CURRENT_CITY_STATE` (for `baseline_hm` / `baseline_cn`, which are NOT
+  aliased to module-level by design — see Architecture notes). Don't
+  hardcode Minneapolis values outside of the `CITIES` dict.
+- **Pure-variant helpers for code the loader calls.** Heavy compute helpers
+  that the loader invokes (currently `_compute_cc_raster`,
+  `_compute_hm_raster`, `_compute_access_score_raster`) come in two variants:
+  `_fn(scenario_lulc)` reads module aliases populated by the loader, and
+  `_fn_pure(scenario_lulc, *deps)` takes its dependencies explicitly. The
+  loader uses the pure variant because the module aliases haven't been
+  rebound yet at the moment the loader runs; downstream code uses the
+  zero-arg wrapper.
 - **Cached functions use path params as cache keys** — `load_data`, `compute_scenario_grid`,
   `compute_lookup_table`, and `train_surrogate` all accept the data directory paths so Streamlit
   caches city results separately. `compute_scenario_grid` and `compute_lookup_table` also take a
@@ -304,8 +365,11 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   when the denominator is zero or negative. Never let a divide-by-zero surface to the user.
 - **Metric formatters are helpers, not inline f-strings** — use `_fmt_runoff()`, `_fmt_food()`,
   `_fmt_people()`, `_fmt_ce()` for display formatting so the logic lives in one place.
-- **`st.stop()` for unavailable cities** — always call it before data loading, not after.
-  Nothing expensive should run for an unavailable city.
+- **Unavailable cities are filtered out of the sidebar selector** at the
+  selectbox-options stage, so the "coming soon" UI branch is no longer
+  reachable. If a future city needs an explicit "data being prepared"
+  state, add it back as a filter on `available` plus a sidebar caption,
+  not as an `st.stop()` after data loading.
 - **Scenario LULC is not stored in the lookup table** — `scenario_lulc` is stripped from cached
   results (`if k != 'scenario_lulc'`) and recomputed on demand for the map view to keep memory
   usage manageable.

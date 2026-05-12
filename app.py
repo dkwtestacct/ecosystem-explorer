@@ -1,24 +1,4 @@
-import sys
-sys.stdout.reconfigure(line_buffering=True)
-sys.stderr.reconfigure(line_buffering=True)
-print("[BOOT] python entered app.py", flush=True)
-
-import os as _os_for_debug_mem
-# Diagnostic memory tracker — gated on DEBUG_MEM env var so production runs are
-# silent. Set DEBUG_MEM=1 in the environment to capture per-stage RSS jumps
-# during evaluate_scenario / plot rendering.
-if _os_for_debug_mem.environ.get("DEBUG_MEM"):
-    import psutil as _psutil_for_debug_mem
-    _PROC_FOR_DEBUG_MEM = _psutil_for_debug_mem.Process()
-    def _log_mem(label):
-        rss_mb = _PROC_FOR_DEBUG_MEM.memory_info().rss / 1e6
-        print(f"[MEM] {label}: {rss_mb:.1f} MB", flush=True)
-else:
-    def _log_mem(label):
-        pass
-
 import streamlit as st
-print("[BOOT] imports done", flush=True)
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -244,7 +224,6 @@ CITIES = {
         },
     },
 }
-print("[BOOT] CITIES dict defined", flush=True)
 
 PIXEL_AREA_ACRES     = 0.2224  # 30 m × 30 m = 900 m² ÷ 4046.86 m²/acre. Same in EPSG:26915 (UTM) and EPSG:5070 (Albers); UTM ground-area distortion at MN is ~0.05 %, well within rounding.
 # FOOD_FOREST_LBS_ACRE is city-dependent — see "── City-derived constants ──" below.
@@ -1071,7 +1050,6 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
     scenario_lulc = cooling_lulc.copy()
-    _log_mem("evaluate_scenario:start")
     # Sample from the convertible (= developed AND non-building) pool so
     # conversions land on feasible interstitial spaces (parking lots, lawns,
     # vacant land) rather than on top of existing structures. Total developed
@@ -1124,11 +1102,9 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     # valid pixels — same scale as before (0–1, higher = more cooling) but
     # now factors albedo and per-pixel ET in addition to shade and Kc.
     cc_map   = _compute_cc_raster(scenario_lulc)
-    _log_mem("after _compute_cc_raster")
     valid_hm = cc_map[~np.isnan(cc_map) & (scenario_lulc != NODATA)]
     mean_hm  = float(valid_hm.mean().round(4))
     cooling_energy_savings_usd = compute_cooling_energy_savings(cc_map)
-    _log_mem("after compute_cooling_energy_savings")
 
     n_food_pixels = int(((scenario_lulc == CODE_FOOD_FOREST) & (cooling_lulc != CODE_FOOD_FOREST)).sum())
     food_mln_lbs  = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
@@ -1145,7 +1121,6 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     nat_pct, nat_quality, nat_people = calculate_nature_access(
         scenario_lulc, pop_count_raster
     )
-    _log_mem("after calculate_nature_access")
 
     # Build the scenario NDVI raster once and pass to both consumers. Saves
     # one full-AOI float32 allocation per evaluate_scenario call.
@@ -1163,8 +1138,6 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         scenario_lulc, _BASELINE_NE_RASTER, pop_count_raster,
         ndvi_raster=scenario_ndvi,
     )
-    _log_mem("after calculate_mental_health_impact")
-    _log_mem("evaluate_scenario:end")
 
     return {
         'pct_converted':            pct_converted,
@@ -1393,7 +1366,6 @@ def compute_cooling_energy_savings(scenario_cc_raster):
 @st.cache_resource(show_spinner="Loading city data — first interaction may take a minute…")
 def _load_city_runtime_state(city_key: str) -> CityState:
     cfg = CITIES[city_key]
-    print(f"[BOOT] _load_city_runtime_state cache miss for {city_key!r} — building", flush=True)
 
     # ── Phase 1: cached load_data outputs ────────────────────────────────────
     (l_lulc, l_soil_resized, l_cooling_lulc, l_developed_pixels,
@@ -1402,7 +1374,6 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         cfg['data_dir_flood'], cfg['data_dir_cooling'],
         cfg['cn_table_file'], cfg['cooling_table_file'],
         cfg['lulc_file'], cfg['soil_file'], cfg['cooling_lulc_file'])
-    print(f"[BOOT] load_data returned (cooling_lulc shape={l_cooling_lulc.shape})", flush=True)
 
     # ── Phase 2: Population raster ──────────────────────────────────────────
     pop_file = cfg.get("pop_file")
@@ -1436,7 +1407,6 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         et_resized = np.ones(l_cooling_lulc.shape, dtype=np.float32)
         max_et_ref = 1.0
         et_data_available = False
-    print(f"[BOOT] ET raster resized (available={et_data_available})", flush=True)
 
     # ── Phase 4: Energy table (small dict) ──────────────────────────────────
     energy_table_file = cfg.get("energy_table_file")
@@ -1492,19 +1462,6 @@ def _load_city_runtime_state(city_key: str) -> CityState:
                 np.save(cache_file, arr)
             except Exception:
                 pass
-    if computed_any:
-        print(
-            f"[BOOT] PRECOMPUTED_NATURE_DISTANCES computed and cached to disk "
-            f"({len(precomputed_nature_distances)} arrays in {precomp_dir})",
-            flush=True,
-        )
-    else:
-        print(
-            f"[BOOT] PRECOMPUTED_NATURE_DISTANCES loaded from cache "
-            f"({len(precomputed_nature_distances)} arrays from {precomp_dir})",
-            flush=True,
-        )
-
     # ── Phase 7: Rasterization template ─────────────────────────────────────
     with rasterio.open(f"{cfg['data_dir_cooling']}/{cfg['cooling_lulc_file']}") as ref:
         ref_shape     = (ref.height, ref.width)
@@ -1559,7 +1516,6 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         buildings_data_available = False
         buildings_raster = np.zeros(l_cooling_lulc.shape, dtype="uint8")
         buildings_type_raster = np.full(l_cooling_lulc.shape, -1, dtype="int32")
-    print(f"[BOOT] BUILDINGS_TYPE_RASTER rasterized (available={buildings_data_available})", flush=True)
 
     # ── Phase 9: Roads ──────────────────────────────────────────────────────
     roads_file = cfg.get("roads_file")
@@ -1631,11 +1587,9 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     baseline_hm_raster = _compute_cc_raster_pure(
         l_cooling_lulc, l_shade_arr, l_kc_arr, l_albedo_arr, et_resized, max_et_ref,
     )
-    print("[BOOT] _BASELINE_HM_RASTER computed", flush=True)
     baseline_ne_raster = _gaussian_filter(
         _lulc_to_ndvi_raster(l_cooling_lulc), sigma=_UMH_SIGMA_PX, mode="nearest",
     )
-    print("[BOOT] _BASELINE_NE_RASTER computed", flush=True)
 
     # ── Phase 14: Baseline scalars ──────────────────────────────────────────
     valid_base_cc = baseline_hm_raster[~np.isnan(baseline_hm_raster)]
@@ -1652,7 +1606,6 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         float(valid_base_cn.mean().round(2))
         if valid_base_cn.size > 0 else float(cfg['baseline_cn'] or 0.0)
     )
-    print(f"[BOOT] dynamic BASELINE_CN/BASELINE_HM overrides done (CN={baseline_cn}, HM={baseline_hm})", flush=True)
 
     return CityState(
         lulc=l_lulc, soil_resized=l_soil_resized, cooling_lulc=l_cooling_lulc,
@@ -3320,15 +3273,12 @@ with tab2:
     # new optimization (which sets it back to True or False).
     st.subheader("Tradeoff Space")
     st.caption("Each point is a scenario. Better outcomes are toward the top-right — more cooling and greater flood-risk reduction. Bubble size shows food production for saved and optimized scenarios.")
-    _log_mem("before plot_tradeoff")
-    _tradeoff_fig = plot_tradeoff(
+    st.plotly_chart(plot_tradeoff(
         results, scenario_df,
         lookup_table=lookup_table,
         saved=st.session_state.saved_scenarios,
         optimized=st.session_state.optimized_results
-    )
-    _log_mem("after plot_tradeoff")
-    st.plotly_chart(_tradeoff_fig, width='stretch')
+    ), width='stretch')
 
     if TRACTS_DATA_AVAILABLE:
         st.divider()
@@ -3637,14 +3587,11 @@ with tab3:
                     np.nan,
                 )
 
-    _log_mem("before plot_spatial_map")
-    _spatial_fig = plot_spatial_map(
+    render_matplotlib(plot_spatial_map(
         results['scenario_lulc'], cooling_lulc,
         heat_overlay=equity_weights, overlay_alpha=overlay_opacity,
         tract_value=_tract_overlay_value, tract_alpha=_tract_overlay_alpha,
-    )
-    _log_mem("after plot_spatial_map")
-    render_matplotlib(_spatial_fig)
+    ))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
         "White = outside city boundary. Red wash = heat vulnerability proxy, "
@@ -3684,6 +3631,3 @@ with st.expander("Intended Use", expanded=False):
         "- Precise impact prediction\n"
         "- Final policy or investment decisions without further analysis"
     )
-
-print("[BOOT] end-of-module", flush=True)
-_log_mem("script body end")
