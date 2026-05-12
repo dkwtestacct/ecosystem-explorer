@@ -22,3 +22,5 @@ pyogrio>=0.7.0
 
 # Surrogate model
 scikit-learn>=1.3.0
+
+# rebuild trigger 2026-05-11
