@@ -52,6 +52,8 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | `data/sa/buildings_sa.gpkg` | OSM buildings (Geofabrik TX, GeoPackage; raw GeoJSON 185 MB exceeded GitHub limit) | done (345,900 polygons) |
 | `data/sa/tracts_bexar.shp` | TIGER 2020 Bexar County tracts | done (375 tracts) |
 | `data/sa/flood/Damage_loss_table_SA.csv`, crop-yield table | SA-specific damage rates and crop yields | pending — Option A semantics in the meantime ($0 dollar metrics) |
+| `data/sa/precomputed/nature_distance_<lucode>.npy` | Float32 distance-to-class fields for the static nature lucodes (11, 42, 43, 52, 71, 81, 95) at the SA grid (1713 × 1984). 7 × 13 MB ≈ 91 MB. Loaded at module load by the per-city cache layer; recomputed + re-cached on shape/dtype mismatch. | done |
+| `data/precomputed/minneapolis_mn/nature_distance_<lucode>.npy` | Same, MN downtown grid (356 × 360). 7 × 501 KB ≈ 3.4 MB. | done |
 
 Pipeline scripts: `download_sa_data.py` (NLCD), `download_ssurgo_sa.py` +
 `process_ssurgo_sa.py` (soil), `download_census_pop_sa.py` (population),
@@ -214,6 +216,20 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   CGIAR ET0 + TIGER 48 + Geofabrik TX OSM; new EPA Social Cost of Carbon dollar
   metric in Economic row; pre-flight data-check function added; PIXEL_AREA_ACRES
   harmonized to 0.2224 globally).**
+- **Precomputed static rasters.** Module-level allocations that are static for the
+  lifetime of the deploy can be persisted to `<city_cfg['precomputed_dir']>/<artifact>.npy`
+  and reloaded on next boot instead of recomputed on every Streamlit rerun. Currently
+  only `PRECOMPUTED_NATURE_DISTANCES` uses this pattern: one float32 .npy per static
+  nature lucode (11, 42, 43, 52, 71, 81, 95) under `nature_distance_<lucode>.npy`. The
+  loader validates `arr.shape == cooling_lulc.shape and arr.dtype == np.float32` before
+  trusting the cache; on mismatch it falls back to live compute and re-saves. Live
+  compute is preserved as a fallback so cities mid-onboarding (no checked-in
+  artifacts yet) still work. Boot sentinel `[BOOT] PRECOMPUTED_NATURE_DISTANCES
+  loaded from cache | computed and cached to disk` reports which path ran.
+  Per-city cache locations: `data/precomputed/minneapolis_mn`,
+  `data/precomputed/minneapolis_full_mn`, `data/sa/precomputed`. To regenerate
+  for a city, delete the directory and re-run the app (or `precompute_scenarios.py`)
+  for that city.
 - **Dynamic baselines.** Both `BASELINE_HM` (line ~1129) and `BASELINE_CN` (line ~1138) are
   overridden at module load with values computed directly from the unmodified LULC raster, using
   the same lookups `evaluate_scenario` uses. The `CITIES['<city>']['baseline_hm' / 'baseline_cn']`
@@ -247,6 +263,16 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
 
 ## Coding conventions
 
+- **Float32 for module-level geospatial arrays.** Any full-AOI raster computed
+  or loaded at module load (population, ET, consumption-rate, baseline rasters,
+  precomputed distance fields, etc.) must be `np.float32`, not the numpy default
+  `float64`. SA's 1713 × 1984 grid is 27 MB per float64 raster vs 13.6 MB per
+  float32 — at 8+ such arrays this is the difference between fitting in
+  Streamlit Cloud's 1 GB worker and OOM-killing on startup. Float64 is reserved
+  for: accumulators inside `evaluate_scenario`, anything summing across millions
+  of pixels, or anywhere precision loss could shift a metric output. When in
+  doubt, downcast — float32 carries 24-bit mantissa precision (~7 decimal digits)
+  which is well beyond the precision of any geospatial input we ingest.
 - **No bare globals for city data** — always pull city-specific values from `city_cfg` or the
   derived runtime names (`BASELINE_CN`, `BASELINE_HM`, etc.). Don't hardcode Minneapolis values
   outside of the `CITIES` dict.
