@@ -13,10 +13,15 @@ from matplotlib.patches import Patch
 import plotly.graph_objects as go
 import os
 from pathlib import Path
+from typing import NamedTuple, Any, Optional
 
 import rasterio
+from rasterio.features import rasterize as _rasterize
 from skimage.transform import resize
 from sklearn.ensemble import RandomForestRegressor
+import geopandas as _gpd
+from scipy.ndimage import gaussian_filter as _gaussian_filter
+from scipy.ndimage import distance_transform_edt as _distance_transform_edt
 
 # ── City configuration ─────────────────────────────────────────────────────────
 CITIES = {
@@ -416,9 +421,89 @@ LULC_FILE          = city_cfg['lulc_file']
 SOIL_FILE          = city_cfg['soil_file']
 COOLING_LULC_FILE  = city_cfg['cooling_lulc_file']
 CITY_CRS           = city_cfg['crs']
-BASELINE_CN        = city_cfg['baseline_cn']
-BASELINE_HM        = city_cfg['baseline_hm']
 REF_SCENARIOS      = city_cfg['ref_scenarios']
+# NOTE: BASELINE_HM and BASELINE_CN are NOT initialised here from city_cfg.
+# The city runtime state (_CURRENT_CITY_STATE) is the single source of truth
+# for these scalars — they are computed live from the unmodified LULC raster
+# inside _load_city_runtime_state and read as `_CURRENT_CITY_STATE.baseline_hm`
+# / `.baseline_cn` everywhere downstream. Keeping them off the module-global
+# fast-path prevents silent staleness when switching cities mid-session.
+
+
+# ── City runtime state container ──────────────────────────────────────────────
+# All large per-city allocations (rasters, distance fields, baseline images)
+# live in this immutable NamedTuple. Built once per (city, session) by
+# `_load_city_runtime_state`, which is decorated with @st.cache_resource so the
+# heavy work survives Streamlit reruns instead of re-allocating on every widget
+# interaction. Module-level globals named in `_apply_state_to_module_globals`
+# are aliased to the matching state members on each rerun for backward compat
+# with existing function bodies that read them as bare names — those aliases
+# are pointer rebindings, not copies, so they cost nothing.
+class CityState(NamedTuple):
+    # From load_data() (already @st.cache_data)
+    lulc: np.ndarray
+    soil_resized: np.ndarray
+    cooling_lulc: np.ndarray
+    developed_pixels: np.ndarray
+    cn_table: np.ndarray
+    lucode_idx_arr: np.ndarray
+    hm_arr: np.ndarray
+    max_raster_lucode: int
+    max_hm_lucode: int
+    equity_weights: np.ndarray
+    shade_arr: np.ndarray
+    kc_arr: np.ndarray
+    albedo_arr: np.ndarray
+    # Population
+    pop_count_raster: np.ndarray
+    population_data_available: bool
+    # Reference ET
+    et_resized: np.ndarray
+    max_et_ref: float
+    et_data_available: bool
+    # Energy table (small dict)
+    energy_by_type: dict
+    energy_table_available: bool
+    # InVEST UNA biophysical (small DataFrame)
+    una_active: pd.DataFrame
+    # Pre-computed nature-distance fields (one float32 raster per static lucode)
+    precomputed_nature_distances: dict
+    # Rasterization template
+    ref_shape: tuple
+    ref_transform: Any
+    # Buildings
+    buildings_raster: np.ndarray
+    buildings_type_raster: np.ndarray
+    buildings_data_available: bool
+    buildings_have_types: bool
+    total_potential_damage_usd: float
+    # Roads
+    roads_raster: np.ndarray
+    osm_roads_available: bool
+    # Per-pixel AC consumption rate
+    consumption_rate_per_pixel: np.ndarray
+    # Convertible-pixel pool (developed minus buildings/roads)
+    convertible_pixels: np.ndarray
+    # Tracts
+    tracts: pd.DataFrame
+    tract_id_raster: np.ndarray
+    tracts_data_available: bool
+    # Baseline rasters
+    baseline_access_score_raster: np.ndarray
+    baseline_hm_raster: np.ndarray
+    baseline_ne_raster: np.ndarray
+    # Baseline scalars — read via _CURRENT_CITY_STATE only (not aliased)
+    baseline_hm: float
+    baseline_cn: float
+
+
+# Module-level escape-hatch handle to the active city runtime state. Populated
+# by the call to `_load_city_runtime_state(selected_city)` further down. Used
+# sparingly — the canonical access path in newly-written code is the `state`
+# parameter or the matching module-level alias rebinding. Two scalars
+# (BASELINE_HM, BASELINE_CN) are accessed via this handle by design (see
+# CityState comment above).
+_CURRENT_CITY_STATE: Optional[CityState] = None
 
 st.markdown(
     "Explore how converting developed land into green infrastructure or food forests "
@@ -529,17 +614,11 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
             equity_weights, shade_arr, kc_arr, albedo_arr)
 
 
-(lulc, soil_resized, cooling_lulc, developed_pixels,
- cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
- equity_weights, shade_arr, kc_arr, albedo_arr) = load_data(
-    DATA_DIR_FLOOD, DATA_DIR_COOLING, CN_TABLE_FILE, COOLING_TABLE_FILE,
-    LULC_FILE, SOIL_FILE, COOLING_LULC_FILE)
-print(f"[BOOT] load_data returned (cooling_lulc shape={cooling_lulc.shape})", flush=True)
-
-# ── Population raster (for Nature Access metric) ───────────────────────────────
-# Built by download_census_pop.py from US Census 2020 block-level totals,
-# rasterized to the NLCD grid. Falls back to a uniform placeholder if the file
-# is missing so the app still launches before the pipeline has run.
+# ── Population raster loader (for Nature Access metric) ──────────────────────
+# Helper used by `_load_city_runtime_state` below. Built offline by
+# download_census_pop.py from US Census 2020 block-level totals, rasterized to
+# the NLCD grid. The loader falls back to a uniform placeholder if the file is
+# missing so the app still launches before the pipeline has run.
 def load_population_data(pop_path, target_shape):
     """Load a population-count raster, resampled to target_shape with bilinear."""
     with rasterio.open(pop_path) as src:
@@ -552,70 +631,6 @@ def load_population_data(pop_path, target_shape):
             data[data == src.nodata] = 0
         data[data < 0] = 0
         return data
-
-
-_POP_FILE = city_cfg.get("pop_file")
-try:
-    if _POP_FILE is None:
-        raise FileNotFoundError("pop_file not configured")
-    pop_count_raster = load_population_data(_POP_FILE, cooling_lulc.shape)
-    POPULATION_DATA_AVAILABLE = True
-except (FileNotFoundError, rasterio.errors.RasterioIOError, TypeError):
-    pop_count_raster = np.ones(cooling_lulc.shape, dtype=np.float32)
-    POPULATION_DATA_AVAILABLE = False
-
-
-# ── Urban Cooling Model: ET raster + energy savings ──────────────────────────
-# Full InVEST UCM cooling-capacity formula:
-#     ETI_pixel = (kc[class] × ET_pixel) / max(ET)
-#     CC_pixel  = 0.6 × shade[class] + 0.2 × albedo[class] + 0.2 × ETI_pixel
-# `mean_hm` reported by `evaluate_scenario` is now the mean CC over valid
-# pixels (replacing the legacy `(shade + kc) / 2` lookup). Per-class shade,
-# kc, and albedo come from the city's `cooling_table_file` (e.g.
-# `biophysical_table_urban_cooling_MN.csv`); ET comes
-# from `reference_evapotranspiration_annual.tif` (1 km, bilinear-resampled
-# to the 30 m NLCD grid).
-_ET_FILE = city_cfg.get("et_file")
-try:
-    if _ET_FILE is None:
-        raise FileNotFoundError("et_file not configured")
-    with rasterio.open(_ET_FILE) as _et_src:
-        _et_raw = _et_src.read(1).astype(np.float32)
-        _et_nodata = _et_src.nodata
-    # The MN reference-ET raster uses 65535 as a nodata sentinel; np.isfinite
-    # treats that as a valid float, so a previous version of this code
-    # propagated the sentinel into MAX_ET_REF and zeroed out the ETI term in
-    # the InVEST CC formula. Mask explicitly here, before resampling, so
-    # bilinear interpolation doesn't bleed sentinel values onto valid pixels.
-    if _et_nodata is not None:
-        _et_raw[_et_raw == _et_nodata] = np.nan
-    _et_raw[_et_raw > 10_000] = np.nan   # belt-and-braces against any other sentinels
-    _et_raw[_et_raw < 0]      = np.nan
-    ET_RESIZED = resize(_et_raw, cooling_lulc.shape, order=1, preserve_range=True).astype(np.float32)
-    # Fill NaNs introduced by resize() interpolating across nodata pixels with
-    # the field median so the convolution downstream sees a smooth ET surface.
-    _finite = np.isfinite(ET_RESIZED)
-    ET_RESIZED = np.where(_finite, ET_RESIZED, np.nanmedian(ET_RESIZED[_finite])).astype(np.float32)
-    MAX_ET_REF = float(ET_RESIZED.max()) if ET_RESIZED.max() > 0 else 1.0
-    ET_DATA_AVAILABLE = True
-except Exception:
-    ET_RESIZED = np.ones(cooling_lulc.shape, dtype=np.float32)
-    MAX_ET_REF = 1.0
-    ET_DATA_AVAILABLE = False
-print(f"[BOOT] ET raster resized (available={ET_DATA_AVAILABLE})", flush=True)
-
-# Energy consumption per building type (kWh/m²/year) from the InVEST UCM
-# sample table. Used to translate cooling improvement into avoided AC cost.
-_ENERGY_TABLE_FILE = city_cfg.get("energy_table_file")
-try:
-    if _ENERGY_TABLE_FILE is None:
-        raise FileNotFoundError("energy_table_file not configured")
-    _energy_df = pd.read_csv(_ENERGY_TABLE_FILE)
-    ENERGY_BY_TYPE = dict(zip(_energy_df["type"], _energy_df["consumption"]))
-    ENERGY_TABLE_AVAILABLE = True
-except Exception:
-    ENERGY_BY_TYPE = {}
-    ENERGY_TABLE_AVAILABLE = False
 
 # Cost-per-kWh (US average residential, EIA 2024). Used to convert
 # avoided-AC-kWh into $.
@@ -646,24 +661,16 @@ EPA_SOCIAL_COST_CARBON = 190
 GREEN_AREA_COOLING_DISTANCE_M = 450
 _CC_SIGMA_PX = GREEN_AREA_COOLING_DISTANCE_M / 30  # 30 m NLCD pixels → σ = 15 px
 
-from scipy.ndimage import gaussian_filter as _gaussian_filter
 
-
-def _compute_cc_raster(scenario_lulc):
-    """Per-pixel cooling-capacity index per InVEST UCM:
-        CC_raw_i  = 0.6·shade_i + 0.2·albedo_i + 0.2·ETI_i
-        ETI_i     = (kc_i × ET_ref_i) / max(ET_ref)
-        CC_i      = gaussian_filter(CC_raw, σ = 450 m / 30 m px = 15 px)
-    The Gaussian step approximates the InVEST T_air convolution: cooling
-    benefits propagate ~450 m onto neighbouring pixels rather than staying
-    pinned to the green pixel itself. NaN where the LULC code is outside the
-    biophysical table; NaNs are temporarily filled with the in-AOI mean so
-    they don't poison the convolution, then restored on the output."""
+def _compute_cc_raster_pure(scenario_lulc, shade_arr, kc_arr, albedo_arr, et_resized, max_et_ref):
+    """Pure variant — all per-city deps explicit. Used by `_load_city_runtime_state`
+    to compute the baseline CC raster before the module-level aliases for
+    `shade_arr`, `kc_arr`, etc. have been rebound."""
     safe = np.clip(scenario_lulc, 0, len(shade_arr) - 1)
     shade  = shade_arr[safe]
     kc     = kc_arr[safe]
     albedo = albedo_arr[safe]
-    eti = (kc * ET_RESIZED) / MAX_ET_REF
+    eti = (kc * et_resized) / max_et_ref
     cc_raw = 0.6 * shade + 0.2 * albedo + 0.2 * eti
     nan_mask = (scenario_lulc < 0) | (scenario_lulc >= len(shade_arr)) | ~np.isfinite(cc_raw)
 
@@ -681,6 +688,24 @@ def _compute_cc_raster(scenario_lulc):
     return cc
 
 
+def _compute_cc_raster(scenario_lulc):
+    """Per-pixel cooling-capacity index per InVEST UCM:
+        CC_raw_i  = 0.6·shade_i + 0.2·albedo_i + 0.2·ETI_i
+        ETI_i     = (kc_i × ET_ref_i) / max(ET_ref)
+        CC_i      = gaussian_filter(CC_raw, σ = 450 m / 30 m px = 15 px)
+    The Gaussian step approximates the InVEST T_air convolution: cooling
+    benefits propagate ~450 m onto neighbouring pixels rather than staying
+    pinned to the green pixel itself. NaN where the LULC code is outside the
+    biophysical table; NaNs are temporarily filled with the in-AOI mean so
+    they don't poison the convolution, then restored on the output.
+
+    Wrapper that pulls per-city deps from the module-level aliases populated
+    by `_load_city_runtime_state`."""
+    return _compute_cc_raster_pure(
+        scenario_lulc, shade_arr, kc_arr, albedo_arr, ET_RESIZED, MAX_ET_REF,
+    )
+
+
 # Nature Access: weighted population-share metric using the official InVEST
 # Urban Nature Access (UNA) biophysical table. Each LULC class has its own
 # `urban_nature` score (0–1) and `search_radius_m`. For each scenario we take,
@@ -690,91 +715,44 @@ def _compute_cc_raster(scenario_lulc):
 # `NATURE_CODES = [41, 42, 43, 52, 71, 90, 95]` + single-800m-radius approach.
 PIXEL_SIZE_M = 30
 
-from scipy.ndimage import distance_transform_edt as _distance_transform_edt
-
+# Per-city UNA biophysical table path is small + cheap, so it stays
+# module-level (kept off CityState to avoid threading a Path through
+# functions that don't otherwise need state).
 UNA_TABLE_PATH = Path(city_cfg["una_table_file"])
-UNA_TABLE = pd.read_csv(UNA_TABLE_PATH)
-# Active rows = classes that contribute to nature access (positive score AND
-# a defined search radius). Sorted ascending by score so np.maximum in the
-# loop below ends up with the highest score across all in-range classes.
-UNA_ACTIVE = UNA_TABLE[
-    (UNA_TABLE["urban_nature"] > 0) & UNA_TABLE["search_radius_m"].notna()
-].copy()
-UNA_ACTIVE["lucode"] = UNA_ACTIVE["lucode"].astype(int)
 
-# Cap search radii at 1000 m. The InVEST UNA defaults of 5000 m for water /
-# forest / wetland classes treat those as "regional" amenities — appropriate
-# for a county-scale recreation study, but for an urban walking-distance
-# access metric on a 10.8 × 10.7 km AOI any single water pixel (Lake Calhoun,
-# Mississippi River, etc.) would mark essentially every other pixel as "has
-# nature access" — which is what produced the 100 % baseline. 1000 m
-# corresponds to a ~12-minute walk and matches the InVEST table's own value
-# for "Developed, Open Space" (urban parks).
+# Cap on the InVEST UNA `search_radius_m` field. Defaults of 5000 m for
+# water / forest / wetland classes treat those as "regional" amenities —
+# appropriate for a county-scale recreation study, but for an urban walking-
+# distance access metric a single water pixel would mark essentially every
+# other pixel as "has nature access" (the 100 % baseline bug). 1000 m =
+# ~12-minute walk, matches InVEST's own value for "Developed, Open Space".
 NATURE_RADIUS_CAP_M = 1000
-UNA_ACTIVE["search_radius_m"] = UNA_ACTIVE["search_radius_m"].clip(upper=NATURE_RADIUS_CAP_M)
 
 # Pre-compute distance transforms for natural classes whose pixel set never
 # changes across scenarios (the model only converts NLCD 21–24 to GI/FF/HD).
-# This keeps per-scenario evaluation fast: classes 21, 41, 90 are recomputed
-# live; all other natural classes use the pre-built array.
+# Those three lucodes are recomputed live; all other natural classes use the
+# pre-built array stored on the city runtime state.
 _DYNAMIC_NATURE_LUCODES = {21, 41, 90}
-# Disk cache for the static nature-class distance fields. Each
-# distance_transform_edt call on SA's 1713×1984 grid takes seconds and
-# allocates a ~13.6 MB float32 working array; doing five of them on every
-# Streamlit rerun is the single biggest avoidable startup cost. We persist
-# the float32 outputs under city_cfg['precomputed_dir'] as one .npy per
-# static lucode and reload them next boot. The compute path is preserved as
-# a fallback so cities without checked-in artifacts (or new cities mid-
-# onboarding) still work.
-_PRECOMP_DIR = city_cfg.get("precomputed_dir")
-if _PRECOMP_DIR:
-    Path(_PRECOMP_DIR).mkdir(parents=True, exist_ok=True)
 
-PRECOMPUTED_NATURE_DISTANCES = {}
-_static_lucodes = [
-    int(lc) for lc in UNA_ACTIVE["lucode"]
-    if int(lc) not in _DYNAMIC_NATURE_LUCODES
-]
-_loaded_any_from_cache = False
-_computed_any = False
-for _lucode in _static_lucodes:
-    cache_file = (
-        Path(_PRECOMP_DIR) / f"nature_distance_{_lucode}.npy"
-        if _PRECOMP_DIR else None
-    )
-    if cache_file is not None and cache_file.exists():
-        try:
-            arr = np.load(cache_file)
-            if arr.shape == cooling_lulc.shape and arr.dtype == np.float32:
-                PRECOMPUTED_NATURE_DISTANCES[_lucode] = arr
-                _loaded_any_from_cache = True
+
+def _compute_access_score_raster_pure(scenario_lulc, una_active, precomputed_nature_distances):
+    """Pure variant — explicit deps. Used by `_load_city_runtime_state` to
+    compute the baseline access-score raster before module aliases exist."""
+    access_score = np.zeros(scenario_lulc.shape, dtype=np.float32)
+    for _, row in una_active.iterrows():
+        lucode = int(row["lucode"])
+        radius = float(row["search_radius_m"])
+        score  = float(row["urban_nature"])
+        if lucode in precomputed_nature_distances:
+            distance = precomputed_nature_distances[lucode]
+        else:
+            mask = (scenario_lulc == lucode)
+            if not mask.any():
                 continue
-        except Exception:
-            pass
-    _mask = (cooling_lulc == _lucode)
-    if not _mask.any():
-        continue
-    arr = (_distance_transform_edt(~_mask) * PIXEL_SIZE_M).astype(np.float32)
-    PRECOMPUTED_NATURE_DISTANCES[_lucode] = arr
-    _computed_any = True
-    if cache_file is not None:
-        try:
-            np.save(cache_file, arr)
-        except Exception:
-            pass
-
-if _computed_any:
-    print(
-        f"[BOOT] PRECOMPUTED_NATURE_DISTANCES computed and cached to disk "
-        f"({len(PRECOMPUTED_NATURE_DISTANCES)} arrays in {_PRECOMP_DIR})",
-        flush=True,
-    )
-else:
-    print(
-        f"[BOOT] PRECOMPUTED_NATURE_DISTANCES loaded from cache "
-        f"({len(PRECOMPUTED_NATURE_DISTANCES)} arrays from {_PRECOMP_DIR})",
-        flush=True,
-    )
+            distance = _distance_transform_edt(~mask) * PIXEL_SIZE_M
+        in_range = distance <= radius
+        np.maximum(access_score, in_range * score, out=access_score)
+    return access_score
 
 
 def _compute_access_score_raster(scenario_lulc):
@@ -786,22 +764,12 @@ def _compute_access_score_raster(scenario_lulc):
     classes takes the highest single class score — preventing double-counting.
     Pre-computed distance arrays are reused for natural classes whose pixel
     set never changes across scenarios.
-    """
-    access_score = np.zeros(scenario_lulc.shape, dtype=np.float32)
-    for _, row in UNA_ACTIVE.iterrows():
-        lucode = int(row["lucode"])
-        radius = float(row["search_radius_m"])
-        score  = float(row["urban_nature"])
-        if lucode in PRECOMPUTED_NATURE_DISTANCES:
-            distance = PRECOMPUTED_NATURE_DISTANCES[lucode]
-        else:
-            mask = (scenario_lulc == lucode)
-            if not mask.any():
-                continue
-            distance = _distance_transform_edt(~mask) * PIXEL_SIZE_M
-        in_range = distance <= radius
-        np.maximum(access_score, in_range * score, out=access_score)
-    return access_score
+
+    Wrapper that pulls per-city deps from module aliases populated by
+    `_load_city_runtime_state`."""
+    return _compute_access_score_raster_pure(
+        scenario_lulc, UNA_ACTIVE, PRECOMPUTED_NATURE_DISTANCES,
+    )
 
 
 def calculate_nature_access(scenario_lulc, pop_count_raster):
@@ -860,10 +828,12 @@ def calculate_nature_access(scenario_lulc, pop_count_raster):
 NATURE_ACCESS_THRESHOLD = 0.3
 
 
+# NOTE: BASELINE_FOOD_MLN_LBS and BASELINE_NATURE_ACCESS_PCT used to be
+# initialised here, but they depend on the per-city `cooling_lulc` /
+# `pop_count_raster` aliases that aren't bound until `_load_city_runtime_state`
+# returns further down. They're now initialised inside the loader-output
+# alias block.
 BASELINE_FOOD_MLN_LBS = 0.0
-BASELINE_NATURE_ACCESS_PCT, BASELINE_NATURE_QUALITY_SCORE, _ = calculate_nature_access(
-    cooling_lulc, pop_count_raster
-)
 
 
 # ── Metric translation helpers ─────────────────────────────────────────────────
@@ -1001,7 +971,8 @@ def cn_to_runoff_acre_feet(mean_cn, total_developed_acres):
 
 def hm_to_fahrenheit_cooling(mean_hm):
     """Translate HM index delta vs baseline into approximate °F cooling."""
-    delta_hm = mean_hm - BASELINE_HM
+    # read from state to avoid silent-staleness if city switches
+    delta_hm = mean_hm - _CURRENT_CITY_STATE.baseline_hm
     return round(delta_hm * HM_TO_FAHRENHEIT, 1)
 
 
@@ -1207,9 +1178,14 @@ def _compute_carbon(n_wet, n_for, n_hd):
 
 
 @st.cache_data
-def compute_scenario_grid(data_dir_flood, data_dir_cooling,
+def compute_scenario_grid(_state, city_key, data_dir_flood, data_dir_cooling,
                           step_pct=10, step_alloc=25,
                           schema_version=SCENARIO_SCHEMA_VERSION):
+    """Build the scenario training grid. `_state` is leading-underscore so
+    Streamlit skips hashing the heavy NamedTuple; `city_key` is the explicit
+    cache discriminator. Read per-city arrays from `_state` rather than from
+    `_CURRENT_CITY_STATE` — the cached call could fire under a stale module
+    global during an in-flight rerun."""
     rows = []
     for pct in range(0, 51, step_pct):
         for gi in range(0, 101, step_alloc):
@@ -1223,7 +1199,7 @@ def compute_scenario_grid(data_dir_flood, data_dir_cooling,
                         row['n_wet'], row['n_for'], row['n_hd']
                     )
                     nature_access_pct, nature_quality_score, people_with_nature_access = calculate_nature_access(
-                        result['scenario_lulc'], pop_count_raster
+                        result['scenario_lulc'], _state.pop_count_raster
                     )
                     row['nature_access_pct'] = nature_access_pct
                     row['nature_quality_score'] = nature_quality_score
@@ -1240,8 +1216,12 @@ def compute_scenario_grid(data_dir_flood, data_dir_cooling,
 
 
 @st.cache_data
-def compute_lookup_table(data_dir_flood, data_dir_cooling, schema_version=SCENARIO_SCHEMA_VERSION):
-    """Pre-compute results for every valid slider position (step=5) for instant response."""
+def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, schema_version=SCENARIO_SCHEMA_VERSION):
+    """Pre-compute results for every valid slider position (step=5) for instant response.
+
+    `_state` skip-hashed; `city_key` is the cache discriminator. Reads per-city
+    arrays via `_state` to avoid stale-module-global hazards under in-flight
+    reruns."""
     # 2,541 valid (pct, gi, ff) combinations × distance_transform_edt is slow,
     # so show a progress bar so the user knows the app hasn't hung.
     total = sum(
@@ -1267,7 +1247,7 @@ def compute_lookup_table(data_dir_flood, data_dir_cooling, schema_version=SCENAR
                         entry['n_wet'], entry['n_for'], entry['n_hd']
                     )
                     nature_access_pct, nature_quality_score, people_with_nature_access = calculate_nature_access(
-                        result['scenario_lulc'], pop_count_raster
+                        result['scenario_lulc'], _state.pop_count_raster
                     )
                     entry['nature_access_pct'] = nature_access_pct
                     entry['nature_quality_score'] = nature_quality_score
@@ -1308,168 +1288,10 @@ DENSE_SCENARIOS_PATH = city_cfg.get("dense_scenarios_file") or "data/scenarios_d
 # here lives in the Advanced Settings expander further down — Streamlit reruns
 # top-to-bottom on every interaction, so on the next rerun this read picks up
 # the new value the radio wrote on the previous run.
-# ── Buildings: damage-loss data + footprint mask for siting constraints ──────
-# Loads the InVEST UFR sample buildings shapefile + damage-loss table once. The
-# shapefile drives both the "Flood Damage Avoided" $ metric (sum of footprint
-# area × damage rate, scaled by scenario runoff reduction) AND the
-# building-footprint constraint on pixel selection (conversions are placed only
-# on developed pixels that DON'T contain a building, targeting feasible
-# interstitial spaces — parking lots, lawns, vacant land). Falls back to
-# disabled if the shapefile or CSV is missing so the rest of the app still loads.
-import geopandas as _gpd  # used by buildings/roads/tracts blocks below
-from rasterio.features import rasterize as _rasterize
 
-# Load the cooling LULC once more for shape + transform (cheap — just metadata).
-# Used as the rasterization template for buildings, roads, tracts.
-with rasterio.open(f"{DATA_DIR_COOLING}/{COOLING_LULC_FILE}") as _ref:
-    _REF_SHAPE     = (_ref.height, _ref.width)
-    _REF_TRANSFORM = _ref.transform
-
-# BUILDINGS_HAVE_TYPES distinguishes the InVEST-sample case (per-building
-# `type` ∈ {0,1,2,3} → energy / damage lookups) from the OSM-only case
-# (just polygons, no per-type metadata). When False, BUILDINGS_RASTER still
-# masks for spatial-placement — only the dollar metrics degrade to $0. See
-# UCM_AUDIT.md / REFERENCE.md "Option A buildings semantics".
-BUILDINGS_HAVE_TYPES = False
-_BUILDINGS_FILE  = city_cfg.get("buildings_file")
-_DAMAGE_TABLE_FILE = city_cfg.get("damage_table_file")
-
-try:
-    if not _BUILDINGS_FILE:
-        raise FileNotFoundError("buildings_file not configured")
-    _buildings = _gpd.read_file(_BUILDINGS_FILE)
-    if _buildings.crs is None or str(_buildings.crs) != CITY_CRS:
-        _buildings = _buildings.to_crs(CITY_CRS)
-
-    # Detect whether the loaded shapefile carries valid per-building type codes.
-    # The InVEST sample uses integer codes 0–3; OSM/Geofabrik just has
-    # `fclass = 'building'` and no type column.
-    if "type" in _buildings.columns:
-        _types_clean = pd.to_numeric(_buildings["type"], errors="coerce").dropna()
-        BUILDINGS_HAVE_TYPES = (
-            len(_types_clean) > 0 and _types_clean.between(0, 3).all()
-        )
-
-    if BUILDINGS_HAVE_TYPES and _DAMAGE_TABLE_FILE:
-        _damage_table = pd.read_csv(_DAMAGE_TABLE_FILE)
-        _type_to_damage = dict(zip(_damage_table["Type"], _damage_table["Damage"]))
-        _buildings["damage_rate_usd_m2"] = (
-            _buildings["type"].map(_type_to_damage).fillna(0)
-        )
-        _buildings["area_m2"] = _buildings.geometry.area
-        _buildings["potential_damage_usd"] = (
-            _buildings["area_m2"] * _buildings["damage_rate_usd_m2"]
-        )
-        TOTAL_POTENTIAL_DAMAGE_USD = float(_buildings["potential_damage_usd"].sum())
-    else:
-        TOTAL_POTENTIAL_DAMAGE_USD = 0.0
-
-    # Always rasterize the building footprints — the spatial-placement mask
-    # works regardless of type-code availability.
-    BUILDINGS_RASTER = _rasterize(
-        ((geom, 1) for geom in _buildings.geometry),
-        out_shape=_REF_SHAPE,
-        transform=_REF_TRANSFORM,
-        fill=0,
-        dtype="uint8",
-    )
-    if BUILDINGS_HAVE_TYPES:
-        BUILDINGS_TYPE_RASTER = _rasterize(
-            ((geom, int(t)) for geom, t in zip(_buildings.geometry, _buildings["type"])),
-            out_shape=_REF_SHAPE,
-            transform=_REF_TRANSFORM,
-            fill=-1,
-            dtype="int32",
-        )
-    else:
-        BUILDINGS_TYPE_RASTER = np.full(_REF_SHAPE, -1, dtype="int32")
-    BUILDINGS_DATA_AVAILABLE = True
-except Exception:
-    TOTAL_POTENTIAL_DAMAGE_USD = 0.0
-    BUILDINGS_DATA_AVAILABLE = False
-    BUILDINGS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
-    BUILDINGS_TYPE_RASTER = np.full(cooling_lulc.shape, -1, dtype="int32")
-print(f"[BOOT] BUILDINGS_TYPE_RASTER rasterized (available={BUILDINGS_DATA_AVAILABLE})", flush=True)
-
-# OSM road network (citywide) — unioned into BUILDINGS_RASTER so the
-# convertible-pixel mask excludes both buildings AND streets. The InVEST
-# UFR shapefile only covers a small downtown rectangle and includes only
-# 277 road polygons; OSM gives the full street network. Built offline by
-# `download_osm_roads.py` and committed to the repo.
-_ROADS_FILE = city_cfg.get("roads_file")
-try:
-    if not _ROADS_FILE or not Path(_ROADS_FILE).exists():
-        raise FileNotFoundError(f"roads_file not configured or missing: {_ROADS_FILE}")
-    _roads_gdf = _gpd.read_file(_ROADS_FILE)
-    if _roads_gdf.crs is None or str(_roads_gdf.crs) != CITY_CRS:
-        _roads_gdf = _roads_gdf.to_crs(CITY_CRS)
-    ROADS_RASTER = _rasterize(
-        ((g, 1) for g in _roads_gdf.geometry),
-        out_shape=_REF_SHAPE,
-        transform=_REF_TRANSFORM,
-        fill=0,
-        dtype="uint8",
-    )
-    BUILDINGS_RASTER = np.maximum(BUILDINGS_RASTER, ROADS_RASTER)
-    OSM_ROADS_AVAILABLE = True
-except Exception:
-    ROADS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
-    OSM_ROADS_AVAILABLE = False
-
-# Per-pixel AC-energy consumption rate (kWh/m²/year) for the cooling-energy
-# savings calculation. Pixels not in any building → 0; building types not in
-# the energy table → 0. Indexed via BUILDINGS_TYPE_RASTER at runtime.
-PIXEL_AREA_M2 = 30 * 30  # NLCD 30 m grid → 900 m² per pixel
-if ENERGY_BY_TYPE:
-    _max_bldg_type = int(max(BUILDINGS_TYPE_RASTER.max(), max(ENERGY_BY_TYPE.keys())))
-    _consumption_lookup = np.zeros(max(_max_bldg_type, 0) + 2, dtype=np.float32)
-    for _t, _c in ENERGY_BY_TYPE.items():
-        if int(_t) >= 0:
-            _consumption_lookup[int(_t)] = float(_c)
-    _safe_type = np.clip(BUILDINGS_TYPE_RASTER, 0, len(_consumption_lookup) - 1)
-    CONSUMPTION_RATE_PER_PIXEL = np.where(
-        BUILDINGS_TYPE_RASTER >= 0,
-        _consumption_lookup[_safe_type],
-        np.float32(0.0),
-    ).astype(np.float32)
-else:
-    CONSUMPTION_RATE_PER_PIXEL = np.zeros(cooling_lulc.shape, dtype=np.float32)
-    BUILDINGS_RASTER = np.zeros(cooling_lulc.shape, dtype="uint8")
-
-# Convertible pixels = developed land that is NOT a building footprint. Random
-# (or heat-weighted) sampling in evaluate_scenario draws from this pool, so
-# conversions land on parking lots, lawns, and vacant land rather than on
-# top of existing structures. The full developed_pixels array is still used
-# for runoff baseline scaling (buildings still produce runoff).
-_no_building = BUILDINGS_RASTER[developed_pixels[:, 0], developed_pixels[:, 1]] == 0
-CONVERTIBLE_PIXELS = developed_pixels[_no_building]
-
-
-# ── Census tracts (for neighborhood-level reporting) ──────────────────────────
-# Loads the 27 Hennepin County tracts that intersect the model area, rasterizes
-# them onto the NLCD grid (each pixel labeled with its tract index, or -1 for
-# pixels outside any tract). Used to compute per-tract Nature Access % and
-# Temperature Change against the live scenario.
-_TRACTS_FILE = city_cfg.get("tracts_file")
-try:
-    if not _TRACTS_FILE:
-        raise FileNotFoundError("tracts_file not configured")
-    TRACTS = _gpd.read_file(_TRACTS_FILE)
-    if TRACTS.crs is None or str(TRACTS.crs) != CITY_CRS:
-        TRACTS = TRACTS.to_crs(CITY_CRS)
-    TRACTS = TRACTS.reset_index(drop=True)
-    TRACT_ID_RASTER = _rasterize(
-        ((g, i) for i, g in enumerate(TRACTS.geometry)),
-        out_shape=_REF_SHAPE,
-        transform=_REF_TRANSFORM,
-        fill=-1,
-        dtype=np.int32,
-    )
-    TRACTS_DATA_AVAILABLE = True
-except Exception:
-    TRACTS = pd.DataFrame()
-    TRACT_ID_RASTER = np.full(cooling_lulc.shape, -1, dtype=np.int32)
-    TRACTS_DATA_AVAILABLE = False
+# NLCD 30 m grid — 900 m² per pixel. Used by the InVEST UCM energy-valuation
+# formula in `compute_cooling_energy_savings` (kWh/(m²·°C) × ΔT × m²).
+PIXEL_AREA_M2 = 30 * 30
 
 
 def _compute_hm_raster(scenario_lulc):
@@ -1512,37 +1334,382 @@ def compute_cooling_energy_savings(scenario_cc_raster):
     return round(float(usd_per_pixel[valid].sum()), 0)
 
 
-# Pre-compute baseline rasters once at startup so per-tract aggregates only
-# need to recompute the scenario side on each rerun.
-_BASELINE_ACCESS_SCORE_RASTER = _compute_access_score_raster(cooling_lulc)
-_BASELINE_HM_RASTER          = _compute_hm_raster(cooling_lulc)
-print("[BOOT] _BASELINE_HM_RASTER computed", flush=True)
-# Smoothed NDVI exposure for the unmodified LULC — feeds the InVEST UMH ΔNE
-# computation. Precompute once because the baseline doesn't change per scenario.
-_BASELINE_NE_RASTER = _gaussian_filter(
-    _lulc_to_ndvi_raster(cooling_lulc), sigma=_UMH_SIGMA_PX, mode="nearest"
+# ── City runtime state loader ─────────────────────────────────────────────────
+# All heavy per-city allocations (rasters, distance fields, baseline images)
+# happen inside this @st.cache_resource function. Cached on `city_key`, so:
+#   - First call per (city, session) runs the full ~1.5 GB transient pipeline.
+#   - Subsequent reruns within the session return the cached CityState
+#     instantly — no re-allocation, no GeoPandas re-load.
+# This is the single architectural fix for the 1011 keepalive OOM: every
+# Streamlit widget interaction would previously re-execute the module-level
+# allocations; now they happen at most once per session per city.
+@st.cache_resource(show_spinner="Loading city data — first interaction may take a minute…")
+def _load_city_runtime_state(city_key: str) -> CityState:
+    cfg = CITIES[city_key]
+    print(f"[BOOT] _load_city_runtime_state cache miss for {city_key!r} — building", flush=True)
+
+    # ── Phase 1: cached load_data outputs ────────────────────────────────────
+    (l_lulc, l_soil_resized, l_cooling_lulc, l_developed_pixels,
+     l_cn_table, l_lucode_idx_arr, l_hm_arr, l_max_raster_lucode, l_max_hm_lucode,
+     l_equity_weights, l_shade_arr, l_kc_arr, l_albedo_arr) = load_data(
+        cfg['data_dir_flood'], cfg['data_dir_cooling'],
+        cfg['cn_table_file'], cfg['cooling_table_file'],
+        cfg['lulc_file'], cfg['soil_file'], cfg['cooling_lulc_file'])
+    print(f"[BOOT] load_data returned (cooling_lulc shape={l_cooling_lulc.shape})", flush=True)
+
+    # ── Phase 2: Population raster ──────────────────────────────────────────
+    pop_file = cfg.get("pop_file")
+    try:
+        if pop_file is None:
+            raise FileNotFoundError("pop_file not configured")
+        pop_count_raster = load_population_data(pop_file, l_cooling_lulc.shape)
+        population_data_available = True
+    except (FileNotFoundError, rasterio.errors.RasterioIOError, TypeError):
+        pop_count_raster = np.ones(l_cooling_lulc.shape, dtype=np.float32)
+        population_data_available = False
+
+    # ── Phase 3: Reference ET ───────────────────────────────────────────────
+    et_file = cfg.get("et_file")
+    try:
+        if et_file is None:
+            raise FileNotFoundError("et_file not configured")
+        with rasterio.open(et_file) as et_src:
+            et_raw = et_src.read(1).astype(np.float32)
+            et_nodata = et_src.nodata
+        if et_nodata is not None:
+            et_raw[et_raw == et_nodata] = np.nan
+        et_raw[et_raw > 10_000] = np.nan
+        et_raw[et_raw < 0]      = np.nan
+        et_resized = resize(et_raw, l_cooling_lulc.shape, order=1, preserve_range=True).astype(np.float32)
+        finite = np.isfinite(et_resized)
+        et_resized = np.where(finite, et_resized, np.nanmedian(et_resized[finite])).astype(np.float32)
+        max_et_ref = float(et_resized.max()) if et_resized.max() > 0 else 1.0
+        et_data_available = True
+    except Exception:
+        et_resized = np.ones(l_cooling_lulc.shape, dtype=np.float32)
+        max_et_ref = 1.0
+        et_data_available = False
+    print(f"[BOOT] ET raster resized (available={et_data_available})", flush=True)
+
+    # ── Phase 4: Energy table (small dict) ──────────────────────────────────
+    energy_table_file = cfg.get("energy_table_file")
+    try:
+        if energy_table_file is None:
+            raise FileNotFoundError("energy_table_file not configured")
+        energy_df = pd.read_csv(energy_table_file)
+        energy_by_type = dict(zip(energy_df["type"], energy_df["consumption"]))
+        energy_table_available = True
+    except Exception:
+        energy_by_type = {}
+        energy_table_available = False
+
+    # ── Phase 5: UNA biophysical (small DataFrame) ──────────────────────────
+    una_table = pd.read_csv(Path(cfg["una_table_file"]))
+    una_active = una_table[
+        (una_table["urban_nature"] > 0) & una_table["search_radius_m"].notna()
+    ].copy()
+    una_active["lucode"] = una_active["lucode"].astype(int)
+    una_active["search_radius_m"] = una_active["search_radius_m"].clip(upper=NATURE_RADIUS_CAP_M)
+
+    # ── Phase 6: PRECOMPUTED_NATURE_DISTANCES (.npy disk cache) ─────────────
+    precomp_dir = cfg.get("precomputed_dir")
+    if precomp_dir:
+        Path(precomp_dir).mkdir(parents=True, exist_ok=True)
+    static_lucodes = [
+        int(lc) for lc in una_active["lucode"]
+        if int(lc) not in _DYNAMIC_NATURE_LUCODES
+    ]
+    precomputed_nature_distances = {}
+    computed_any = False
+    for lucode in static_lucodes:
+        cache_file = (
+            Path(precomp_dir) / f"nature_distance_{lucode}.npy"
+            if precomp_dir else None
+        )
+        if cache_file is not None and cache_file.exists():
+            try:
+                arr = np.load(cache_file)
+                if arr.shape == l_cooling_lulc.shape and arr.dtype == np.float32:
+                    precomputed_nature_distances[lucode] = arr
+                    continue
+            except Exception:
+                pass
+        mask = (l_cooling_lulc == lucode)
+        if not mask.any():
+            continue
+        arr = (_distance_transform_edt(~mask) * PIXEL_SIZE_M).astype(np.float32)
+        precomputed_nature_distances[lucode] = arr
+        computed_any = True
+        if cache_file is not None:
+            try:
+                np.save(cache_file, arr)
+            except Exception:
+                pass
+    if computed_any:
+        print(
+            f"[BOOT] PRECOMPUTED_NATURE_DISTANCES computed and cached to disk "
+            f"({len(precomputed_nature_distances)} arrays in {precomp_dir})",
+            flush=True,
+        )
+    else:
+        print(
+            f"[BOOT] PRECOMPUTED_NATURE_DISTANCES loaded from cache "
+            f"({len(precomputed_nature_distances)} arrays from {precomp_dir})",
+            flush=True,
+        )
+
+    # ── Phase 7: Rasterization template ─────────────────────────────────────
+    with rasterio.open(f"{cfg['data_dir_cooling']}/{cfg['cooling_lulc_file']}") as ref:
+        ref_shape     = (ref.height, ref.width)
+        ref_transform = ref.transform
+
+    # ── Phase 8: Buildings (BIG transient on SA — 345k polygons) ───────────
+    buildings_have_types = False
+    buildings_file = cfg.get("buildings_file")
+    damage_table_file = cfg.get("damage_table_file")
+    try:
+        if not buildings_file:
+            raise FileNotFoundError("buildings_file not configured")
+        buildings_gdf = _gpd.read_file(buildings_file)
+        if buildings_gdf.crs is None or str(buildings_gdf.crs) != cfg['crs']:
+            buildings_gdf = buildings_gdf.to_crs(cfg['crs'])
+        if "type" in buildings_gdf.columns:
+            types_clean = pd.to_numeric(buildings_gdf["type"], errors="coerce").dropna()
+            buildings_have_types = (
+                len(types_clean) > 0 and types_clean.between(0, 3).all()
+            )
+        if buildings_have_types and damage_table_file:
+            damage_table = pd.read_csv(damage_table_file)
+            type_to_damage = dict(zip(damage_table["Type"], damage_table["Damage"]))
+            buildings_gdf["damage_rate_usd_m2"] = (
+                buildings_gdf["type"].map(type_to_damage).fillna(0)
+            )
+            buildings_gdf["area_m2"] = buildings_gdf.geometry.area
+            buildings_gdf["potential_damage_usd"] = (
+                buildings_gdf["area_m2"] * buildings_gdf["damage_rate_usd_m2"]
+            )
+            total_potential_damage_usd = float(buildings_gdf["potential_damage_usd"].sum())
+        else:
+            total_potential_damage_usd = 0.0
+        buildings_raster = _rasterize(
+            ((geom, 1) for geom in buildings_gdf.geometry),
+            out_shape=ref_shape, transform=ref_transform,
+            fill=0, dtype="uint8",
+        )
+        if buildings_have_types:
+            buildings_type_raster = _rasterize(
+                ((geom, int(t)) for geom, t in zip(buildings_gdf.geometry, buildings_gdf["type"])),
+                out_shape=ref_shape, transform=ref_transform,
+                fill=-1, dtype="int32",
+            )
+        else:
+            buildings_type_raster = np.full(ref_shape, -1, dtype="int32")
+        buildings_data_available = True
+        # Drop the GeoDataFrame ASAP — it's the single biggest transient on SA.
+        del buildings_gdf
+    except Exception:
+        total_potential_damage_usd = 0.0
+        buildings_data_available = False
+        buildings_raster = np.zeros(l_cooling_lulc.shape, dtype="uint8")
+        buildings_type_raster = np.full(l_cooling_lulc.shape, -1, dtype="int32")
+    print(f"[BOOT] BUILDINGS_TYPE_RASTER rasterized (available={buildings_data_available})", flush=True)
+
+    # ── Phase 9: Roads ──────────────────────────────────────────────────────
+    roads_file = cfg.get("roads_file")
+    try:
+        if not roads_file or not Path(roads_file).exists():
+            raise FileNotFoundError(f"roads_file not configured or missing: {roads_file}")
+        roads_gdf = _gpd.read_file(roads_file)
+        if roads_gdf.crs is None or str(roads_gdf.crs) != cfg['crs']:
+            roads_gdf = roads_gdf.to_crs(cfg['crs'])
+        roads_raster = _rasterize(
+            ((g, 1) for g in roads_gdf.geometry),
+            out_shape=ref_shape, transform=ref_transform,
+            fill=0, dtype="uint8",
+        )
+        buildings_raster = np.maximum(buildings_raster, roads_raster)
+        osm_roads_available = True
+        del roads_gdf
+    except Exception:
+        roads_raster = np.zeros(l_cooling_lulc.shape, dtype="uint8")
+        osm_roads_available = False
+
+    # ── Phase 10: Per-pixel AC consumption rate ─────────────────────────────
+    if energy_by_type:
+        max_bldg_type = int(max(buildings_type_raster.max(), max(energy_by_type.keys())))
+        consumption_lookup = np.zeros(max(max_bldg_type, 0) + 2, dtype=np.float32)
+        for t, c in energy_by_type.items():
+            if int(t) >= 0:
+                consumption_lookup[int(t)] = float(c)
+        safe_type = np.clip(buildings_type_raster, 0, len(consumption_lookup) - 1)
+        consumption_rate_per_pixel = np.where(
+            buildings_type_raster >= 0,
+            consumption_lookup[safe_type],
+            np.float32(0.0),
+        ).astype(np.float32)
+    else:
+        consumption_rate_per_pixel = np.zeros(l_cooling_lulc.shape, dtype=np.float32)
+        buildings_raster = np.zeros(l_cooling_lulc.shape, dtype="uint8")
+
+    # ── Phase 11: Convertible-pixel pool ────────────────────────────────────
+    no_building = buildings_raster[l_developed_pixels[:, 0], l_developed_pixels[:, 1]] == 0
+    convertible_pixels = l_developed_pixels[no_building]
+
+    # ── Phase 12: Tracts ────────────────────────────────────────────────────
+    tracts_file = cfg.get("tracts_file")
+    try:
+        if not tracts_file:
+            raise FileNotFoundError("tracts_file not configured")
+        tracts = _gpd.read_file(tracts_file)
+        if tracts.crs is None or str(tracts.crs) != cfg['crs']:
+            tracts = tracts.to_crs(cfg['crs'])
+        tracts = tracts.reset_index(drop=True)
+        tract_id_raster = _rasterize(
+            ((g, i) for i, g in enumerate(tracts.geometry)),
+            out_shape=ref_shape, transform=ref_transform,
+            fill=-1, dtype=np.int32,
+        )
+        tracts_data_available = True
+    except Exception:
+        tracts = pd.DataFrame()
+        tract_id_raster = np.full(l_cooling_lulc.shape, -1, dtype=np.int32)
+        tracts_data_available = False
+
+    # ── Phase 13: Baseline rasters (use *_pure helpers because module aliases
+    # haven't been rebound to this state's arrays yet — we're inside the
+    # cache_resource call that produces the state). ─────────────────────────
+    baseline_access_score_raster = _compute_access_score_raster_pure(
+        l_cooling_lulc, una_active, precomputed_nature_distances,
+    )
+    baseline_hm_raster = _compute_cc_raster_pure(
+        l_cooling_lulc, l_shade_arr, l_kc_arr, l_albedo_arr, et_resized, max_et_ref,
+    )
+    print("[BOOT] _BASELINE_HM_RASTER computed", flush=True)
+    baseline_ne_raster = _gaussian_filter(
+        _lulc_to_ndvi_raster(l_cooling_lulc), sigma=_UMH_SIGMA_PX, mode="nearest",
+    )
+    print("[BOOT] _BASELINE_NE_RASTER computed", flush=True)
+
+    # ── Phase 14: Baseline scalars ──────────────────────────────────────────
+    valid_base_cc = baseline_hm_raster[~np.isnan(baseline_hm_raster)]
+    baseline_hm = (
+        float(valid_base_cc.mean().round(4))
+        if valid_base_cc.size > 0 else float(cfg['baseline_hm'] or 0.0)
+    )
+    baseline_lulc_safe = np.clip(l_cooling_lulc, 0, len(l_lucode_idx_arr) - 1)
+    baseline_lulc_idx  = l_lucode_idx_arr[baseline_lulc_safe]
+    baseline_soil      = np.clip(l_soil_resized, 1, 4)
+    baseline_cn_grid   = l_cn_table[baseline_lulc_idx, baseline_soil]
+    valid_base_cn      = baseline_cn_grid[baseline_cn_grid > 0]
+    baseline_cn = (
+        float(valid_base_cn.mean().round(2))
+        if valid_base_cn.size > 0 else float(cfg['baseline_cn'] or 0.0)
+    )
+    print(f"[BOOT] dynamic BASELINE_CN/BASELINE_HM overrides done (CN={baseline_cn}, HM={baseline_hm})", flush=True)
+
+    return CityState(
+        lulc=l_lulc, soil_resized=l_soil_resized, cooling_lulc=l_cooling_lulc,
+        developed_pixels=l_developed_pixels, cn_table=l_cn_table,
+        lucode_idx_arr=l_lucode_idx_arr, hm_arr=l_hm_arr,
+        max_raster_lucode=l_max_raster_lucode, max_hm_lucode=l_max_hm_lucode,
+        equity_weights=l_equity_weights,
+        shade_arr=l_shade_arr, kc_arr=l_kc_arr, albedo_arr=l_albedo_arr,
+        pop_count_raster=pop_count_raster,
+        population_data_available=population_data_available,
+        et_resized=et_resized, max_et_ref=max_et_ref,
+        et_data_available=et_data_available,
+        energy_by_type=energy_by_type,
+        energy_table_available=energy_table_available,
+        una_active=una_active,
+        precomputed_nature_distances=precomputed_nature_distances,
+        ref_shape=ref_shape, ref_transform=ref_transform,
+        buildings_raster=buildings_raster,
+        buildings_type_raster=buildings_type_raster,
+        buildings_data_available=buildings_data_available,
+        buildings_have_types=buildings_have_types,
+        total_potential_damage_usd=total_potential_damage_usd,
+        roads_raster=roads_raster, osm_roads_available=osm_roads_available,
+        consumption_rate_per_pixel=consumption_rate_per_pixel,
+        convertible_pixels=convertible_pixels,
+        tracts=tracts, tract_id_raster=tract_id_raster,
+        tracts_data_available=tracts_data_available,
+        baseline_access_score_raster=baseline_access_score_raster,
+        baseline_hm_raster=baseline_hm_raster,
+        baseline_ne_raster=baseline_ne_raster,
+        baseline_hm=baseline_hm, baseline_cn=baseline_cn,
+    )
+
+
+# ── Build (or fetch from cache) the city runtime state, then alias members
+# to module-level globals. This is the seam between the cached state and the
+# rest of app.py: downstream functions that read these as bare globals
+# (cooling_lulc, ET_RESIZED, BUILDINGS_RASTER, ...) continue to work without
+# any threading because the names rebind to the cached state's arrays on each
+# rerun. Two scalars (BASELINE_HM, BASELINE_CN) are deliberately NOT aliased
+# — they're read from `_CURRENT_CITY_STATE.baseline_hm` / `.baseline_cn` so a
+# silent staleness bug on city switch is impossible.
+_CURRENT_CITY_STATE = _load_city_runtime_state(selected_city)
+state = _CURRENT_CITY_STATE  # short alias for use inside cached helpers below
+
+# load_data outputs
+lulc                = _CURRENT_CITY_STATE.lulc
+soil_resized        = _CURRENT_CITY_STATE.soil_resized
+cooling_lulc        = _CURRENT_CITY_STATE.cooling_lulc
+developed_pixels    = _CURRENT_CITY_STATE.developed_pixels
+cn_table            = _CURRENT_CITY_STATE.cn_table
+lucode_idx_arr      = _CURRENT_CITY_STATE.lucode_idx_arr
+hm_arr              = _CURRENT_CITY_STATE.hm_arr
+max_raster_lucode   = _CURRENT_CITY_STATE.max_raster_lucode
+max_hm_lucode       = _CURRENT_CITY_STATE.max_hm_lucode
+equity_weights      = _CURRENT_CITY_STATE.equity_weights
+shade_arr           = _CURRENT_CITY_STATE.shade_arr
+kc_arr              = _CURRENT_CITY_STATE.kc_arr
+albedo_arr          = _CURRENT_CITY_STATE.albedo_arr
+# Population
+pop_count_raster          = _CURRENT_CITY_STATE.pop_count_raster
+POPULATION_DATA_AVAILABLE = _CURRENT_CITY_STATE.population_data_available
+# ET
+ET_RESIZED        = _CURRENT_CITY_STATE.et_resized
+MAX_ET_REF        = _CURRENT_CITY_STATE.max_et_ref
+ET_DATA_AVAILABLE = _CURRENT_CITY_STATE.et_data_available
+# Energy
+ENERGY_BY_TYPE         = _CURRENT_CITY_STATE.energy_by_type
+ENERGY_TABLE_AVAILABLE = _CURRENT_CITY_STATE.energy_table_available
+# UNA + nature distances
+UNA_ACTIVE                   = _CURRENT_CITY_STATE.una_active
+PRECOMPUTED_NATURE_DISTANCES = _CURRENT_CITY_STATE.precomputed_nature_distances
+# Rasterization template
+_REF_SHAPE     = _CURRENT_CITY_STATE.ref_shape
+_REF_TRANSFORM = _CURRENT_CITY_STATE.ref_transform
+# Buildings
+BUILDINGS_RASTER           = _CURRENT_CITY_STATE.buildings_raster
+BUILDINGS_TYPE_RASTER      = _CURRENT_CITY_STATE.buildings_type_raster
+BUILDINGS_DATA_AVAILABLE   = _CURRENT_CITY_STATE.buildings_data_available
+BUILDINGS_HAVE_TYPES       = _CURRENT_CITY_STATE.buildings_have_types
+TOTAL_POTENTIAL_DAMAGE_USD = _CURRENT_CITY_STATE.total_potential_damage_usd
+# Roads
+ROADS_RASTER        = _CURRENT_CITY_STATE.roads_raster
+OSM_ROADS_AVAILABLE = _CURRENT_CITY_STATE.osm_roads_available
+# Energy + buildings derived
+CONSUMPTION_RATE_PER_PIXEL = _CURRENT_CITY_STATE.consumption_rate_per_pixel
+# Convertible-pixel pool
+CONVERTIBLE_PIXELS = _CURRENT_CITY_STATE.convertible_pixels
+# Tracts
+TRACTS                = _CURRENT_CITY_STATE.tracts
+TRACT_ID_RASTER       = _CURRENT_CITY_STATE.tract_id_raster
+TRACTS_DATA_AVAILABLE = _CURRENT_CITY_STATE.tracts_data_available
+# Baseline rasters (module-level for legacy reads; same array as state.X)
+_BASELINE_ACCESS_SCORE_RASTER = _CURRENT_CITY_STATE.baseline_access_score_raster
+_BASELINE_HM_RASTER           = _CURRENT_CITY_STATE.baseline_hm_raster
+_BASELINE_NE_RASTER           = _CURRENT_CITY_STATE.baseline_ne_raster
+# NOTE: BASELINE_HM and BASELINE_CN are intentionally NOT aliased here. Read
+# them as `_CURRENT_CITY_STATE.baseline_hm` / `.baseline_cn` everywhere
+# downstream — see CityState comment above.
+
+# ── Derived baselines that depend on the per-city aliases above ──────────────
+BASELINE_NATURE_ACCESS_PCT, BASELINE_NATURE_QUALITY_SCORE, _ = calculate_nature_access(
+    cooling_lulc, pop_count_raster
 )
-print("[BOOT] _BASELINE_NE_RASTER computed", flush=True)
-
-# Override the static `BASELINE_HM` from CITIES with the actual mean of the
-# baseline CC raster — keeps the reference value in sync with whatever the
-# current InVEST UCM pipeline produces. The CITIES value is now documentary.
-_valid_base_cc = _BASELINE_HM_RASTER[~np.isnan(_BASELINE_HM_RASTER)]
-if _valid_base_cc.size > 0:
-    BASELINE_HM = float(_valid_base_cc.mean().round(4))
-
-# Same idea for BASELINE_CN — recompute from the unmodified LULC × soil grid
-# using exactly the same lookup `evaluate_scenario` uses (app.py:744-748), so
-# the flood-delta card reads "0.0 vs baseline" at pct_converted=0 instead of
-# whatever drift the hardcoded 75.7 had vs the live computation.
-_baseline_lulc_safe = np.clip(cooling_lulc, 0, len(lucode_idx_arr) - 1)
-_baseline_lulc_idx  = lucode_idx_arr[_baseline_lulc_safe]
-_baseline_soil      = np.clip(soil_resized, 1, 4)
-_baseline_cn_grid   = cn_table[_baseline_lulc_idx, _baseline_soil]
-_valid_base_cn      = _baseline_cn_grid[_baseline_cn_grid > 0]
-if _valid_base_cn.size > 0:
-    BASELINE_CN = float(_valid_base_cn.mean().round(2))
-print(f"[BOOT] dynamic BASELINE_CN/BASELINE_HM overrides done (CN={BASELINE_CN}, HM={BASELINE_HM})", flush=True)
 
 
 def compute_per_tract_summary(scenario_lulc):
@@ -1574,8 +1741,9 @@ def compute_per_tract_summary(scenario_lulc):
             continue
         b_hm = _BASELINE_HM_RASTER[valid_hm].mean()
         s_hm = hm_s_raster[valid_hm].mean()
-        b_temp_f = (b_hm - BASELINE_HM) * HM_TO_FAHRENHEIT
-        s_temp_f = (s_hm - BASELINE_HM) * HM_TO_FAHRENHEIT
+        # read from state to avoid silent-staleness if city switches
+        b_temp_f = (b_hm - _CURRENT_CITY_STATE.baseline_hm) * HM_TO_FAHRENHEIT
+        s_temp_f = (s_hm - _CURRENT_CITY_STATE.baseline_hm) * HM_TO_FAHRENHEIT
         rows.append({
             "GEOID":               str(TRACTS.iloc[i].get("GEOID10", i)),
             "Population":          int(pop_in_tract),
@@ -1591,8 +1759,9 @@ def compute_per_tract_summary(scenario_lulc):
 # Baseline runoff for the damage scaling — computed inline here because
 # `BASELINE_RUNOFF_ACRE_FEET` (the canonical module-level constant) isn't
 # defined until after the lookup table is built. Same formula either way.
+# read from state to avoid silent-staleness if city switches
 _BASELINE_RUNOFF_FOR_DAMAGE = cn_to_runoff_acre_feet(
-    BASELINE_CN, len(developed_pixels) * PIXEL_AREA_ACRES
+    _CURRENT_CITY_STATE.baseline_cn, len(developed_pixels) * PIXEL_AREA_ACRES
 )
 
 
@@ -1639,7 +1808,7 @@ with st.spinner("Loading data and pre-computing scenarios..."):
     # "Best scenarios by goal" section also falls back to scenario_df when
     # lookup_table is empty.
     if _requested_model_quality == "High resolution":
-        lookup_table = compute_lookup_table(DATA_DIR_FLOOD, DATA_DIR_COOLING)
+        lookup_table = compute_lookup_table(_CURRENT_CITY_STATE, selected_city, DATA_DIR_FLOOD, DATA_DIR_COOLING)
         scenario_df = pd.DataFrame(list(lookup_table.values()))
         ACTIVE_MODEL_QUALITY = "high"
     elif _requested_model_quality == "Balanced":
@@ -1664,13 +1833,15 @@ with st.spinner("Loading data and pre-computing scenarios..."):
                     f"--output {_dense_configured}` once to skip this on future startups."
                 )
             scenario_df = compute_scenario_grid(
-                DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=5, step_alloc=10
+                _CURRENT_CITY_STATE, selected_city,
+                DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=5, step_alloc=10,
             )
         ACTIVE_MODEL_QUALITY = "balanced"
     else:  # Fast prototype
         lookup_table = {}
         scenario_df = compute_scenario_grid(
-            DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=10, step_alloc=25
+            _CURRENT_CITY_STATE, selected_city,
+            DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=10, step_alloc=25,
         )
         ACTIVE_MODEL_QUALITY = "fast"
 
@@ -1678,8 +1849,9 @@ MAX_FOOD  = float(scenario_df['food_mln_lbs'].max())
 MAX_FLOOD = 100.0
 MAX_COOL  = 1.1
 
+# read from state to avoid silent-staleness if city switches
 BASELINE_RUNOFF_ACRE_FEET = cn_to_runoff_acre_feet(
-    BASELINE_CN, len(developed_pixels) * PIXEL_AREA_ACRES
+    _CURRENT_CITY_STATE.baseline_cn, len(developed_pixels) * PIXEL_AREA_ACRES
 )
 
 BASELINE_NDVI = compute_mean_ndvi(cooling_lulc)
@@ -2166,13 +2338,15 @@ with st.sidebar.container(border=True):
 
     min_flood  = st.slider("Min flood reduction", 0, 90, 30, 5,
         help="Corresponds to the Flood Risk Reduction metric card. Baseline is 24.3. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.")
+    # read from state to avoid silent-staleness if city switches
+    _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
     min_cool_f = st.slider(
         "Min cooling (°F vs baseline)",
-        min_value=-1.0, max_value=round((1.0 - BASELINE_HM) * HM_TO_FAHRENHEIT, 1),
+        min_value=-1.0, max_value=round((1.0 - _baseline_hm_local) * HM_TO_FAHRENHEIT, 1),
         value=0.1, step=0.1,
         help="Corresponds to the Temperature Change metric card. Set to 0.1 for at least 0.1°F cooler than baseline."
     )
-    min_cool   = BASELINE_HM + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
+    min_cool   = _baseline_hm_local + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
     min_food   = st.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01,
         help="Corresponds directly to the Food Production metric card value in M lbs/yr.")
     _runoff_min = float(scenario_df['runoff_acre_feet'].min())
@@ -2330,7 +2504,8 @@ def _fmt_people(n):
         return f"~{n // 1_000}K people"
     return f"~{n} people"
 
-_flood_delta = results['flood_reduction'] - (100 - BASELINE_CN)
+# read from state to avoid silent-staleness if city switches
+_flood_delta = results['flood_reduction'] - (100 - _CURRENT_CITY_STATE.baseline_cn)
 _flood_delta_str = (
     "No change vs baseline" if abs(_flood_delta) < 0.1
     else f"+{_flood_delta:.1f} vs baseline" if _flood_delta > 0
@@ -2342,7 +2517,7 @@ _cooling_label = (
     else f"{_cooling_f:.1f}°F cooler" if _cooling_f > 0
     else f"{abs(_cooling_f):.1f}°F warmer"
 )
-_hm_delta = results['mean_hm'] - BASELINE_HM
+_hm_delta = results['mean_hm'] - _CURRENT_CITY_STATE.baseline_hm
 _runoff_prevented = BASELINE_RUNOFF_ACRE_FEET - results['runoff_acre_feet']
 _runoff_negligible = abs(_runoff_prevented) < 1.0
 _runoff_delta_str = (
@@ -2728,7 +2903,8 @@ st.caption(
 )
 
 with st.expander("Baseline vs Scenario Comparison", expanded=False):
-    _baseline_flood = 100 - BASELINE_CN
+    # read from state to avoid silent-staleness if city switches
+    _baseline_flood = 100 - _CURRENT_CITY_STATE.baseline_cn
     _runoff_diff    = results['runoff_acre_feet'] - BASELINE_RUNOFF_ACRE_FEET
     _flood_diff     = results['flood_reduction'] - _baseline_flood
 
@@ -2968,11 +3144,13 @@ with tab1:
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+        # read from state to avoid silent-staleness if city switches
+        _baseline_cn_local = _CURRENT_CITY_STATE.baseline_cn
         fig, ax = plt.subplots(figsize=(5, 5))
         ax.bar(['Baseline', 'This Scenario'],
-               [BASELINE_CN, results['mean_cn']],
+               [_baseline_cn_local, results['mean_cn']],
                color=['#5b8db8', '#7b4fa6'])
-        ax.axhline(BASELINE_CN, color='gray', linestyle='--', alpha=0.5)
+        ax.axhline(_baseline_cn_local, color='gray', linestyle='--', alpha=0.5)
         ax.set_title('Flood Risk', fontsize=16, fontweight='bold')
         ax.set_ylabel('Mean Curve Number\n(lower = less runoff)', fontsize=12)
         ax.set_ylim(0, 100)
@@ -2982,11 +3160,13 @@ with tab1:
         plt.close(fig)
 
     with col2:
+        # read from state to avoid silent-staleness if city switches
+        _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
         fig, ax = plt.subplots(figsize=(5, 5))
         ax.bar(['Baseline', 'This Scenario'],
-               [BASELINE_HM, results['mean_hm']],
+               [_baseline_hm_local, results['mean_hm']],
                color=['#5b8db8', '#7b4fa6'])
-        ax.axhline(BASELINE_HM, color='gray', linestyle='--', alpha=0.5)
+        ax.axhline(_baseline_hm_local, color='gray', linestyle='--', alpha=0.5)
         ax.set_title('Urban Cooling', fontsize=16, fontweight='bold')
         ax.set_ylabel('Cooling Capacity\n(higher = more cooling)', fontsize=12)
         ax.set_ylim(0, 1.1)
