@@ -2768,17 +2768,27 @@ hs2.metric(
 
 # InVEST Urban Mental Health (v3.19.0): two cards. Both are zero at the
 # unmodified baseline by construction (ΔNE = 0 → PF = 0 → PC = 0).
+# Sign convention: preventable_mh_cases > 0 means the scenario PREVENTS cases
+# (good — green ↑); < 0 means the scenario INDUCES cases (bad — red ↑). Same
+# direction-of-goodness for avoided_mh_cost_usd. Streamlit's delta color
+# combines with the leading sign of the delta string: to get a red ↑, we feed
+# a positive-signed delta ("+X cases induced") with color="inverse".
 _mh_cases = results.get('preventable_mh_cases', 0.0)
 _mh_cost  = results.get('avoided_mh_cost_usd', 0.0)
+if _mh_cases >= 1:
+    _mh_cases_delta = f"+{_mh_cases:,.0f} cases prevented"
+    _mh_cases_color = "normal"      # green ↑
+elif _mh_cases <= -1:
+    _mh_cases_delta = f"+{abs(_mh_cases):,.0f} cases induced"
+    _mh_cases_color = "inverse"     # red ↑
+else:
+    _mh_cases_delta = "no change vs baseline"
+    _mh_cases_color = "off"
 hs3.metric(
     "Preventable MH Cases",
     f'{_mh_cases:,.0f} cases/yr',
-    delta=(
-        f"+{_mh_cases:,.0f} vs baseline" if _mh_cases >= 1
-        else "0 vs baseline" if abs(_mh_cases) < 1
-        else f"{_mh_cases:,.0f} vs baseline"
-    ),
-    delta_color="normal" if _mh_cases >= 1 else ("inverse" if _mh_cases <= -1 else "off"),
+    delta=_mh_cases_delta,
+    delta_color=_mh_cases_color,
     help=(
         "Confidence: Model-based estimate. Estimated preventable depression "
         "and anxiety cases from the scenario's NDVI exposure change. Based on "
@@ -2788,18 +2798,28 @@ hs3.metric(
         "PC = (1 − RR) × baseline_prevalence × population. "
         "Effect sizes from Liu et al. 2023 meta-analysis; baseline prevalence "
         "from CDC 2023 (depression 21 %, anxiety 19 %). Returns 0 at baseline "
-        "and for scenarios with no greenness change."
+        "and for scenarios with no greenness change. Negative values mean the "
+        "scenario INDUCED cases (e.g. converting open space to high-density "
+        "development) — shown in red."
     ),
 )
+if _mh_cost >= 1e3:
+    _mh_cost_value = f'${_mh_cost / 1e6:.2f}M/yr'
+    _mh_cost_delta = f"+${_mh_cost / 1e6:.2f}M/yr avoided"
+    _mh_cost_color = "normal"
+elif _mh_cost <= -1e3:
+    _mh_cost_value = f'-${abs(_mh_cost) / 1e6:.2f}M/yr'
+    _mh_cost_delta = f"+${abs(_mh_cost) / 1e6:.2f}M/yr added in costs"
+    _mh_cost_color = "inverse"
+else:
+    _mh_cost_value = f'${_mh_cost / 1e6:.2f}M/yr'
+    _mh_cost_delta = "no change vs baseline"
+    _mh_cost_color = "off"
 hs4.metric(
     "Avoided MH Costs",
-    f'${_mh_cost / 1e6:.2f}M/yr',
-    delta=(
-        f"+${_mh_cost / 1e6:.2f}M/yr vs baseline" if _mh_cost >= 1e3
-        else "$0/yr vs baseline" if abs(_mh_cost) < 1e3
-        else f"-${abs(_mh_cost) / 1e6:.2f}M/yr vs baseline"
-    ),
-    delta_color="normal" if _mh_cost >= 1e3 else ("inverse" if _mh_cost <= -1e3 else "off"),
+    _mh_cost_value,
+    delta=_mh_cost_delta,
+    delta_color=_mh_cost_color,
     help=(
         "Confidence: Model-based estimate. Avoided healthcare cost = "
         "preventable_cases × per-case cost-of-illness. Per-case costs: "
