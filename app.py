@@ -3,6 +3,20 @@ sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 print("[BOOT] python entered app.py", flush=True)
 
+import os as _os_for_debug_mem
+# Diagnostic memory tracker — gated on DEBUG_MEM env var so production runs are
+# silent. Set DEBUG_MEM=1 in the environment to capture per-stage RSS jumps
+# during evaluate_scenario / plot rendering.
+if _os_for_debug_mem.environ.get("DEBUG_MEM"):
+    import psutil as _psutil_for_debug_mem
+    _PROC_FOR_DEBUG_MEM = _psutil_for_debug_mem.Process()
+    def _log_mem(label):
+        rss_mb = _PROC_FOR_DEBUG_MEM.memory_info().rss / 1e6
+        print(f"[MEM] {label}: {rss_mb:.1f} MB", flush=True)
+else:
+    def _log_mem(label):
+        pass
+
 import streamlit as st
 print("[BOOT] imports done", flush=True)
 import numpy as np
@@ -1056,6 +1070,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
     scenario_lulc = cooling_lulc.copy()
+    _log_mem("evaluate_scenario:start")
     # Sample from the convertible (= developed AND non-building) pool so
     # conversions land on feasible interstitial spaces (parking lots, lawns,
     # vacant land) rather than on top of existing structures. Total developed
@@ -1108,9 +1123,11 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     # valid pixels — same scale as before (0–1, higher = more cooling) but
     # now factors albedo and per-pixel ET in addition to shade and Kc.
     cc_map   = _compute_cc_raster(scenario_lulc)
+    _log_mem("after _compute_cc_raster")
     valid_hm = cc_map[~np.isnan(cc_map) & (scenario_lulc != NODATA)]
     mean_hm  = float(valid_hm.mean().round(4))
     cooling_energy_savings_usd = compute_cooling_energy_savings(cc_map)
+    _log_mem("after compute_cooling_energy_savings")
 
     n_food_pixels = int(((scenario_lulc == CODE_FOOD_FOREST) & (cooling_lulc != CODE_FOOD_FOREST)).sum())
     food_mln_lbs  = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
@@ -1127,6 +1144,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     nat_pct, nat_quality, nat_people = calculate_nature_access(
         scenario_lulc, pop_count_raster
     )
+    _log_mem("after calculate_nature_access")
 
     # Build the scenario NDVI raster once and pass to both consumers. Saves
     # one full-AOI float32 allocation per evaluate_scenario call.
@@ -1144,6 +1162,8 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         scenario_lulc, _BASELINE_NE_RASTER, pop_count_raster,
         ndvi_raster=scenario_ndvi,
     )
+    _log_mem("after calculate_mental_health_impact")
+    _log_mem("evaluate_scenario:end")
 
     return {
         'pct_converted':            pct_converted,
@@ -3238,12 +3258,15 @@ with tab2:
     # new optimization (which sets it back to True or False).
     st.subheader("Tradeoff Space")
     st.caption("Each point is a scenario. Better outcomes are toward the top-right — more cooling and greater flood-risk reduction. Bubble size shows food production for saved and optimized scenarios.")
-    st.plotly_chart(plot_tradeoff(
+    _log_mem("before plot_tradeoff")
+    _tradeoff_fig = plot_tradeoff(
         results, scenario_df,
         lookup_table=lookup_table,
         saved=st.session_state.saved_scenarios,
         optimized=st.session_state.optimized_results
-    ), width='stretch')
+    )
+    _log_mem("after plot_tradeoff")
+    st.plotly_chart(_tradeoff_fig, width='stretch')
 
     if TRACTS_DATA_AVAILABLE:
         st.divider()
@@ -3552,11 +3575,14 @@ with tab3:
                     np.nan,
                 )
 
-    render_matplotlib(plot_spatial_map(
+    _log_mem("before plot_spatial_map")
+    _spatial_fig = plot_spatial_map(
         results['scenario_lulc'], cooling_lulc,
         heat_overlay=equity_weights, overlay_alpha=overlay_opacity,
         tract_value=_tract_overlay_value, tract_alpha=_tract_overlay_alpha,
-    ))
+    )
+    _log_mem("after plot_spatial_map")
+    render_matplotlib(_spatial_fig)
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
         "White = outside city boundary. Red wash = heat vulnerability proxy, "
@@ -3598,3 +3624,4 @@ with st.expander("Intended Use", expanded=False):
     )
 
 print("[BOOT] end-of-module", flush=True)
+_log_mem("script body end")
