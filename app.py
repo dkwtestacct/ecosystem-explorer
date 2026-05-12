@@ -36,6 +36,7 @@ from sklearn.ensemble import RandomForestRegressor
 import geopandas as _gpd
 from scipy.ndimage import gaussian_filter as _gaussian_filter
 from scipy.ndimage import distance_transform_edt as _distance_transform_edt
+from scipy.ndimage import zoom as _zoom
 
 # ── City configuration ─────────────────────────────────────────────────────────
 CITIES = {
@@ -2046,19 +2047,52 @@ def render_matplotlib(fig):
 
 
 # ── Matplotlib plots ───────────────────────────────────────────────────────────
+# Cap on the dimension matplotlib actually rasterises for the spatial map.
+# Streamlit displays the figure at ~600 px wide regardless, so rendering the
+# full 1713×1984 SA AOI (which produced ~378 MB transient per imshow call
+# under the previous float64 RGBA layers) is wasted work. Aspect ratio is
+# preserved by `scale = _PLOT_MAX_DIM / max(h, w)`.
+_PLOT_MAX_DIM = 1024
+
+
+def _downsample_for_plot(arr, order):
+    """Aspect-preserving downsample for the spatial-map renderer.
+
+    `order=0` (nearest neighbor) for the integer LULC raster — category
+    integrity must be preserved, no averaging across lucodes. `order=1`
+    (bilinear) for continuous overlays (heat alpha, tract score). Returns
+    the input unchanged when both dimensions are already within
+    `_PLOT_MAX_DIM`."""
+    h, w = arr.shape[:2]
+    if max(h, w) <= _PLOT_MAX_DIM:
+        return arr
+    scale = _PLOT_MAX_DIM / max(h, w)
+    return _zoom(arr, scale, order=order)
+
+
 def plot_spatial_map(scenario_lulc, baseline_lulc,
                      heat_overlay=None, overlay_alpha=0.0,
                      tract_value=None, tract_alpha=0.0):
+    # Downsample once, then build all layers from the downsampled rasters.
+    # Doing this after layer construction would defeat the memory savings.
+    scenario_lulc = _downsample_for_plot(scenario_lulc, order=0)
+    baseline_lulc = _downsample_for_plot(baseline_lulc, order=0)
     h, w = scenario_lulc.shape
-    rgb = np.full((h, w, 3), mcolors.to_rgb(CHANGE_COLORS['Unchanged']))
 
-    rgb[(baseline_lulc != scenario_lulc) & (scenario_lulc == CODE_GREEN_INFRA)] = \
-        mcolors.to_rgb(CHANGE_COLORS['Green Infrastructure'])
-    rgb[(baseline_lulc != scenario_lulc) & (scenario_lulc == CODE_FOOD_FOREST)] = \
-        mcolors.to_rgb(CHANGE_COLORS['Food Forest'])
-    rgb[(baseline_lulc != scenario_lulc) & (scenario_lulc == CODE_HIGH_DENSITY)] = \
-        mcolors.to_rgb(CHANGE_COLORS['High Density'])
-    rgb[baseline_lulc == NODATA] = (1.0, 1.0, 1.0)
+    # uint8 RGB triples in [0,255]. matplotlib imshow accepts uint8 natively
+    # and skips the float64 → display-byte conversion path, cutting the layer
+    # array from ~82 MB to ~10 MB at full SA resolution and ~3 MB after the
+    # 1024px cap.
+    def _rgb_u8(name):
+        r, g, b = mcolors.to_rgb(CHANGE_COLORS[name])
+        return np.array([round(r * 255), round(g * 255), round(b * 255)], dtype=np.uint8)
+
+    rgb = np.full((h, w, 3), _rgb_u8('Unchanged'), dtype=np.uint8)
+    changed = (baseline_lulc != scenario_lulc)
+    rgb[changed & (scenario_lulc == CODE_GREEN_INFRA)] = _rgb_u8('Green Infrastructure')
+    rgb[changed & (scenario_lulc == CODE_FOOD_FOREST)] = _rgb_u8('Food Forest')
+    rgb[changed & (scenario_lulc == CODE_HIGH_DENSITY)] = _rgb_u8('High Density')
+    rgb[baseline_lulc == NODATA] = (255, 255, 255)
 
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.imshow(rgb)
@@ -2073,25 +2107,33 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
     # Optional red heat-vulnerability overlay. Per-pixel alpha = overlay_alpha
     # × heat_overlay value (which is 0–1), so low-vulnerability pixels stay
     # transparent and high-vulnerability ones tint red. With overlay_alpha=0
-    # the overlay is fully invisible.
+    # the overlay is fully invisible. Stored uint8 RGBA — alpha 0–255.
     if heat_overlay is not None and overlay_alpha > 0:
-        overlay_rgba = np.zeros((h, w, 4))
-        overlay_rgba[..., 0] = 1.0  # red channel
-        overlay_rgba[..., 3] = overlay_alpha * np.clip(heat_overlay, 0.0, 1.0)
+        heat_overlay_ds = _downsample_for_plot(heat_overlay, order=1)
+        overlay_rgba = np.zeros((h, w, 4), dtype=np.uint8)
+        overlay_rgba[..., 0] = 255  # red channel
+        alpha_f = overlay_alpha * np.clip(heat_overlay_ds, 0.0, 1.0)
+        overlay_rgba[..., 3] = (alpha_f * 255).astype(np.uint8)
         ax.imshow(overlay_rgba)
         legend_handles.append(Patch(facecolor=(1, 0, 0, 0.6), label='Heat vulnerability'))
 
     # Optional tract-level improvement overlay. tract_value is a per-pixel
     # float raster (NaN outside any tract); colormap is RdYlGn so positive
-    # improvements are green and regressions are red, centered at 0.
+    # improvements are green and regressions are red, centered at 0. Cmap
+    # output kept float32 because fractional alpha matters for the blend.
     if tract_value is not None and tract_alpha > 0:
-        valid = ~np.isnan(tract_value)
-        if valid.any():
-            vmax = max(float(np.abs(tract_value[valid]).max()), 0.1)
-            norm_val = np.zeros_like(tract_value, dtype=float)
-            norm_val[valid] = (tract_value[valid] + vmax) / (2 * vmax)  # → 0..1
-            cmap_rgba = plt.get_cmap("RdYlGn")(np.clip(norm_val, 0.0, 1.0))
-            cmap_rgba[..., 3] = tract_alpha * valid.astype(float)
+        # NaNs don't survive bilinear interpolation, so downsample the
+        # validity mask separately (nearest-neighbor) and use it to gate the
+        # cmap alpha.
+        tract_value_ds = _downsample_for_plot(np.nan_to_num(tract_value, nan=0.0), order=1)
+        valid_full = (~np.isnan(tract_value)).astype(np.uint8)
+        valid_ds = _downsample_for_plot(valid_full, order=0).astype(bool)
+        if valid_ds.any():
+            vmax = max(float(np.abs(tract_value_ds[valid_ds]).max()), 0.1)
+            norm_val = np.zeros_like(tract_value_ds, dtype=np.float32)
+            norm_val[valid_ds] = (tract_value_ds[valid_ds] + vmax) / (2 * vmax)  # → 0..1
+            cmap_rgba = plt.get_cmap("RdYlGn")(np.clip(norm_val, 0.0, 1.0)).astype(np.float32)
+            cmap_rgba[..., 3] = tract_alpha * valid_ds.astype(np.float32)
             ax.imshow(cmap_rgba)
             legend_handles.append(
                 Patch(facecolor=(0.0, 0.6, 0.0, 0.6),
