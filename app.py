@@ -1,3 +1,8 @@
+import sys
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
+print("[BOOT] python entered app.py", flush=True)
+
 import streamlit as st
 print("[BOOT] imports done", flush=True)
 import numpy as np
