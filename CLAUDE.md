@@ -62,10 +62,18 @@ Pipeline scripts: `download_sa_data.py` (NLCD), `download_ssurgo_sa.py` +
 Detailed sourcing notes in `data/sa/README.md`.
 
 OSM buildings carry `type` as OSM strings ('house', 'apartments', 'retail', …)
-not the integer 0–3 codes InVEST expects, so SA uses **Option A buildings
-semantics**: spatial-placement mask works, energy/damage $ cards display "—"
-with explanatory tooltip. Mapping OSM strings → InVEST codes is a future
-enhancement; see REFERENCE.md.
+not the integer 0–3 codes InVEST expects. SA now maps those strings to InVEST
+type codes 1/2/3 via `_OSM_BUILDING_TO_INVEST_TYPE` in app.py (≈29 % pixel
+coverage — untyped polygons such as `building=yes`, NaN, `roof`, and
+`storage_tank` are left at 0 and excluded from per-type lookups). This
+**lights up the Cooling Energy Savings card** for SA as a conservative lower
+bound. The Cooling Energy Savings tooltip surfaces the coverage caveat
+whenever `BUILDINGS_TYPE_COVERAGE < 0.95`. **Flood Damage Avoided still
+renders $0 for SA** because `damage_table_file` is `None` — reusing MN's
+damage table would produce a wrong-but-numeric figure on a different
+building stock (see "Pending — SA flood damage table sourcing"). Future
+enhancement: refine `building=yes` cases via secondary OSM tags
+(`shop=*`, `amenity=*`, `office=*`); see REFERENCE.md.
 
 **Canonical CRS for San Antonio: EPSG:5070** (NAD83 / Conus Albers, NLCD's
 native equal-area CRS). Differs from Minneapolis (EPSG:26915 / UTM 15N) —
@@ -288,6 +296,28 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   1024px-cap downsample in `plot_spatial_map` (which was allocating
   ~378 MB transient per rerun on the SA AOI before the fix). SA is the
   default test bed for any future memory-sensitive change.
+- **Cross-city cooling comparability — pending.** Cooling Energy Savings
+  for MN is computed against the **InVEST sample buildings shapefile**
+  (3,788 polygons rasterising to ~447 pixels, ~0.4 km² — downtown only),
+  while SA is computed against **Geofabrik OSM buildings for all of Bexar
+  County** (345,900 polygons; 36,860 typed pixels covering ~33 km²). The
+  per-typed-building-pixel rate is in line between the two cities
+  (~$1,200/yr/pixel at the 50/0/100/0 scenario), but the absolute dollar
+  values are NOT directly comparable across cities — SA's number is a
+  county-wide sum, MN's is a downtown-subset sum. Awaiting a decision on
+  how to surface the scope difference to users (tooltip caveat vs adding
+  OSM buildings to MN vs per-rate display). Don't pull MN/SA cooling
+  values into the same chart or comparison sentence until this is
+  resolved.
+- **SA flood damage table sourcing — pending.** `CITIES['San Antonio, TX']
+  ['damage_table_file']` is `None`, so `compute_flood_damage_avoided` returns
+  $0 for SA even now that OSM building polygons carry InVEST type codes.
+  Reusing `Damage_loss_table_MN.csv` was rejected — the MN per-m² damage
+  values are calibrated to MN's InVEST sample buildings (specific size /
+  construction profile), and applying them to 345k SA OSM polygons would
+  produce a misleading number on a different building stock. Sourcing a
+  SA-specific damage table is its own (small) followup commit. Until then,
+  the Flood Damage Avoided card honestly renders "—" / $0 for SA.
 - **Heat Vulnerability Index — still pending.** The `equity_weights`
   raster is a proxy (NLCD intensity-coded), not a real CDC/ATSDR HVI by
   census tract. Replacing it is the next data-quality upgrade.

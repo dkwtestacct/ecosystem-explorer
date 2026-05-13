@@ -460,6 +460,7 @@ class CityState(NamedTuple):
     buildings_type_raster: np.ndarray
     buildings_data_available: bool
     buildings_have_types: bool
+    buildings_type_coverage: float  # 0..1, fraction of building pixels with InVEST type > 0
     total_potential_damage_usd: float
     # Roads
     roads_raster: np.ndarray
@@ -1357,6 +1358,58 @@ def compute_cooling_energy_savings(scenario_cc_raster):
     return round(float(buf[valid].sum()), 0)
 
 
+# ── OSM building-tag → InVEST type-code mapping ──────────────────────────────
+# Geofabrik OSM building extracts (used for San Antonio) carry the OSM
+# `building=*` tag value in the `type` column as strings, not the integer
+# codes InVEST UCM expects (0=other, 1=commercial, 2=residential, 3=industrial).
+# This table is an approximation: peer cooling-energy profiles of the
+# canonical OSM building values onto the three InVEST categories. Untyped
+# polygons (NaN or `building=yes`) get 0 and are excluded from the per-pixel
+# kWh/(m²·°C) lookup downstream. See CLAUDE.md "Buildings — typing" section.
+_OSM_BUILDING_TO_INVEST_TYPE = {
+    # Residential → 2
+    'house': 2, 'residential': 2, 'apartments': 2, 'detached': 2,
+    'semidetached_house': 2, 'terrace': 2, 'bungalow': 2, 'dormitory': 2,
+    'cabin': 2, 'farm': 2, 'static_caravan': 2, 'houseboat': 2,
+    # Residential outbuildings → 2 (typically attached / proximate to homes)
+    'garage': 2, 'carport': 2, 'shed': 2, 'barn': 2,
+    'farm_auxiliary': 2, 'hut': 2,
+    # Commercial → 1
+    'commercial': 1, 'retail': 1, 'office': 1, 'supermarket': 1,
+    'kiosk': 1, 'shop': 1, 'hotel': 1, 'restaurant': 1,
+    # Industrial → 3
+    'industrial': 3, 'warehouse': 3, 'factory': 3, 'manufacture': 3,
+    # Public / institutional → treat as commercial (1) — closest cooling
+    # profile among the three InVEST categories
+    'school': 1, 'university': 1, 'hospital': 1, 'church': 1,
+    'public': 1, 'civic': 1, 'government': 1, 'kindergarten': 1,
+    'college': 1, 'cathedral': 1, 'chapel': 1, 'mosque': 1,
+    'synagogue': 1, 'temple': 1, 'fire_station': 1, 'train_station': 1,
+    # Explicitly ambiguous — return -1 ("no usable type"), NOT 0. Type 0
+    # = "other" in energy_consumption.csv carries a real 10 kWh/(m²·°C)
+    # rate, so writing 0 here would silently charge these polygons that
+    # rate in compute_cooling_energy_savings. -1 lines up with the
+    # rasterize fill sentinel and excludes them cleanly.
+    'yes': -1, 'roof': -1, 'service': -1, 'storage_tank': -1,
+}
+
+
+def _osm_to_invest_type(tag_value) -> int:
+    """Map an OSM `building=*` tag value to the InVEST integer code, or -1
+    if the value is unrecognized / missing. Safe on NaN, None, or any input
+    type — coerces to lowercase string before lookup. -1 means "no usable
+    type" and is the same sentinel rasterize uses for "no building"."""
+    if tag_value is None:
+        return -1
+    try:
+        key = str(tag_value).lower().strip()
+    except Exception:
+        return -1
+    if not key or key == 'nan':
+        return -1
+    return _OSM_BUILDING_TO_INVEST_TYPE.get(key, -1)
+
+
 # ── City runtime state loader ─────────────────────────────────────────────────
 # All heavy per-city allocations (rasters, distance fields, baseline images)
 # happen inside this @st.cache_resource function. Cached on `city_key`, so:
@@ -1472,6 +1525,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
 
     # ── Phase 8: Buildings (BIG transient on SA — 345k polygons) ───────────
     buildings_have_types = False
+    buildings_type_coverage = 0.0
     buildings_file = cfg.get("buildings_file")
     damage_table_file = cfg.get("damage_table_file")
     try:
@@ -1480,11 +1534,32 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         buildings_gdf = _gpd.read_file(buildings_file)
         if buildings_gdf.crs is None or str(buildings_gdf.crs) != cfg['crs']:
             buildings_gdf = buildings_gdf.to_crs(cfg['crs'])
+
+        # Two paths for typing the polygons:
+        #   (a) Numeric `type` column with values in {0,1,2,3} — InVEST sample
+        #       shapefiles (MN downtown). Used directly.
+        #   (b) String `type` column with OSM `building=*` values (SA from
+        #       Geofabrik). Mapped via `_osm_to_invest_type`.
+        invest_types = None
         if "type" in buildings_gdf.columns:
-            types_clean = pd.to_numeric(buildings_gdf["type"], errors="coerce").dropna()
-            buildings_have_types = (
-                len(types_clean) > 0 and types_clean.between(0, 3).all()
-            )
+            numeric = pd.to_numeric(buildings_gdf["type"], errors="coerce")
+            numeric_clean = numeric.dropna()
+            if len(numeric_clean) > 0 and numeric_clean.between(0, 3).all():
+                # Path (a): MN-style integer codes.
+                invest_types = numeric.fillna(-1).astype("int32")
+                buildings_have_types = True
+            else:
+                # Path (b): OSM string tags. _osm_to_invest_type returns -1
+                # for any value that doesn't map to a real InVEST category;
+                # fillna(-1) catches actual NaN cells. The -1 sentinel
+                # matches the rasterize `fill=-1` and is excluded by the
+                # `BUILDINGS_TYPE_RASTER >= 0` mask downstream — untyped
+                # polygons are NOT charged the type-0 ("other") 10 kWh rate.
+                invest_types = (
+                    buildings_gdf["type"].map(_osm_to_invest_type).fillna(-1).astype("int32")
+                )
+                # buildings_have_types is set later from raster coverage.
+
         if buildings_have_types and damage_table_file:
             damage_table = pd.read_csv(damage_table_file)
             type_to_damage = dict(zip(damage_table["Type"], damage_table["Damage"]))
@@ -1498,19 +1573,42 @@ def _load_city_runtime_state(city_key: str) -> CityState:
             total_potential_damage_usd = float(buildings_gdf["potential_damage_usd"].sum())
         else:
             total_potential_damage_usd = 0.0
+
         buildings_raster = _rasterize(
             ((geom, 1) for geom in buildings_gdf.geometry),
             out_shape=ref_shape, transform=ref_transform,
             fill=0, dtype="uint8",
         )
-        if buildings_have_types:
+        if invest_types is not None:
+            # Burn the (possibly OSM-mapped) integer codes. fill=-1 means
+            # "no building here"; 0 means "building present but untyped".
             buildings_type_raster = _rasterize(
-                ((geom, int(t)) for geom, t in zip(buildings_gdf.geometry, buildings_gdf["type"])),
+                ((geom, int(t)) for geom, t in zip(buildings_gdf.geometry, invest_types)),
                 out_shape=ref_shape, transform=ref_transform,
                 fill=-1, dtype="int32",
             )
         else:
             buildings_type_raster = np.full(ref_shape, -1, dtype="int32")
+
+        # Pixel-level coverage check + flag. Pixel-level matters more than
+        # polygon-level because large typed buildings outweigh small untyped
+        # ones. `buildings_have_types` is set based on whether *anything*
+        # got a type code > 0 — protects against future cities with OSM data
+        # whose tag values fall entirely outside the mapping.
+        total_building_pixels = int(np.sum(buildings_raster > 0))
+        typed_pixels = int(np.sum(buildings_type_raster > 0))
+        if total_building_pixels > 0:
+            buildings_type_coverage = typed_pixels / total_building_pixels
+        if not buildings_have_types:
+            # Path (b) — only flip the flag on if the OSM mapping actually
+            # produced typed pixels. Empty mapping → leave at False, dollar
+            # metrics fall back to blank.
+            buildings_have_types = typed_pixels > 0
+        print(
+            f"[BUILDINGS] {city_key}: {typed_pixels:,}/{total_building_pixels:,} "
+            f"building pixels typed ({buildings_type_coverage:.1%} coverage)"
+        )
+
         buildings_data_available = True
         # Drop the GeoDataFrame ASAP — it's the single biggest transient on SA.
         del buildings_gdf
@@ -1630,6 +1728,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         buildings_type_raster=buildings_type_raster,
         buildings_data_available=buildings_data_available,
         buildings_have_types=buildings_have_types,
+        buildings_type_coverage=buildings_type_coverage,
         total_potential_damage_usd=total_potential_damage_usd,
         roads_raster=roads_raster, osm_roads_available=osm_roads_available,
         consumption_rate_per_pixel=consumption_rate_per_pixel,
@@ -1689,6 +1788,7 @@ BUILDINGS_RASTER           = _CURRENT_CITY_STATE.buildings_raster
 BUILDINGS_TYPE_RASTER      = _CURRENT_CITY_STATE.buildings_type_raster
 BUILDINGS_DATA_AVAILABLE   = _CURRENT_CITY_STATE.buildings_data_available
 BUILDINGS_HAVE_TYPES       = _CURRENT_CITY_STATE.buildings_have_types
+BUILDINGS_TYPE_COVERAGE    = _CURRENT_CITY_STATE.buildings_type_coverage
 TOTAL_POTENTIAL_DAMAGE_USD = _CURRENT_CITY_STATE.total_potential_damage_usd
 # Roads
 ROADS_RASTER        = _CURRENT_CITY_STATE.roads_raster
@@ -2833,7 +2933,11 @@ econ2.metric(
 econ3, econ4, econ5 = st.columns(3)
 
 _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
-if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
+# Render dollars only when the city has *both* per-building types AND a
+# damage table — `TOTAL_POTENTIAL_DAMAGE_USD > 0` is the single signal that
+# covers both. SA has types now (OSM mapping) but no damage table, so the
+# total is still $0 and the card must render "—", not "$0.0M".
+if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_USD > 0:
     econ3.metric(
         "Flood Damage Avoided",
         f"${_flood_damage_avoided / 1e6:.1f}M",
@@ -2853,22 +2957,31 @@ if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
         ),
     )
 else:
-    _help_no_types = (
-        "Building-type data not available for this extent — requires per-building "
-        "type codes (InVEST sample uses 0=other, 1=commercial, 2=residential, "
-        "3=industrial) to look up damage rates from Damage_loss_table_MN.csv. "
-        "OSM-only building polygons don't carry these codes. Spatial placement "
-        "mask is still active."
-    )
+    if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
+        # Has typed buildings but no damage table (SA today). Be honest
+        # about the specific gap rather than implying buildings are
+        # missing.
+        _help_text = (
+            "Damage rates per building type not available for this city "
+            "(no $/m² damage table sourced yet). The per-pixel building "
+            "mask and InVEST type codes are loaded — adding a city-specific "
+            "damage-loss CSV would light this card up."
+        )
+    elif BUILDINGS_DATA_AVAILABLE and not BUILDINGS_HAVE_TYPES:
+        _help_text = (
+            "Building-type data not available for this extent — requires "
+            "per-building type codes (1=commercial, 2=residential, "
+            "3=industrial) to look up damage rates."
+        )
+    else:
+        _help_text = (
+            "Buildings shapefile or damage-loss table not loaded — see "
+            "data/invest/flood/UFR_sample_data_MN/."
+        )
     econ3.metric(
         "Flood Damage Avoided",
         "—",
-        help=(
-            "Confidence: Order-of-magnitude estimate. " + _help_no_types
-            if BUILDINGS_DATA_AVAILABLE
-            else "Confidence: Order-of-magnitude estimate. Buildings shapefile or "
-                 "damage-loss table not loaded — see data/invest/flood/UFR_sample_data_MN/."
-        ),
+        help="Confidence: Order-of-magnitude estimate. " + _help_text,
     )
 
 _energy_savings = results.get('cooling_energy_savings_usd', 0.0)
@@ -2877,6 +2990,23 @@ _energy_available = (
     and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE
 )
 if _energy_available:
+    # When typing coverage is partial (currently SA), append a one-sentence
+    # caveat so the headline number is interpreted as a lower bound.
+    if BUILDINGS_TYPE_COVERAGE < 0.95:
+        _help_text = (
+            "Estimated avoided air-conditioning costs from urban cooling "
+            "effects, computed over building pixels with mapped commercial/"
+            f"residential/industrial types. For this city, ~"
+            f"{BUILDINGS_TYPE_COVERAGE:.0%} of building pixels carry a "
+            "recognized type tag; untyped buildings (e.g. OSM `building=yes`) "
+            "are excluded. Conservative lower-bound estimate."
+        )
+    else:
+        _help_text = (
+            "Estimated avoided air-conditioning costs from urban cooling "
+            "effects, computed over building pixels typed as commercial/"
+            "residential/industrial. Order-of-magnitude estimate."
+        )
     econ4.metric(
         "Cooling Energy Savings",
         f"${_energy_savings / 1e6:.2f}M/yr",
@@ -2885,14 +3015,7 @@ if _energy_available:
             if _energy_savings >= 1e3 else "no avoided energy cost"
         ),
         delta_color="normal" if _energy_savings >= 1e3 else "off",
-        help=(
-            "Confidence: Order-of-magnitude estimate. Estimated avoided air "
-            "conditioning energy costs from urban cooling improvement. Based "
-            "on InVEST Urban Cooling Model: per-pixel ΔT in °F (= ΔCC × 4) "
-            "× 3% AC reduction per °F × per-class consumption (kWh/m²/yr from "
-            "energy_consumption.csv) × pixel area × $0.13/kWh, summed over "
-            "building pixels. Capped at $0 for scenarios that warm the city."
-        ),
+        help=_help_text,
     )
 else:
     if BUILDINGS_DATA_AVAILABLE and not BUILDINGS_HAVE_TYPES:
