@@ -326,6 +326,76 @@ if _caption:
     st.sidebar.caption(_caption)
 st.sidebar.divider()
 
+# Per-city extent strings used by Nature Access caveats. Two phrasings:
+#   - `short`: drops into the metric-card help text ("Model area covers …")
+#   - `caveat`: full sentence for the Assumptions & limitations tab
+# Adding a city = add an entry here. Fallback below uses a generic phrase
+# so missing entries don't break the UI.
+_NATURE_ACCESS_EXTENT_TEXT = {
+    "Minneapolis, MN": {
+        "short": "downtown Minneapolis and near-neighborhoods (~154,000 residents)",
+        "caveat": (
+            "The Nature Access calculation uses an analysis extent of "
+            "~10.8 km × 10.7 km covering downtown Minneapolis and "
+            "near-neighborhoods (~154,000 residents), not the full city."
+        ),
+    },
+    "Minneapolis Full, MN": {
+        "short": "the Minneapolis city boundary (~464,000 residents)",
+        "caveat": (
+            "The Nature Access calculation uses the Minneapolis city "
+            "boundary as the analysis extent (~464,000 residents)."
+        ),
+    },
+    "San Antonio, TX": {
+        "short": "Bexar County (~1.9M residents)",
+        "caveat": (
+            "The Nature Access calculation uses an analysis extent covering "
+            "Bexar County (~1.9M residents)."
+        ),
+    },
+}
+
+
+def _extent_description(city_key: str, kind: str = "caveat") -> str:
+    """Return the city-aware Nature Access extent string. `kind` selects
+    `short` (drop-in phrase) or `caveat` (full sentence). Falls back to a
+    generic phrase if a future city is missing from the table."""
+    entry = _NATURE_ACCESS_EXTENT_TEXT.get(city_key)
+    if not entry:
+        return (
+            "the active city's analysis extent"
+            if kind == "short"
+            else "The Nature Access calculation uses the active city's analysis extent."
+        )
+    return entry.get(kind, entry["caveat"])
+
+
+# Per-city population-source sentence for the Nature Access assumptions tab.
+# Same fallback pattern as `_NATURE_ACCESS_EXTENT_TEXT`.
+_POPULATION_SOURCE_TEXT = {
+    "Minneapolis, MN": (
+        "US Census 2020 block totals (Hennepin County, FIPS 27053) joined "
+        "to TIGER 2020 blocks and rasterized to the NLCD grid."
+    ),
+    "Minneapolis Full, MN": (
+        "US Census 2020 block totals (Hennepin County, FIPS 27053) joined "
+        "to TIGER 2020 blocks and rasterized to the NLCD grid."
+    ),
+    "San Antonio, TX": (
+        "US Census 2020 block totals (Bexar County, FIPS 48029) joined to "
+        "TIGER 2020 blocks and rasterized to the NLCD grid."
+    ),
+}
+
+
+def _population_source(city_key: str) -> str:
+    return _POPULATION_SOURCE_TEXT.get(
+        city_key,
+        "US Census 2020 block totals joined to TIGER 2020 blocks and "
+        "rasterized to the NLCD grid.",
+    )
+
 # ── City-aware header ──────────────────────────────────────────────────────────
 st.title("🌿 Urban Ecosystem Tradeoff Explorer")
 st.subheader(f"📍 {selected_city}")
@@ -2778,7 +2848,7 @@ _nature_help = (
     f"Share of residents in the model area whose access score exceeds "
     f"{NATURE_ACCESS_THRESHOLD} — using the InVEST UNA biophysical table "
     "(per-class urban_nature score and search radius). Model area covers "
-    "downtown Minneapolis and near-neighborhoods (~154,000 residents). "
+    f"{_extent_description(selected_city, 'short')}. "
     "Euclidean distance, not street-network walking. Population from US "
     "Census 2020 block data."
 ) if POPULATION_DATA_AVAILABLE else (
@@ -3270,12 +3340,8 @@ with st.expander("Assumptions and limitations"):
             "- **Proximity proxy, not walkshed:** Euclidean distance from each "
             "pixel to the nearest nature pixel × 30 m, thresholded at 800 m. "
             "Ignores street networks, barriers, slope, and crossings.\n"
-            "- **Population data:** US Census 2020 block totals (Hennepin "
-            "County, FIPS 27053) joined to TIGER 2020 blocks and rasterized to "
-            "the NLCD grid.\n"
-            "- **Extent caveat:** the NLCD raster only covers ~10.8 km × "
-            "10.7 km of downtown Minneapolis (~154,000 residents in extent), "
-            "not the full city.\n"
+            f"- **Population data:** {_population_source(selected_city)}\n"
+            f"- **Extent caveat:** {_extent_description(selected_city, 'caveat')}\n"
             "- **Spatial placement is building-footprint-aware.** Conversions "
             "are sampled from developed pixels that do NOT contain a building, "
             "using the InVEST UFR buildings shapefile to mask out structures. "
@@ -3710,9 +3776,11 @@ with tab3:
         "Heat vulnerability overlay opacity",
         0.0, 1.0, 0.3, 0.05,
         help=(
-            "Tint developed pixels red in proportion to their heat vulnerability "
-            "(NLCD development intensity proxy). 0 hides the overlay; 1 makes "
-            "the highest-intensity-23 pixels fully red."
+            "Transparency of the heat vulnerability overlay on the map. "
+            "Currently uses high-intensity developed pixels (NLCD class 23) "
+            "as a proxy for heat-vulnerable areas — this is a placeholder "
+            "for a future CDC/ATSDR Heat Vulnerability Index by census "
+            "tract. Set to 0 to hide."
         ),
     )
 
