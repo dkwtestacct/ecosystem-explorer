@@ -2990,6 +2990,29 @@ _energy_available = (
     and ENERGY_TABLE_AVAILABLE and ET_DATA_AVAILABLE
 )
 if _energy_available:
+    # Per-typed-building-pixel rate. City totals scale with the building
+    # footprint (MN: InVEST sample shapefile ~447 px / ~0.4 km² downtown;
+    # SA: county-wide OSM ~36,860 typed px / ~33 km²), which makes the
+    # absolute dollar values incomparable across cities. The per-pixel
+    # rate strips out the footprint-scope difference and is the
+    # apples-to-apples cross-city number. "Per typed building pixel" not
+    # "per building" — multi-pixel buildings get counted by pixel — but
+    # pixel size is identical (30 m NLCD) in both cities so the rate is
+    # comparable.
+    _typed_px = int(np.sum(BUILDINGS_TYPE_RASTER > 0))
+    _per_pixel_cooling_usd = (
+        _energy_savings / _typed_px if _typed_px > 0 else None
+    )
+
+    def _fmt_per_pixel_rate(usd):
+        if usd is None:
+            return None
+        if usd >= 1000:
+            return f"~${round(usd / 10) * 10:,.0f}/yr per typed building"
+        if usd >= 100:
+            return f"~${usd:,.0f}/yr per typed building"
+        return f"~${usd:,.2f}/yr per typed building"
+
     # When typing coverage is partial (currently SA), append a one-sentence
     # caveat so the headline number is interpreted as a lower bound.
     if BUILDINGS_TYPE_COVERAGE < 0.95:
@@ -2999,13 +3022,19 @@ if _energy_available:
             f"residential/industrial types. For this city, ~"
             f"{BUILDINGS_TYPE_COVERAGE:.0%} of building pixels carry a "
             "recognized type tag; untyped buildings (e.g. OSM `building=yes`) "
-            "are excluded. Conservative lower-bound estimate."
+            "are excluded. Conservative lower-bound estimate. The "
+            "per-typed-building rate is roughly comparable across cities "
+            "even when total building footprints differ; the city total is "
+            "sensitive to the size of the typed-building dataset."
         )
     else:
         _help_text = (
             "Estimated avoided air-conditioning costs from urban cooling "
             "effects, computed over building pixels typed as commercial/"
-            "residential/industrial. Order-of-magnitude estimate."
+            "residential/industrial. Order-of-magnitude estimate. The "
+            "per-typed-building rate is roughly comparable across cities "
+            "even when total building footprints differ; the city total is "
+            "sensitive to the size of the typed-building dataset."
         )
     econ4.metric(
         "Cooling Energy Savings",
@@ -3017,6 +3046,12 @@ if _energy_available:
         delta_color="normal" if _energy_savings >= 1e3 else "off",
         help=_help_text,
     )
+    # Per-pixel rate as a small secondary caption — only when the city
+    # total is meaningful. Suppresses at HD-only scenarios where there's
+    # no cooling delta to amortize.
+    _rate_str = _fmt_per_pixel_rate(_per_pixel_cooling_usd)
+    if _rate_str is not None and _energy_savings >= 1e3:
+        econ4.caption(_rate_str)
 else:
     if BUILDINGS_DATA_AVAILABLE and not BUILDINGS_HAVE_TYPES:
         _help_text = (

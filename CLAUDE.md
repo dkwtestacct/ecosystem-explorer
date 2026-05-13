@@ -296,19 +296,6 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   1024px-cap downsample in `plot_spatial_map` (which was allocating
   ~378 MB transient per rerun on the SA AOI before the fix). SA is the
   default test bed for any future memory-sensitive change.
-- **Cross-city cooling comparability — pending.** Cooling Energy Savings
-  for MN is computed against the **InVEST sample buildings shapefile**
-  (3,788 polygons rasterising to ~447 pixels, ~0.4 km² — downtown only),
-  while SA is computed against **Geofabrik OSM buildings for all of Bexar
-  County** (345,900 polygons; 36,860 typed pixels covering ~33 km²). The
-  per-typed-building-pixel rate is in line between the two cities
-  (~$1,200/yr/pixel at the 50/0/100/0 scenario), but the absolute dollar
-  values are NOT directly comparable across cities — SA's number is a
-  county-wide sum, MN's is a downtown-subset sum. Awaiting a decision on
-  how to surface the scope difference to users (tooltip caveat vs adding
-  OSM buildings to MN vs per-rate display). Don't pull MN/SA cooling
-  values into the same chart or comparison sentence until this is
-  resolved.
 - **SA flood damage table sourcing — pending.** `CITIES['San Antonio, TX']
   ['damage_table_file']` is `None`, so `compute_flood_damage_avoided` returns
   $0 for SA even now that OSM building polygons carry InVEST type codes.
@@ -403,6 +390,20 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
 - **Scenario LULC is not stored in the lookup table** — `scenario_lulc` is stripped from cached
   results (`if k != 'scenario_lulc'`) and recomputed on demand for the map view to keep memory
   usage manageable.
+- **Cooling Energy Savings — dual display (city total + per-typed-building rate).**
+  The card shows the city-wide dollar total as the headline metric AND a
+  small caption beneath it formatted as `~$N/yr per typed building`. The
+  per-pixel rate is `cooling_energy_savings_usd /
+  np.sum(BUILDINGS_TYPE_RASTER > 0)` and is the **city-agnostic
+  comparable** number — the total is footprint-scope-dependent (MN's
+  building dataset is a downtown InVEST sample, SA's is county-wide OSM,
+  so the totals are not directly comparable). The caption is suppressed
+  when `cooling_energy_savings_usd < $1,000` (e.g. HD-only scenarios)
+  where the rate would be uninformative. Formatting tiers: `>$1000`
+  rounded to nearest $10, `>$100` to nearest $1, else to two decimals.
+  This dual-display pattern lives only on Cooling Energy Savings for now
+  — don't extend to other metric cards without an actual user signal that
+  the comparability gap matters elsewhere.
 - **Metric cards are grouped into four labeled sections** — 🌿 Ecological (5 cards in two
   rows: row 1 has Flood Risk Reduction, Temperature Change, and Runoff Volume in 3 columns;
   row 2 has Carbon Sequestration and NDVI in 2 columns),
