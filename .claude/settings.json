@@ -65,14 +65,28 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:docs.streamlit.io)",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:invest.readthedocs.io)",
+      "WebFetch(domain:naturalcapitalproject.stanford.edu)",
+      "WebFetch(domain:storage.googleapis.com)",
+      "WebFetch(domain:fao.org)",
+      "WebFetch(domain:www.fao.org)",
+      "WebFetch(domain:openknowledge.fao.org)",
+      "WebFetch(domain:tfsweb.tamu.edu)",
+      "WebFetch(domain:tamu.edu)",
+      "WebFetch(domain:ars.usda.gov)",
+      "WebFetch(domain:www.usda.gov)",
+      "WebFetch(domain:noaa.gov)",
+      "WebFetch(domain:epa.gov)",
+      "WebFetch(domain:nrel.gov)",
+      "WebFetch(domain:census.gov)",
+      "WebFetch(domain:data.census.gov)"
     ],
     "ask": [
       "Bash(git reset:*)",
       "Bash(git rebase:*)",
       "Bash(rm:*)",
-      "Bash(mv:*)",
-      "WebFetch"
+      "Bash(mv:*)"
     ],
     "deny": [
       "Bash(git push --force:*)",
