@@ -1247,7 +1247,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 15  # bumped: 'San Antonio, TX' available=True (full input pipeline live: SSURGO TX029 + Census Bexar + CGIAR ET0 + TIGER 48 tracts + Geofabrik OSM TX)
+SCENARIO_SCHEMA_VERSION = 16  # bumped: SA cooling biophysical table tuned for Köppen BSh (classes 21/41/42/52/81 — see data/sa/cooling/biophysical_table_sources.md); invalidates SA scenario grid + lookup table caches. MN values unchanged so MN caches will regen with byte-identical outputs.
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking

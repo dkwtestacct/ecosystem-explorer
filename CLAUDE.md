@@ -44,7 +44,7 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | `data/sa/flood/lulc_nlcd_2021_sa.tif` | Raw NLCD 2021 clipped to SA bbox via MRLC WCS (EPSG:5070, 30 m, 1984×1713 px) | done |
 | `data/sa/flood/land_use_2021_sa.tif` | Canonical SA LULC raster (same CRS/grid) | done |
 | `data/sa/flood/UFR_biophysical_table_SA.csv` | CN values by lucode × soil group | placeholder copy of MN |
-| `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | shade / Kc / albedo per lucode | placeholder copy of MN — SA's hotter/drier climate likely needs lower Kc and shade values for some classes (pending NatCap project tuning) |
+| `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | shade / Kc / albedo per lucode | Tuned for Köppen BSh climate (2026-05-14) — classes 21, 41, 42, 52, 81 adjusted from the prior MN-copy placeholder. Per-class rationale and citations in `data/sa/cooling/biophysical_table_sources.md`. Anchored on eddy-covariance Kc measurements (Pôças et al. 2017) for natural forest classes, FAO-56 Table 12 for grass / shrub, Stewart & Oke 2012 for albedo. Medium-confidence interim values — a SA-specific InVEST UCM args run would supersede them. |
 | `data/sa/flood/soil_group_sa.tif` | SSURGO hydrologic soil group rasterized to LULC grid | done (TX029, 49 % D-class clay-rich Vertisols) |
 | `data/sa/cooling/et_annual_sa.tif` | Reference ET raster (CGIAR Global-AI/ET0 v3.1, 1,580–1,716 mm/yr) | done |
 | `data/sa/population/sa_pop_2020.tif` | Census 2020 block totals rasterized to LULC grid | done (1.91 M in raster) |
@@ -212,7 +212,7 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   unioning with buildings, **~65 % of developed pixels (NLCD 21–24) remain convertible**
   (33,357 of 51,430). Rasterization is unbuffered line-to-pixel via `rasterio.features.rasterize`
   with `dtype="uint8"`; output is binary 0/1.
-- **`SCENARIO_SCHEMA_VERSION = 15`** — bump on every change that shifts `evaluate_scenario`
+- **`SCENARIO_SCHEMA_VERSION = 16`** — bump on every change that shifts `evaluate_scenario`
   outputs so cached lookup tables get regenerated. Recent bumps: 7→8 (UCM rework: ET fix,
   Gaussian convolution, canonical energy formula); 8→9 (ET nodata sentinel masked);
   9→10 (full Geofabrik OSM road network, 62 % AOI); 10→11 (Option B road filter, ~29 % AOI);
@@ -220,10 +220,15 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   computed at module load); 12→13 (load_data parameterized via city_cfg path keys; Minneapolis
   Full activated); 13→14 (InVEST Urban Mental Health v3.19.0 added — preventable_mh_cases +
   avoided_mh_cost_usd as new surrogate targets, replaces Urban Wellbeing Score metric card);
-  **14→15 (San Antonio activated with full pipeline: SSURGO TX029 + Census Bexar +
+  14→15 (San Antonio activated with full pipeline: SSURGO TX029 + Census Bexar +
   CGIAR ET0 + TIGER 48 + Geofabrik TX OSM; new EPA Social Cost of Carbon dollar
   metric in Economic row; pre-flight data-check function added; PIXEL_AREA_ACRES
-  harmonized to 0.2224 globally).**
+  harmonized to 0.2224 globally);
+  **15→16 (SA cooling biophysical table tuned for Köppen BSh — classes 21, 41,
+  42, 52, 81 adjusted from prior MN-copy placeholder, anchored on eddy-covariance
+  Kc measurements per Pôças et al. 2017 + FAO-56 + Stewart & Oke 2012; MN
+  values unchanged but MN caches will regen with byte-identical outputs. See
+  data/sa/cooling/biophysical_table_sources.md for per-class rationale).**
 - **City runtime state (`CityState` + `_load_city_runtime_state`).** All heavy
   per-city allocations — rasters from `load_data`, the population raster, the
   resized ET raster, building/road/tract rasterisations, the static nature-
