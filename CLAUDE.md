@@ -134,8 +134,8 @@ separate cache entries via the path parameters.
 | `PIXEL_AREA_ACRES` | 0.222 | Acres per raster pixel |
 | `FOOD_FOREST_LBS_ACRE` | 11,500 | Food forest yield benchmark (lbs/acre/year) — from San Antonio NatCap study |
 | `DESIGN_STORM_INCHES` | 2.0 | Rainfall depth used for the SCS runoff calculation |
-| `UHI_MAX_C` | 2.05 | Minneapolis urban-heat-island max anomaly (°C). Source: InVEST `urban_cooling_model_args_MN.json`. Used in CC→ΔT conversion. Should become per-city `city_cfg['uhi_max_c']` once SA's InVEST args are available. |
-| `HM_TO_FAHRENHEIT` | 3.69 | Derived as `UHI_MAX_C × 1.8`. 1 CC unit ≈ 3.69 °F cooling vs fully paved (Minneapolis). |
+| `UHI_MAX_C` | per-city | Read from `city_cfg['uhi_max_c']` at module load (i.e. on every script rerun) — NOT a fixed global. MN downtown: 2.05 °C (InVEST `urban_cooling_model_args_MN.json`); MN Full: 2.05 °C (same AOI climate); SA: 3.5 °C (estimate for Köppen BSh hot semi-arid — no published SA InVEST args yet, so treat as ±0.5 °C). Used in `compute_cooling_energy_savings` for CC → ΔT °C conversion. Consumers: app.py:1422 (cooling) and app.py:3307 (assumptions tab display). |
+| `HM_TO_FAHRENHEIT` | per-city | Derived as `UHI_MAX_C × 1.8`. MN: 3.69 °F/CC; SA: 6.30 °F/CC. Rebound every rerun alongside `UHI_MAX_C`. |
 | `GREEN_AREA_COOLING_DISTANCE_M` | 450 | Gaussian convolution kernel radius for CC smoothing, from InVEST args JSON. `_CC_SIGMA_PX = 450/30 = 15` at 30 m NLCD resolution. |
 | `COST_PER_KWH_USD` | 0.13 | US average residential electricity price (EIA 2024). Used to convert avoided-AC-kWh into $. |
 | `EPA_SOCIAL_COST_CARBON` | 190 | $/ton CO2e — EPA 2023 final rule "Methodology for Estimating the Social Cost of Greenhouse Gases", central estimate at 2 % discount rate for 2030 emissions. Multiplied by `carbon_tons_co2_yr` to produce the Avoided Carbon Cost dollar metric. |
