@@ -11,7 +11,24 @@ non-SA measurements + first-principles direction.
 Classes not listed here are unchanged from the MN table (developed
 classes 22/23/24 are climate-agnostic impervious; rare classes 11, 31,
 43, 71, 82, 90, 95 each cover <2 % of the SA AOI and are not material
-to the aggregate ΔCC, so tuning was not attempted).
+to the aggregate ΔCC, so tuning was not attempted; class 21 was
+intentionally left at MN's value — see note below).
+
+## Class 21 — Developed, Open Space — INTENTIONALLY NOT TUNED
+
+Class 21 was considered for tuning during Stage 2 but was intentionally
+left at MN's value (shade 0.3, **Kc 0.516**, albedo 0.161) for SA.
+Reason: the semantic divergence between MN's downtown "Developed Open
+Space" (parks / cemeteries, intermittent canopy, cool-season mowed turf)
+and SA's suburban "Developed Open Space" (residential lawn mix with
+variable irrigation regimes, plus an unknown weed-lot fraction) is too
+heterogeneous to justify a single defensible value without a
+SA-calibrated InVEST UCM args run. A naive bump anchored on FAO-56
+warm-season turf Kc would overweight the maintained-lawn case and bias
+SA's baseline cooling upward — distorting *scenario delta* outputs
+against an inflated baseline. Leaving the value at MN's 0.516 is the
+honest choice given a 10%-of-AOI class with no better anchor than
+guesswork.
 
 ## Methodology note
 
@@ -24,20 +41,6 @@ specific climate / vegetation type (class 52 Shrub/Scrub), FAO-56
 semi-arid ranges were used as the anchor instead.
 
 ## Per-class rationale
-
-### Class 21 — Developed, Open Space
-- **Old (MN copy):** shade 0.3, Kc 0.516, albedo 0.161
-- **New (SA):**     shade 0.3, **Kc 0.70**, albedo 0.161
-- **Confidence:** Low (lowest-confidence row in this table)
-- **Rationale:** MN's downtown "Developed Open Space" is dominated by
-  parks/cemeteries with intermittent canopy and short cool-season mowed
-  turf. SA's equivalent is suburban lawn-dominant residential with
-  significant irrigation of St. Augustine / Bermuda. FAO-56 warm-season
-  turf grass Kc_mid = 0.85; dropping by ~0.15 for the non-irrigated
-  fraction of SA's developed-open mix yields ≈0.70. Could plausibly be
-  left at 0.516 if a future review judges this too aggressive.
-- **Source:** FAO Irrigation and Drainage Paper 56, Chapter 6, Table 12
-  (warm-season turf grass Kc_mid). https://www.fao.org/4/x0490e/x0490e0b.htm
 
 ### Class 41 — Deciduous Forest
 - **Old (MN copy):** shade 1.0, Kc 1.004, albedo 0.142
