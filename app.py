@@ -396,6 +396,35 @@ def _population_source(city_key: str) -> str:
         "rasterized to the NLCD grid.",
     )
 
+
+# Per-city biophysical-table provenance for the Temperature assumptions tab.
+# Surfaces the SA Köppen-BSh tuning to users without hiding the
+# medium-confidence framing.
+_COOLING_BIOPHYSICAL_SOURCE_TEXT = {
+    "Minneapolis, MN": (
+        "Biophysical table from the InVEST UCM args JSON for the MN AOI "
+        "(humid continental Köppen Dfa)."
+    ),
+    "Minneapolis Full, MN": (
+        "Biophysical table from the InVEST UCM args JSON for the MN AOI "
+        "(humid continental Köppen Dfa)."
+    ),
+    "San Antonio, TX": (
+        "Biophysical table tuned for Köppen BSh (hot semi-arid) climate on "
+        "four high-impact NLCD classes (Shrub/Scrub, Evergreen Forest, "
+        "Deciduous Forest, Hay/Pasture); medium-confidence interim values "
+        "pending a SA-calibrated InVEST UCM args run."
+    ),
+}
+
+
+def _cooling_biophysical_source(city_key: str) -> str:
+    return _COOLING_BIOPHYSICAL_SOURCE_TEXT.get(
+        city_key,
+        "Biophysical table sourced from the active city's configured "
+        "`cooling_table_file`.",
+    )
+
 # ── City-aware header ──────────────────────────────────────────────────────────
 st.title("🌿 Urban Ecosystem Tradeoff Explorer")
 st.subheader(f"📍 {selected_city}")
@@ -3308,6 +3337,7 @@ with st.expander("Assumptions and limitations"):
             "come from the InVEST UCM args JSON; SA's 3.5 °C is an estimate "
             "for hot semi-arid climate (no published InVEST args). Treat the "
             "°F output as ±2 °F at best.\n"
+            f"- **Biophysical source:** {_cooling_biophysical_source(selected_city)}\n"
             "- **Not captured:** wind, humidity, urban geometry, building "
             "materials, anthropogenic heat. The model sees land cover only."
         )
