@@ -319,7 +319,7 @@ FOOD_FOREST_LBS_ACRE = city_cfg['food_forest_lbs_acre']
 _CITY_CAPTIONS = {
     "Minneapolis, MN":      "Downtown and near-neighborhoods — 123 km², ~154k residents.",
     "Minneapolis Full, MN": "Full city boundary — 204 km², ~464k residents.",
-    "San Antonio, TX":      "Bexar County area — ~1.9M residents.",
+    "San Antonio, TX":      "Bexar County area — ~3,060 km², ~1.9M residents.",
 }
 _caption = _CITY_CAPTIONS.get(selected_city)
 if _caption:
@@ -427,7 +427,7 @@ def _cooling_biophysical_source(city_key: str) -> str:
 
 # ── City-aware header ──────────────────────────────────────────────────────────
 st.title("🌿 Urban Ecosystem Tradeoff Explorer")
-st.subheader(f"📍 {selected_city}")
+st.subheader(selected_city)
 
 def _preflight_data_check(city_cfg, city_name):
     """Verify all *required* input files referenced by the active city's
@@ -2296,7 +2296,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
             )
 
     ax.axis('off')
-    ax.set_title('Land Use Changes', fontsize=12)
+    # Title removed — section H2 "Where Changes Happen" already provides context
     ax.legend(handles=legend_handles, loc='lower right', fontsize=9, framealpha=0.9)
     plt.tight_layout()
     return fig
@@ -2341,10 +2341,10 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         fig.add_trace(hull_tr)
 
     TEXT_POSITIONS = {
-        'Baseline':                   'bottom right',
-        'All Food Forest (NLCD 41)':  'middle left',
+        'Baseline':                   'top right',
+        'All Food Forest (NLCD 41)':  'middle right',
         'All Green Infra (NLCD 90)':  'top left',
-        'All High Density (NLCD 24)': None,
+        'All High Density (NLCD 24)': 'bottom right',
     }
     MARKER_OVERRIDES = {
         'Baseline': dict(size=16, color='steelblue', opacity=1.0,
@@ -2462,13 +2462,13 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     fig.add_vline(x=results['flood_reduction'], line_dash='dot', line_color='purple', opacity=0.25)
 
     fig.update_layout(
-        title='Tradeoff Space',
+        title='',
         xaxis_title='Flood Risk Reduction (higher = better)',
         yaxis_title='Cooling Capacity (higher = better)',
         xaxis=dict(range=[0, 100]),
         yaxis=dict(range=[0, 0.6]),
         height=520,
-        margin=dict(l=60, r=200, t=80, b=60),
+        margin=dict(l=60, r=200, t=30, b=60),
         legend=dict(orientation='v', x=1.02, y=1, xanchor='left', yanchor='top',
                     tracegroupgap=4, font=dict(size=11), itemsizing='constant',
                     bordercolor='rgba(0,0,0,0.1)', borderwidth=1),
@@ -2501,18 +2501,21 @@ st.sidebar.caption(
 
 green_infrastructure_pct = st.sidebar.number_input(
     "Green Infrastructure %", 0, 100,
-    step=5, key="slider_gi_pct"
+    step=5, key="slider_gi_pct",
+    help="Share of converted land allocated to green infrastructure (woody wetlands, NLCD 90)."
 )
 food_forest_pct = st.sidebar.number_input(
     "Food Forest %", 0, 100,
-    step=5, key="slider_ff_pct"
+    step=5, key="slider_ff_pct",
+    help="Share of converted land allocated to food forest (deciduous forest, NLCD 41)."
 )
 
 auto_hd = 100 - green_infrastructure_pct - food_forest_pct
 pct_highdensity = st.sidebar.number_input(
     "High Density %", 0, 100,
     value=max(0, auto_hd),
-    step=5
+    step=5,
+    help="Share of converted land allocated to high-density development (NLCD 24). Auto-fills as remainder."
 )
 
 mix_sum = green_infrastructure_pct + food_forest_pct + pct_highdensity
@@ -2544,29 +2547,32 @@ if _active is not None:
         st.session_state.active_example_scenario = None
         _active = None
 
-if st.sidebar.button("Food Forest (Cooling + Food Focus)",
-                     type="primary" if _active == 'food_forest' else "secondary"):
-    st.session_state._pending_pct = 10
-    st.session_state._pending_gi = 0
-    st.session_state._pending_ff = 100
-    st.session_state.active_example_scenario = 'food_forest'
-    st.rerun()
-
-if st.sidebar.button("Green Infrastructure (Flood Mitigation)",
+if st.sidebar.button("Green Infrastructure",
                      type="primary" if _active == 'green_infra' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 100
     st.session_state._pending_ff = 0
     st.session_state.active_example_scenario = 'green_infra'
     st.rerun()
+st.sidebar.caption("Flood mitigation focus")
 
-if st.sidebar.button("High Density Development",
+if st.sidebar.button("Food Forest",
+                     type="primary" if _active == 'food_forest' else "secondary"):
+    st.session_state._pending_pct = 10
+    st.session_state._pending_gi = 0
+    st.session_state._pending_ff = 100
+    st.session_state.active_example_scenario = 'food_forest'
+    st.rerun()
+st.sidebar.caption("Cooling + food production focus")
+
+if st.sidebar.button("High Density",
                      type="primary" if _active == 'high_density' else "secondary"):
     st.session_state._pending_pct = 10
     st.session_state._pending_gi = 0
     st.session_state._pending_ff = 0
     st.session_state.active_example_scenario = 'high_density'
     st.rerun()
+st.sidebar.caption("Control case — no green conversion")
 
 st.sidebar.divider()
 st.sidebar.subheader("Find Best Scenario")
@@ -2643,6 +2649,10 @@ use_heat_priority = st.sidebar.toggle(
     "Target High Heat-Exposure Areas",
     value=False,
     help="When enabled, the model prioritizes converting land in areas with higher heat-exposure intensity."
+)
+st.sidebar.caption(
+    "Weights conversions toward high-intensity developed pixels. "
+    "Improves equity of green space distribution; may reduce headline cooling."
 )
 
 st.sidebar.divider()
@@ -2752,13 +2762,34 @@ def _fmt_people(n):
         return f"~{n // 1_000}K people"
     return f"~{n} people"
 
+def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", neg_suffix=None, epsilon=0.05):
+    """Consistent delta string + color for st.metric cards.
+
+    Returns (delta_str, delta_color).
+    - Zero-delta  →  (None, "off")  — pill suppressed entirely
+    - Positive    →  ("+{value} {suffix}", "normal")  — green ↑
+    - Negative    →  ("-{abs(value)} {neg_suffix or suffix}", "normal")  — red ↓
+
+    Sign convention: the helper does not invert signs for lower-is-better
+    metrics. Callers pass the delta pre-flipped for direction-of-goodness
+    (e.g. runoff_prevented = baseline − scenario, so positive = good).
+    neg_suffix is appended when value_delta < 0; callers choose the
+    semantics by picking which suffix goes in which slot.
+
+    For zero-baselined metrics (currently Carbon), callers may pass the raw
+    value rather than a computed delta — the helper treats them equivalently.
+    If a non-zero baseline is ever introduced, call sites must switch to a
+    true delta.
+    """
+    if abs(value_delta) < epsilon:
+        return None, "off"
+    if value_delta > 0:
+        return f"+{value_delta:{fmt}} {suffix}", "normal"
+    return f"-{abs(value_delta):{fmt}} {neg_suffix or suffix}", "normal"
+
 # read from state to avoid silent-staleness if city switches
 _flood_delta = results['flood_reduction'] - (100 - _CURRENT_CITY_STATE.baseline_cn)
-_flood_delta_str = (
-    "No change vs baseline" if abs(_flood_delta) < 0.1
-    else f"+{_flood_delta:.1f} vs baseline" if _flood_delta > 0
-    else f"-{abs(_flood_delta):.1f} vs baseline"
-)
+_flood_delta_str, _flood_delta_color = _delta_pill(_flood_delta, fmt=".1f", epsilon=0.1)
 _cooling_f = results['cooling_f']
 _cooling_label = (
     "No change" if abs(_cooling_f) < 0.1
@@ -2767,14 +2798,13 @@ _cooling_label = (
 )
 _hm_delta = results['mean_hm'] - _CURRENT_CITY_STATE.baseline_hm
 _runoff_prevented = BASELINE_RUNOFF_ACRE_FEET - results['runoff_acre_feet']
-_runoff_negligible = abs(_runoff_prevented) < 1.0
-_runoff_delta_str = (
-    "No change vs base" if _runoff_negligible
-    else f"+{_runoff_prevented:,.0f} ac-ft prevented" if _runoff_prevented > 0
-    else f"-{abs(_runoff_prevented):,.0f} ac-ft above base"
+_runoff_delta_str, _runoff_delta_color = _delta_pill(
+    _runoff_prevented, fmt=",.0f",
+    suffix="ac-ft vs baseline",
+    epsilon=1.0,
 )
 _people_fed = results['people_fed']
-_food_delta_str = f"feeds ~{_people_fed:,} people" if _people_fed > 0 else "—"
+_food_delta_str = f"feeds ~{_people_fed:,} people" if _people_fed > 0 else None
 
 _carbon_value = results['carbon_tons_co2_yr']
 
@@ -2785,10 +2815,7 @@ def _fmt_carbon(tons):
     return f"{tons:,.0f} t CO2e/yr"
 
 _carbon_value_str = _fmt_carbon(_carbon_value)
-_carbon_delta_str = (
-    f"+{_fmt_carbon(_carbon_value)} vs base" if _carbon_value >= 1.0
-    else "no change vs base"
-)
+_carbon_delta_str, _carbon_delta_color = _delta_pill(_carbon_value, fmt=",.0f", suffix="t CO2e/yr from conversions", epsilon=1.0)
 
 st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
@@ -2796,7 +2823,7 @@ eco1.metric(
     "Flood Risk Reduction",
     f"{results['flood_reduction']:.1f}",
     delta=_flood_delta_str,
-    delta_color="normal" if abs(_flood_delta) >= 0.1 else "off",
+    delta_color=_flood_delta_color,
     help=(
         "Confidence: Raster-based calculation. "
         "Unitless index (0–100) based on the USDA Curve Number. Higher = less "
@@ -2807,28 +2834,14 @@ eco2.metric(
     "Temperature Change",
     _cooling_label,
     delta=None,
+    delta_color="off",
     help="Confidence: Raster-based calculation. Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from mean Cooling Capacity (CC) under the InVEST UCM (calibration factor 3.69°F/CC unit from Minneapolis UHI=2.05°C; ±2°F accuracy). Note: this is mean(CC), an approximation of the canonical InVEST Heat Mitigation Index — see UCM_AUDIT.md."
 )
-if abs(_cooling_f) < 0.05:
-    eco2.markdown(
-        '<p style="color: gray; font-size: 0.85em;">↔ No change vs baseline</p>',
-        unsafe_allow_html=True,
-    )
-elif _cooling_f > 0:
-    eco2.markdown(
-        f'<p style="color: green; font-size: 0.85em;">● {_cooling_f:.1f}°F cooler vs baseline</p>',
-        unsafe_allow_html=True,
-    )
-else:
-    eco2.markdown(
-        f'<p style="color: red; font-size: 0.85em;">● {abs(_cooling_f):.1f}°F warmer vs baseline</p>',
-        unsafe_allow_html=True,
-    )
 eco3.metric(
     "Runoff Volume",
     _fmt_runoff(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
-    delta_color="off" if _runoff_negligible else "normal",
+    delta_color=_runoff_delta_color,
     help=(
         "Confidence: Raster-based calculation. "
         f"Acre-feet of runoff generated by a {DESIGN_STORM_INCHES}-inch design storm. "
@@ -2838,14 +2851,14 @@ eco3.metric(
 )
 
 _ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
-_ndvi_delta_str = f"{_ndvi_delta:+.3f} vs base" if abs(_ndvi_delta) >= 0.001 else "no change"
+_ndvi_delta_str, _ndvi_delta_color = _delta_pill(_ndvi_delta, fmt=".3f", suffix="vs baseline", epsilon=0.001)
 
 eco4, eco5 = st.columns([2, 1])
 eco4.metric(
     "Carbon Sequestration",
     _carbon_value_str,
     delta=_carbon_delta_str,
-    delta_color="normal" if _carbon_value >= 1.0 else "off",
+    delta_color=_carbon_delta_color,
     help=(
         "Confidence: Provisional assumption. "
         "Annual CO2e sequestration from converted pixels only. "
@@ -2858,7 +2871,7 @@ eco5.metric(
     "NDVI",
     f"{results['mean_ndvi']:.3f}",
     delta=_ndvi_delta_str,
-    delta_color="normal" if abs(_ndvi_delta) >= 0.001 else "off",
+    delta_color=_ndvi_delta_color,
     help=(
         "Confidence: Synthetic proxy. "
         "Synthetic vegetation index (0–1) estimated from land cover type — not derived from satellite imagery. "
@@ -2870,7 +2883,7 @@ eco5.metric(
 st.divider()
 
 st.markdown("#### Human & Social")
-hs1, hs2, hs3, hs4 = st.columns(4)
+hs1, hs2 = st.columns(2)
 _nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
 _nature_help = (
     "Confidence: Proximity estimate. "
@@ -2886,11 +2899,12 @@ _nature_help = (
     "`download_census_pop.py` to build the real Census-derived raster. "
     "Proximity metric only, not street-network walking distance."
 )
+_nature_delta_str, _nature_delta_color = _delta_pill(_nature_delta, fmt=".1f", suffix="pp vs baseline", epsilon=0.1)
 hs1.metric(
     "Nature Access",
     f'{results["nature_access_pct"]:.1f}%',
-    delta=f"{_nature_delta:+.1f} percentage points vs baseline",
-    delta_color="normal" if abs(_nature_delta) >= 0.1 else "off",
+    delta=_nature_delta_str,
+    delta_color=_nature_delta_color,
     help=_nature_help,
 )
 if not POPULATION_DATA_AVAILABLE:
@@ -2911,11 +2925,12 @@ if use_heat_priority:
 # space rather than a pure binary "in / out of buffer" share.
 _nature_quality = results.get('nature_quality_score', 0.0)
 _nature_quality_delta = _nature_quality - BASELINE_NATURE_QUALITY_SCORE
+_nq_delta_str, _nq_delta_color = _delta_pill(_nature_quality_delta, fmt=".3f", epsilon=0.001)
 hs2.metric(
     "Nature Quality Score",
     f'{_nature_quality:.3f}',
-    delta=f"{_nature_quality_delta:+.3f} vs baseline",
-    delta_color="normal" if abs(_nature_quality_delta) >= 0.001 else "off",
+    delta=_nq_delta_str,
+    delta_color=_nq_delta_color,
     help=(
         "Confidence: Composite proxy. Population-weighted mean nature access "
         "quality score (0–1) based on InVEST Urban Nature Access biophysical "
@@ -2926,13 +2941,14 @@ hs2.metric(
     ),
 )
 
-# InVEST Urban Mental Health (v3.19.0): two cards. Both are zero at the
-# unmodified baseline by construction (ΔNE = 0 → PF = 0 → PC = 0).
+# InVEST Urban Mental Health (v3.19.0): two cards in a second row.
+# Both are zero at the unmodified baseline by construction (ΔNE = 0 → PF = 0 → PC = 0).
 # Sign convention: preventable_mh_cases > 0 means the scenario PREVENTS cases
 # (good — green ↑); < 0 means the scenario INDUCES cases (bad — red ↑). Same
 # direction-of-goodness for avoided_mh_cost_usd. Streamlit's delta color
 # combines with the leading sign of the delta string: to get a red ↑, we feed
 # a positive-signed delta ("+X cases induced") with color="inverse".
+hs3, hs4 = st.columns(2)
 _mh_cases = results.get('preventable_mh_cases', 0.0)
 _mh_cost  = results.get('avoided_mh_cost_usd', 0.0)
 if _mh_cases >= 1:
@@ -2946,7 +2962,7 @@ else:
     _mh_cases_color = "off"
 hs3.metric(
     "Preventable MH Cases",
-    f'{_mh_cases:,.0f} cases/yr',
+    f'{_mh_cases:,.0f}',
     delta=_mh_cases_delta,
     delta_color=_mh_cases_color,
     help=(
@@ -2963,6 +2979,7 @@ hs3.metric(
         "development) — shown in red."
     ),
 )
+hs3.caption("cases prevented" if _mh_cases >= 0 else "cases induced")
 if _mh_cost >= 1e3:
     _mh_cost_value = f'${_mh_cost / 1e6:.2f}M/yr'
     _mh_cost_delta = f"+${_mh_cost / 1e6:.2f}M/yr avoided"
@@ -2983,12 +3000,13 @@ hs4.metric(
     help=(
         "Confidence: Model-based estimate. Avoided healthcare cost = "
         "preventable_cases × per-case cost-of-illness. Per-case costs: "
-        f"${COST_PER_DEPRESSION_CASE_USD:,}/depression, "
-        f"${COST_PER_ANXIETY_CASE_USD:,}/anxiety (US nominal; InVEST default "
-        "is ~$11K USD-PPP/case). Sums depression + anxiety. Order-of-"
+        f"\\${COST_PER_DEPRESSION_CASE_USD:,}/depression, "
+        f"\\${COST_PER_ANXIETY_CASE_USD:,}/anxiety (US nominal; InVEST default "
+        "is ~\\$11K USD-PPP/case). Sums depression + anxiety. Order-of-"
         "magnitude — see REFERENCE.md for full caveats."
     ),
 )
+hs4.caption("avoided MH costs/yr" if _mh_cost >= 0 else "added MH costs/yr")
 
 st.divider()
 
@@ -3308,7 +3326,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
 with st.expander("Assumptions and limitations"):
     _assumption_tabs = st.tabs([
         "Flood & Runoff", "Temperature", "Food", "Carbon",
-        "Nature Access", "Mental Health (UMH)", "Costs",
+        "Nature Access", "Mental Health", "Costs",
     ])
     with _assumption_tabs[0]:
         st.markdown(
@@ -3324,6 +3342,19 @@ with st.expander("Assumptions and limitations"):
             "different curve numbers."
         )
     with _assumption_tabs[1]:
+        _temp_calibration = (
+            f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per CC unit. "
+            f"Values come from the InVEST UCM args JSON for the Minneapolis AOI "
+            f"(`uhi_max = {UHI_MAX_C:.2f} °C`, humid continental Köppen Dfa). "
+            "Treat the °F output as ±2 °F at best.\n"
+            if selected_city.startswith("Minneapolis") else
+            f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per CC unit. "
+            f"No published InVEST args exist for hot semi-arid Köppen BSh; "
+            f"values are an estimate from regional UHI literature "
+            f"(`uhi_max = {UHI_MAX_C:.2f} °C`). "
+            "Treat the °F output as ±2 °F at best — uncertainty is larger "
+            "here than for MN.\n"
+        )
         st.markdown(
             "- **Method:** InVEST Urban Cooling Model. Per-pixel Cooling "
             "Capacity `CC = 0.6·shade + 0.2·albedo + 0.2·ETI`, then Gaussian-"
@@ -3332,12 +3363,7 @@ with st.expander("Assumptions and limitations"):
             "- **Reported value:** mean(CC) across the AOI, labeled CC. This "
             "approximates but is not identical to the canonical InVEST Heat "
             "Mitigation Index (HMI) — see UCM_AUDIT.md.\n"
-            f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per CC unit "
-            f"({selected_city}: `uhi_max = {UHI_MAX_C:.2f} °C`). MN values "
-            "come from the InVEST UCM args JSON; SA's 3.5 °C is an estimate "
-            "for hot semi-arid climate (no published InVEST args). Treat the "
-            "°F output as ±2 °F at best.\n"
-            f"- **Biophysical source:** {_cooling_biophysical_source(selected_city)}\n"
+            + _temp_calibration +
             "- **Not captured:** wind, humidity, urban geometry, building "
             "materials, anthropogenic heat. The model sees land cover only."
         )
@@ -3402,8 +3428,8 @@ with st.expander("Assumptions and limitations"):
             "(CDC 2023). These are best interpreted as ever-diagnosed / "
             "lifetime prevalence; using them with the InVEST formula treats "
             "them as the at-risk pool.\n"
-            "- **Cost-of-illness:** $8,467/depression case, $5,765/anxiety "
-            "case (US nominal). InVEST docs cite ~$11K USD-PPP/case as a "
+            "- **Cost-of-illness:** \\$8,467/depression case, \\$5,765/anxiety "
+            "case (US nominal). InVEST docs cite ~\\$11K USD-PPP/case as a "
             "default — our values are slightly lower.\n"
             "- **Caveats:** NDVI is a synthetic per-NLCD-class proxy here, "
             "not satellite-derived; baseline-vs-scenario comparison assumes "
@@ -3442,11 +3468,19 @@ with st.expander("Assumptions and limitations"):
 st.divider()
 
 if st.session_state.get("just_optimized"):
+    _applied_idx = st.session_state.get("applied_suggestion")
+    if _applied_idx is not None:
+        _banner_msg = (
+            f"Sliders updated to match suggestion #{_applied_idx + 1}. "
+            "Switch to Tradeoff Analysis to verify."
+        )
+    else:
+        _banner_msg = (
+            "Optimization complete — switch to the Tradeoff Analysis tab to see results."
+        )
     banner_col, dismiss_col = st.columns([5, 1])
     with banner_col:
-        st.success(
-            "Optimization complete — open the Tradeoff Analysis tab to see results."
-        )
+        st.info(_banner_msg)
     with dismiss_col:
         if st.button("✕", key="dismiss_optimize_banner"):
             st.session_state.just_optimized = False
@@ -3702,7 +3736,7 @@ with tab2:
                 "reflect surrogate approximation — consider setting HD to 0% when applying."
             )
 
-            st.markdown("#### What drives the surrogate?")
+            st.markdown("#### Input Influence")
             st.caption("**Influence Map** — which input drives outcomes most according to the surrogate model:")
             render_matplotlib(plot_feature_importance(surrogate))
 
