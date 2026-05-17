@@ -163,7 +163,7 @@ The Ecological section is laid out in two rows: a 3-column row with **Flood Risk
 | **Formula** | Per-pixel cooling capacity from the InVEST Urban Cooling Model: **`CC_raw = 0.6 × shade + 0.2 × albedo + 0.2 × ETI`**, where **`ETI = Kc × (ET_annual / ET_max)`** normalizes actual evapotranspiration to a 0–1 fraction of the model area's maximum. The raw CC raster is then **Gaussian-smoothed with σ = 15 px (450 m, matching InVEST's `green_area_cooling_distance` for the MN AOI)** so cooling propagates onto neighboring pixels rather than staying pinned to the green pixel itself. The card's reported value is `mean(CC_smoothed)` over valid pixels, labeled "Cooling Capacity" / "CC". Temperature change against baseline = `(CC_scenario − CC_baseline) × HM_TO_FAHRENHEIT`, where `HM_TO_FAHRENHEIT = UHI_MAX_C × 1.8 = 3.69 °F` (`UHI_MAX_C = 2.05 °C` from the InVEST args JSON for Minneapolis). |
 | **Note on labeling** | The app reports mean Cooling Capacity (CC) across the model area, which approximates but is not identical to the InVEST Heat Mitigation Index (HMI). Both are bounded 0–1 and respond to the same biophysical inputs, but canonical HMI = `1 − (T_air − t_ref) / uhi_max` after a per-building T_air sampling step that we do not implement. See [`UCM_AUDIT.md`](data/invest/cooling/UCM_AUDIT.md) for the full divergence log. |
 | **Data source** | `biophysical_table_urban_cooling_<city>.csv` (shade, Kc, albedo per NLCD lucode; declared via `CITIES[city]['cooling_table_file']`) and a per-city annual ET raster. SA's cooling biophysical table is **tuned for Köppen BSh (hot semi-arid)** on four high-impact NLCD classes (Shrub/Scrub, Evergreen Forest, Deciduous Forest, Hay/Pasture), anchored on eddy-covariance Kc measurements from natural vegetation (Pôças et al. 2017), FAO-56 Kc tables, and Stewart-Oke (2012) albedo ranges. Class 21 (Developed Open Space) was intentionally left at MN's value due to semantic divergence. Row-by-row provenance lives in [`data/sa/cooling/biophysical_table_sources.md`](data/sa/cooling/biophysical_table_sources.md). These are medium-confidence interim values pending a SA-calibrated InVEST UCM args run. |
-| **Delta** | Raw CC values for the scenario and baseline shown side-by-side (e.g. "CC 0.3910 vs 0.1859"). |
+| **Delta** | The main metric value is itself the delta in human-readable form (`No change` / `N°F cooler` / `N°F warmer`, with "No change" applied below the 0.1°F threshold — see Methodology Notes). No separate delta pill is rendered; the main value carries the sign and magnitude. |
 | **Caveats** | The 3.69 °F/CC factor comes from MN's `uhi_max=2.05 °C`; treat the °F output as ±2 °F at best, since wind, humidity, urban geometry, and anthropogenic heat are not modelled. Two canonical InVEST steps remain unimplemented: (a) full HMI normalisation against `t_ref` (we report mean(CC) directly), and (b) per-building T_air sampling over a 600 m `t_air_average_radius`. The Gaussian convolution we *do* apply gets most of the way there: buildings adjacent to (not just on top of) converted pixels now receive cooling credit. |
 
 ---
@@ -206,7 +206,7 @@ San Antonio's baseline CC is **54 % higher than Minneapolis downtown** — a pla
 | **Represents** | Total stormwater runoff volume generated under this scenario for a 2-inch design storm, across all developed land. Lower values indicate greater runoff reduction relative to baseline. |
 | **Formula** | Calculated using the standard USDA-SCS method, which converts the Curve Number and 2-inch rainfall depth into a runoff depth, then scales by total developed acreage. **Technical detail:** `S = (1000/CN) − 10`, `Ia = 0.2S`, `Q_in = (P−Ia)²/(P−Ia+S)`, then `(Q_in/12) × total_developed_acres` in acre-feet. `P = 2.0 inches`. |
 | **Data source** | Derived from `mean_CN` (see Flood Risk Reduction) and total developed acreage (`n_developed_pixels × 0.222 acres`). |
-| **Caveats** | A 2-inch storm represents a common minor design event; results for larger storms will differ. The card's delta sub-label shows the explicit reduction vs baseline (green) or increase (red). |
+| **Caveats** | A 2-inch storm represents a common minor design event; results for larger storms will differ. The card's delta sub-label is a signed `±N ac-ft vs baseline` pill — green ↑ when the scenario reduces runoff, red ↓ when it increases. Direction and valence are carried by the sign and Streamlit's arrow rendering rather than by directional copy (see the `_delta_pill` docstring for the helper contract). |
 
 ---
 
@@ -217,7 +217,7 @@ San Antonio's baseline CC is **54 % higher than Minneapolis downtown** — a pla
 | **Represents** | Annual CO2e sequestration from newly converted pixels only, in tons CO2e/year. Counts food forest and green infrastructure conversions; high-density conversions contribute zero. Higher = more carbon drawn down. |
 | **Formula** | Converted-pixel counts × pixel area × per-cover rate. **Technical detail:** `n_for × 0.222 ac × 3.5 + n_wet × 0.222 ac × 2.0 + n_hd × 0.222 ac × 0.0`, where `n_for`, `n_wet`, `n_hd` are the counts of newly added food forest, green infrastructure, and high-density pixels respectively. |
 | **Data source** | Provisional regional rates in `CARBON_SEQ_RATES` (`app.py`): Food Forest (41) = 3.5 tons CO2e/acre/yr, Green Infrastructure (90) = 2.0 tons CO2e/acre/yr, High Density (24) = 0.0 tons CO2e/acre/yr. Rates derived from USDA/IPCC temperate North America benchmarks. |
-| **Delta** | Baseline is **0** because only newly converted pixels are counted (consistent with the food production approach). The delta sub-label restates the value as `+N tons CO2e/yr vs base`. |
+| **Delta** | Baseline is **0** because only newly converted pixels are counted (consistent with the food production approach). The delta sub-label restates the value as `+N t CO2e/yr from conversions`; the "from conversions" suffix makes the zero-baseline construction explicit on the card itself. The pill is suppressed at zero (e.g. all-HD scenarios where no eligible pixels are converted). |
 | **Caveats** | Directional only — provisional regional rates not locally calibrated for Minneapolis; actual sequestration varies significantly by site conditions, vegetation age, soil, and management. Refine with locally calibrated values when available. |
 | **User overrides** | The sidebar `⚙️ Advanced Settings` expander exposes sliders for the Food Forest rate (0.5–18.0, default 3.5) and Green Infrastructure rate (0.5–5.0, default 2.0). Slider values flow into `evaluate_scenario` via `carbon_rate_ff` / `carbon_rate_gi` kwargs and override the `CARBON_SEQ_RATES` defaults for the live scenario. |
 
@@ -234,9 +234,9 @@ San Antonio's baseline CC is **54 % higher than Minneapolis downtown** — a pla
 
 ---
 
-## 👥 Human & Social
+## 👥 Human & Social (2 × 2 grid)
 
-Shows **four cards**: Nature Access, Nature Quality Score, and the InVEST Urban Mental Health pair (Preventable MH Cases + Avoided MH Costs). NDVI sits in the Ecological section as a vegetation-index measure, not a social one.
+Shows **four cards in a 2 × 2 grid**: row 1 — Nature Access, Nature Quality Score; row 2 — Preventable MH Cases, Avoided MH Costs. NDVI sits in the Ecological section as a vegetation-index measure, not a social one. The MH cards split value from unit: the big-number slot shows the number alone ("285", "$2.10M/yr"), with a conditional caption below ("cases prevented" / "cases induced", "avoided MH costs/yr" / "added MH costs/yr").
 
 | Card | Status | Meaning |
 |------|--------|---------|
@@ -260,7 +260,7 @@ Shows **four cards**: Nature Access, Nature Quality Score, and the InVEST Urban 
 | **Constants** | `RR_0_1_NDVI_DEPRESSION = 0.96` (4 % reduction per 0.1 NDVI gain), `RR_0_1_NDVI_ANXIETY = 0.97` (3 % per 0.1 NDVI gain) — **Liu et al. 2023** meta-analysis on green space and mental health, the InVEST UMH primary reference. <br>`BIR_DEPRESSION = 0.21`, `BIR_ANXIETY = 0.19` — **CDC 2023** baseline prevalence (best interpreted as ever-diagnosed/lifetime; the InVEST formula treats these as the at-risk pool). <br>`COST_PER_DEPRESSION_CASE_USD = 8467`, `COST_PER_ANXIETY_CASE_USD = 5765` — US nominal cost-of-illness per case. The InVEST docs cite ~$11K USD-PPP/case as a default; our values are slightly lower. <br>`UMH_SEARCH_RADIUS_M = 300` — **Li et al. 2025** buffer-selection methodology. |
 | **NDVI source** | The NDVI raster is the **synthetic per-NLCD-class proxy** also used by the standalone NDVI metric card (woody wetlands 0.70, food forest 0.75, high-density 0.10, etc.). It is NOT satellite-derived. Migrating to a real Sentinel-2 / Landsat NDVI raster would be a meaningful upgrade and would change UMH outputs. |
 | **Population** | Per-pixel population counts from the active city's `pop_file` (Census 2020 block-level totals, rasterized to the NLCD grid). Returns 0 cases / $0 if `POPULATION_DATA_AVAILABLE = False`. |
-| **Delta** | Both cards display "0 vs baseline" / "$0/yr vs baseline" at pct_converted=0. Improvements show in green; *negative* values (e.g. all-HD scenarios that reduce NDVI exposure) appear in inverse / red, signaling the scenario adds cases or healthcare burden. |
+| **Delta** | Both cards suppress the delta pill at pct_converted=0 (zero delta → `None`). Non-zero improvements show green ↑; *negative* values (e.g. all-HD scenarios that reduce NDVI exposure) appear in inverse / red ↑, signaling the scenario adds cases or healthcare burden. All delta pills route through `_delta_pill()`. |
 | **Caveats** | **(1) NDVI is synthetic** — replace with satellite NDVI for site-specific work. **(2) Lifetime vs annual prevalence** — using ever-diagnosed CDC numbers as the at-risk pool may overstate the actual annual incidence the scenario would reduce. **(3) Static population** — the scenario doesn't model in-migration that would follow improved amenities. **(4) Direct exposure pathway only** — omits secondary mechanisms like air-quality and social-cohesion effects. **(5) Cost-of-illness numbers are nominal** — published meta-analyses range ~$5K–$15K depending on healthcare-system context. Replace with locally-calibrated values for production work. |
 | **Surrogate** | Both `preventable_mh_cases` and `avoided_mh_cost_usd` are now in `REQUIRED_TARGET_COLUMNS`, so future training cycles will pick them up. The optimizer doesn't yet search over them as a *minimum* constraint, but ranks them in the saved-scenarios table. |
 
@@ -418,11 +418,11 @@ A plain-language summary of the current scenario settings, displayed below the m
 
 | Button | Sets |
 |--------|------|
-| 🌳 Food Forest (Cooling + Food Focus) | 10% converted, 100% food forest |
-| 🌊 Green Infrastructure (Flood Mitigation) | 10% converted, 100% green infrastructure |
-| 🏙️ High Density Development | 10% converted, 100% high density |
+| Green Infrastructure | 10% converted, 100% green infrastructure |
+| Food Forest | 10% converted, 100% food forest |
+| High Density | 10% converted, 100% high density |
 
-Buttons work by writing to `st.session_state` and calling `st.rerun()`.
+Order matches the sidebar slider order (GI / FF / HD) and the intro bullet list. Each button has a gray descriptor caption below it ("Flood mitigation focus", "Cooling + food production focus", "Control case — no green conversion"). Buttons work by writing to `st.session_state` and calling `st.rerun()`.
 
 ---
 
@@ -434,7 +434,7 @@ Buttons work by writing to `st.session_state` and calling `st.rerun()`.
 | **Min cooling (°F vs baseline)** | Slider −1.0 to ~3.0 °F, step 0.1, default 0.1 °F. Minimum acceptable temperature improvement vs baseline. Converted to CC units internally via `BASELINE_HM + min_cool_f / HM_TO_FAHRENHEIT` (= `… / 3.69`) before being passed to the surrogate. |
 | **Min food production (M lbs)** | Slider 0.0–MAX_FOOD, step 0.01. Minimum acceptable food production. |
 | **Min carbon sequestration (tons CO2e/yr)** | Slider 0 to maximum achievable, default 0, step 100. Minimum acceptable annual carbon sequestration from converted pixels. Only counts newly converted pixels, not pre-existing land cover. Inherits uncertainty from provisional sequestration rates — adjust rates in Advanced Settings before using this as a hard constraint. |
-| **Optimize button** | Samples ~10,000 random (pct, GI%, FF%) combinations, predicts outcomes with the RF surrogate, filters to those meeting all minimums (flood, cooling, food, carbon) and the runoff cap, computes the Pareto front, de-duplicates near-identical points, and returns up to 5 top suggestions ranked by a balanced score: `flood/100 + HM/1.1 + food/MAX_FOOD`. On success, a sidebar success message and a dismissible main-panel banner ("✅ Optimization complete — open the Tradeoff Analysis tab…") are shown until the user clicks the dismiss button or the Tradeoff Analysis tab renders. |
+| **Optimize button** | Samples ~10,000 random (pct, GI%, FF%) combinations, predicts outcomes with the RF surrogate, filters to those meeting all minimums (flood, cooling, food, carbon) and the runoff cap, computes the Pareto front, de-duplicates near-identical points, and returns up to 5 top suggestions ranked by a balanced score: `flood/100 + HM/1.1 + food/MAX_FOOD`. On success, a sidebar success message and a dismissible main-panel `st.info` banner are shown. The banner is context-aware: if a suggestion has been applied, it reads "Sliders updated to match suggestion #N. Switch to Tradeoff Analysis to verify."; otherwise, "Optimization complete — switch to the Tradeoff Analysis tab to see results." The banner persists until the user clicks the dismiss ✕ button or runs a new optimization. |
 
 All normal slider interactions use the dense precomputed lookup table (2,541 entries) for near-instant response. The surrogate model is only used when the user explicitly runs the optimizer.
 
@@ -573,9 +573,9 @@ Returned by the surrogate optimizer after clicking "Optimize." Error bars show t
 
 ---
 
-### Influence Map (feature importance bar chart)
+### Input Influence (feature importance bar chart)
 
-Shown below the optimized suggestions table when optimizer results are present.
+Shown below the optimized suggestions table when optimizer results are present, under the section heading "Input Influence".
 
 | Field | Detail |
 |-------|--------|
