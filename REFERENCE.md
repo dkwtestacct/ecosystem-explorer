@@ -112,20 +112,42 @@ The full raster model provides the detailed spatial biophysical calculations. Th
 | Lookup table | Speed |
 | Surrogate model | Exploration |
 
+### Model quality modes
+
+Three modes are selectable from the sidebar (`Model quality`). They differ in what gets precomputed at startup; **slider response always runs `evaluate_scenario()` live in every mode** — the modes vary in whether a precomputed lookup is also available to short-circuit the expensive raster aggregates.
+
+| Mode | Startup precomputation | Slider response |
+|------|------------------------|-----------------|
+| **Fast prototype** (default) | ~90-scenario training grid (`compute_scenario_grid`, `step_pct=10, step_alloc=25`) | Live `evaluate_scenario()` only — no lookup table built. |
+| **Balanced** | Denser CSV (`dense_scenarios_file` per city), precomputed offline via `precompute_scenarios.py` | Live `evaluate_scenario()` only — no lookup table built. |
+| **High resolution** | Full 2,541-entry lookup table (`compute_lookup_table`) — 25–50 min on SA's 3.4 M-pixel grid; rebuilt only when `SCENARIO_SCHEMA_VERSION` invalidates the cache | Lookup hit for cached raster aggregates **plus** live `evaluate_scenario()` to refresh the post-schema and slider-sensitive fields (see Layer 2 below). |
+
+In all three modes, the precomputed scenario set (90, dense CSV, or 2,541) feeds the Random Forest surrogate (Layer 3) and the tradeoff chart.
+
+---
+
 The app combines three computational layers to balance realism and responsiveness:
 
 1. **Full-resolution raster simulations (90 scenarios)**
    Used to train the surrogate model. These scenarios are computed directly from the pixel-level land cover and soil rasters, covering 6 conversion levels × 15 allocation combinations.
 
 2. **Precomputed lookup table (2,541 scenarios) + live refresh**
-   Provides the baseline for interactive slider response. The lookup table caches the core raster-derived metrics (CN, flood reduction, runoff, cooling capacity, MH cases/costs) computed at default settings. On each slider interaction, the app also runs a full `evaluate_scenario()` call and overwrites ~12 of the 27 result fields with live values — specifically: `scenario_lulc` (for the map), food production, NDVI, carbon sequestration, avoided carbon cost, nature access, nature quality, flood damage avoided, cooling energy savings, and implementation cost. This hybrid pattern means slider response is **not** a pure lookup — it's lookup for the expensive raster aggregates (CN, HM, MH) plus a live evaluation for everything that depends on user-adjustable parameters (carbon rate sliders, cost sliders) or was added after the lookup table schema was frozen. When Heat-Priority Mode is on, the lookup table is bypassed entirely and all metrics are computed live.
+   Built only in **High resolution** mode. The lookup caches the expensive raster aggregates — CN, flood reduction, runoff, cooling capacity, MH cases/costs. On each slider interaction the app also runs `evaluate_scenario()` live and overwrites ~12 of the 27 result fields with fresh values:
+
+   - `scenario_lulc` (for the Map View tab)
+   - `food_mln_lbs`, `people_fed`
+   - `mean_ndvi`
+   - `carbon_tons_co2_yr`, `avoided_carbon_cost_usd`
+   - `nature_access_pct`, `nature_quality_score`, `people_with_nature_access`
+   - `flood_damage_avoided_usd`, `cooling_energy_savings_usd`
+   - `total_cost_mln` (recomputed from current cost-slider values)
+
+   The overwrite covers metrics that post-date the lookup schema (UMH, NDVI, refined nature access, carbon updates) plus anything that depends on user-adjustable parameters (carbon rate sliders, cost sliders). When Heat-Priority Mode is on, the lookup table is bypassed entirely and all metrics run live. A future cleanup could fold the live-overwrite fields back into the lookup schema and bump `SCENARIO_SCHEMA_VERSION` accordingly.
 
 3. **Runtime surrogate optimization (~10,000 candidate scenarios)**
    During optimization, the app generates thousands of new candidate land-use combinations and evaluates them using the Random Forest surrogate model rather than the full raster simulation. This enables rapid search across a much wider range of scenarios than the lookup table covers.
 
-**Pixel-Level Simulation:** Each pixel is cross-referenced against biophysical lookup tables — one for curve numbers (mapping land cover × soil group) and one for heat mitigation values. These calculations were run for all 2,541 precomputed scenarios at startup to ensure hydrological and thermal accuracy at the pixel level.
-
-**Hybrid Lookup + Live Refresh:** When you adjust the sliders, the app retrieves precomputed raster aggregates (flood, cooling, MH) from the lookup table, then runs a live `evaluate_scenario()` to refresh slider-sensitive and post-schema metrics. This keeps the core raster work cached while ensuring user-adjustable parameters (carbon rates, cost sliders) and newer metrics (nature access, NDVI, carbon, energy savings) always reflect the current state. The live call is the same full pixel-level simulation — it's not approximated.
+**Pixel-Level Simulation:** Each pixel is cross-referenced against biophysical lookup tables — one for curve numbers (mapping land cover × soil group) and one for heat mitigation values. In High resolution mode, these calculations were run for all 2,541 precomputed scenarios at startup to ensure hydrological and thermal accuracy at the pixel level. In Fast prototype and Balanced modes, the same pixel-level simulation runs live on every slider interaction.
 
 **Cache invalidation via `SCENARIO_SCHEMA_VERSION`** — bumped whenever the metric schema or one of the upstream pipeline pieces changes. Current value: **17**. The constant is hashed into the Streamlit `@st.cache_data` keys for `compute_scenario_grid`, `compute_lookup_table`, and `train_surrogate`, so a bump forces recomputation. Per-city caches don't collide because the cache key also includes the city's data directories and filename arguments. Recent history: 7→8 (full UCM rework: ET fix, Gaussian convolution, canonical energy formula); 8→9 (ET nodata sentinel masked); 9→10 (full Geofabrik OSM); 10→11 (Option B road filter); 11→12 (nature radius cap, dynamic BASELINE_CN); 12→13 (load_data parameterized via city_cfg path keys, Minneapolis Full activated); 13→14 (InVEST Urban Mental Health v3.19.0 added); 14→15 (San Antonio activated with full input pipeline + EPA Social Cost of Carbon metric added + pre-flight data check + PIXEL_AREA_ACRES harmonized to 0.2224); 15→16 (SA cooling biophysical table tuned for Köppen BSh); **16→17 (revert SA class 21 Kc to MN value).**
 
@@ -436,12 +458,12 @@ Order matches the sidebar slider order (GI / FF / HD) and the intro bullet list.
 | **Min carbon sequestration (tons CO2e/yr)** | Slider 0 to maximum achievable, default 0, step 100. Minimum acceptable annual carbon sequestration from converted pixels. Only counts newly converted pixels, not pre-existing land cover. Inherits uncertainty from provisional sequestration rates — adjust rates in Advanced Settings before using this as a hard constraint. |
 | **Optimize button** | Samples ~10,000 random (pct, GI%, FF%) combinations, predicts outcomes with the RF surrogate, filters to those meeting all minimums (flood, cooling, food, carbon) and the runoff cap, computes the Pareto front, de-duplicates near-identical points, and returns up to 5 top suggestions ranked by a balanced score: `flood/100 + HM/1.1 + food/MAX_FOOD`. On success, a sidebar success message and a dismissible main-panel `st.info` banner are shown. The banner is context-aware: if a suggestion has been applied, it reads "Sliders updated to match suggestion #N. Switch to Tradeoff Analysis to verify."; otherwise, "Optimization complete — switch to the Tradeoff Analysis tab to see results." The banner persists until the user clicks the dismiss ✕ button or runs a new optimization. |
 
-Normal slider interactions use the dense precomputed lookup table (2,541 entries) for core raster aggregates, supplemented by a live `evaluate_scenario()` call that refreshes slider-sensitive and post-schema metrics (see Computation Architecture). The surrogate model is only used when the user explicitly runs the optimizer.
+Normal slider interactions run `evaluate_scenario()` live in every mode. In **High resolution** mode, the dense lookup table (2,541 entries) short-circuits the expensive raster aggregates and the live call refreshes the remaining ~12 fields. In **Fast prototype** and **Balanced** modes, the live call produces all fields from scratch (see Model quality modes in Computation Architecture). The surrogate model is only used when the user explicitly runs the optimizer.
 
 | Layer | Purpose | Scale |
 |-------|---------|-------|
 | Full raster simulations | Generate training data for the surrogate | 90 scenarios (6 conversion levels × 15 allocation combinations) |
-| Dense lookup table + live refresh | Interactive slider response (hybrid: cached raster aggregates + live evaluation for slider-sensitive metrics) | 2,541 pre-computed entries + 1 live `evaluate_scenario()` per rerun |
+| Lookup table (High resolution only) + live refresh | Interactive slider response — lookup short-circuits raster aggregates; live `evaluate_scenario()` refreshes slider-sensitive metrics | 2,541 pre-computed entries + 1 live call per rerun (High res); live-only in other modes |
 | RF surrogate + optimizer | Rapid scenario search at query time | Predicts 6 outputs per scenario: flood reduction, cooling HM, food production, runoff volume, carbon sequestration, and nature access. Nature access is a spatial proximity metric, so the surrogate captures only the (pct, GI%, FF%) trend — not the geometry of where pixels are placed; verify with the main sliders. While the placeholder uniform population raster is in use, surrogate predictions of nature access reflect that placeholder weighting. |
 
 **Why use a Surrogate? (The Speed Factor)**
