@@ -181,8 +181,16 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
 
 ## Architecture notes
 
-- **Lookup table** (`compute_lookup_table`): pre-computes all valid slider positions at step=5
-  for instant UI response. The scenario grid (step=10/25) is used only for surrogate training.
+- **Lookup table + live refresh** (`compute_lookup_table`): pre-computes all valid slider
+  positions at step=5, caching the core raster-derived metrics (CN, flood reduction, runoff,
+  cooling HM, MH cases/costs). On each slider interaction the app also runs a full
+  `evaluate_scenario()` and overwrites ~12 of 27 result fields with live values — specifically
+  `scenario_lulc`, food, NDVI, carbon, avoided carbon cost, nature access/quality, flood
+  damage avoided, cooling energy savings, and implementation cost. This hybrid pattern keeps
+  the expensive raster aggregates cached while ensuring slider-sensitive parameters (carbon
+  rates, cost sliders) and post-schema metrics always reflect the current state. When
+  Heat-Priority Mode is on, the lookup table is bypassed entirely. The scenario grid
+  (step=10/25) is used only for surrogate training.
 - **Surrogate model**: Random Forest trained on the scenario grid; used by the optimizer to
   search ~10k random scenarios for Pareto-optimal suggestions. Uncertainty bands come from
   10th/90th percentile across RF trees.
@@ -400,8 +408,9 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   state, add it back as a filter on `available` plus a sidebar caption,
   not as an `st.stop()` after data loading.
 - **Scenario LULC is not stored in the lookup table** — `scenario_lulc` is stripped from cached
-  results (`if k != 'scenario_lulc'`) and recomputed on demand for the map view to keep memory
-  usage manageable.
+  results (`if k != 'scenario_lulc'`) to keep memory usage manageable. It is one of the ~12
+  fields recomputed by the live `evaluate_scenario()` call on every slider interaction (see
+  "Lookup table + live refresh" above).
 - **Cooling Energy Savings — dual display (city total + per-typed-building rate).**
   The card shows the city-wide dollar total as the headline metric AND a
   small caption beneath it formatted as `~$N/yr per typed building`. The
