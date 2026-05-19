@@ -2288,18 +2288,24 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
         Patch(facecolor=CHANGE_COLORS['High Density'],         label='→ High Density'),
     ]
 
-    # Optional red heat-vulnerability overlay. Per-pixel alpha = overlay_alpha
-    # × heat_overlay value (which is 0–1), so low-vulnerability pixels stay
-    # transparent and high-vulnerability ones tint red. With overlay_alpha=0
-    # the overlay is fully invisible. Stored uint8 RGBA — alpha 0–255.
+    # Optional orange heat-vulnerability overlay (ColorBrewer OrRd sequential).
+    # Per-pixel alpha = overlay_alpha × heat_overlay value (which is 0–1), so
+    # low-vulnerability pixels stay transparent and high-vulnerability ones
+    # tint deep orange. With overlay_alpha=0 the overlay is fully invisible.
+    # Orange avoids collision with the conversion legend's red (→ High Density).
     if heat_overlay is not None and overlay_alpha > 0:
         heat_overlay_ds = _downsample_for_plot(heat_overlay, order=1)
         overlay_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-        overlay_rgba[..., 0] = 255  # red channel
-        alpha_f = overlay_alpha * np.clip(heat_overlay_ds, 0.0, 1.0)
+        # OrRd 3-class ramp: low=#fef0d9, mid=#fdcc8a, high=#e34a33.
+        # Interpolate RGB channels across the 0→1 heat_overlay range.
+        t = np.clip(heat_overlay_ds, 0.0, 1.0)
+        overlay_rgba[..., 0] = (254 + (227 - 254) * t).astype(np.uint8)  # R: 254→227
+        overlay_rgba[..., 1] = (240 + ( 74 - 240) * t).astype(np.uint8)  # G: 240→74
+        overlay_rgba[..., 2] = (217 + ( 51 - 217) * t).astype(np.uint8)  # B: 217→51
+        alpha_f = overlay_alpha * t
         overlay_rgba[..., 3] = (alpha_f * 255).astype(np.uint8)
         ax.imshow(overlay_rgba)
-        legend_handles.append(Patch(facecolor=(1, 0, 0, 0.6), label='Heat vulnerability'))
+        legend_handles.append(Patch(facecolor='#fdcc8a', label='Heat vulnerability'))
 
     # Optional tract-level improvement overlay. tract_value is a per-pixel
     # float raster (NaN outside any tract); colormap is RdYlGn so positive
@@ -3912,7 +3918,7 @@ with tab3:
 
     overlay_opacity = st.slider(
         "Heat vulnerability overlay opacity",
-        0.0, 1.0, 0.3, 0.05,
+        0.0, 0.5, 0.2, 0.05,
         help=(
             "Transparency of the heat vulnerability overlay on the map. "
             "Currently uses high-intensity developed pixels (NLCD class 23) "
@@ -3966,7 +3972,8 @@ with tab3:
     ))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
-        "White = outside city boundary. Red wash = heat vulnerability proxy, "
+        "White = outside city boundary. Orange wash = heat vulnerability proxy "
+        "(darker orange = higher NLCD development intensity: 23 > 22 > 21), "
         "opacity controlled by the slider above."
     )
 
