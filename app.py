@@ -1048,6 +1048,8 @@ BIR_DEPRESSION               = 0.21
 BIR_ANXIETY                  = 0.19
 COST_PER_DEPRESSION_CASE_USD = 8467
 COST_PER_ANXIETY_CASE_USD    = 5765
+_MH_CASES_PILL_EPSILON       = 1     # cases threshold for pill suppression
+_MH_COST_PILL_EPSILON        = 1000  # USD threshold for pill suppression
 UMH_SEARCH_RADIUS_M          = 300   # Li et al. 2025; ~10 px at 30 m NLCD
 
 # InVEST UMH uses Gaussian-smoothed NDVI exposure within the search radius.
@@ -2993,13 +2995,20 @@ _confidence_caption(hs2, "medium")
 # direction-of-goodness for avoided_mh_cost_usd. Streamlit's delta color
 # combines with the leading sign of the delta string: to get a red ↑, we feed
 # a positive-signed delta ("+X cases induced") with color="inverse".
+# MH cards use bespoke pill rendering instead of _delta_pill: positive-
+# signed strings with delta_color="inverse" give red ↑ for "induced
+# cases" / "added in costs", matching healthcare-burden semantics. The
+# rest of the app's metric pills use _delta_pill which produces red ↓
+# for negative deltas. Both are internally consistent answers to
+# st.metric's sign-parses-arrow constraint; the MH framing is the
+# right one for healthcare burden specifically.
 hs3, hs4 = st.columns(2)
 _mh_cases = results.get('preventable_mh_cases', 0.0)
 _mh_cost  = results.get('avoided_mh_cost_usd', 0.0)
-if _mh_cases >= 1:
+if _mh_cases >= _MH_CASES_PILL_EPSILON:
     _mh_cases_delta = f"+{_mh_cases:,.0f} cases prevented"
     _mh_cases_color = "normal"      # green ↑
-elif _mh_cases <= -1:
+elif _mh_cases <= -_MH_CASES_PILL_EPSILON:
     _mh_cases_delta = f"+{abs(_mh_cases):,.0f} cases induced"
     _mh_cases_color = "inverse"     # red ↑
 else:
@@ -3027,11 +3036,11 @@ hs3.metric(
 )
 _confidence_caption(hs3, "medium")
 hs3.caption("cases prevented" if _mh_cases >= 0 else "cases induced")
-if _mh_cost >= 1e3:
+if _mh_cost >= _MH_COST_PILL_EPSILON:
     _mh_cost_value = f'${_mh_cost / 1e6:.2f}M/yr'
     _mh_cost_delta = f"+${_mh_cost / 1e6:.2f}M/yr avoided"
     _mh_cost_color = "normal"
-elif _mh_cost <= -1e3:
+elif _mh_cost <= -_MH_COST_PILL_EPSILON:
     _mh_cost_value = f'-${abs(_mh_cost) / 1e6:.2f}M/yr'
     _mh_cost_delta = f"+${abs(_mh_cost) / 1e6:.2f}M/yr added in costs"
     _mh_cost_color = "inverse"
