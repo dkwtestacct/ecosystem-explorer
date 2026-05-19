@@ -2958,7 +2958,7 @@ elif _mh_cases <= -1:
     _mh_cases_delta = f"+{abs(_mh_cases):,.0f} cases induced"
     _mh_cases_color = "inverse"     # red ↑
 else:
-    _mh_cases_delta = "no change vs baseline"
+    _mh_cases_delta = None
     _mh_cases_color = "off"
 hs3.metric(
     "Preventable MH Cases",
@@ -2990,7 +2990,7 @@ elif _mh_cost <= -1e3:
     _mh_cost_color = "inverse"
 else:
     _mh_cost_value = f'${_mh_cost / 1e6:.2f}M/yr'
-    _mh_cost_delta = "no change vs baseline"
+    _mh_cost_delta = None
     _mh_cost_color = "off"
 hs4.metric(
     "Avoided MH Costs",
