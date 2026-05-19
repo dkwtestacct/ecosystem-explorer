@@ -598,7 +598,7 @@ st.markdown(
 st.markdown(
     '- **Green Infrastructure (wetlands)** — best for flood  \n'
     '- **Food Forest** — best for cooling + food  \n'
-    '- **High Density** — worst for all three  \n'
+    '- **High Density** — worst for ecological and nature-access outcomes  \n'
 )
 
 with st.expander("How this prototype works", expanded=False):
@@ -607,7 +607,7 @@ with st.expander("How this prototype works", expanded=False):
         "(NLCD code 90) — best for flood retention.  \n"
         "**Food Forest** converts to deciduous forest (NLCD code 41, used as a "
         "food production proxy) — best for cooling and food.  \n"
-        "**High Density** adds impervious development — worst for all three.  \n"
+        "**High Density** adds impervious development — worst for ecological and nature-access outcomes.  \n"
         "  \n"
         "This is an exploratory tool — numbers are directional, not precise. "
         "Use them to compare strategies, not as final answers.  \n"
