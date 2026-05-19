@@ -592,7 +592,7 @@ _CURRENT_CITY_STATE: Optional[CityState] = None
 st.markdown(
     "Explore how converting developed land into green infrastructure or food forests "
     "affects **flood damage risk**, **urban cooling costs**, **food production**, "
-    "**nature access**, **carbon sequestration**, and **mental health outcomes** across the city — translating "
+    "**nature access**, **carbon sequestration**, and **mental-health proxy outcomes** across the city — translating "
     "ecological changes into concrete impacts for planners and decision-makers."
 )
 st.markdown(
