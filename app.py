@@ -2762,19 +2762,17 @@ def _fmt_people(n):
         return f"~{n // 1_000}K people"
     return f"~{n} people"
 
-def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", neg_suffix=None, epsilon=0.05):
+def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", epsilon=0.05):
     """Consistent delta string + color for st.metric cards.
 
     Returns (delta_str, delta_color).
     - Zero-delta  →  (None, "off")  — pill suppressed entirely
     - Positive    →  ("+{value} {suffix}", "normal")  — green ↑
-    - Negative    →  ("-{abs(value)} {neg_suffix or suffix}", "normal")  — red ↓
+    - Negative    →  ("-{abs(value)} {suffix}", "normal")  — red ↓
 
     Sign convention: the helper does not invert signs for lower-is-better
     metrics. Callers pass the delta pre-flipped for direction-of-goodness
     (e.g. runoff_prevented = baseline − scenario, so positive = good).
-    neg_suffix is appended when value_delta < 0; callers choose the
-    semantics by picking which suffix goes in which slot.
 
     For zero-baselined metrics (currently Carbon), callers may pass the raw
     value rather than a computed delta — the helper treats them equivalently.
@@ -2785,7 +2783,7 @@ def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", neg_suffix=None, e
         return None, "off"
     if value_delta > 0:
         return f"+{value_delta:{fmt}} {suffix}", "normal"
-    return f"-{abs(value_delta):{fmt}} {neg_suffix or suffix}", "normal"
+    return f"-{abs(value_delta):{fmt}} {suffix}", "normal"
 
 # read from state to avoid silent-staleness if city switches
 _flood_delta = results['flood_reduction'] - (100 - _CURRENT_CITY_STATE.baseline_cn)
