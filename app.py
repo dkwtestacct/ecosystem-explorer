@@ -963,18 +963,156 @@ def _fmt_ce(val):
     return f"${val:,.0f}"
 
 
+# ── Placement strategies ──────────────────────────────────────────────────────
+# Five named strategies for selecting which convertible pixels to convert.
+# 'random' is the default and reproduces the prior uniform-sampling behavior.
+# The others weight the sampling toward pixels where conversion yields the
+# highest benefit per the INVEST_PLACEMENT.md research. UI exposure is deferred
+# to a future session; for now these are Python-API-only.
+PLACEMENT_STRATEGIES = {
+    'random':          'Uniform random sampling',
+    'flood-focused':   'Prioritize pixels with highest runoff reduction potential',
+    'cooling-focused': 'Prioritize pixels in hot areas near buildings',
+    'equity-focused':  'Prioritize pixels in nature-deficit areas with high population',
+    'balanced':        'Weighted combination of flood, cooling, and equity signals',
+}
+
+
+def _compute_suitability_weights(convertible_pixels, strategy):
+    """Compute per-pixel suitability weights for the given strategy.
+
+    Returns a 1-D array (same length as convertible_pixels) of non-negative
+    weights. Higher = more suitable for conversion. The caller normalizes
+    to a probability distribution before sampling.
+
+    Each strategy combines one or more module-level rasters evaluated at
+    the convertible-pixel coordinates. If a required raster is unavailable,
+    the component falls back to uniform (ones).
+    """
+    rows = convertible_pixels[:, 0]
+    cols = convertible_pixels[:, 1]
+    n = len(convertible_pixels)
+
+    if strategy == 'flood-focused':
+        # Higher baseline CN = more runoff from this pixel = more benefit
+        # from converting it to GI/FF. Extract per-pixel CN from the
+        # baseline LULC using the same lookup as evaluate_scenario.
+        lulc_vals = np.clip(cooling_lulc[rows, cols], 0, len(lucode_idx_arr) - 1)
+        soil_vals = np.clip(soil_resized[rows, cols].astype(int), 1, cn_table.shape[1] - 1)
+        pixel_cn = cn_table[lucode_idx_arr[lulc_vals], soil_vals].astype(np.float64)
+        # CN ranges ~30-98; use it directly as the weight (higher CN = higher priority).
+        weights = np.maximum(pixel_cn, 0.0)
+
+    elif strategy == 'cooling-focused':
+        # Two signals: (a) heat exposure = 1 - baseline CC (hotter pixels
+        # benefit more from greening), and (b) building proximity (pixels
+        # near buildings save more AC energy when cooled).
+        # Heat exposure from baseline CC raster (smoothed, 0-1 range).
+        heat = 1.0 - _BASELINE_HM_RASTER[rows, cols].astype(np.float64)
+        heat = np.maximum(heat, 0.0)
+
+        # Building proximity: pixels ON or adjacent to buildings are high-value.
+        # Use the buildings raster directly: 1 where building exists, 0 otherwise.
+        # A pixel adjacent to a building is high-value but isn't itself a building
+        # (buildings are excluded from CONVERTIBLE_PIXELS). So use a distance-based
+        # signal: distance_to_nearest_building, inverted. For efficiency, use the
+        # existing equity_weights raster (NLCD 23→1.0, 22→0.6, 21→0.3) as a
+        # development-intensity proxy — higher-intensity developed pixels are
+        # closer to buildings and commercial areas.
+        intensity = equity_weights[rows, cols].astype(np.float64)
+        intensity = np.maximum(intensity, 0.0)
+
+        # Combine: multiply heat exposure by development intensity.
+        # Both are non-negative; product emphasizes pixels that are both hot
+        # and in high-intensity areas.
+        weights = heat * (intensity + 0.1)  # +0.1 floor so low-intensity pixels aren't zeroed out
+
+    elif strategy == 'equity-focused':
+        # Two signals: (a) population density (more people = more benefit),
+        # and (b) nature deficit (1 - access score; underserved pixels need
+        # nature more). Product maximizes benefit to underserved populations.
+        if POPULATION_DATA_AVAILABLE:
+            pop = pop_count_raster[rows, cols].astype(np.float64)
+            pop = np.maximum(pop, 0.0)
+        else:
+            pop = np.ones(n, dtype=np.float64)
+
+        # Nature deficit: 1 - access_score. Pixels far from nature with low
+        # quality score get higher weight.
+        access = _BASELINE_ACCESS_SCORE_RASTER[rows, cols].astype(np.float64)
+        deficit = np.maximum(1.0 - access, 0.0)
+
+        # Combine: population × deficit. A high-pop, low-access pixel is the
+        # highest-priority target.
+        weights = pop * (deficit + 0.01)  # +0.01 floor so zero-deficit pixels aren't impossible
+
+    elif strategy == 'balanced':
+        # Equal-weight combination of the three focused strategies.
+        # Normalize each component to sum to 1, then average.
+        flood_w = _compute_suitability_weights(convertible_pixels, 'flood-focused')
+        cool_w = _compute_suitability_weights(convertible_pixels, 'cooling-focused')
+        equity_w = _compute_suitability_weights(convertible_pixels, 'equity-focused')
+
+        def _safe_normalize(w):
+            s = w.sum()
+            return w / s if s > 0 else np.ones_like(w) / len(w)
+
+        weights = (_safe_normalize(flood_w)
+                   + _safe_normalize(cool_w)
+                   + _safe_normalize(equity_w)) / 3.0
+    else:
+        raise ValueError(f"Unknown placement strategy: {strategy!r}. "
+                         f"Valid: {list(PLACEMENT_STRATEGIES)}")
+
+    return weights
+
+
+def _select_pixels_for_conversion(convertible_pixels, n_to_convert, strategy, rng):
+    """Select which convertible pixels to convert based on the placement strategy.
+
+    Returns an array of indices into convertible_pixels.
+    """
+    if n_to_convert <= 0:
+        return np.array([], dtype=int)
+
+    if strategy == 'random':
+        return rng.choice(len(convertible_pixels), size=n_to_convert, replace=False)
+
+    weights = _compute_suitability_weights(convertible_pixels, strategy)
+    weights = np.maximum(weights, 0.0)
+    weight_sum = weights.sum()
+
+    if weight_sum > 0:
+        weights /= weight_sum
+        return rng.choice(len(convertible_pixels), size=n_to_convert, replace=False, p=weights)
+    else:
+        # Fallback to uniform random if all weights are zero
+        return rng.choice(len(convertible_pixels), size=n_to_convert, replace=False)
+
+
 # ── Scenario evaluation ────────────────────────────────────────────────────────
 def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
                       seed=42, use_heat_priority=False,
+                      placement_strategy='random',
                       cost_gi=DEFAULT_COST_GI,
                       cost_ff=DEFAULT_COST_FF,
                       cost_hd=DEFAULT_COST_HD,
                       carbon_rate_ff=None,
                       carbon_rate_gi=None):
     """
-    Convert a random (or equity-weighted) sample of developed pixels to the specified
-    land use mix, then compute flood risk, urban cooling, food production, and cost.
+    Convert a sample of developed pixels to the specified land use mix,
+    then compute flood risk, urban cooling, food production, and cost.
+
+    Placement is controlled by `placement_strategy` (default 'random').
+    The legacy `use_heat_priority=True` flag is translated to
+    `placement_strategy='cooling-focused'` for backward compatibility.
     """
+    # Legacy backward compat: use_heat_priority=True maps to cooling-focused.
+    # If both are specified, use_heat_priority takes precedence (conservative —
+    # existing callers that pass it should get the behavior they expect).
+    if use_heat_priority:
+        placement_strategy = 'cooling-focused'
+
     pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
     scenario_lulc = cooling_lulc.copy()
@@ -987,21 +1125,8 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 
     rng = np.random.default_rng(seed)
 
-    if use_heat_priority and n_convert > 0:
-        # Pull weights specifically for the convertible pixels
-        weights = equity_weights[CONVERTIBLE_PIXELS[:, 0], CONVERTIBLE_PIXELS[:, 1]].astype(float)
-
-        # Robustness check: Ensure no negative or NaN weights
-        weights = np.maximum(weights, 0)
-        weight_sum = weights.sum()
-
-        if weight_sum > 0:
-            weights /= weight_sum
-            chosen_idx = rng.choice(len(CONVERTIBLE_PIXELS), size=n_convert, replace=False, p=weights)
-        else:
-            chosen_idx = rng.choice(len(CONVERTIBLE_PIXELS), size=n_convert, replace=False)
-    else:
-        chosen_idx = rng.choice(len(CONVERTIBLE_PIXELS), size=n_convert, replace=False)
+    chosen_idx = _select_pixels_for_conversion(
+        CONVERTIBLE_PIXELS, n_convert, placement_strategy, rng)
 
     pixels_to_convert = CONVERTIBLE_PIXELS[chosen_idx]
 
