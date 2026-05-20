@@ -715,7 +715,7 @@ Three side-by-side bars comparing the current scenario to the unmodified baselin
 
 | Chart | Y-axis | Baseline value | Scenario value |
 |-------|--------|---------------|----------------|
-| Flood Risk | Mean Curve Number (lower = less runoff) | `BASELINE_CN` (Minneapolis: 75.7; San Antonio: 65.97) | `mean_CN` from scenario |
+| Flood Risk | Mean Curve Number (lower = less runoff) | `BASELINE_CN` (Minneapolis: 75.7; San Antonio: 76.54) | `mean_CN` from scenario |
 | Urban Cooling | Cooling Capacity (higher = more cooling) | `BASELINE_HM` — auto-recomputed at module load from the smoothed CC raster; hardcoded value in `CITIES` (MN: 0.1859 post-UCM rework; SA: 0.2917 still pre-convolution) is a documentation placeholder | `mean_hm` from scenario (smoothed CC) |
 | Food Production | Million lbs/year | 0.0 (no food forest in baseline) | `food_mln_lbs` from scenario |
 
