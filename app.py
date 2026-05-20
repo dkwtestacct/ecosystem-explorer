@@ -977,6 +977,15 @@ PLACEMENT_STRATEGIES = {
     'balanced':        'Weighted combination of flood, cooling, and equity signals',
 }
 
+# Human-readable labels for the sidebar radio. Keys must match PLACEMENT_STRATEGIES.
+PLACEMENT_STRATEGY_LABELS = {
+    'random':          'Random placement',
+    'flood-focused':   'Prioritize flood-prone areas',
+    'cooling-focused': 'Prioritize hot areas near buildings',
+    'equity-focused':  'Prioritize underserved areas',
+    'balanced':        'Balanced approach',
+}
+
 
 def _compute_suitability_weights(convertible_pixels, strategy):
     """Compute per-pixel suitability weights for the given strategy.
@@ -2406,7 +2415,7 @@ st.sidebar.caption(
 
 st.sidebar.caption(
     "Optimization currently targets flood reduction, cooling, food production, and carbon "
-    "sequestration. Cost and heat-priority placement are not yet included in the surrogate."
+    "sequestration. Cost and placement strategy are not yet included in the surrogate."
 )
 
 with st.sidebar.container(border=True):
@@ -2466,17 +2475,24 @@ with st.sidebar.container(border=True):
 
 st.sidebar.divider()
 
-# ── Spatial priority ──────────────────────────────────────────────────────────
-st.sidebar.subheader("Spatial Priority")
-use_heat_priority = st.sidebar.toggle(
-    "Target High Heat-Exposure Areas",
-    value=False,
-    help="When enabled, the model prioritizes converting land in areas with higher heat-exposure intensity."
+# ── Placement strategy ────────────────────────────────────────────────────────
+st.sidebar.subheader("Placement Strategy")
+placement_strategy = st.sidebar.radio(
+    "Which pixels get converted",
+    options=list(PLACEMENT_STRATEGY_LABELS.keys()),
+    format_func=lambda key: PLACEMENT_STRATEGY_LABELS[key],
+    index=0,
+    help=(
+        "Which pixels get converted. Random samples uniformly across "
+        "convertible developed pixels. Focused strategies bias placement "
+        "toward pixels where conversion yields the most benefit for the "
+        "chosen objective. Balanced combines flood, cooling, and equity "
+        "signals equally."
+    ),
+    label_visibility="collapsed",
 )
-st.sidebar.caption(
-    "Weights conversions toward high-intensity developed pixels. "
-    "Improves equity of green space distribution; may reduce headline cooling."
-)
+# Legacy alias kept for backward compatibility with saved scenarios.
+use_heat_priority = (placement_strategy == 'cooling-focused')
 
 st.sidebar.divider()
 
@@ -2535,12 +2551,12 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
 
 # ── Main panel ─────────────────────────────────────────────────────────────────
 lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
-if lookup_key in lookup_table and not use_heat_priority:
-    # Lookup table was computed without equity weighting — only use it in standard mode
+if lookup_key in lookup_table and placement_strategy == 'random':
+    # Lookup table was computed with random placement — only use it in random mode
     results = lookup_table[lookup_key].copy()
     _fresh = evaluate_scenario(
         pct_converted, green_infrastructure_pct, food_forest_pct,
-        use_heat_priority=False, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
+        placement_strategy='random', cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
         carbon_rate_ff=st.session_state.carbon_rate_ff,
         carbon_rate_gi=st.session_state.carbon_rate_gi,
     )
@@ -2564,7 +2580,7 @@ if lookup_key in lookup_table and not use_heat_priority:
 else:
     results = evaluate_scenario(
         pct_converted, green_infrastructure_pct, food_forest_pct,
-        use_heat_priority=use_heat_priority, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
+        placement_strategy=placement_strategy, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
         carbon_rate_ff=st.session_state.carbon_rate_ff,
         carbon_rate_gi=st.session_state.carbon_rate_gi,
     )
@@ -2649,6 +2665,9 @@ def _fmt_carbon(tons):
 
 _carbon_value_str = _fmt_carbon(_carbon_value)
 _carbon_delta_str, _carbon_delta_color = _delta_pill(_carbon_value, fmt=",.0f", suffix="t CO2e/yr from conversions", epsilon=1.0)
+
+if placement_strategy != 'random':
+    st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
 
 st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
@@ -2762,11 +2781,11 @@ if not POPULATION_DATA_AVAILABLE:
         "proximity to green space only, not weighted by where people live. "
         "Real population data loading."
     )
-if use_heat_priority:
+if placement_strategy != 'random':
     hs1.caption(
-        "Heat-weighted placement concentrates conversions in higher-intensity "
-        "developed areas, which tend to have lower existing nature access — "
-        "improving equity of green space distribution."
+        f"Using {PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()} placement, "
+        "which concentrates conversions where they yield the most benefit — "
+        "this can shift nature access patterns compared to random placement."
     )
 
 # Nature Quality Score — population-weighted mean access score (0–1). Sits
@@ -3298,7 +3317,7 @@ with st.expander("Assumptions and limitations"):
             "This targets feasible interstitial spaces (parking lots, lawns, "
             "vacant lots) but still ignores parcel ownership, corridor design, "
             "and zoning — placement within the convertible pool is random "
-            "(or heat-weighted in Heat-Priority Mode).\n"
+            "by default (or weighted via the sidebar placement picker).\n"
             "- **High-density-only conversion ties baseline:** the model never "
             "removes existing nature, so adding HD alone leaves the buffer "
             "unchanged.\n"
@@ -3380,7 +3399,7 @@ if st.session_state.get("just_optimized"):
             st.session_state.just_optimized = False
             st.rerun()
 
-mode_text = "prioritizing high heat-exposure areas" if use_heat_priority else "using random placement"
+mode_text = f"using {PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()}"
 st.write(
     f"This scenario converts **{pct_converted}%** of developed land, allocating "
     f"**{green_infrastructure_pct}%** to green infrastructure, "
@@ -3558,7 +3577,8 @@ with tab2:
         if confirm_clicked and scenario_name_input:
             saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
             saved["display_name"] = scenario_name_input
-            saved["heat_priority"] = use_heat_priority
+            saved["placement_strategy"] = placement_strategy
+            saved["heat_priority"] = use_heat_priority  # backward compat for older saves
             saved["cost_gi"] = cost_gi
             saved["cost_ff"] = cost_ff
             saved["cost_hd"] = cost_hd
@@ -3687,7 +3707,7 @@ with tab2:
                 'pct_converted',
                 'green_infrastructure_pct',
                 'food_forest_pct',
-                'heat_priority',
+                'placement_strategy',
                 'flood_reduction',
                 'cooling_f',
                 'runoff_acre_feet',
@@ -3724,10 +3744,10 @@ with tab2:
 
 with tab3:
     st.subheader("Where Changes Happen")
-    if use_heat_priority:
+    if placement_strategy != 'random':
         st.info(
-        "**Heat-exposure mode active** — conversions concentrated in higher-intensity "
-        "developed areas. Notice the spatial pattern shift vs. random allocation."
+        f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** — conversions weighted "
+        "toward higher-suitability pixels. Notice the spatial pattern shift vs. random allocation."
         )
 
     overlay_opacity = st.slider(
@@ -3798,8 +3818,9 @@ with tab3:
             "road network data unioned with the city's buildings shapefile. "
             "The remaining candidate pool covers parking lots, lawns, and vacant "
             "land within the NLCD-21/22/23/24 developed mask. Placement within "
-            "that pool is random, or weighted toward higher-intensity-developed "
-            "pixels when Heat-Priority Mode is on. Real implementation would "
+            "that pool is random by default, or weighted toward specific objectives "
+            "(flood, cooling, equity, or balanced) via the sidebar placement picker. "
+            "Real implementation would "
             "still require site-specific siting analysis (zoning, ownership, "
             "soil, infrastructure)."
         )
