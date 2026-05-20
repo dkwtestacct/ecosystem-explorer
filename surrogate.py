@@ -20,7 +20,7 @@ and can be tested standalone.
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 
 
@@ -69,25 +69,40 @@ def predict_with_uncertainty(model, X):
 
 
 def plot_feature_importance(model):
-    """Bar chart of RF feature importances across all three output metrics."""
-    feature_names = ['% Converted', 'Green Infra %', 'Food Forest %']
-    metric_names  = ['Flood Reduction', 'Cooling (CC)', 'Food Production']
+    """Plotly horizontal bar chart of RF feature importances.
 
-    # Each estimator in a MultiOutputRegressor-style RF predicts all outputs
-    # feature_importances_ is averaged across all trees
+    Returns a plotly.graph_objects.Figure. Caller should use
+    st.plotly_chart(fig, use_container_width=True) instead of
+    render_matplotlib(...).
+    """
+    feature_names = ['% Converted', 'Green Infra %', 'Food Forest %']
+    colors = ['#8e8e8e', '#2196a0', '#4caf50']
     importances = model.feature_importances_  # shape (n_features,)
 
-    fig, ax = plt.subplots(figsize=(5, 2.5))
-    colors = ['#8e8e8e', '#2196a0', '#4caf50']
-    bars = ax.barh(feature_names, importances, color=colors)
-    ax.invert_yaxis()  # % Converted at top, matching sidebar control order
-    ax.set_xlabel('Relative Importance', fontsize=9)
-    ax.set_title('What drives outcomes most?', fontsize=10)
-    ax.set_xlim(0, max(importances) * 1.3)
-    for bar, val in zip(bars, importances):
-        ax.text(val + 0.005, bar.get_y() + bar.get_height()/2,
-                f'{val:.2f}', va='center', fontsize=9)
-    plt.tight_layout()
+    # Reverse so that % Converted renders at the top of the horizontal bars
+    # (Plotly's default is bottom-up).
+    fig = go.Figure(go.Bar(
+        x=importances[::-1],
+        y=feature_names[::-1],
+        orientation='h',
+        marker=dict(color=colors[::-1]),
+        text=[f'{v:.2f}' for v in importances[::-1]],
+        textposition='outside',
+        hovertemplate='<b>%{y}</b><br>Importance: %{x:.3f}<extra></extra>',
+    ))
+
+    fig.update_layout(
+        title=dict(text='What drives outcomes most?', font=dict(size=12)),
+        xaxis=dict(
+            title='Relative Importance',
+            range=[0, max(importances) * 1.3],
+        ),
+        yaxis=dict(title=None),
+        showlegend=False,
+        height=200,
+        margin=dict(l=10, r=10, t=40, b=40),
+        hovermode='closest',
+    )
     return fig
 
 

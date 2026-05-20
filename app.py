@@ -3481,7 +3481,7 @@ with tab2:
 
             st.markdown("#### Input Influence")
             st.caption("**Influence Map** — which input drives outcomes most according to the surrogate model:")
-            render_matplotlib(plot_feature_importance(surrogate))
+            st.plotly_chart(plot_feature_importance(surrogate), use_container_width=True)
 
             st.markdown("#### Apply a suggestion")
             st.caption(
