@@ -147,6 +147,50 @@ Annual CO2e sequestration rates used in the tool (tons CO2e/acre/year, counting 
 
 **Sources:** USDA NRCS COMET-Planner (2022); IPCC Land Use Land Use Change and Forestry guidelines; Udawatta & Jose (2012) Agroforestry Systems.
 
+### Placement strategies
+
+The convertible pool defines *which pixels are eligible* for conversion;
+the placement strategy defines *which of those pixels actually get converted*
+for a given scenario. The app provides five strategies, exposed in the
+sidebar as a radio picker. The default is uniform random sampling.
+
+The strategies are an app feature, not an InVEST methodology requirement —
+InVEST's urban models are placement-agnostic and accept whatever LULC
+raster the user provides (see `INVEST_PLACEMENT.md` for the underlying
+research). The strategies offer faster scenario exploration of "what if
+we targeted high-CN pixels?" or "what if we prioritized underserved areas?"
+without the user manually constructing per-pixel LULC alternatives.
+
+| Strategy | Suitability formula | Rationale |
+|----------|---------------------|-----------|
+| Random placement | Uniform | Default — no spatial bias, useful for average-case scenario exploration. |
+| Prioritize flood-prone areas | Per-pixel CN from `cn_table[lucode, soil_group]` | Higher CN = more runoff = more benefit from GI conversion. |
+| Prioritize hot areas near buildings | `(1 - baseline_CC) × (intensity + 0.1)` | Hot pixels (low baseline CC) near high-intensity developed areas. Subsumes the prior Heat-Priority Mode. |
+| Prioritize underserved areas | `population × (1 - access_score + 0.01)` | High-population, nature-deficit areas. |
+| Balanced approach | Equal-weighted normalized combination of the three above | Combines flood, cooling, and equity signals. |
+
+Floor values (+0.1 for cooling, +0.01 for equity) prevent zero-weight pixels
+from being completely excluded.
+
+#### Honest caveats
+
+- **AOI heterogeneity matters.** In small or spatially homogeneous AOIs
+  (e.g., MN downtown's 123 km²), the strategies produce only modest
+  differences from random placement because most convertible pixels have
+  similar suitability scores. SA's 3,060 km² Bexar bbox has more spatial
+  variance and probably shows larger strategy effects.
+- **The cooling-focused strategy uses a coarse intensity proxy.** Building
+  proximity is approximated via the NLCD intensity raster (only three
+  distinct values: 1.0/0.6/0.3 for NLCD 23/22/21). A true distance-to-buildings
+  computation would differentiate better but is more expensive at runtime.
+- **The balanced strategy's equal weighting is a default, not a derivation.**
+  Per-component normalization to sum-1 before averaging is mathematically
+  defensible but the choice of equal weights is subjective. Future work
+  might expose weights as user controls.
+- **No InVEST parity claim.** Per the placement research, no InVEST model
+  prescribes a placement strategy. The app's strategies are heuristics
+  informed by InVEST model structure but not part of any InVEST model.
+
 ---
 
 ## Data Sources
@@ -211,7 +255,7 @@ The app combines three computational layers to balance realism and responsivenes
    - `flood_damage_avoided_usd`, `cooling_energy_savings_usd`
    - `total_cost_mln` (recomputed from current cost-slider values)
 
-   The overwrite covers metrics that post-date the lookup schema (UMH, NDVI, refined nature access, carbon updates) plus anything that depends on user-adjustable parameters (carbon rate sliders, cost sliders). When Heat-Priority Mode is on, the lookup table is bypassed entirely and all metrics run live. A future cleanup could fold the live-overwrite fields back into the lookup schema and bump `SCENARIO_SCHEMA_VERSION` accordingly.
+   The overwrite covers metrics that post-date the lookup schema (UMH, NDVI, refined nature access, carbon updates) plus anything that depends on user-adjustable parameters (carbon rate sliders, cost sliders). When any non-random placement strategy is active (see "Placement strategies" in Methodology Notes), the lookup table is bypassed entirely and all metrics run live. A future cleanup could fold the live-overwrite fields back into the lookup schema and bump `SCENARIO_SCHEMA_VERSION` accordingly.
 
 3. **Runtime surrogate optimization (~10,000 candidate scenarios)**
    During optimization, the app generates thousands of new candidate land-use combinations and evaluates them using the Random Forest surrogate model rather than the full raster simulation. This enables rapid search across a much wider range of scenarios than the lookup table covers.
@@ -443,12 +487,12 @@ All three ratios show **N/A** when the denominator is zero or negative (no impro
 
 A plain-language summary of the current scenario settings, displayed below the metric cards. Automatically updates as sliders change.
 
-> *"This scenario converts X% of developed land, allocating Y% to green infrastructure, Z% to food forest, and W% to high-density development, [using random placement / prioritizing high heat-exposure areas]."*
+> *"This scenario converts X% of developed land, allocating Y% to green infrastructure, Z% to food forest, and W% to high-density development, using [placement strategy label]."*
 
 | Field | Detail |
 |-------|--------|
 | **Values** | Pulled directly from the current slider values (`pct_converted`, `green_infrastructure_pct`, `food_forest_pct`, `pct_highdensity`). |
-| **Placement mode** | "prioritizing high heat-exposure areas" when the heat-priority toggle is on; "using random placement" otherwise. |
+| **Placement mode** | Label from `PLACEMENT_STRATEGY_LABELS[placement_strategy]`, lowercased. See "Placement strategies" in Methodology Notes for the five options. |
 
 ---
 
@@ -470,7 +514,7 @@ A plain-language summary of the current scenario settings, displayed below the m
 |-------|--------|
 | **Type** | Slider, range 0–50, step 1 |
 | **Effect** | Determines how many developed pixels (NLCD 21/22/23) are randomly sampled for conversion. At 50%, half of all developed pixels are converted. |
-| **Caveats** | Conversions are placed on the **convertible pool** = developed pixels (NLCD 21–24) **minus building footprints AND road infrastructure**. The InVEST UFR `buildings.shp` (3,788 polygons covering the downtown core) and the **OpenStreetMap road network** for Minneapolis (fetched once via `download_osm_minneapolis.py` from the Geofabrik Minnesota state extract and stored at `data/osm/minneapolis_roads.geojson`) are both rasterized to the NLCD grid and unioned at startup; the union is subtracted from `developed_pixels` to build `CONVERTIBLE_PIXELS`. OSM line geometries are rasterized directly (no buffer) — at 30 m NLCD resolution, any pixel whose center a road crosses is flagged. Within the convertible pool, placement is random (or heat-weighted in Heat-Priority Mode). Buildings and roads still contribute to the runoff baseline — they shed water like any developed surface — but they cannot be replaced by GI/FF/HD. Spatial placement still ignores parcel ownership, corridor design, zoning, and adjacency; real projects need site-specific feasibility checks beyond just avoiding buildings and streets. |
+| **Caveats** | Conversions are placed on the **convertible pool** = developed pixels (NLCD 21–24) **minus building footprints AND road infrastructure**. The InVEST UFR `buildings.shp` (3,788 polygons covering the downtown core) and the **OpenStreetMap road network** for Minneapolis (fetched once via `download_osm_minneapolis.py` from the Geofabrik Minnesota state extract and stored at `data/osm/minneapolis_roads.geojson`) are both rasterized to the NLCD grid and unioned at startup; the union is subtracted from `developed_pixels` to build `CONVERTIBLE_PIXELS`. OSM line geometries are rasterized directly (no buffer) — at 30 m NLCD resolution, any pixel whose center a road crosses is flagged. Within the convertible pool, placement depends on the selected placement strategy (see "Placement strategies" in Methodology Notes). Buildings and roads still contribute to the runoff baseline — they shed water like any developed surface — but they cannot be replaced by GI/FF/HD. Spatial placement still ignores parcel ownership, corridor design, zoning, and adjacency; real projects need site-specific feasibility checks beyond just avoiding buildings and streets. |
 | **Road exclusion coverage** | Road exclusion uses an OSM-derived road mask filtered to physical surfaces wider than ~1 pixel (Geofabrik Minnesota extract, then drop `footway`, `cycleway`, `steps`, `service`, `path`, `pedestrian`, `unclassified`, `track*`). The retained set is **5,495 segments** — motorways, trunk, primary, secondary, tertiary, residential, living-street, and their on/off-ramp links — covering approximately **29 % of the model AOI**. Sub-pixel-width surfaces are intentionally excluded: at 30 m NLCD resolution, marking the whole pixel as non-convertible because a 1.5 m sidewalk crosses it would substantially overstate the unconvertible fraction. After excluding buildings and this road set, **~71 % of developed AOI pixels** are eligible for green-infrastructure conversion. Prior iterations: a manually-curated subset covered ~11 % (under-counted), and the unfiltered Geofabrik network covered ~62 % (over-counted). |
 
 ---
@@ -735,7 +779,7 @@ Pixel-level raster showing which developed pixels changed and to what land cover
 | Red (`#e53935`) | Converted to High Density (NLCD 24) |
 | White | Outside city boundary (`NODATA = -128`) |
 
-When heat-priority mode is on, teal/green/red pixels are concentrated in higher-intensity developed areas rather than uniformly distributed.
+When a non-random placement strategy is active, teal/green/red pixels are concentrated in higher-suitability areas rather than uniformly distributed. See "Placement strategies" in Methodology Notes for the five options and their suitability formulas.
 
 ---
 

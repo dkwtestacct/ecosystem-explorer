@@ -4,9 +4,9 @@ Usage:
     python verify_baselines.py           # check current outputs against committed snapshots
     python verify_baselines.py --update  # rewrite snapshots with current outputs (use after intentional changes)
 
-Snapshots live in tests/baselines/<city_slug>__<scenario_name>.json.
+Snapshots live in tests/baselines/<city_slug>__<scenario_name>__<strategy>.json.
 
-For each (city, scenario) the script:
+For each (city, scenario, strategy) the script:
   1. Loads city data via the same path app.py uses.
   2. Calls evaluate_scenario() with the scenario's parameters.
   3. Extracts all scalar fields + an MD5 hash of scenario_lulc.
@@ -14,7 +14,7 @@ For each (city, scenario) the script:
      (rtol=1e-4, atol=1e-6) for floats, exact match for ints/strings/hashes.
   5. Reports any divergences, exits 1 if any diff, exits 0 if all match.
 
-Designed to run in under a minute total. Run before commit when in
+Designed to run in under two minutes total. Run before commit when in
 doubt about whether a change has cross-cutting effects.
 """
 from __future__ import annotations
@@ -41,6 +41,11 @@ SCENARIOS = {
     "food_forest":          dict(pct_converted=10, green_infrastructure_pct=0,   food_forest_pct=100),
     "high_density":         dict(pct_converted=10, green_infrastructure_pct=0,   food_forest_pct=0),
 }
+
+# All five placement strategies.  When pct_converted=0 (baseline), the strategy
+# has no effect — all 5 produce identical output — but we snapshot them anyway
+# for uniform data shape.
+STRATEGIES = ['random', 'flood-focused', 'cooling-focused', 'equity-focused', 'balanced']
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -260,6 +265,16 @@ def _rebind_city(app_mod, city_name):
     return state
 
 
+def _cleanup_old_baselines(snapshot_dir: Path):
+    """Remove old-format baseline files (without strategy suffix)."""
+    for f in snapshot_dir.glob("*.json"):
+        # Old format: <city>__<scenario>.json (exactly two parts split by __)
+        parts = f.stem.split("__")
+        if len(parts) == 2:
+            print(f"  Removing old-format baseline: {f.name}")
+            f.unlink()
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main(update: bool) -> int:
     global _DESIRED_CITY
@@ -278,7 +293,13 @@ def main(update: bool) -> int:
     print(f"  app.py import: {time.time() - t0:.1f}s")
 
     active_cities = [name for name, cfg in app.CITIES.items() if cfg.get("available")]
-    print(f"Active cities: {active_cities}\n")
+    print(f"Active cities: {active_cities}")
+    print(f"Scenarios: {len(SCENARIOS)} x Strategies: {len(STRATEGIES)} = "
+          f"{len(SCENARIOS) * len(STRATEGIES)} baselines per city")
+    print(f"Total: {len(active_cities) * len(SCENARIOS) * len(STRATEGIES)} baselines\n")
+
+    if update:
+        _cleanup_old_baselines(snapshot_dir)
 
     total_diffs = 0
 
@@ -297,37 +318,40 @@ def main(update: bool) -> int:
             continue
 
         for scenario_name, params in SCENARIOS.items():
-            label = f"{city_name} / {scenario_name}"
-            print(f"\n  {label}:")
+            for strategy in STRATEGIES:
+                label = f"{city_name} / {scenario_name} / {strategy}"
+                print(f"\n  {label}:")
 
-            try:
-                results = app.evaluate_scenario(**params, seed=42)
-            except Exception as e:
-                print(f"    ERROR: evaluate_scenario failed: {e}")
-                import traceback; traceback.print_exc()
-                total_diffs += 1
-                continue
+                try:
+                    results = app.evaluate_scenario(
+                        **params, seed=42, placement_strategy=strategy,
+                    )
+                except Exception as e:
+                    print(f"    ERROR: evaluate_scenario failed: {e}")
+                    import traceback; traceback.print_exc()
+                    total_diffs += 1
+                    continue
 
-            new_snap = _snapshot_from_results(results)
-            snap_path = snapshot_dir / f"{_slug(city_name)}__{scenario_name}.json"
+                new_snap = _snapshot_from_results(results)
+                snap_path = snapshot_dir / f"{_slug(city_name)}__{scenario_name}__{strategy}.json"
 
-            if update:
-                snap_path.write_text(json.dumps(new_snap, indent=2, sort_keys=True) + "\n")
-                print(f"    wrote {snap_path} ({len(new_snap)} fields)")
-            elif snap_path.exists():
-                old_snap = json.loads(snap_path.read_text())
-                diffs = _compare_snapshots(old_snap, new_snap)
-                if diffs:
-                    print(f"    FAIL: {len(diffs)} divergence(s):")
-                    for d in diffs:
-                        print(d)
-                    total_diffs += len(diffs)
+                if update:
+                    snap_path.write_text(json.dumps(new_snap, indent=2, sort_keys=True) + "\n")
+                    print(f"    wrote {snap_path} ({len(new_snap)} fields)")
+                elif snap_path.exists():
+                    old_snap = json.loads(snap_path.read_text())
+                    diffs = _compare_snapshots(old_snap, new_snap)
+                    if diffs:
+                        print(f"    FAIL: {len(diffs)} divergence(s):")
+                        for d in diffs:
+                            print(d)
+                        total_diffs += len(diffs)
+                    else:
+                        print(f"    OK ({len(new_snap)} fields)")
                 else:
-                    print(f"    OK ({len(new_snap)} fields)")
-            else:
-                print(f"    no snapshot at {snap_path}")
-                print(f"    run with --update to create it")
-                total_diffs += 1
+                    print(f"    no snapshot at {snap_path}")
+                    print(f"    run with --update to create it")
+                    total_diffs += 1
 
     print(f"\n{'=' * 60}")
     if total_diffs == 0:
