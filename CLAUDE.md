@@ -179,6 +179,19 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
 
 ---
 
+## Module layout
+
+The codebase has been incrementally split as it grew. Current state:
+
+- **`app.py`** — Streamlit UI, runtime state, loaders, `evaluate_scenario` and its biophysical helpers, metric cards, map and tradeoff rendering. Still the bulk of the code.
+- **`config.py`** — Per-city configuration (`CITIES` dict) and cost defaults. Read-only; mutations belong in `app.py`'s runtime state.
+- **`surrogate.py`** — Random Forest surrogate model (training, prediction with uncertainty bands) and the Pareto optimizer. Streamlit-agnostic; the `@st.cache_resource` wrapper lives at the call site in `app.py`.
+- **`verify_baselines.py`** — CLI baseline regression check. Snapshots `evaluate_scenario` outputs for each city × scenario (default + 3 presets) to `tests/baselines/*.json`. Run before commit when changes could have cross-cutting effects; run with `--update` after intentional changes.
+
+Further extractions (loaders, scenario.py, plots.py) remain deferred — they're more tightly coupled to Streamlit's runtime than the surrogate or config blocks were.
+
+---
+
 ## Architecture notes
 
 - **Lookup table + live refresh** (`compute_lookup_table`): pre-computes all valid slider
@@ -191,9 +204,11 @@ All three numeric baselines are dynamically recomputed at module load (the hardc
   rates, cost sliders) and post-schema metrics always reflect the current state. When
   Heat-Priority Mode is on, the lookup table is bypassed entirely. The scenario grid
   (step=10/25) is used only for surrogate training.
-- **Surrogate model**: Random Forest trained on the scenario grid; used by the optimizer to
-  search ~10k random scenarios for Pareto-optimal suggestions. Uncertainty bands come from
-  10th/90th percentile across RF trees.
+- **Surrogate model** (`surrogate.py`): Random Forest trained on the scenario grid; used by the
+  optimizer to search ~10k random scenarios for Pareto-optimal suggestions. Uncertainty bands
+  come from 10th/90th percentile across RF trees. Cache wrapper lives in `app.py`
+  (`_cached_train_surrogate`); the underlying functions are Streamlit-agnostic and can be
+  imported standalone for testing.
 - **Equity weighting**: `equity_weights` raster weights high-intensity developed pixels (NLCD 23)
   higher for the heat-priority conversion mode. Currently a proxy; TODO is to replace with a
   real CDC/ATSDR Heat Vulnerability Index by census tract.
