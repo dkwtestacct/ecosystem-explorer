@@ -190,6 +190,8 @@ The codebase has been incrementally split as it grew. Current state:
 
 Further extractions (loaders, scenario.py, plots.py) remain deferred — they're more tightly coupled to Streamlit's runtime than the surrogate or config blocks were.
 
+- **Methodology / InVEST parity** — documented in `REFERENCE.md` under "Official InVEST alignment." Includes a parity table for every metric and per-model gap notes (UFR, UCM, UNA, UMH, Carbon, Crop Production).
+
 ---
 
 ## Architecture notes
@@ -220,7 +222,8 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   CC raster is the `mean_hm` reported in scenario results (UI label: "Cooling Capacity" / "CC").
   `compute_cooling_energy_savings(cc_raster)` converts ΔCC → ΔT °C (× `UHI_MAX_C`) →
   kWh saved (× `consumption_rate × pixel_area`) → $/yr (× `COST_PER_KWH_USD`). Per-pixel,
-  not per-building polygon — see `UCM_AUDIT.md` for the open-divergences list. Both functions
+  not per-building polygon — see `UCM_AUDIT.md` for the open-divergences list and
+  REFERENCE.md "Official InVEST alignment — UCM" for the parity status. Both functions
   are called inside `evaluate_scenario`. Module-level precompute: `ET_RESIZED`, `MAX_ET_REF`,
   `BUILDINGS_TYPE_RASTER`, `CONSUMPTION_RATE_PER_PIXEL`, `_BASELINE_HM_RASTER` (the smoothed
   baseline CC).
@@ -483,7 +486,9 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   `_BASELINE_NE_RASTER` is precomputed once at module load. The previous `compute_wellbeing_score`
   composite + `wgt_ndvi/wgt_cooling/wgt_nature` sliders + `DEFAULT_WGT_*` constants have been
   removed entirely — UMH outputs are derived from peer-reviewed effect sizes rather than
-  user-tunable weights, so there's nothing to expose in the sidebar.
+  user-tunable weights, so there's nothing to expose in the sidebar. See REFERENCE.md
+  "Official InVEST alignment — UMH" for parity status and divergences (uniform BIR vs
+  per-admin, Gaussian kernel vs uniform buffer, synthetic vs satellite NDVI).
 - **The surrogate predicts eight outputs** — `train_surrogate` fits the Random Forest on
   `[flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet, carbon_tons_co2_yr,
   nature_access_pct, preventable_mh_cases, avoided_mh_cost_usd]`, so `predict_with_uncertainty`
