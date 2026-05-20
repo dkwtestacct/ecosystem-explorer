@@ -12,13 +12,19 @@ from typing import NamedTuple, Any, Optional
 import rasterio
 from rasterio.features import rasterize as _rasterize
 from skimage.transform import resize
-from sklearn.ensemble import RandomForestRegressor
 import geopandas as _gpd
 from scipy.ndimage import gaussian_filter as _gaussian_filter
 from scipy.ndimage import distance_transform_edt as _distance_transform_edt
 from scipy.ndimage import zoom as _zoom
 
 from config import CITIES, DEFAULT_COST_GI, DEFAULT_COST_FF, DEFAULT_COST_HD
+from surrogate import (
+    train_surrogate as _train_surrogate_fn,
+    predict_with_uncertainty,
+    plot_feature_importance,
+    optimize_scenario,
+    compute_pareto,
+)
 
 PIXEL_AREA_ACRES     = 0.2224  # 30 m × 30 m = 900 m² ÷ 4046.86 m²/acre. Same in EPSG:26915 (UTM) and EPSG:5070 (Albers); UTM ground-area distortion at MN is ~0.05 %, well within rounding.
 # FOOD_FOREST_LBS_ACRE is city-dependent — see "── City-derived constants ──" below.
@@ -1207,21 +1213,6 @@ def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, sch
     return table
 
 
-def compute_pareto(df):
-    """Return Pareto-efficient rows (maximize flood_reduction, mean_hm, food_mln_lbs)."""
-    cols = [c for c in ['flood_reduction', 'mean_hm', 'food_mln_lbs'] if c in df.columns]
-    points = df[cols].values
-    is_efficient = np.ones(points.shape[0], dtype=bool)
-    for i, c in enumerate(points):
-        if is_efficient[i]:
-            is_efficient[is_efficient] = (
-                np.any(points[is_efficient] > c, axis=1) |
-                np.all(points[is_efficient] == c, axis=1)
-            )
-            is_efficient[i] = True
-    return df[is_efficient]
-
-
 DENSE_SCENARIOS_PATH = city_cfg.get("dense_scenarios_file") or "data/scenarios_dense.csv"
 # Read the model-quality selection from session_state. The radio that writes
 # here lives in the Advanced Settings expander further down — Streamlit reruns
@@ -1878,139 +1869,21 @@ BASELINE_RUNOFF_ACRE_FEET = cn_to_runoff_acre_feet(
 BASELINE_NDVI = compute_mean_ndvi(cooling_lulc)
 
 # ── Surrogate model ────────────────────────────────────────────────────────────
+# Training, prediction, Pareto, and optimizer logic live in surrogate.py.
+# The @st.cache_resource wrapper stays here so surrogate.py is Streamlit-agnostic.
 @st.cache_resource
-def train_surrogate(_scenario_df, data_dir_flood, data_dir_cooling,
-                    mode_key="fast", n_estimators=100):
+def _cached_train_surrogate(_scenario_df, data_dir_flood, data_dir_cooling,
+                            mode_key="fast", n_estimators=100):
     # mode_key + n_estimators participate in the cache key so changing the
     # Model quality mode radio in the sidebar automatically retrains on the
     # new training set without needing a manual cache clear.
-    X = _scenario_df[['pct_converted', 'green_infrastructure_pct', 'food_forest_pct']]
-    # Nature Access is included as a sixth output, but with an important caveat:
-    # the surrogate maps (pct, gi%, ff%) → nature_access_pct, which discards the
-    # spatial geometry that drives the metric. Random vs heat-priority placement,
-    # and the location of converted pixels relative to existing parks and
-    # population centers, all change the actual buffer overlap — but the
-    # surrogate cannot see any of that. Treat surrogate predictions of
-    # nature_access_pct as an indicative trend, not a precise spatial estimate.
-    y = _scenario_df[['flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet',
-                      'carbon_tons_co2_yr', 'nature_access_pct']]
-    model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
-    model.fit(X, y)
-    return model
+    return _train_surrogate_fn(_scenario_df, n_estimators=n_estimators)
 
 
-surrogate = train_surrogate(
+surrogate = _cached_train_surrogate(
     scenario_df, DATA_DIR_FLOOD, DATA_DIR_COOLING,
     mode_key=ACTIVE_MODEL_QUALITY, n_estimators=N_ESTIMATORS,
 )
-
-
-def predict_with_uncertainty(model, X):
-    """
-    Return mean prediction and 10th/90th percentile bands across RF trees.
-    X should be shape (n_samples, n_features).
-    Returns: mean (n,6), lower (n,6), upper (n,6)
-    Columns: [flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet,
-              carbon_tons_co2_yr, nature_access_pct]
-    """
-    tree_preds = np.array([tree.predict(X) for tree in model.estimators_])
-    # tree_preds shape: (n_trees, n_samples, n_outputs)
-    mean  = tree_preds.mean(axis=0)
-    lower = np.percentile(tree_preds, 10, axis=0)
-    upper = np.percentile(tree_preds, 90, axis=0)
-    return mean, lower, upper
-
-def plot_feature_importance(model):
-    """Bar chart of RF feature importances across all three output metrics."""
-    feature_names = ['% Converted', 'Green Infra %', 'Food Forest %']
-    metric_names  = ['Flood Reduction', 'Cooling (CC)', 'Food Production']
-    
-    # Each estimator in a MultiOutputRegressor-style RF predicts all outputs
-    # feature_importances_ is averaged across all trees
-    importances = model.feature_importances_  # shape (n_features,)
-    
-    fig, ax = plt.subplots(figsize=(5, 2.5))
-    colors = ['#8e8e8e', '#2196a0', '#4caf50']
-    bars = ax.barh(feature_names, importances, color=colors)
-    ax.invert_yaxis()  # % Converted at top, matching sidebar control order
-    ax.set_xlabel('Relative Importance', fontsize=9)
-    ax.set_title('What drives outcomes most?', fontsize=10)
-    ax.set_xlim(0, max(importances) * 1.3)
-    for bar, val in zip(bars, importances):
-        ax.text(val + 0.005, bar.get_y() + bar.get_height()/2,
-                f'{val:.2f}', va='center', fontsize=9)
-    plt.tight_layout()
-    return fig
-
-def optimize_scenario(surrogate, min_flood, min_cool, min_food, max_runoff, min_carbon=0, n_samples=10000):
-    """Use the surrogate to find efficient tradeoff scenarios meeting the given constraints."""
-    rng = np.random.default_rng(42)
-    pct_converted = rng.integers(0, 51, n_samples)
-    gi_pct        = rng.integers(0, 101, n_samples)
-    ff_pct        = rng.integers(0, 101, n_samples)
-
-    valid = gi_pct + ff_pct <= 100
-    pct_converted, gi_pct, ff_pct = pct_converted[valid], gi_pct[valid], ff_pct[valid]
-
-    X = np.column_stack([pct_converted, gi_pct, ff_pct])
-    mean_preds, lower_preds, upper_preds = predict_with_uncertainty(surrogate, X)
-
-    meets = (
-        (mean_preds[:, 0] >= min_flood) &
-        (mean_preds[:, 1] >= min_cool)  &
-        (mean_preds[:, 2] >= min_food)  &
-        (mean_preds[:, 3] <= max_runoff) &
-        (mean_preds[:, 4] >= min_carbon)
-    )
-    if not meets.any():
-        return {
-            'found': False,
-            'max_flood':  round(float(mean_preds[:, 0].max()), 1),
-            'max_cool':   round(float(mean_preds[:, 1].max()), 4),
-            'max_food':   round(float(mean_preds[:, 2].max()), 3),
-            'max_carbon': round(float(mean_preds[:, 4].max()), 1),
-        }
-
-    candidates = pd.DataFrame({
-        'pct_converted':            pct_converted[meets],
-        'green_infrastructure_pct': gi_pct[meets],
-        'food_forest_pct':          ff_pct[meets],
-        'flood_reduction':          mean_preds[meets, 0].round(1),
-        'flood_lower':              lower_preds[meets, 0].round(1),
-        'flood_upper':              upper_preds[meets, 0].round(1),
-        'mean_hm':                  mean_preds[meets, 1].round(4),
-        'hm_lower':                 lower_preds[meets, 1].round(4),
-        'hm_upper':                 upper_preds[meets, 1].round(4),
-        'food_mln_lbs':             mean_preds[meets, 2].round(3),
-        'food_lower':               lower_preds[meets, 2].round(3),
-        'food_upper':               upper_preds[meets, 2].round(3),
-        'carbon_tons_co2_yr':       mean_preds[meets, 4].round(1),
-        'carbon_lower':             lower_preds[meets, 4].round(1),
-        'carbon_upper':             upper_preds[meets, 4].round(1),
-    })
-    candidates['pct_highdensity'] = (
-        100 - candidates['green_infrastructure_pct'] - candidates['food_forest_pct']
-    )
-    candidates['scenario_name'] = candidates.apply(
-        lambda r: f"{int(r.pct_converted)}% converted — GI {int(r.green_infrastructure_pct)}% / FF {int(r.food_forest_pct)}%",
-        axis=1
-    )
-
-    pareto = compute_pareto(candidates).copy()
-    pareto['score'] = (
-        pareto['flood_reduction'] / MAX_FLOOD +
-        pareto['mean_hm'] / MAX_COOL +
-        pareto['food_mln_lbs'] / (MAX_FOOD if MAX_FOOD > 0 else 1)
-    )
-    pareto = pareto.sort_values('score', ascending=False)
-    
-    # Drop near-duplicates in tradeoff space before returning
-    pareto['flood_rounded'] = pareto['flood_reduction'].round(-1)
-    pareto['hm_rounded']    = pareto['mean_hm'].round(1)
-    pareto = pareto.drop_duplicates(subset=['flood_rounded', 'hm_rounded'])
-    pareto = pareto.drop(columns=['flood_rounded', 'hm_rounded', 'score'])
-    
-    return pareto.head(5)
 
 # ── Plotting helpers ───────────────────────────────────────────────────────────
 def render_matplotlib(fig):
@@ -2455,7 +2328,9 @@ with st.sidebar.container(border=True):
     if st.button("Optimize"):
         with st.spinner("Searching for most efficient tradeoff scenarios..."):
             st.session_state.optimized_results = optimize_scenario(
-                surrogate, min_flood, min_cool, min_food, max_runoff, min_carbon=min_carbon)
+                surrogate, min_flood, min_cool, min_food, max_runoff,
+                min_carbon=min_carbon, max_food=MAX_FOOD,
+                max_flood=MAX_FLOOD, max_cool=MAX_COOL)
         _opt_res = st.session_state.optimized_results
         if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
             st.sidebar.warning("No scenarios found — try lowering the targets.")
