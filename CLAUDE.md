@@ -186,7 +186,7 @@ The codebase has been incrementally split as it grew. Current state:
 - **`app.py`** — Streamlit UI, runtime state, loaders, `evaluate_scenario` and its biophysical helpers, metric cards, map and tradeoff rendering. Still the bulk of the code.
 - **`config.py`** — Per-city configuration (`CITIES` dict) and cost defaults. Read-only; mutations belong in `app.py`'s runtime state.
 - **`surrogate.py`** — Random Forest surrogate model (training, prediction with uncertainty bands) and the Pareto optimizer. Streamlit-agnostic; the `@st.cache_resource` wrapper lives at the call site in `app.py`.
-- **`verify_baselines.py`** — CLI baseline regression check. Snapshots `evaluate_scenario` outputs for each city × scenario (default + 3 presets) to `tests/baselines/*.json`. Run before commit when changes could have cross-cutting effects; run with `--update` after intentional changes.
+- **`verify_baselines.py`** — CLI baseline regression check. Snapshots `evaluate_scenario` outputs for each city × scenario × placement strategy to `tests/baselines/<city>__<scenario>__<strategy>.json`. Currently 4 scenarios × 5 strategies × 2 cities = 40 baselines; runtime ~90 seconds. Run before commit when changes could have cross-cutting effects; run with `--update` after intentional changes.
 
 Further extractions (loaders, scenario.py, plots.py) remain deferred — they're more tightly coupled to Streamlit's runtime than the surrogate or config blocks were.
 
@@ -204,16 +204,28 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   damage avoided, cooling energy savings, and implementation cost. This hybrid pattern keeps
   the expensive raster aggregates cached while ensuring slider-sensitive parameters (carbon
   rates, cost sliders) and post-schema metrics always reflect the current state. When
-  Heat-Priority Mode is on, the lookup table is bypassed entirely. The scenario grid
+  a non-random placement strategy is active, the lookup table is bypassed entirely. The scenario grid
   (step=10/25) is used only for surrogate training.
 - **Surrogate model** (`surrogate.py`): Random Forest trained on the scenario grid; used by the
   optimizer to search ~10k random scenarios for Pareto-optimal suggestions. Uncertainty bands
   come from 10th/90th percentile across RF trees. Cache wrapper lives in `app.py`
   (`_cached_train_surrogate`); the underlying functions are Streamlit-agnostic and can be
   imported standalone for testing.
+- **Placement strategies** (`evaluate_scenario`'s `placement_strategy` kwarg): five strategies
+  for selecting which convertible pixels actually get converted. `random` (default) is uniform
+  sampling; `flood-focused`, `cooling-focused`, `equity-focused`, and `balanced` weight sampling
+  toward suitability components computed from existing module-level rasters (CN table, baseline
+  CC, population, access score). Helper functions `_compute_suitability_weights` and
+  `_select_pixels_for_conversion` are in `app.py` near `evaluate_scenario`. UI exposed as a
+  sidebar radio picker. The legacy `use_heat_priority=True` kwarg remains in the function
+  signature for backward compatibility and internally translates to
+  `placement_strategy='cooling-focused'`. See REFERENCE.md "Placement strategies" for the
+  suitability formulas and honest caveats, and `INVEST_PLACEMENT.md` for the underlying
+  research (InVEST is placement-agnostic — the strategies are an app feature, not a parity
+  requirement).
 - **Equity weighting**: `equity_weights` raster weights high-intensity developed pixels (NLCD 23)
-  higher for the heat-priority conversion mode. Currently a proxy; TODO is to replace with a
-  real CDC/ATSDR Heat Vulnerability Index by census tract.
+  higher; used as one component in the cooling-focused placement strategy. Currently a proxy;
+  TODO is to replace with a real CDC/ATSDR Heat Vulnerability Index by census tract.
 - **`REF_SCENARIOS`**: hardcoded Minneapolis benchmark points (all-one-landcover extremes) shown
   on the tradeoff plot. Will need to become city-specific when new cities are added.
 - **InVEST Urban Cooling Model**: `_compute_cc_raster` computes per-pixel CC = `0.6·shade + 0.2·albedo + 0.2·ETI`,
@@ -470,7 +482,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   scenario results. Treat as directional only — not locally calibrated.
 - **Carbon rates are user-overridable** — the sidebar `⚙️ Advanced Settings` expander
   exposes `carbon_rate_ff` and `carbon_rate_gi` sliders backed by `st.session_state`. Both
-  main-panel `evaluate_scenario` calls (the lookup-refresh `_fresh` and the heat-priority
+  main-panel `evaluate_scenario` calls (the lookup-refresh `_fresh` and the non-random-strategy
   branch) pass these values through; `evaluate_scenario` falls back to `CARBON_SEQ_RATES`
   defaults when the kwargs are `None`. The precomputed lookup table is built with defaults,
   but `carbon_tons_co2_yr` is recomputed live in the lookup-refresh path so slider changes
