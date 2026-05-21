@@ -880,6 +880,26 @@ def calculate_nature_access(scenario_lulc, pop_count_raster):
 NATURE_ACCESS_THRESHOLD = 0.3
 
 
+def _nature_access_is_saturated(access_score_raster, pop_raster, modelable_mask,
+                                threshold=NATURE_ACCESS_THRESHOLD):
+    """Detect when the Nature Access metric is saturated for a scenario.
+
+    Saturated means >95 % of the modelable-extent population scores above the
+    access threshold — at that point the metric confirms nature exists in the
+    AOI but no longer discriminates between locations. Computed at render time
+    only (never enters `evaluate_scenario`'s output, so the verify_baselines
+    snapshots are untouched). See REFERENCE.md "Why is the Nature Access metric
+    sometimes saturated?"."""
+    if access_score_raster is None or pop_raster is None:
+        return False
+    pop_total = float(pop_raster[modelable_mask].sum())
+    if pop_total <= 0:
+        return False
+    above = access_score_raster > threshold
+    pop_above = float(pop_raster[modelable_mask & above].sum())
+    return (pop_above / pop_total) > 0.95
+
+
 # NOTE: BASELINE_FOOD_MLN_LBS and BASELINE_NATURE_ACCESS_PCT used to be
 # initialised here, but they depend on the per-city `cooling_lulc` /
 # `pop_count_raster` aliases that aren't bound until `_load_city_runtime_state`
@@ -2888,9 +2908,29 @@ _nature_help = (
     "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
 )
 _nature_delta_str, _nature_delta_color = _delta_pill(_nature_delta, fmt=".1f", suffix="pp vs baseline", epsilon=0.1)
+
+# Saturation check — render-time only, so `evaluate_scenario` output (and the
+# verify_baselines snapshots) are untouched. At the MN downtown scale the proxy
+# saturates: ~100 % of modelable-extent residents clear the 0.3 threshold, so
+# the metric stops discriminating between scenarios — surface that honestly.
+_nature_access_saturated = _nature_access_is_saturated(
+    _compute_access_score_raster(results['scenario_lulc']),
+    pop_count_raster,
+    results['scenario_lulc'] != NODATA,
+)
+_nature_value = f'{results["nature_access_pct"]:.1f}%'
+if _nature_access_saturated:
+    _nature_value += " ⚠️"
+    _nature_help += (
+        "  \n\n⚠️ **Saturated for this scenario** — over 95% of the "
+        "modelable-extent population scores above the access threshold. The "
+        "metric no longer discriminates between locations at this AOI scale. "
+        "See REFERENCE.md \"Why is the Nature Access metric sometimes "
+        "saturated?\""
+    )
 hs1.metric(
     "Nature Access",
-    f'{results["nature_access_pct"]:.1f}%',
+    _nature_value,
     delta=_nature_delta_str,
     delta_color=_nature_delta_color,
     help=_nature_help,

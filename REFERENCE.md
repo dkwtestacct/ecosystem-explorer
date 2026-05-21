@@ -392,6 +392,16 @@ Shows **four cards in a 2 × 2 grid**: row 1 — Nature Access, Nature Quality S
 - **Pre-computed vs live distance transforms.** For performance, distance arrays for the seven natural classes whose pixel set never changes (11, 42, 43, 52, 71, 81, 95) are computed once at startup from `cooling_lulc` and reused across scenarios; only the three "dynamic" classes (21, 41, 90) are recomputed per scenario inside `calculate_nature_access`. If the model ever starts converting other natural classes, update `_DYNAMIC_NATURE_LUCODES` accordingly.
 - **Threshold (0.3) is a default, not a calibrated value.** `NATURE_ACCESS_THRESHOLD` was chosen so that pixels with at least a class-0.5 nature contribution count as "with access." Lower thresholds make the metric more inclusive (closer to the Quality Score story); higher thresholds focus only on highest-quality nature.
 
+### Why is the Nature Access metric sometimes saturated?
+
+The Nature Access metric reports the share of residents whose access score exceeds a 0.3 threshold. A pixel's score is high when a nature class — park, forest, wetland, open water — is reachable within 1 km. In a dense urban core like Minneapolis downtown, nature of *some* kind is broadly distributed, so nearly every populated pixel clears the threshold. When more than 95 % of modelable-extent residents qualify, the metric card flags itself **saturated** — a ⚠️ appears next to the value. Saturation means the metric confirms that nature exists across the AOI but no longer distinguishes between locations with better or worse access.
+
+A saturated metric is not wrong — it is just not informative for this AOI. The Phase 1 InVEST comparison (`comparisons/una_baseline_mn.csv`) found that canonical InVEST UNA's 2SFCA method — which weighs per-capita supply against a 250 m²/person demand standard — identifies only **9.5 %** of modelable-extent Minneapolis residents as adequately supplied, where the proxy reports 100 %. The two answer different questions: *"is nature reachable?"* versus *"is the nature supply adequate for the people competing for it?"*. When the proxy saturates, the adequacy question is the more useful one.
+
+Saturation is detected **per scenario**, at render time — it never enters the stored model outputs, so it does not affect baselines or the surrogate. A scenario that converts open space (itself a nature class) to high-density development can lower enough access scores to drop below the 95 % threshold, at which point the metric becomes discriminating again and the ⚠️ icon disappears.
+
+Closing this methodology gap — adopting 2SFCA or another adequacy-based metric — is an open question pending discussion with NatCap collaborators. The underlying empirical work is in `UNA_DIVERGENCE_CASE_STUDIES.md` and `UNA_METHODOLOGY_CROSS_CHECK.md`; the parity status and the denominator reconciliation are in "Official InVEST alignment — UNA" above.
+
 ### Preventable MH Cases & Avoided MH Costs (InVEST Urban Mental Health v3.19.0)
 
 | Field | Detail |
