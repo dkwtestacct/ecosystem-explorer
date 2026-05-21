@@ -65,16 +65,30 @@ WHATS_NEW = """
 - **Cooling-model gap closed** — Temperature Change values now match canonical InVEST exactly, validated by direct comparison against `natcap.invest.urban_cooling_model.execute()`. Energy-cost values use the same canonical cooling input (per-pixel aggregation gap still open).
 
 ### Working on now
-- *Next focus is being scoped — likely closing the Nature Access methodology gap (the largest remaining divergence).*
+- **Nature Access methodology comparison** — investigating where and why the prototype's reachability proxy diverges from canonical InVEST 2SFCA across MN.
 
 ### On the radar
-- **AlphaEarth Foundations satellite embeddings** as a future land-cover source — [feasibility research here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md).
-- **More InVEST-alignment comparisons** — Nature Access next.
 - **San Antonio as a fuller pilot** once more data is in place.
+- **AlphaEarth Foundations satellite embeddings** as a future land-cover source — [feasibility research here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md).
 """
 
 # ── Page setup ─────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Ecosystem Explorer", layout="wide")
+
+# Subtle background tint on the "What's new / Coming up" changelog container.
+# Targets st.container(border=True) elements — there's currently only one in the
+# app, the WHATS_NEW wrapper. If a second bordered container is added later, this
+# rule will need to be scoped more narrowly.
+st.markdown(
+    """
+    <style>
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #fffef7;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown('''
 <style>
