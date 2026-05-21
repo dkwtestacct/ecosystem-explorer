@@ -51,6 +51,29 @@ CHANGE_COLORS = {
     'High Density':         '#e53935',
 }
 
+# ── "Recently / Coming up" in-app changelog ────────────────────────────────────
+# A small changelog for returning visitors. Surfaces user-facing changes and
+# direction signals only — architecture / testing / refactoring / internal-doc
+# changes are deliberately left out. Edit WHATS_NEW (and bump the timestamp)
+# whenever something user-visible ships.
+WHATS_NEW_LAST_UPDATED = "2026-05-20"
+WHATS_NEW = """
+### Recently
+- **Placement strategy picker** in the sidebar — five options for where conversions get sited (random, flood-focused, cooling-focused, equity-focused, or balanced). Replaces the previous Heat-Priority toggle.
+- **Confidence badges** on every metric card (High / Medium / Prototype). Hover any badge for what each tier means.
+- **InVEST alignment section** in the methodology docs explains where the prototype matches the official InVEST models and where it approximates. Metric tooltips link directly to the relevant InVEST user guides.
+- **Interactive Input Influence chart** on the Tradeoff Analysis tab — hover the bars for exact values.
+- **Started comparing the prototype's outputs to canonical InVEST** to find where alignment can be tightened. First model checked: Carbon (close agreement). Second: Urban Cooling (real divergence found near parks and green areas — see below).
+
+### Working on now
+- **Closing the cooling-model gap surfaced by the comparison work.** The prototype currently approximates how cooling spreads from parks and green areas; canonical InVEST handles this with more nuance, especially near larger parks. Switching to the canonical approach now. **Temperature and energy-cost values will shift modestly when this lands** — toward what running real InVEST would produce.
+
+### On the radar
+- **AlphaEarth Foundations satellite embeddings** as a future land-cover source — feasibility research is [written up here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md). Holding on integration until the broader NatCap pipeline matures.
+- **More InVEST-alignment comparisons** — Nature Access is next, where the prototype's approach is furthest from canonical InVEST.
+- **San Antonio as a fuller pilot** once more data is in place.
+"""
+
 # ── Page setup ─────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Ecosystem Explorer", layout="wide")
 
@@ -224,6 +247,12 @@ def _cooling_biophysical_source(city_key: str) -> str:
 
 # ── City-aware header ──────────────────────────────────────────────────────────
 st.title("🌿 Urban Ecosystem Tradeoff Explorer")
+
+# In-app changelog for returning visitors — expanded by default so it's seen on
+# reload; collapsible once read. Sits between the title and the city subheader.
+with st.expander(f"Recently / Coming up · last updated {WHATS_NEW_LAST_UPDATED}", expanded=True):
+    st.markdown(WHATS_NEW)
+
 st.subheader(selected_city)
 
 def _preflight_data_check(city_cfg, city_name):
