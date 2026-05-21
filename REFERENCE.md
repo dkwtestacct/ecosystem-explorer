@@ -648,21 +648,21 @@ Four fixed points representing extreme single-land-cover scenarios for Minneapol
 
 | Benchmark | Flood | CC | Interpretation |
 |-----------|-------|-----|----------------|
-| Baseline | 24.3 | 0.1859 | Current unmodified land cover |
-| All Food Forest (NLCD 41) | 26.7 | 0.3910 | 50 % of developed pixels → deciduous forest |
-| All Green Infra (NLCD 90) | 49.3 | 0.3981 | 50 % of developed pixels → woody wetlands |
-| All High Density (NLCD 24) | 20.5 | 0.1549 | 50 % of developed pixels → high-intensity development |
+| Baseline | 24.3 | 0.1944 | Current unmodified land cover |
+| All Food Forest (NLCD 41) | 26.1 | 0.4146 | 50 % of developed pixels → deciduous forest |
+| All Green Infra (NLCD 90) | 43.3 | 0.4235 | 50 % of developed pixels → woody wetlands |
+| All High Density (NLCD 24) | 21.4 | 0.1698 | 50 % of developed pixels → high-intensity development |
 
-> **Recomputed 2026-05-08** after the InVEST UCM rework (ET nodata fix, Gaussian convolution at 450 m, canonical energy-savings formula, `UHI_MAX_C = 2.05 °C`). Recorded for transparency:
+> **Recomputed 2026-05-21** under the canonical InVEST UCM Heat Mitigation Index (`HMI = max(CC_local, CC_park)` — see "Official InVEST alignment — UCM"). The previous benchmark values used the pre-canonical Gaussian-smoothing approximation of mean CC; the `CC` column above is now mean HMI. Recorded for transparency:
 >
-> | Benchmark | Old flood | New flood | Old CC | New CC | Notes on the shift |
-> |-----------|----------:|----------:|-------:|-------:|--------------------|
-> | Baseline | 24.3 | 24.3 | 0.2719 | 0.1859 | CC dropped because the sentinel-poisoned ETI term was previously masking ETI≈0; flood unchanged. |
-> | All Food Forest | 29.9 | 26.7 | 0.8284 | 0.3910 | Old values used pct_converted=100; new uses pct_converted=50 to match how the slider actually works. CC also reflects 450 m Gaussian smoothing across un-converted neighbours. |
-> | All Green Infra | 83.0 | 49.3 | 0.8633 | 0.3981 | Same scope correction as above. Flood reduction is still by far the largest of the four benchmarks. |
-> | All High Density | 18.8 | 20.5 | 0.1923 | 0.1549 | Flood slightly higher (less degradation) because pct_converted=50 leaves half the developed land untouched; CC slightly lower because the convolution drags HD-class pixels toward the local mean. |
+> | Benchmark | Flood | Pre-HMI CC | Canonical HMI CC | Notes on the shift |
+> |-----------|------:|-----------:|-----------------:|--------------------|
+> | Baseline | 24.3 | 0.1859 | 0.1944 | +4.6 % — matches the validated baseline shift (UCM HMI Session 1, MAE = 0.0000 vs InVEST). |
+> | All Food Forest | 26.1 | 0.3407 | 0.4146 | +21.7 % — a large new contiguous forest triggers a strong `CC_park` park-proximity boost that the old Gaussian mean under-counted. |
+> | All Green Infra | 43.3 | 0.3461 | 0.4235 | +22.4 % — same park-proximity effect; woody wetlands are high-CC. |
+> | All High Density | 21.4 | 0.1607 | 0.1698 | +5.7 % — HD is not a green class, so it draws little park boost. |
 >
-> Values are deterministic given `seed=42` in `verify_cooling.py`; re-run that script after any future biophysical-table or InVEST-args change.
+> Flood values are unchanged by the HMI work (the UFR pipeline was untouched). Values are deterministic given `seed=42` and random placement; recompute after any future biophysical-table or InVEST-args change.
 
 ---
 

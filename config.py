@@ -45,21 +45,18 @@ CITIES = {
         'available':            True,
         'crs':                  'EPSG:26915',
         'precomputed_dir':      'data/precomputed/minneapolis_mn',
-        # Reference points plotted on the tradeoff scatter. Recomputed via
-        # `verify_cooling.py` (seed=42) after the OSM road filter was
-        # tightened (Option B: drop footway/cycleway/steps/service/path/
-        # pedestrian — sub-pixel-width surfaces that were over-counting the
-        # non-convertible mask). Road exclusion now covers ~29 % of AOI
-        # (down from 62 % with the unfiltered network, up from ~11 % with
-        # the pre-OSM curated subset). Earlier rework also included: ET
-        # nodata fix, Gaussian convolution at 450 m, canonical energy
-        # formula, UHI_MAX_C = 2.05 °C. Each "All X" scenario is
-        # pct_converted=50 with 100 % allocation to that single land cover.
+        # Reference points plotted on the tradeoff scatter. `cooling` is mean
+        # HMI under the canonical InVEST UCM algorithm (HMI = max(CC_local,
+        # CC_park)); `flood` is 100 − mean CN. Recomputed 2026-05-21 (seed=42,
+        # random placement) after the canonical-HMI landing — see REFERENCE.md
+        # "Reference Benchmarks". Each "All X" scenario is pct_converted=50
+        # with 100 % allocation to that single land cover; "Baseline" is the
+        # unmodified LULC.
         'ref_scenarios': {
-            'Baseline':                     {'flood': 24.3,  'cooling': 0.1859, 'color': 'steelblue'},
-            'All Food Forest (NLCD 41)':    {'flood': 26.1,  'cooling': 0.3407, 'color': 'green'},
-            'All Green Infra (NLCD 90)':    {'flood': 43.3,  'cooling': 0.3461, 'color': 'teal'},
-            'All High Density (NLCD 24)':   {'flood': 21.4,  'cooling': 0.1607, 'color': 'red'},
+            'Baseline':                     {'flood': 24.3,  'cooling': 0.1944, 'color': 'steelblue'},
+            'All Food Forest (NLCD 41)':    {'flood': 26.1,  'cooling': 0.4146, 'color': 'green'},
+            'All Green Infra (NLCD 90)':    {'flood': 43.3,  'cooling': 0.4235, 'color': 'teal'},
+            'All High Density (NLCD 24)':   {'flood': 21.4,  'cooling': 0.1698, 'color': 'red'},
         },
     },
     'Minneapolis Full, MN': {
@@ -204,16 +201,17 @@ CITIES = {
             'reference ET from CGIAR Global-AI/ET0 v3.1 (1,580–1,716 mm/yr). '
             'Baseline constants computed via verify_sa_baselines.py.'
         ),
-        # Recomputed via verify_cooling.py --city "San Antonio, TX" (seed=42)
-        # against the SA EPSG:5070 grid. Each "All X" scenario is
-        # pct_converted=50 with 100 % allocation to that single land cover.
-        # Energy/damage $-savings columns are 0 by Option A (OSM buildings
-        # carry string types, not the integer 0–3 codes InVEST expects).
+        # Reference points for the tradeoff scatter. `cooling` is mean HMI
+        # under the canonical InVEST UCM algorithm (HMI = max(CC_local,
+        # CC_park)); `flood` is 100 − mean CN. Recomputed 2026-05-21 (seed=42,
+        # random placement) on the SA EPSG:5070 grid. Each "All X" scenario is
+        # pct_converted=50 with 100 % allocation to that single land cover;
+        # "Baseline" is the unmodified LULC.
         'ref_scenarios': {
-            'Baseline':                     {'flood': 23.5, 'cooling': 0.2866, 'color': 'steelblue'},
-            'All Food Forest (NLCD 41)':    {'flood': 24.3, 'cooling': 0.3633, 'color': 'green'},
-            'All Green Infra (NLCD 90)':    {'flood': 33.5, 'cooling': 0.3660, 'color': 'teal'},
-            'All High Density (NLCD 24)':   {'flood': 22.0, 'cooling': 0.2697, 'color': 'red'},
+            'Baseline':                     {'flood': 23.5, 'cooling': 0.3071, 'color': 'steelblue'},
+            'All Food Forest (NLCD 41)':    {'flood': 24.3, 'cooling': 0.4071, 'color': 'green'},
+            'All Green Infra (NLCD 90)':    {'flood': 33.5, 'cooling': 0.4275, 'color': 'teal'},
+            'All High Density (NLCD 24)':   {'flood': 22.0, 'cooling': 0.2927, 'color': 'red'},
         },
     },
 }
