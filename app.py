@@ -54,24 +54,22 @@ CHANGE_COLORS = {
 # ── "Recently / Coming up" in-app changelog ────────────────────────────────────
 # A small changelog for returning visitors. Surfaces user-facing changes and
 # direction signals only — architecture / testing / refactoring / internal-doc
-# changes are deliberately left out. Edit WHATS_NEW (and bump the timestamp)
-# whenever something user-visible ships.
-WHATS_NEW_LAST_UPDATED = "2026-05-21"
+# changes are deliberately left out. Edit WHATS_NEW whenever something
+# user-visible ships.
 WHATS_NEW = """
 ### Recently
-- **Placement strategy picker** in the sidebar — five options for where conversions get sited (random, flood-focused, cooling-focused, equity-focused, or balanced). Replaces the previous Heat-Priority toggle.
-- **Confidence badges** on every metric card (High / Medium / Prototype). Hover any badge for what each tier means.
-- **InVEST alignment section** in the methodology docs explains where the prototype matches the official InVEST models and where it approximates. Metric tooltips link directly to the relevant InVEST user guides.
-- **Interactive Input Influence chart** on the Tradeoff Analysis tab — hover the bars for exact values.
-- **Started comparing the prototype's outputs to canonical InVEST** to find where alignment can be tightened. First model checked: Carbon (close agreement). Second: Urban Cooling (real divergence found near parks and green areas — now closed, see below).
-- **Cooling-model gap closed.** The prototype's Temperature Change values now match canonical InVEST exactly — validated by direct comparison against `natcap.invest.urban_cooling_model.execute()`. Energy-cost values also reflect the canonical cooling input, though a smaller gap remains there: those dollar figures still aggregate per pixel rather than per building.
+- **Placement strategy picker** in the sidebar — five options for where conversions get sited.
+- **Confidence badges** on every metric card (High / Medium / Prototype).
+- **InVEST alignment section** in the methodology docs, with metric tooltips linking directly to the relevant InVEST user guides.
+- **Interactive Input Influence chart** on the Tradeoff Analysis tab.
+- **Cooling-model gap closed** — Temperature Change values now match canonical InVEST exactly, validated by direct comparison against `natcap.invest.urban_cooling_model.execute()`. Energy-cost values use the same canonical cooling input (per-pixel aggregation gap still open).
 
 ### Working on now
-- *Next focus is being scoped — likely closing the Nature Access methodology gap (the largest documented remaining divergence).*
+- *Next focus is being scoped — likely closing the Nature Access methodology gap (the largest remaining divergence).*
 
 ### On the radar
-- **AlphaEarth Foundations satellite embeddings** as a future land-cover source — feasibility research is [written up here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md). Holding on integration until the broader NatCap pipeline matures.
-- **More InVEST-alignment comparisons** — Nature Access is next, where the prototype's approach is furthest from canonical InVEST.
+- **AlphaEarth Foundations satellite embeddings** as a future land-cover source — [feasibility research here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md).
+- **More InVEST-alignment comparisons** — Nature Access next.
 - **San Antonio as a fuller pilot** once more data is in place.
 """
 
@@ -251,7 +249,7 @@ st.title("🌿 Urban Ecosystem Tradeoff Explorer")
 
 # In-app changelog for returning visitors — expanded by default so it's seen on
 # reload; collapsible once read. Sits between the title and the city subheader.
-with st.expander(f"Recently / Coming up · last updated {WHATS_NEW_LAST_UPDATED}", expanded=True):
+with st.expander("Recently / Coming up", expanded=True):
     st.markdown(WHATS_NEW)
 
 st.subheader(selected_city)
