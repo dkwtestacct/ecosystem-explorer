@@ -16,6 +16,7 @@ import geopandas as _gpd
 from scipy.ndimage import gaussian_filter as _gaussian_filter
 from scipy.ndimage import distance_transform_edt as _distance_transform_edt
 from scipy.ndimage import zoom as _zoom
+from scipy.signal import fftconvolve as _fftconvolve
 
 from config import CITIES, DEFAULT_COST_GI, DEFAULT_COST_FF, DEFAULT_COST_HD
 from surrogate import (
@@ -333,6 +334,7 @@ class CityState(NamedTuple):
     shade_arr: np.ndarray
     kc_arr: np.ndarray
     albedo_arr: np.ndarray
+    green_area_arr: np.ndarray
     # Population
     pop_count_raster: np.ndarray
     population_data_available: bool
@@ -492,19 +494,22 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
 
     # Per-class shade / Kc / albedo arrays for the full InVEST UCM cooling
     # capacity formula: CC = 0.6·shade + 0.2·albedo + 0.2·ETI, where ETI is
-    # built per pixel from the ET raster and Kc (see _compute_cc_raster).
-    # We also keep a derived `hm_arr` (= the simplified `(shade + kc) / 2`)
-    # for any legacy paths that reference it; the live CC pipeline supersedes
-    # it everywhere that matters.
+    # built per pixel from the ET raster and Kc (see _compute_cc_raw_pure).
+    # `green_area_arr` is the per-class green-area flag (0/1) the InVEST UCM
+    # HMI uses to source park cooling. We also keep a derived `hm_arr`
+    # (= the simplified `(shade + kc) / 2`) for any legacy paths that
+    # reference it; the live CC pipeline supersedes it everywhere that matters.
     max_hm_lucode = int(cooling_bio['lucode'].max())
-    shade_arr  = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
-    kc_arr     = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
-    albedo_arr = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
+    shade_arr      = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
+    kc_arr         = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
+    albedo_arr     = np.full(max_hm_lucode + 1, np.nan, dtype=np.float32)
+    green_area_arr = np.zeros(max_hm_lucode + 1, dtype=np.float32)
     for _, row in cooling_bio.iterrows():
         lc = int(row['lucode'])
-        shade_arr[lc]  = row['shade']
-        kc_arr[lc]     = row['kc']
-        albedo_arr[lc] = row['albedo']
+        shade_arr[lc]      = row['shade']
+        kc_arr[lc]         = row['kc']
+        albedo_arr[lc]     = row['albedo']
+        green_area_arr[lc] = row['green_area']
     hm_arr = (shade_arr + kc_arr) / 2  # legacy compatibility
 
     # ── Equity proxy raster ────────────────────────────────────────────────────
@@ -518,7 +523,7 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
 
     return (lulc, soil_resized, cooling_lulc, developed_pixels,
             cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
-            equity_weights, shade_arr, kc_arr, albedo_arr)
+            equity_weights, shade_arr, kc_arr, albedo_arr, green_area_arr)
 
 
 # ── Population raster loader (for Nature Access metric) ──────────────────────
@@ -560,25 +565,69 @@ EPA_SOCIAL_COST_CARBON = 190
 # `data/invest/cooling/UCM_AUDIT.md` for the full reasoning.
 
 
-# InVEST UCM applies a Gaussian convolution to T_air_nomix with kernel radius
-# = green_area_cooling_distance (450 m for MN, per the InVEST args JSON), to
-# spatially propagate cooling from green pixels onto neighbours. We smooth CC
-# directly — equivalent up to constants since T_air_nomix = t_ref + UHI×(1−CC)
-# is an affine transform of CC and Gaussian convolution is linear.
-GREEN_AREA_COOLING_DISTANCE_M = 450
-_CC_SIGMA_PX = GREEN_AREA_COOLING_DISTANCE_M / 30  # 30 m NLCD pixels → σ = 15 px
+# ── InVEST Urban Cooling Model — canonical Heat Mitigation Index (HMI) ───────
+# HMI = max(CC_local, CC_park): a pixel's heat-mitigation value is its own
+# cooling capacity, lifted to the distance-weighted park cooling CC_park when
+# the pixel is within reach of enough green space. This is a faithful port of
+# natcap.invest.urban_cooling_model's pipeline:
+#   calc_cc_op_factors      → per-pixel CC          (_compute_cc_raw_pure)
+#   mask_cc_green_areas_op  → CC kept only in green pixels
+#   convolve_2d_by_exponential → CC_park            (_compute_cc_park_raster)
+#   dichotomous convolution → green_area_sum        (_compute_green_area_sum)
+#   hm_op                   → HMI = max where eligible  (_compute_hmi_raster*)
+# Parameters are hardcoded at InVEST canonical values — not user-configurable.
+GREEN_AREA_COOLING_DISTANCE_M = 450        # InVEST `green_area_cooling_distance`
+_HMI_PIXEL_SIZE_M = 30                     # NLCD grid resolution
+# Decay distance in pixels — InVEST: int(round(d_cool / cell_size)).
+_HMI_DECAY_PX = int(round(GREEN_AREA_COOLING_DISTANCE_M / _HMI_PIXEL_SIZE_M))   # 15
+# The 2-hectare green-area trigger, as a pixel count — InVEST: 2e4 / cell_size².
+_HMI_GREEN_THRESHOLD_PX = 2e4 / _HMI_PIXEL_SIZE_M ** 2                          # 22.22
 
 
-def _compute_cc_raster_pure(scenario_lulc, shade_arr, kc_arr, albedo_arr, et_resized, max_et_ref):
-    """Pure variant — all per-city deps explicit. Used by `_load_city_runtime_state`
-    to compute the baseline CC raster before the module-level aliases for
-    `shade_arr`, `kc_arr`, etc. have been rebound.
+def _build_hmi_kernels():
+    """Construct the two InVEST UCM convolution kernels, matching the geometry
+    of pygeoprocessing.kernels._create_distance_kernel (square, side
+    2·floor(max_dist)+1, euclidean distance measured from the centre pixel).
+
+    - Exponential decay kernel (CC_park): exp(-d / decay_px), truncated to 0
+      beyond 5·decay_px, then normalized to sum 1 — mirrors
+      convolve_2d_by_exponential, which calls exponential_decay_kernel with
+      ``normalize`` defaulting to True.
+    - Dichotomous kernel (green_area_sum): 1 within decay_px, 0 outside, left
+      unnormalized — InVEST passes ``normalize=False`` for the area kernel.
+    """
+    def _dist(max_px):
+        apothem = int(np.floor(max_px))
+        coords = np.arange(-apothem, apothem + 1, dtype=np.float64)
+        yy, xx = np.meshgrid(coords, coords, indexing="ij")
+        return np.hypot(yy, xx)
+
+    exp_dist = _dist(_HMI_DECAY_PX * 5)
+    exp_k = np.exp(-exp_dist / _HMI_DECAY_PX)
+    exp_k[exp_dist > _HMI_DECAY_PX * 5] = 0.0
+    exp_k /= exp_k.sum()
+
+    dich_dist = _dist(_HMI_DECAY_PX)
+    dich_k = (dich_dist <= _HMI_DECAY_PX).astype(np.float64)
+    return exp_k, dich_k
+
+
+_HMI_EXP_KERNEL, _HMI_DICH_KERNEL = _build_hmi_kernels()
+_HMI_EXP_KERNEL_SUM = float(_HMI_EXP_KERNEL.sum())
+_HMI_DICH_KERNEL_SUM = float(_HMI_DICH_KERNEL.sum())
+
+
+def _compute_cc_raw_pure(scenario_lulc, shade_arr, kc_arr, albedo_arr, et_resized, max_et_ref):
+    """Per-pixel raw cooling-capacity index — no spatial propagation:
+        CC_i  = 0.6·shade_i + 0.2·albedo_i + 0.2·ETI_i
+        ETI_i = (kc_i × ET_ref_i) / max(ET_ref)
+    Matches InVEST's `calc_cc_op_factors`. Returns float32, NaN where the LULC
+    code is nodata or off the biophysical table. Pure variant — all per-city
+    deps explicit, so `_load_city_runtime_state` can call it before the
+    module-level aliases for `shade_arr`, `kc_arr`, etc. are rebound.
 
     Memory-tight: peak transient is ~3 full-AOI float32 buffers (cc + tmp +
-    transient indexing result) plus one int32 safe-index array. The original
-    expression-tree allocation peaked at ~7 simultaneously-live buffers via
-    the `0.6*shade + 0.2*albedo + 0.2*eti` chain. Same operation order =
-    bit-identical output."""
+    transient indexing result) plus one int32 safe-index array."""
     safe = np.clip(scenario_lulc, 0, len(shade_arr) - 1)
     # Build cc in-place: cc = 0.6*shade + 0.2*albedo + 0.2*eti.
     # Fancy indexing returns fresh arrays, so cc and tmp are uniquely owned
@@ -593,42 +642,87 @@ def _compute_cc_raster_pure(scenario_lulc, shade_arr, kc_arr, albedo_arr, et_res
     tmp *= 0.2                                        # tmp = 0.2 * eti
     cc += tmp
     del tmp
-
-    nan_mask = (scenario_lulc < 0) | (scenario_lulc >= len(shade_arr)) | ~np.isfinite(cc)
-    # Fill NaNs with the valid-pixel mean before convolving, then restore. The
-    # alternative — letting NaN propagate — would zero out a 15-px ring around
-    # every nodata pixel and visibly bleed onto the AOI interior.
-    if nan_mask.any():
-        if (~nan_mask).any():
-            fill = float(np.nan_to_num(cc[~nan_mask], nan=0.0).mean())
-        else:
-            fill = 0.0
-        cc[nan_mask] = fill
-
     if cc.dtype != np.float32:
         cc = cc.astype(np.float32)
-    # In-place Gaussian convolution — `output=cc` reuses the buffer instead of
-    # allocating a fresh one. scipy's separable filter handles aliasing safely.
-    _gaussian_filter(cc, sigma=_CC_SIGMA_PX, mode="nearest", output=cc)
+    nan_mask = (scenario_lulc < 0) | (scenario_lulc >= len(shade_arr)) | ~np.isfinite(cc)
     cc[nan_mask] = np.nan
     return cc
 
 
-def _compute_cc_raster(scenario_lulc):
-    """Per-pixel cooling-capacity index per InVEST UCM:
-        CC_raw_i  = 0.6·shade_i + 0.2·albedo_i + 0.2·ETI_i
-        ETI_i     = (kc_i × ET_ref_i) / max(ET_ref)
-        CC_i      = gaussian_filter(CC_raw, σ = 450 m / 30 m px = 15 px)
-    The Gaussian step approximates the InVEST T_air convolution: cooling
-    benefits propagate ~450 m onto neighbouring pixels rather than staying
-    pinned to the green pixel itself. NaN where the LULC code is outside the
-    biophysical table; NaNs are temporarily filled with the in-AOI mean so
-    they don't poison the convolution, then restored on the output.
+def _convolve_edge_corrected(signal, kernel, valid_mask, kernel_sum):
+    """Linear convolution normalized for nodata and AOI edges — a numpy port
+    of pygeoprocessing.convolve_2d(ignore_nodata_and_edges=True,
+    normalize_kernel=False), which InVEST UCM uses for both CC_park and
+    green_area_sum.
 
-    Wrapper that pulls per-city deps from the module-level aliases populated
-    by `_load_city_runtime_state`."""
-    return _compute_cc_raster_pure(
+    `signal` must be float64 with nodata cells already zeroed; `valid_mask` is
+    True where the signal is valid. The raw convolution is divided by the
+    kernel weight that actually overlapped valid data — so edge and nodata
+    pixels are not artificially darkened — then rescaled by `kernel_sum`. With
+    a sum-1 (normalized) kernel this yields a weighted average; with an
+    unnormalized kernel, a true weighted sum. Output is 0 outside
+    `valid_mask`."""
+    numer = _fftconvolve(signal, kernel, mode="same")
+    denom = _fftconvolve(valid_mask.astype(np.float64), kernel, mode="same")
+    out = np.zeros_like(numer)
+    ok = valid_mask & (denom > 1e-12)
+    out[ok] = numer[ok] / denom[ok] * kernel_sum
+    return out
+
+
+def _compute_cc_park_raster(cc_raster, green_mask, valid_mask):
+    """CC_park — the exponentially distance-weighted CC sourced from green
+    space. Mirrors InVEST's mask_cc_green_areas_op (CC retained inside green
+    pixels, zeroed elsewhere) followed by convolve_2d_by_exponential."""
+    cc_masked_green = np.where(green_mask, cc_raster, 0.0).astype(np.float64)
+    return _convolve_edge_corrected(
+        cc_masked_green, _HMI_EXP_KERNEL, valid_mask, _HMI_EXP_KERNEL_SUM)
+
+
+def _compute_green_area_sum(green_mask, valid_mask):
+    """green_area_sum — the edge-corrected count of green pixels within the
+    cooling distance of each pixel (InVEST's dichotomous-kernel convolution of
+    the green-area reclassification). Compared against the 2-hectare threshold
+    to decide whether a pixel is eligible for park cooling."""
+    return _convolve_edge_corrected(
+        green_mask.astype(np.float64), _HMI_DICH_KERNEL, valid_mask,
+        _HMI_DICH_KERNEL_SUM)
+
+
+def _compute_hmi_raster_pure(scenario_lulc, shade_arr, kc_arr, albedo_arr,
+                             et_resized, max_et_ref, green_area_arr):
+    """Canonical InVEST UCM Heat Mitigation Index for a scenario LULC.
+
+    HMI = CC_park where a pixel holds ≥ 2 ha of green space within the cooling
+    distance AND CC_park exceeds the pixel's local CC; otherwise HMI = local
+    CC. This is InVEST's `hm_op`. NaN where the LULC code is nodata or
+    off-table. Pure variant — per-city deps explicit, called by
+    `_load_city_runtime_state` for the baseline raster before module aliases
+    are bound."""
+    cc = _compute_cc_raw_pure(scenario_lulc, shade_arr, kc_arr, albedo_arr,
+                              et_resized, max_et_ref)
+    valid = np.isfinite(cc)
+    safe = np.clip(scenario_lulc, 0, len(green_area_arr) - 1)
+    green_mask = valid & (green_area_arr[safe] > 0)
+
+    cc64 = np.where(valid, cc, 0.0).astype(np.float64)
+    cc_park = _compute_cc_park_raster(cc64, green_mask, valid)
+    green_area_sum = _compute_green_area_sum(green_mask, valid)
+
+    # hm_op: take CC_park only where it cools more AND enough green is in reach.
+    use_park = valid & (cc_park > cc64) & (green_area_sum >= _HMI_GREEN_THRESHOLD_PX)
+    hmi = np.where(use_park, cc_park, cc64).astype(np.float32)
+    hmi[~valid] = np.nan
+    return hmi
+
+
+def _compute_hmi_raster(scenario_lulc):
+    """Canonical InVEST UCM Heat Mitigation Index — wrapper that pulls
+    per-city deps from the module-level aliases populated by
+    `_load_city_runtime_state`."""
+    return _compute_hmi_raster_pure(
         scenario_lulc, shade_arr, kc_arr, albedo_arr, ET_RESIZED, MAX_ET_REF,
+        green_area_arr,
     )
 
 
@@ -1159,14 +1253,15 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     cn_scenario  = cn_table[lulc_idx, soil_clamped]
     mean_cn      = float(cn_scenario[cn_scenario > 0].mean().round(2))
 
-    # Full InVEST UCM cooling-capacity index (replaces the legacy
-    # `(shade + kc) / 2` lookup). `mean_hm` is now the mean CC value across
-    # valid pixels — same scale as before (0–1, higher = more cooling) but
-    # now factors albedo and per-pixel ET in addition to shade and Kc.
-    cc_map   = _compute_cc_raster(scenario_lulc)
-    valid_hm = cc_map[~np.isnan(cc_map) & (scenario_lulc != NODATA)]
+    # Canonical InVEST UCM Heat Mitigation Index — HMI = max(CC_local,
+    # CC_park). `mean_hm` is the mean HMI across valid pixels (0–1 scale,
+    # higher = more cooling); the per-pixel value factors shade, albedo,
+    # per-pixel ET, and exponentially distance-weighted cooling from green
+    # areas ≥ 2 ha within the 450 m cooling distance.
+    hmi_map  = _compute_hmi_raster(scenario_lulc)
+    valid_hm = hmi_map[~np.isnan(hmi_map) & (scenario_lulc != NODATA)]
     mean_hm  = float(valid_hm.mean().round(4))
-    cooling_energy_savings_usd = compute_cooling_energy_savings(cc_map)
+    cooling_energy_savings_usd = compute_cooling_energy_savings(hmi_map)
 
     n_food_pixels = int(((scenario_lulc == CODE_FOOD_FOREST) & (cooling_lulc != CODE_FOOD_FOREST)).sum())
     food_mln_lbs  = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
@@ -1358,18 +1453,11 @@ DENSE_SCENARIOS_PATH = city_cfg.get("dense_scenarios_file") or "data/scenarios_d
 PIXEL_AREA_M2 = 30 * 30
 
 
-def _compute_hm_raster(scenario_lulc):
-    """Per-pixel HM raster — now uses the full InVEST UCM CC formula via
-    `_compute_cc_raster`. Kept under the old `_compute_hm_raster` name so
-    callers (per-tract reporting) don't need to change."""
-    return _compute_cc_raster(scenario_lulc)
-
-
-def compute_cooling_energy_savings(scenario_cc_raster):
+def compute_cooling_energy_savings(scenario_hmi_raster):
     """Annual avoided AC cost ($/yr) for buildings under the active scenario,
     using the canonical InVEST UCM energy-valuation formula.
 
-    Per pixel: `ΔT_°C = (CC_scenario − CC_baseline) × UHI_MAX_C`. The InVEST
+    Per pixel: `ΔT_°C = (HMI_scenario − HMI_baseline) × UHI_MAX_C`. The InVEST
     `consumption` column is documented as kWh/(m²·°C), so the per-pixel kWh
     saved is `consumption_rate × ΔT_°C × pixel_area_m²`, and the dollar value
     is multiplied by `$/kWh`. Negative ΔT (scenario hotter than baseline) is
@@ -1379,8 +1467,8 @@ def compute_cooling_energy_savings(scenario_cc_raster):
 
     See `data/invest/cooling/UCM_AUDIT.md` for the divergence-from-canonical
     log: we still apply this per-pixel rather than per-building (no 600 m
-    `t_air_average_radius` aggregation), but the per-pixel CC raster is now
-    Gaussian-smoothed at 450 m before reaching this function.
+    `t_air_average_radius` aggregation), but the per-pixel raster is now the
+    canonical HMI = max(CC_local, CC_park).
     """
     # BUILDINGS_HAVE_TYPES gates the per-type kWh/(m²·°C) lookup. Without it
     # (e.g. OSM-only buildings for the expanded MN view) the cooling-energy-
@@ -1391,7 +1479,7 @@ def compute_cooling_energy_savings(scenario_cc_raster):
     # Single scratch buffer reused through the entire chain. Original
     # code allocated four full-AOI float32 buffers (delta_cc, delta_t_c,
     # kwh_saved_per_pixel, usd_per_pixel) — this collapses to one.
-    buf = scenario_cc_raster - _BASELINE_HM_RASTER       # buf = delta_cc
+    buf = scenario_hmi_raster - _BASELINE_HM_RASTER      # buf = delta_hmi
     np.multiply(buf, UHI_MAX_C, out=buf)                  # buf = delta_cc * UHI
     np.clip(buf, 0.0, None, out=buf)                      # buf = delta_t_c
     np.multiply(buf, CONSUMPTION_RATE_PER_PIXEL, out=buf) # buf = delta_t * consumption
@@ -1469,7 +1557,8 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     # ── Phase 1: cached load_data outputs ────────────────────────────────────
     (l_lulc, l_soil_resized, l_cooling_lulc, l_developed_pixels,
      l_cn_table, l_lucode_idx_arr, l_hm_arr, l_max_raster_lucode, l_max_hm_lucode,
-     l_equity_weights, l_shade_arr, l_kc_arr, l_albedo_arr) = load_data(
+     l_equity_weights, l_shade_arr, l_kc_arr, l_albedo_arr,
+     l_green_area_arr) = load_data(
         cfg['data_dir_flood'], cfg['data_dir_cooling'],
         cfg['cn_table_file'], cfg['cooling_table_file'],
         cfg['lulc_file'], cfg['soil_file'], cfg['cooling_lulc_file'])
@@ -1728,8 +1817,9 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     baseline_access_score_raster = _compute_access_score_raster_pure(
         l_cooling_lulc, una_active, precomputed_nature_distances,
     )
-    baseline_hm_raster = _compute_cc_raster_pure(
+    baseline_hm_raster = _compute_hmi_raster_pure(
         l_cooling_lulc, l_shade_arr, l_kc_arr, l_albedo_arr, et_resized, max_et_ref,
+        l_green_area_arr,
     )
     baseline_ne_raster = _gaussian_filter(
         _lulc_to_ndvi_raster(l_cooling_lulc), sigma=_UMH_SIGMA_PX, mode="nearest",
@@ -1758,6 +1848,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         max_raster_lucode=l_max_raster_lucode, max_hm_lucode=l_max_hm_lucode,
         equity_weights=l_equity_weights,
         shade_arr=l_shade_arr, kc_arr=l_kc_arr, albedo_arr=l_albedo_arr,
+        green_area_arr=l_green_area_arr,
         pop_count_raster=pop_count_raster,
         population_data_available=population_data_available,
         et_resized=et_resized, max_et_ref=max_et_ref,
@@ -1810,6 +1901,7 @@ equity_weights      = _CURRENT_CITY_STATE.equity_weights
 shade_arr           = _CURRENT_CITY_STATE.shade_arr
 kc_arr              = _CURRENT_CITY_STATE.kc_arr
 albedo_arr          = _CURRENT_CITY_STATE.albedo_arr
+green_area_arr      = _CURRENT_CITY_STATE.green_area_arr
 # Population
 pop_count_raster          = _CURRENT_CITY_STATE.pop_count_raster
 POPULATION_DATA_AVAILABLE = _CURRENT_CITY_STATE.population_data_available
@@ -1865,7 +1957,7 @@ def compute_per_tract_summary(scenario_lulc):
         return pd.DataFrame()
 
     access_s_raster = _compute_access_score_raster(scenario_lulc)
-    hm_s_raster     = _compute_hm_raster(scenario_lulc)
+    hm_s_raster     = _compute_hmi_raster(scenario_lulc)
 
     above_b = _BASELINE_ACCESS_SCORE_RASTER > NATURE_ACCESS_THRESHOLD
     above_s = access_s_raster > NATURE_ACCESS_THRESHOLD
