@@ -75,21 +75,6 @@ WHATS_NEW = """
 # ── Page setup ─────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Ecosystem Explorer", layout="wide")
 
-# Subtle background tint on the "What's new / Coming up" changelog container.
-# Targets st.container(border=True) elements — there's currently only one in the
-# app, the WHATS_NEW wrapper. If a second bordered container is added later, this
-# rule will need to be scoped more narrowly.
-st.markdown(
-    """
-    <style>
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #fffef7;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 st.markdown('''
 <style>
 div[data-testid="stButton"] button[kind="primary"] {
