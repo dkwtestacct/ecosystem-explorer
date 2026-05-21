@@ -136,7 +136,7 @@ separate cache entries via the path parameters.
 | `DESIGN_STORM_INCHES` | 2.0 | Rainfall depth used for the SCS runoff calculation |
 | `UHI_MAX_C` | per-city | Read from `city_cfg['uhi_max_c']` at module load (i.e. on every script rerun) — NOT a fixed global. MN downtown: 2.05 °C (InVEST `urban_cooling_model_args_MN.json`); MN Full: 2.05 °C (same AOI climate); SA: 3.5 °C (estimate for Köppen BSh hot semi-arid — no published SA InVEST args yet, so treat as ±0.5 °C). Used in `compute_cooling_energy_savings` for CC → ΔT °C conversion. Consumers: app.py:1422 (cooling) and app.py:3307 (assumptions tab display). |
 | `HM_TO_FAHRENHEIT` | per-city | Derived as `UHI_MAX_C × 1.8`. MN: 3.69 °F/CC; SA: 6.30 °F/CC. Rebound every rerun alongside `UHI_MAX_C`. |
-| `GREEN_AREA_COOLING_DISTANCE_M` | 450 | Gaussian convolution kernel radius for CC smoothing, from InVEST args JSON. `_CC_SIGMA_PX = 450/30 = 15` at 30 m NLCD resolution. |
+| `GREEN_AREA_COOLING_DISTANCE_M` | 450 | InVEST UCM `green_area_cooling_distance` (d_cool), from InVEST args JSON. Drives the exponential-decay kernel for `CC_park` in the canonical HMI. `_HMI_DECAY_PX = 450/30 = 15` at 30 m NLCD resolution. |
 | `COST_PER_KWH_USD` | 0.13 | US average residential electricity price (EIA 2024). Used to convert avoided-AC-kWh into $. |
 | `EPA_SOCIAL_COST_CARBON` | 190 | $/ton CO2e — EPA 2023 final rule "Methodology for Estimating the Social Cost of Greenhouse Gases", central estimate at 2 % discount rate for 2030 emissions. Multiplied by `carbon_tons_co2_yr` to produce the Avoided Carbon Cost dollar metric. |
 | `PIXEL_AREA_M2` | 900 | NLCD 30 × 30 m pixel area in m². Used for cooling energy savings (consumption rate is kWh/(m²·°C)/yr from `energy_consumption.csv`). |
@@ -228,17 +228,29 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   TODO is to replace with a real CDC/ATSDR Heat Vulnerability Index by census tract.
 - **`REF_SCENARIOS`**: hardcoded Minneapolis benchmark points (all-one-landcover extremes) shown
   on the tradeoff plot. Will need to become city-specific when new cities are added.
-- **InVEST Urban Cooling Model**: `_compute_cc_raster` computes per-pixel CC = `0.6·shade + 0.2·albedo + 0.2·ETI`,
-  then **Gaussian-smooths the result with σ = 15 px (450 m)** to spatially propagate cooling onto
-  neighboring pixels per InVEST's `green_area_cooling_distance` step. The mean of this smoothed
-  CC raster is the `mean_hm` reported in scenario results (UI label: "Cooling Capacity" / "CC").
-  `compute_cooling_energy_savings(cc_raster)` converts ΔCC → ΔT °C (× `UHI_MAX_C`) →
-  kWh saved (× `consumption_rate × pixel_area`) → $/yr (× `COST_PER_KWH_USD`). Per-pixel,
-  not per-building polygon — see `UCM_AUDIT.md` for the open-divergences list and
-  REFERENCE.md "Official InVEST alignment — UCM" for the parity status. Both functions
-  are called inside `evaluate_scenario`. Module-level precompute: `ET_RESIZED`, `MAX_ET_REF`,
-  `BUILDINGS_TYPE_RASTER`, `CONSUMPTION_RATE_PER_PIXEL`, `_BASELINE_HM_RASTER` (the smoothed
-  baseline CC).
+- **InVEST Urban Cooling Model — canonical Heat Mitigation Index (HMI).**
+  `_compute_hmi_raster` computes the canonical InVEST UCM HMI: per-pixel
+  CC = `0.6·shade + 0.2·albedo + 0.2·ETI` (`_compute_cc_raw_pure`), then
+  **HMI = `max(CC_local, CC_park)`** where `CC_park` (`_compute_cc_park_raster`)
+  is the exponentially distance-weighted CC sourced from green areas, applied
+  only where a pixel has ≥2 ha of green within `d_cool = 450 m`
+  (`_compute_green_area_sum` checked against the 2-hectare threshold).
+  Convolutions use `scipy.signal.fftconvolve` with an InVEST-canonical edge
+  correction (`_convolve_edge_corrected`, reproducing
+  `pygeoprocessing.convolve_2d(ignore_nodata_and_edges=True)`). The mean of the
+  HMI raster is the `mean_hm` reported in scenario results (UI label: "Cooling
+  Capacity" / "CC"). `compute_cooling_energy_savings(hmi_raster)` converts
+  ΔHMI → ΔT °C (× `UHI_MAX_C`) → kWh saved (× `consumption_rate × pixel_area`)
+  → $/yr (× `COST_PER_KWH_USD`); still per-pixel, not per-building polygon —
+  the one remaining UCM divergence. The HMI algorithm is validated against
+  `natcap.invest.urban_cooling_model.execute()` at MAE = 0.0000, r = 1.0000
+  (`compare_ucm_invest.py`); see `UCM_AUDIT.md` for the implementation-status
+  writeup and REFERENCE.md "Official InVEST alignment — UCM" for the per-metric
+  parity table. Both functions are called inside `evaluate_scenario`; the loader
+  builds the baseline via the pure variant `_compute_hmi_raster_pure`.
+  Module-level precompute: `ET_RESIZED`, `MAX_ET_REF`, `BUILDINGS_TYPE_RASTER`,
+  `CONSUMPTION_RATE_PER_PIXEL`, `_BASELINE_HM_RASTER` (the baseline HMI raster),
+  and the static convolution kernels `_HMI_EXP_KERNEL` / `_HMI_DICH_KERNEL`.
 - **OSM road exclusion**: Road footprints are unioned into `BUILDINGS_RASTER` so the
   convertible-pixels pool excludes both buildings and impassable surfaces.
   `download_osm_minneapolis.py` fetches the Geofabrik Minnesota state extract, clips to the
@@ -341,7 +353,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   float32 downcast of module-level geospatial arrays, disk-cached static
   nature-distance fields, `@st.cache_resource`-backed `_load_city_runtime_state`
   (so heavy work runs once per session per city instead of every rerun),
-  in-place ops in the `_compute_cc_raster_pure` chain, and uint8 +
+  in-place ops in the `_compute_cc_raw_pure` chain, and uint8 +
   1024px-cap downsample in `plot_spatial_map` (which was allocating
   ~378 MB transient per rerun on the SA AOI before the fix). SA is the
   default test bed for any future memory-sensitive change.
@@ -397,8 +409,8 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   aliased to module-level by design — see Architecture notes). Don't
   hardcode Minneapolis values outside of the `CITIES` dict.
 - **Pure-variant helpers for code the loader calls.** Heavy compute helpers
-  that the loader invokes (currently `_compute_cc_raster`,
-  `_compute_hm_raster`, `_compute_access_score_raster`) come in two variants:
+  that the loader invokes (currently `_compute_hmi_raster`,
+  `_compute_access_score_raster`) come in two variants:
   `_fn(scenario_lulc)` reads module aliases populated by the loader, and
   `_fn_pure(scenario_lulc, *deps)` takes its dependencies explicitly. The
   loader uses the pure variant because the module aliases haven't been

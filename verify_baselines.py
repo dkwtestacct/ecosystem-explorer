@@ -218,6 +218,7 @@ def _rebind_city(app_mod, city_name):
     app_mod.shade_arr           = state.shade_arr
     app_mod.kc_arr              = state.kc_arr
     app_mod.albedo_arr          = state.albedo_arr
+    app_mod.green_area_arr      = state.green_area_arr
     app_mod.pop_count_raster    = state.pop_count_raster
     app_mod.POPULATION_DATA_AVAILABLE = state.population_data_available
     app_mod.ET_RESIZED          = state.et_resized
