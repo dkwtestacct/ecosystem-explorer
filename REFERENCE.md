@@ -27,8 +27,8 @@ The app builds on several InVEST urban models from the Natural Capital Project (
 | Flood Damage Avoided | `total_potential_damage × runoff_reduction_fraction` | Urban Flood Risk Mitigation (serv_blt indicator) | Approximate | Medium |
 | Temperature Change | Canonical HMI = `max(CC_local, CC_park)`, `ΔHMI × UHI_MAX_C × 1.8` | Urban Cooling (HMI → T_air → anomaly) | Implemented | High |
 | Cooling Energy Savings | `consumption_rate × ΔHMI × UHI_MAX_C × pixel_area × $/kWh`, applied per pixel | Urban Cooling (energy module: `consumption × ΔT_air × $/kWh` per building) | Approximate | Medium |
-| Nature Access | `max(urban_nature × in_range)` per pixel, threshold at 0.3 — a reachability proxy, **not** 2SFCA (Phase 1: r ≈ 0.44, normalized MAE ≈ 0.51 vs InVEST) | Urban Nature Access (2SFCA supply/demand/balance) | Proxy | Medium |
-| Nature Quality Score | Pop-weighted mean of 0–1 access score — reachability, no demand term (Phase 1: see UNA gap notes for the denominator-reconciled comparison) | Urban Nature Access (SUP_DEMadm_cap) | Proxy | Medium |
+| Nature Access | **Not displayed in the dashboard (card removed 2026-05-21, pending redesign).** `max(urban_nature × in_range)` per pixel, threshold at 0.3 — a reachability proxy, **not** 2SFCA (Phase 1: r ≈ 0.44, normalized MAE ≈ 0.51 vs InVEST) | Urban Nature Access (2SFCA supply/demand/balance) | Proxy | Medium |
+| Nature Quality Score | **Not displayed in the dashboard (card removed 2026-05-21, pending redesign).** Pop-weighted mean of 0–1 access score — reachability, no demand term (Phase 1: see UNA gap notes for the denominator-reconciled comparison) | Urban Nature Access (SUP_DEMadm_cap) | Proxy | Medium |
 | Preventable MH Cases | `(1 − RR) × BIR × pop`; NE via Gaussian-smoothed synthetic NDVI | Urban Mental Health v3.19.0 (same formula) | Implemented | Medium |
 | Avoided MH Costs | Preventable cases × per-case cost-of-illness | Urban Mental Health (cost module) | Implemented | Medium |
 | Carbon Sequestration | Single aggregate rate per cover class × converted area | Carbon Storage and Sequestration (4-pool storage snapshot) | Proxy | Prototype |
@@ -274,9 +274,9 @@ The app combines three computational layers to balance realism and responsivenes
 
 ## Metric Cards
 
-The Scenario tab surfaces **14 outcome metric cards across three primary categories** — **🌿 Ecological** (5 cards: Flood Risk Reduction, Temperature Change, Runoff Volume, Carbon Sequestration, NDVI), **👥 Human & Social** (4 cards: Nature Access, Nature Quality Score, Preventable MH Cases, Avoided MH Costs), and **💵 Economic** (5 cards in two rows: row 1 — Food Production, Est. Implementation Cost; row 2 — Flood Damage Avoided, Cooling Energy Savings, Avoided Carbon Cost). A separate **📊 Cost Effectiveness** sub-section under Economic surfaces three sub-ratios (`Cost / Acre-Foot Prevented`, `Cost / °F Cooling`, `Cost / 1,000 People Fed`) since they share a common interpretation rule (lower cost per unit of benefit is better).
+The Scenario tab surfaces **12 outcome metric cards across three primary categories** — **🌿 Ecological** (5 cards: Flood Risk Reduction, Temperature Change, Runoff Volume, Carbon Sequestration, NDVI), **👥 Human & Social** (2 cards: Preventable MH Cases, Avoided MH Costs), and **💵 Economic** (5 cards in two rows: row 1 — Food Production, Est. Implementation Cost; row 2 — Flood Damage Avoided, Cooling Energy Savings, Avoided Carbon Cost). A separate **📊 Cost Effectiveness** sub-section under Economic surfaces three sub-ratios (`Cost / Acre-Foot Prevented`, `Cost / °F Cooling`, `Cost / 1,000 People Fed`) since they share a common interpretation rule (lower cost per unit of benefit is better).
 
-**Confidence badges.** Each metric card displays one of three badges as an inline caption under its value: **High confidence** (3 cards: Flood Risk Reduction, Temperature Change, Runoff Volume), **Medium confidence** (11 cards: Nature Access, Nature Quality Score, Preventable MH Cases, Avoided MH Costs, Est. Implementation Cost, Flood Damage Avoided, Cooling Energy Savings, Avoided Carbon Cost, and the three Cost Effectiveness ratios), and **Prototype** (3 cards: Carbon Sequestration, NDVI, Food Production). The badges are rendered visibly under each metric value via `st.caption`; the full tier definitions live in the "How this prototype works" expander. Tooltips reference the badge tier in their leading line, then continue with metric-specific detail.
+**Confidence badges.** Each metric card displays one of three badges as an inline caption under its value: **High confidence** (3 cards: Flood Risk Reduction, Temperature Change, Runoff Volume), **Medium confidence** (9 cards: Preventable MH Cases, Avoided MH Costs, Est. Implementation Cost, Flood Damage Avoided, Cooling Energy Savings, Avoided Carbon Cost, and the three Cost Effectiveness ratios), and **Prototype** (3 cards: Carbon Sequestration, NDVI, Food Production). The badges are rendered visibly under each metric value via `st.caption`; the full tier definitions live in the "How this prototype works" expander. Tooltips reference the badge tier in their leading line, then continue with metric-specific detail.
 
 ---
 
@@ -375,9 +375,11 @@ San Antonio's baseline CC is **54 % higher than Minneapolis downtown** — a pla
 
 ---
 
-## 👥 Human & Social (2 × 2 grid)
+## 👥 Human & Social
 
-Shows **four cards in a 2 × 2 grid**: row 1 — Nature Access, Nature Quality Score; row 2 — Preventable MH Cases, Avoided MH Costs. NDVI sits in the Ecological section as a vegetation-index measure, not a social one. The MH cards split value from unit: the big-number slot shows the number alone ("285", "$2.10M/yr"), with a conditional caption below ("cases prevented" / "cases induced", "avoided MH costs/yr" / "added MH costs/yr").
+> **Note (2026-05-21):** The Nature Access and Nature Quality Score metric cards have been removed from the dashboard. Phase 1 InVEST comparison work (`compare_una_invest.py`, `UNA_DIVERGENCE_CASE_STUDIES.md`, `UNA_METHODOLOGY_CROSS_CHECK.md`) showed Nature Access is structurally degenerate at MN downtown scale, and Quality Score sensitivity testing (`UNA_QUALITY_SCORE_SENSITIVITY.md`) showed Quality Score functions as a two-state "greening vs none" indicator rather than a continuous quality measure. The underlying calculations remain in `evaluate_scenario` for the lookup table and surrogate, but are not displayed in the dashboard pending a redesigned nature-access metric (open design question). The Nature Access and Nature Quality Score rows below are retained for methodology reference.
+
+Shows **two cards**: Preventable MH Cases and Avoided MH Costs. NDVI sits in the Ecological section as a vegetation-index measure, not a social one. The MH cards split value from unit: the big-number slot shows the number alone ("285", "$2.10M/yr"), with a conditional caption below ("cases prevented" / "cases induced", "avoided MH costs/yr" / "added MH costs/yr").
 
 | Card | Status | Meaning |
 |------|--------|---------|
@@ -391,16 +393,6 @@ Shows **four cards in a 2 × 2 grid**: row 1 — Nature Access, Nature Quality S
 - **High-Density-only conversion ties baseline.** Adding only High Density removes no existing nature pixels, so the access score is unchanged from baseline. A future enhancement could model degradation of nearby green-space quality when high-density development expands.
 - **Pre-computed vs live distance transforms.** For performance, distance arrays for the seven natural classes whose pixel set never changes (11, 42, 43, 52, 71, 81, 95) are computed once at startup from `cooling_lulc` and reused across scenarios; only the three "dynamic" classes (21, 41, 90) are recomputed per scenario inside `calculate_nature_access`. If the model ever starts converting other natural classes, update `_DYNAMIC_NATURE_LUCODES` accordingly.
 - **Threshold (0.3) is a default, not a calibrated value.** `NATURE_ACCESS_THRESHOLD` was chosen so that pixels with at least a class-0.5 nature contribution count as "with access." Lower thresholds make the metric more inclusive (closer to the Quality Score story); higher thresholds focus only on highest-quality nature.
-
-### Why is the Nature Access metric sometimes saturated?
-
-The Nature Access metric reports the share of residents whose access score exceeds a 0.3 threshold. A pixel's score is high when a nature class — park, forest, wetland, open water — is reachable within 1 km. In a dense urban core like Minneapolis downtown, nature of *some* kind is broadly distributed, so nearly every populated pixel clears the threshold. When more than 95 % of modelable-extent residents qualify, the metric card flags itself **saturated** — a ⚠️ appears next to the value. Saturation means the metric confirms that nature exists across the AOI but no longer distinguishes between locations with better or worse access.
-
-A saturated metric is not wrong — it is just not informative for this AOI. The Phase 1 InVEST comparison (`comparisons/una_baseline_mn.csv`) found that canonical InVEST UNA's 2SFCA method — which weighs per-capita supply against a 250 m²/person demand standard — identifies only **9.5 %** of modelable-extent Minneapolis residents as adequately supplied, where the proxy reports 100 %. The two answer different questions: *"is nature reachable?"* versus *"is the nature supply adequate for the people competing for it?"*. When the proxy saturates, the adequacy question is the more useful one.
-
-Saturation is detected **per scenario**, at render time — it never enters the stored model outputs, so it does not affect baselines or the surrogate. A scenario that converts open space (itself a nature class) to high-density development can lower enough access scores to drop below the 95 % threshold, at which point the metric becomes discriminating again and the ⚠️ icon disappears.
-
-Closing this methodology gap — adopting 2SFCA or another adequacy-based metric — is an open question pending discussion with NatCap collaborators. The underlying empirical work is in `UNA_DIVERGENCE_CASE_STUDIES.md` and `UNA_METHODOLOGY_CROSS_CHECK.md`; the parity status and the denominator reconciliation are in "Official InVEST alignment — UNA" above.
 
 ### Preventable MH Cases & Avoided MH Costs (InVEST Urban Mental Health v3.19.0)
 

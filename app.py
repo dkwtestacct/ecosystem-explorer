@@ -63,9 +63,10 @@ WHATS_NEW = """
 - **InVEST alignment section** in the methodology docs, with metric tooltips linking directly to the relevant InVEST user guides.
 - **Interactive Input Influence chart** on the Tradeoff Analysis tab.
 - **Cooling-model gap closed** — Temperature Change values now match canonical InVEST exactly, validated by direct comparison against `natcap.invest.urban_cooling_model.execute()`. Energy-cost values use the same canonical cooling input (per-pixel aggregation gap still open).
+- **Nature Access and Nature Quality Score cards removed.** Phase 1 InVEST comparison and sensitivity testing showed neither metric meaningfully discriminates between scenarios at the MN downtown scale. The underlying calculations remain (used by the lookup table and surrogate); a redesigned nature-access metric is an open design question. See the empirical work in `UNA_DIVERGENCE_CASE_STUDIES.md`, `UNA_METHODOLOGY_CROSS_CHECK.md`, and `UNA_QUALITY_SCORE_SENSITIVITY.md`.
 
 ### Working on now
-- **Nature Access methodology comparison** — investigating where and why the prototype's reachability proxy diverges from canonical InVEST 2SFCA across MN.
+- **Redesigning the nature-access metric.** The current proximity proxy is too coarse to discriminate between scenarios at the MN downtown scale; designing something with finer-grained quality discrimination, distance decay, or related improvements.
 
 ### On the radar
 - **San Antonio as a fuller pilot** once more data is in place.
@@ -880,31 +881,8 @@ def calculate_nature_access(scenario_lulc, pop_count_raster):
 NATURE_ACCESS_THRESHOLD = 0.3
 
 
-def _nature_access_is_saturated(access_score_raster, pop_raster, modelable_mask,
-                                threshold=NATURE_ACCESS_THRESHOLD):
-    """Detect when the Nature Access metric is saturated for a scenario.
-
-    Saturated means >95 % of the modelable-extent population scores above the
-    access threshold — at that point the metric confirms nature exists in the
-    AOI but no longer discriminates between locations. Computed at render time
-    only (never enters `evaluate_scenario`'s output, so the verify_baselines
-    snapshots are untouched). See REFERENCE.md "Why is the Nature Access metric
-    sometimes saturated?"."""
-    if access_score_raster is None or pop_raster is None:
-        return False
-    pop_total = float(pop_raster[modelable_mask].sum())
-    if pop_total <= 0:
-        return False
-    above = access_score_raster > threshold
-    pop_above = float(pop_raster[modelable_mask & above].sum())
-    return (pop_above / pop_total) > 0.95
-
-
-# NOTE: BASELINE_FOOD_MLN_LBS and BASELINE_NATURE_ACCESS_PCT used to be
-# initialised here, but they depend on the per-city `cooling_lulc` /
-# `pop_count_raster` aliases that aren't bound until `_load_city_runtime_state`
-# returns further down. They're now initialised inside the loader-output
-# alias block.
+# Baseline food production is zero by definition (no conversions means no
+# food forest).
 BASELINE_FOOD_MLN_LBS = 0.0
 
 
@@ -1993,11 +1971,6 @@ _BASELINE_NE_RASTER           = _CURRENT_CITY_STATE.baseline_ne_raster
 # them as `_CURRENT_CITY_STATE.baseline_hm` / `.baseline_cn` everywhere
 # downstream — see CityState comment above.
 
-# ── Derived baselines that depend on the per-city aliases above ──────────────
-BASELINE_NATURE_ACCESS_PCT, BASELINE_NATURE_QUALITY_SCORE, _ = calculate_nature_access(
-    cooling_lulc, pop_count_raster
-)
-
 
 def compute_per_tract_summary(scenario_lulc):
     """DataFrame with one row per tract: baseline + scenario Nature Access %
@@ -2708,9 +2681,6 @@ if lookup_key in lookup_table and placement_strategy == 'random':
     results['mean_ndvi']    = _fresh['mean_ndvi']
     results['carbon_tons_co2_yr'] = _fresh['carbon_tons_co2_yr']
     results['avoided_carbon_cost_usd'] = _fresh['avoided_carbon_cost_usd']
-    results['nature_access_pct']  = _fresh['nature_access_pct']
-    results['nature_quality_score'] = _fresh['nature_quality_score']
-    results['people_with_nature_access'] = _fresh['people_with_nature_access']
     results['flood_damage_avoided_usd'] = _fresh['flood_damage_avoided_usd']
     results['cooling_energy_savings_usd'] = _fresh['cooling_energy_savings_usd']
     # Recompute cost with current cost sliders (lookup table used default costs)
@@ -2887,92 +2857,6 @@ _confidence_caption(eco5, "prototype")
 st.divider()
 
 st.markdown("#### Human & Social")
-hs1, hs2 = st.columns(2)
-_nature_delta = results['nature_access_pct'] - BASELINE_NATURE_ACCESS_PCT
-_nature_help = (
-    "Confidence: Medium — see 'How this prototype works' for tier definitions. "
-    f"Share of residents in the model area whose access score exceeds "
-    f"{NATURE_ACCESS_THRESHOLD} — using the InVEST UNA biophysical table "
-    "(per-class urban_nature score and search radius). Model area covers "
-    f"{_extent_description(selected_city, 'short')}. "
-    "Euclidean distance, not street-network walking. Population from US "
-    "Census 2020 block data. "
-    "Underlying model: [InVEST Urban Nature Access]"
-    "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
-) if POPULATION_DATA_AVAILABLE else (
-    "Confidence: Medium — see 'How this prototype works' for tier definitions. "
-    "Currently using placeholder uniform population weighting — run "
-    "`download_census_pop.py` to build the real Census-derived raster. "
-    "Proximity metric only, not street-network walking distance. "
-    "Underlying model: [InVEST Urban Nature Access]"
-    "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
-)
-_nature_delta_str, _nature_delta_color = _delta_pill(_nature_delta, fmt=".1f", suffix="pp vs baseline", epsilon=0.1)
-
-# Saturation check — render-time only, so `evaluate_scenario` output (and the
-# verify_baselines snapshots) are untouched. At the MN downtown scale the proxy
-# saturates: ~100 % of modelable-extent residents clear the 0.3 threshold, so
-# the metric stops discriminating between scenarios — surface that honestly.
-_nature_access_saturated = _nature_access_is_saturated(
-    _compute_access_score_raster(results['scenario_lulc']),
-    pop_count_raster,
-    results['scenario_lulc'] != NODATA,
-)
-_nature_value = f'{results["nature_access_pct"]:.1f}%'
-if _nature_access_saturated:
-    _nature_value += " ⚠️"
-    _nature_help += (
-        "  \n\n⚠️ **Saturated for this scenario** — over 95% of the "
-        "modelable-extent population scores above the access threshold. The "
-        "metric no longer discriminates between locations at this AOI scale. "
-        "See REFERENCE.md \"Why is the Nature Access metric sometimes "
-        "saturated?\""
-    )
-hs1.metric(
-    "Nature Access",
-    _nature_value,
-    delta=_nature_delta_str,
-    delta_color=_nature_delta_color,
-    help=_nature_help,
-)
-_confidence_caption(hs1, "medium")
-if not POPULATION_DATA_AVAILABLE:
-    hs1.caption(
-        "⚠️ Nature Access currently uses uniform population weighting — "
-        "proximity to green space only, not weighted by where people live. "
-        "Real population data loading."
-    )
-if placement_strategy != 'random':
-    hs1.caption(
-        f"Using {PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()} placement, "
-        "which concentrates conversions where they yield the most benefit — "
-        "this can shift nature access patterns compared to random placement."
-    )
-
-# Nature Quality Score — population-weighted mean access score (0–1). Sits
-# alongside Nature Access % to capture the *graded* quality of nearby green
-# space rather than a pure binary "in / out of buffer" share.
-_nature_quality = results.get('nature_quality_score', 0.0)
-_nature_quality_delta = _nature_quality - BASELINE_NATURE_QUALITY_SCORE
-_nq_delta_str, _nq_delta_color = _delta_pill(_nature_quality_delta, fmt=".3f", epsilon=0.001)
-hs2.metric(
-    "Nature Quality Score",
-    f'{_nature_quality:.3f}',
-    delta=_nq_delta_str,
-    delta_color=_nq_delta_color,
-    help=(
-        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
-        "Population-weighted mean nature access "
-        "quality score (0–1) based on InVEST Urban Nature Access biophysical "
-        "table. Reflects both proximity and quality of nearby green space. "
-        "Each pixel's score is the MAX (not sum) of `urban_nature × in_range` "
-        "across all natural classes — a pixel near multiple nature types gets "
-        "the highest single class score, preventing double-counting. "
-        "Underlying model: [InVEST Urban Nature Access]"
-        "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
-    ),
-)
-_confidence_caption(hs2, "medium")
 
 # InVEST Urban Mental Health (v3.19.0): two cards in a second row.
 # Both are zero at the unmodified baseline by construction (ΔNE = 0 → PF = 0 → PC = 0).
@@ -3332,7 +3216,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     comparison_data = {
         'Metric': [
             'Flood Risk Reduction', 'Runoff Volume', 'Temperature Change',
-            'Food Production', 'Carbon Sequestration', 'Nature Access', 'NDVI',
+            'Food Production', 'Carbon Sequestration', 'NDVI',
             'Flood Damage Avoided', 'Cooling Energy Savings', 'Avoided Carbon Cost',
         ],
         'Baseline': [
@@ -3341,7 +3225,6 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             'Reference',
             '0 lbs',
             '0 tons CO2e/yr',
-            f'{BASELINE_NATURE_ACCESS_PCT:.1f}%',
             f'{BASELINE_NDVI:.3f}',
             '$0',
             '$0/yr',
@@ -3357,7 +3240,6 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             ),
             f'{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'{results["carbon_tons_co2_yr"]:,.0f} tons CO2e/yr',
-            f'{results["nature_access_pct"]:.1f}%',
             f'{results["mean_ndvi"]:.3f}',
             f'${_flood_damage_avoided / 1e6:.1f}M',
             f'${_energy_savings_table / 1e6:.2f}M/yr',
@@ -3373,7 +3255,6 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{_cooling_f:+.1f}°F',
             f'+{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'+{results["carbon_tons_co2_yr"]:,.0f} tons CO2e/yr',
-            f'{results["nature_access_pct"] - BASELINE_NATURE_ACCESS_PCT:+.1f} pp',
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
             f'+${_flood_damage_avoided / 1e6:.1f}M' if _flood_damage_avoided >= 1e4 else '$0',
             f'+${_energy_savings_table / 1e6:.2f}M/yr' if _energy_savings_table >= 1e3 else '$0/yr',
