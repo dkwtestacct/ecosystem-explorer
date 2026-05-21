@@ -57,7 +57,7 @@ CHANGE_COLORS = {
 # changes are deliberately left out. Edit WHATS_NEW whenever something
 # user-visible ships.
 WHATS_NEW = """
-### Recently
+### What's new
 - **Placement strategy picker** in the sidebar — five options for where conversions get sited.
 - **Confidence badges** on every metric card (High / Medium / Prototype).
 - **InVEST alignment section** in the methodology docs, with metric tooltips linking directly to the relevant InVEST user guides.
@@ -249,8 +249,10 @@ st.title("🌿 Urban Ecosystem Tradeoff Explorer")
 
 # In-app changelog for returning visitors — expanded by default so it's seen on
 # reload; collapsible once read. Sits between the title and the city subheader.
-with st.expander("Recently / Coming up", expanded=True):
-    st.markdown(WHATS_NEW)
+# Wrapped in a bordered container for card-like visual separation.
+with st.container(border=True):
+    with st.expander("What's new / Coming up", expanded=True):
+        st.markdown(WHATS_NEW)
 
 st.subheader(selected_city)
 
