@@ -398,6 +398,36 @@ def main():
         else:
             invest_pct_pop_adequate = float('nan')
 
+        # ── Common-denominator reconciliation ─────────────────────────
+        # The Phase 1 headline mixed denominators: proto_access_pct (from
+        # evaluate_scenario) is over ALL MN population, but InVEST can only
+        # score the "modelable extent" — pixels with valid LULC AND valid
+        # InVEST output. invest_pct_pop_supply_ge_demand already lives on
+        # that restricted base; restrict the proxy's "% with access" to the
+        # SAME base for an apples-to-apples comparison. The strict modelable
+        # extent is sup_valid (LULC valid ∩ accessible valid ∩ supply valid).
+        full_pop_total = float(pop_clean.sum())
+        restricted_pop_total = float(pop_sup.sum())
+        restricted_pop_fraction = (restricted_pop_total / full_pop_total
+                                   if full_pop_total else float('nan'))
+        proto_on_restricted = proto_cmp[sup_valid]   # aligned with pop_sup
+        if restricted_pop_total > 0:
+            proto_pct_access_restricted = float(
+                100.0 * pop_sup[proto_on_restricted > 0.3].sum()
+                / restricted_pop_total)
+        else:
+            proto_pct_access_restricted = float('nan')
+        n_modelable = int(sup_valid.sum())
+
+        print(f"   --- common-denominator reconciliation ---")
+        print(f"   modelable-extent pop = {restricted_pop_total:,.0f} "
+              f"({100*restricted_pop_fraction:.1f}% of {full_pop_total:,.0f}); "
+              f"{n_modelable:,} px (n_valid={n_valid:,})")
+        print(f"   proxy % access  — full extent {proto_access_pct:.1f} | "
+              f"restricted {proto_pct_access_restricted:.1f}")
+        print(f"   InVEST % adequately supplied (restricted) = "
+              f"{invest_pct_pop_adequate:.1f}")
+
         print(f"   Prototype access score mean : {proto_mean:.4f}")
         print(f"   InVEST accessible nature mean: {invest_acc_mean:,.2f} m²")
         print(f"   InVEST supply/capita mean   : {invest_sup_mean:,.2f} m²/person")
@@ -452,7 +482,21 @@ def main():
         "InVEST's own sample LULC extent, and per-pixel outputs do not depend "
         "on admin geometry. Caveat: MN downtown is dense and fairly uniform, "
         "which under-exercises 2SFCA's supply/demand contrast vs a "
-        "mixed-density city — the SA gap could read larger. Phase 1: one "
+        "mixed-density city — the SA gap could read larger. "
+        "DENOMINATOR RECONCILIATION: proto_access_pct (full extent) is over "
+        "ALL MN population; the cooling LULC is nodata under a large share of "
+        "that population, where InVEST cannot model supply at all. "
+        "invest_pct_pop_supply_ge_demand and proto_pct_pop_access_restricted "
+        "are both restricted to the modelable extent (LULC valid AND InVEST "
+        "output valid) — restricted_population_total of "
+        "full_extent_population_total. On that common base the proxy reports "
+        "proto_pct_pop_access_restricted vs InVEST's "
+        "invest_pct_pop_supply_ge_demand. Note the reconciliation WIDENS the "
+        "gap rather than shrinking it: the full-extent proxy figure was "
+        "deflated by off-LULC population (scored 0 because they sit >1 km "
+        "from any nature class), so removing them lifts the proxy toward "
+        "~100%. The gap was never an artifact of mixed denominators making it "
+        "look too big — the headline understated the proxy side. Phase 1: one "
         "scenario (baseline), one city."
     )
     csv_path = Path("comparisons") / "una_baseline_mn.csv"
@@ -463,6 +507,8 @@ def main():
             'proto_access_pct', 'proto_quality_score', 'proto_access_score_mean',
             'invest_accessible_nature_mean_m2', 'invest_supply_percapita_mean_m2',
             'invest_balance_totalpop_mean', 'invest_pct_pop_supply_ge_demand',
+            'proto_pct_pop_access_restricted', 'restricted_population_total',
+            'restricted_population_fraction', 'full_extent_population_total',
             'pearson_r', 'spearman_r', 'normalized_mae',
             'zero_nonzero_agreement_pct',
             'proto_popwtd_norm', 'invest_popwtd_norm',
@@ -474,6 +520,8 @@ def main():
             f'{proto_mean:.4f}',
             f'{invest_acc_mean:.2f}', f'{invest_sup_mean:.2f}',
             f'{invest_bal_mean:.2f}', f'{invest_pct_pop_adequate:.1f}',
+            f'{proto_pct_access_restricted:.1f}', f'{restricted_pop_total:.0f}',
+            f'{restricted_pop_fraction:.4f}', f'{full_pop_total:.0f}',
             f'{pearson_r:.4f}', f'{spearman_r:.4f}', f'{normalized_mae:.4f}',
             f'{zero_nonzero_agreement:.1f}',
             f'{proto_popw:.4f}', f'{invest_popw:.4f}',
@@ -485,11 +533,15 @@ def main():
     print("\n" + "=" * 64)
     print("Summary — UNA proxy vs InVEST 2SFCA (MN baseline)")
     print("=" * 64)
-    print(f"  Prototype : access {proto_access_pct}% | quality {proto_quality_score} "
-          f"| score mean {proto_mean:.4f}")
+    print(f"  Prototype : access {proto_access_pct}% (full extent) | "
+          f"quality {proto_quality_score} | score mean {proto_mean:.4f}")
     print(f"  InVEST    : accessible {invest_acc_mean:,.0f} m² | "
           f"supply/capita {invest_sup_mean:,.0f} m²/person | "
           f"{invest_pct_pop_adequate:.1f}% pop ≥ demand")
+    print(f"  Reconciled (common modelable-extent base, "
+          f"{100*restricted_pop_fraction:.1f}% of MN pop):")
+    print(f"            proxy {proto_pct_access_restricted:.1f}% with access "
+          f"vs InVEST {invest_pct_pop_adequate:.1f}% adequately supplied")
     print(f"  Agreement : Pearson r={pearson_r:.4f}  Spearman r={spearman_r:.4f}  "
           f"normalized MAE={normalized_mae:.4f}")
     print(f"  Zero/non-zero reachability agreement: {zero_nonzero_agreement:.1f}%")

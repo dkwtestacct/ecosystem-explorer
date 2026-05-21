@@ -54,8 +54,10 @@ population-blind proxy returns "access" uniformly.
 
 **A population/extent mismatch sits underneath the Phase 1 headline — see
 Honest Gaps.** 56.6 % of the population raster falls on pixels the cooling LULC
-marks nodata, where InVEST cannot model supply at all. The "~70 % vs ~10 %"
-framing in REFERENCE.md compares two different population denominators.
+marks nodata, where InVEST cannot model supply at all. The original "~70 % vs
+~10 %" framing compared two different population denominators; this was
+reconciled on 2026-05-21 (`compare_una_invest.py` restricted-extent columns;
+REFERENCE.md "Official InVEST alignment — UNA" updated).
 
 ---
 
@@ -156,10 +158,13 @@ model output.
   headline compares **different population denominators** — proxy 69.7 % is
   over all 154,242 residents, InVEST 9.5 % is over the ~66,945 on valid
   pixels. On a common base (valid-extent residents only) the proxy scores
-  ~100 % "access" and InVEST 9.5 % "adequate" — the divergence is *larger*,
-  not smaller, than the headline suggests. This mismatch should be reconciled
-  before the 70/10 figure is quoted further; it is a Phase-1 measurement
-  artifact, not a property of the metrics.
+  **100 % "access" and InVEST 9.5 % "adequate"** — the divergence is *larger*,
+  not smaller, than the headline suggested. **Reconciled 2026-05-21**
+  (`compare_una_invest.py` now emits restricted-extent columns; REFERENCE.md
+  updated): the mixed denominator was the measurement artifact — it *deflated*
+  the proxy's headline (off-LULC residents scored 0), so removing them widens
+  the gap to 100 % vs 9.5 %. The gap itself is a real property of the metrics,
+  not an artifact.
 - **"Implied sharing population" is interpretive.** `accessible ÷ supply_percapita`
   is a convenient proxy for "how many people effectively compete for the
   reachable nature," but 2SFCA's two-step distance-decayed catchment math does
