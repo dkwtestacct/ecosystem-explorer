@@ -470,15 +470,15 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
 - **Metric cards are grouped into four labeled sections** — 🌿 Ecological (5 cards in two
   rows: row 1 has Flood Risk Reduction, Temperature Change, and Runoff Volume in 3 columns;
   row 2 has Carbon Sequestration and NDVI in 2 columns),
-  👥 Human & Social (4 cards in 4 columns: Nature Access, Nature Quality Score, Preventable
-  MH Cases, Avoided MH Costs — the InVEST Urban Mental Health v3.19.0 outputs replaced the
-  earlier weighted-composite Wellbeing Score),
+  👥 Human & Social (2 cards: Preventable MH Cases, Avoided MH Costs — the InVEST Urban
+  Mental Health v3.19.0 outputs replaced the earlier weighted-composite Wellbeing Score;
+  Nature Access and Nature Quality Score cards were removed 2026-05-21, see WHATS_NEW),
   💵 Economic (5 cards in two rows: row 1 has Food Production + Est. Implementation Cost
   in 2 columns; row 2 has Flood Damage Avoided + Cooling Energy Savings + Avoided Carbon
   Cost in 3 columns — the EPA Social Cost of Carbon dollar metric is `carbon_tons_co2_yr ×
   EPA_SOCIAL_COST_CARBON`, deterministic so not in the surrogate),
   📊 Cost Effectiveness (3 sub-ratios under their own header). Each group is separated by
-  `st.divider()`. **14 metric cards total**. Keep this grouping when adding new metrics — place
+  `st.divider()`. **12 metric cards total**. Keep this grouping when adding new metrics — place
   new cards in the section that matches their category rather than appending to a flat list.
 - **NDVI is a synthetic proxy** — values come from a per-NLCD-code lookup
   (`NDVI_PROXY` plus `NDVI_OTHER_DEVELOPED` / `NDVI_OTHER_NATURAL` defaults), not from

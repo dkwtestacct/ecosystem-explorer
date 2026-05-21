@@ -63,7 +63,7 @@ WHATS_NEW = """
 - **InVEST alignment section** in the methodology docs, with metric tooltips linking directly to the relevant InVEST user guides.
 - **Interactive Input Influence chart** on the Tradeoff Analysis tab.
 - **Cooling-model gap closed** — Temperature Change values now match canonical InVEST exactly, validated by direct comparison against `natcap.invest.urban_cooling_model.execute()`. Energy-cost values use the same canonical cooling input (per-pixel aggregation gap still open).
-- **Nature Access and Nature Quality Score cards removed.** Phase 1 InVEST comparison and sensitivity testing showed neither metric meaningfully discriminates between scenarios at the MN downtown scale. The underlying calculations remain (used by the lookup table and surrogate); a redesigned nature-access metric is an open design question. See the empirical work in `UNA_DIVERGENCE_CASE_STUDIES.md`, `UNA_METHODOLOGY_CROSS_CHECK.md`, and `UNA_QUALITY_SCORE_SENSITIVITY.md`.
+- **Nature Access and Nature Quality Score removed from the dashboard.** Phase 1 InVEST comparison and sensitivity testing showed neither metric meaningfully discriminates between scenarios at the MN downtown scale. Both metric cards, the per-tract map overlay, and the in-app methodology tab have been removed. The underlying calculations remain (used by the lookup table and surrogate); a redesigned nature-access metric is an open design question. See `UNA_DIVERGENCE_CASE_STUDIES.md`, `UNA_METHODOLOGY_CROSS_CHECK.md`, and `UNA_QUALITY_SCORE_SENSITIVITY.md`.
 
 ### Working on now
 - **Redesigning the nature-access metric.** The current proximity proxy is too coarse to discriminate between scenarios at the MN downtown scale; designing something with finer-grained quality discrimination, distance decay, or related improvements.
@@ -145,75 +145,6 @@ if _caption:
     st.sidebar.caption(_caption)
 st.sidebar.divider()
 
-# Per-city extent strings used by Nature Access caveats. Two phrasings:
-#   - `short`: drops into the metric-card help text ("Model area covers …")
-#   - `caveat`: full sentence for the Assumptions & limitations tab
-# Adding a city = add an entry here. Fallback below uses a generic phrase
-# so missing entries don't break the UI.
-_NATURE_ACCESS_EXTENT_TEXT = {
-    "Minneapolis, MN": {
-        "short": "downtown Minneapolis and near-neighborhoods (~154,000 residents)",
-        "caveat": (
-            "The Nature Access calculation uses an analysis extent of "
-            "~10.8 km × 10.7 km covering downtown Minneapolis and "
-            "near-neighborhoods (~154,000 residents), not the full city."
-        ),
-    },
-    "Minneapolis Full, MN": {
-        "short": "the Minneapolis city boundary (~464,000 residents)",
-        "caveat": (
-            "The Nature Access calculation uses the Minneapolis city "
-            "boundary as the analysis extent (~464,000 residents)."
-        ),
-    },
-    "San Antonio, TX": {
-        "short": "Bexar County (~1.9M residents)",
-        "caveat": (
-            "The Nature Access calculation uses an analysis extent covering "
-            "Bexar County (~1.9M residents)."
-        ),
-    },
-}
-
-
-def _extent_description(city_key: str, kind: str = "caveat") -> str:
-    """Return the city-aware Nature Access extent string. `kind` selects
-    `short` (drop-in phrase) or `caveat` (full sentence). Falls back to a
-    generic phrase if a future city is missing from the table."""
-    entry = _NATURE_ACCESS_EXTENT_TEXT.get(city_key)
-    if not entry:
-        return (
-            "the active city's analysis extent"
-            if kind == "short"
-            else "The Nature Access calculation uses the active city's analysis extent."
-        )
-    return entry.get(kind, entry["caveat"])
-
-
-# Per-city population-source sentence for the Nature Access assumptions tab.
-# Same fallback pattern as `_NATURE_ACCESS_EXTENT_TEXT`.
-_POPULATION_SOURCE_TEXT = {
-    "Minneapolis, MN": (
-        "US Census 2020 block totals (Hennepin County, FIPS 27053) joined "
-        "to TIGER 2020 blocks and rasterized to the NLCD grid."
-    ),
-    "Minneapolis Full, MN": (
-        "US Census 2020 block totals (Hennepin County, FIPS 27053) joined "
-        "to TIGER 2020 blocks and rasterized to the NLCD grid."
-    ),
-    "San Antonio, TX": (
-        "US Census 2020 block totals (Bexar County, FIPS 48029) joined to "
-        "TIGER 2020 blocks and rasterized to the NLCD grid."
-    ),
-}
-
-
-def _population_source(city_key: str) -> str:
-    return _POPULATION_SOURCE_TEXT.get(
-        city_key,
-        "US Census 2020 block totals joined to TIGER 2020 blocks and "
-        "rasterized to the NLCD grid.",
-    )
 
 
 # Per-city biophysical-table provenance for the Temperature assumptions tab.
@@ -303,7 +234,7 @@ def _preflight_data_check(city_cfg, city_name):
             missing.append(f"`{key}` resolves to a missing file: {base}/{fname}")
 
     # The InVEST UNA biophysical table is required (no graceful fallback;
-    # the nature_access metric reads it at module load).
+    # `calculate_nature_access` reads it at module load).
     una = city_cfg.get("una_table_file")
     if not una or not Path(una).exists():
         missing.append(f"`una_table_file` missing: {una}")
@@ -1973,16 +1904,12 @@ _BASELINE_NE_RASTER           = _CURRENT_CITY_STATE.baseline_ne_raster
 
 
 def compute_per_tract_summary(scenario_lulc):
-    """DataFrame with one row per tract: baseline + scenario Nature Access %
-    and °F change vs the global baseline, plus the difference (improvement)."""
+    """DataFrame with one row per tract: baseline + scenario temperature (°F)
+    vs the global baseline, plus the difference (improvement)."""
     if not TRACTS_DATA_AVAILABLE or len(TRACTS) == 0:
         return pd.DataFrame()
 
-    access_s_raster = _compute_access_score_raster(scenario_lulc)
-    hm_s_raster     = _compute_hmi_raster(scenario_lulc)
-
-    above_b = _BASELINE_ACCESS_SCORE_RASTER > NATURE_ACCESS_THRESHOLD
-    above_s = access_s_raster > NATURE_ACCESS_THRESHOLD
+    hm_s_raster = _compute_hmi_raster(scenario_lulc)
 
     rows = []
     for i in range(len(TRACTS)):
@@ -1992,9 +1919,6 @@ def compute_per_tract_summary(scenario_lulc):
         pop_in_tract = pop_count_raster[mask].sum()
         if pop_in_tract <= 0:
             continue
-        # Population-weighted Nature Access % within the tract
-        b_share = pop_count_raster[mask & above_b].sum() / pop_in_tract
-        s_share = pop_count_raster[mask & above_s].sum() / pop_in_tract
         # Temperature offset vs city baseline HM, in °F (positive = cooler)
         valid_hm = mask & ~np.isnan(_BASELINE_HM_RASTER) & ~np.isnan(hm_s_raster)
         if not valid_hm.any():
@@ -2007,9 +1931,6 @@ def compute_per_tract_summary(scenario_lulc):
         rows.append({
             "GEOID":               str(TRACTS.iloc[i].get("GEOID10", i)),
             "Population":          int(pop_in_tract),
-            "Baseline Access %":   round(100 * b_share, 1),
-            "Scenario Access %":   round(100 * s_share, 1),
-            "Access Δ (pp)":       round(100 * (s_share - b_share), 1),
             "Baseline Temp (°F)":  round(b_temp_f, 2),
             "Scenario Temp (°F)":  round(s_temp_f, 2),
             "Temp Δ (°F cooler)":  round(s_temp_f - b_temp_f, 2),
@@ -3281,7 +3202,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
 with st.expander("Assumptions and limitations"):
     _assumption_tabs = st.tabs([
         "Flood & Runoff", "Temperature", "Food", "Carbon",
-        "Nature Access", "Mental Health", "Costs",
+        "Mental Health", "Costs",
     ])
     with _assumption_tabs[0]:
         st.markdown(
@@ -3348,27 +3269,6 @@ with st.expander("Assumptions and limitations"):
         )
     with _assumption_tabs[4]:
         st.markdown(
-            "- **Proximity proxy, not walkshed:** Euclidean distance from each "
-            "pixel to the nearest nature pixel × 30 m, thresholded at 800 m. "
-            "Ignores street networks, barriers, slope, and crossings.\n"
-            f"- **Population data:** {_population_source(selected_city)}\n"
-            f"- **Extent caveat:** {_extent_description(selected_city, 'caveat')}\n"
-            "- **Spatial placement is building-footprint-aware.** Conversions "
-            "are sampled from developed pixels that do NOT contain a building, "
-            "using the InVEST UFR buildings shapefile to mask out structures. "
-            "This targets feasible interstitial spaces (parking lots, lawns, "
-            "vacant lots) but still ignores parcel ownership, corridor design, "
-            "and zoning — placement within the convertible pool is random "
-            "by default (or weighted via the sidebar placement picker).\n"
-            "- **High-density-only conversion ties baseline:** the model never "
-            "removes existing nature, so adding HD alone leaves the buffer "
-            "unchanged.\n"
-            "- **Saturation:** at ≥ 50 % conversion with aggressive green "
-            "allocations the metric tops out around 65–66 % as buffers overlap. "
-            "Most discriminating at lower conversion percentages."
-        )
-    with _assumption_tabs[5]:
-        st.markdown(
             "- **Method:** InVEST Urban Mental Health Model (v3.19.0). "
             "Per-pixel `ΔNE = NE_scenario − NE_baseline` (NE = NDVI Gaussian-"
             "smoothed with σ = 300 m / 30 m px = 10 px, matching InVEST canonical "
@@ -3395,7 +3295,7 @@ with st.expander("Assumptions and limitations"):
             "are now in the surrogate target list (REQUIRED_TARGET_COLUMNS), "
             "so future training cycles will pick them up."
         )
-    with _assumption_tabs[6]:
+    with _assumption_tabs[5]:
         st.markdown(
             "- **Order-of-magnitude only:** total cost = "
             "`$/acre slider × converted acres`, summed across green "
@@ -3535,21 +3435,15 @@ with tab2:
         st.divider()
         st.markdown("#### Neighborhood breakdown")
         st.caption(
-            "Top 5 most-improved Census tracts under this scenario, ranked by a "
-            "combined score (Nature Access percentage points + temperature change °F). "
-            "Population-weighted within each tract."
+            "Top 5 most-improved Census tracts under this scenario, ranked by "
+            "temperature change (°F cooler). Population-weighted within each tract."
         )
         _tracts_summary = compute_per_tract_summary(results['scenario_lulc'])
         if not _tracts_summary.empty:
-            _tracts_summary["_combined"] = (
-                _tracts_summary["Access Δ (pp)"]
-                + 5 * _tracts_summary["Temp Δ (°F cooler)"]   # weight °F more strongly
-            )
             _top5 = (
                 _tracts_summary
-                .sort_values("_combined", ascending=False)
+                .sort_values("Temp Δ (°F cooler)", ascending=False)
                 .head(5)
-                .drop(columns="_combined")
                 .reset_index(drop=True)
             )
             st.dataframe(_top5, width='stretch', hide_index=True)
@@ -3804,47 +3698,9 @@ with tab3:
         ),
     )
 
-    # Optional neighborhood-improvement overlay — colors each tract by its
-    # population-weighted Nature Access change (pp), using a diverging RdYlGn
-    # colormap centered at 0. Only rendered when the toggle below is on.
-    _tract_overlay_value = None
-    _tract_overlay_alpha = 0.0
-    if TRACTS_DATA_AVAILABLE:
-        _show_tracts = st.toggle(
-            "Show neighborhood improvement overlay",
-            value=False,
-            help=(
-                "Color each Census tract by its Nature Access change vs baseline "
-                "(green = improved, red = worse). Computed live for the current "
-                "scenario."
-            ),
-        )
-        if _show_tracts:
-            _tract_overlay_alpha = st.slider(
-                "Neighborhood overlay opacity",
-                0.0, 1.0, 0.5, 0.05,
-            )
-            _tracts_summary_map = compute_per_tract_summary(results['scenario_lulc'])
-            if not _tracts_summary_map.empty:
-                _imp_lookup = np.zeros(len(TRACTS), dtype=np.float32)
-                _geoid_to_idx = {str(g): i for i, g in enumerate(TRACTS["GEOID10"])}
-                for _, _srow in _tracts_summary_map.iterrows():
-                    _tidx = _geoid_to_idx.get(str(_srow["GEOID"]))
-                    if _tidx is not None:
-                        _imp_lookup[_tidx] = float(_srow["Access Δ (pp)"])
-                # Per-pixel: pixels in a tract get that tract's improvement
-                # value; pixels outside any tract become NaN so the overlay
-                # only renders where it has data.
-                _tract_overlay_value = np.where(
-                    TRACT_ID_RASTER >= 0,
-                    _imp_lookup[np.maximum(TRACT_ID_RASTER, 0)],
-                    np.nan,
-                )
-
     render_matplotlib(plot_spatial_map(
         results['scenario_lulc'], cooling_lulc,
         heat_overlay=equity_weights, overlay_alpha=overlay_opacity,
-        tract_value=_tract_overlay_value, tract_alpha=_tract_overlay_alpha,
     ))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
