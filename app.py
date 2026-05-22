@@ -58,7 +58,7 @@ CHANGE_COLORS = {
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
-- **Canonical InVEST Urban Nature Access (UNA) implemented for Minneapolis.** The Nature Access metric card returns, now reporting `pct_pop_supply_ge_demand` from a canonical InVEST UNA two-step floating catchment area (2SFCA) calculation — validated by direct comparison against `natcap.invest.urban_nature_access.execute()`. Parameters per `UNA_IMPLEMENTATION_NOTES.md` (16.7 m²/capita demand, 800 m uniform search radius, dichotomy decay). Reports the % of modelable-extent population (~43% of MN total); the remainder sit on cooling-LULC nodata pixels the model cannot evaluate.
+- **Canonical InVEST Urban Nature Access (UNA) implemented for Minneapolis.** The Nature Access metric card returns, now reporting `pct_pop_supply_ge_demand` from a canonical InVEST UNA two-step floating catchment area (2SFCA) calculation — validated by direct comparison against `natcap.invest.urban_nature_access.execute()`. Parameters per `DESIGN_NOTES.md` (16.7 m²/capita demand, 800 m uniform search radius, dichotomy decay). Reports the % of modelable-extent population (~43% of MN total); the remainder sit on cooling-LULC nodata pixels the model cannot evaluate.
 - **Placement strategy picker** in the sidebar — five options for where conversions get sited.
 - **Confidence badges** on every metric card (High / Medium / Prototype).
 - **InVEST alignment section** in the methodology docs, with metric tooltips linking directly to the relevant InVEST user guides.
@@ -742,7 +742,7 @@ def _compute_access_score_raster_pure(scenario_lulc, una_active, precomputed_nat
 # the InVEST UCM. The model runs inside the app's own environment (no
 # natcap.invest runtime dependency); the numpy result is validated offline
 # against `natcap.invest.urban_nature_access.execute()`. Parameter rationale is
-# in UNA_IMPLEMENTATION_NOTES.md.
+# in DESIGN_NOTES.md.
 UNA_DEMAND_M2_PER_CAPITA = 16.7   # per-capita supply standard (NatCap SA study)
 UNA_SEARCH_RADIUS_M      = 800    # uniform search radius, ~10-min walk
 
@@ -838,7 +838,7 @@ def calculate_nature_access(scenario_lulc, pop_count_raster):
 
     Re-implements `natcap.invest.urban_nature_access` (uniform 800 m search
     radius, dichotomy decay, 16.7 m²/capita demand — see
-    UNA_IMPLEMENTATION_NOTES.md) in numpy via two-step floating catchment area
+    DESIGN_NOTES.md) in numpy via two-step floating catchment area
     (2SFCA). The headline metric is `pct_pop_supply_ge_demand`: the share of the
     modelable-extent population whose per-capita nature supply meets the demand
     standard.
@@ -2835,7 +2835,7 @@ st.markdown("#### Human & Social")
 hs_na, hs3, hs4 = st.columns(3)
 
 # Nature Access — canonical InVEST Urban Nature Access (2SFCA), re-implemented
-# in numpy by `calculate_nature_access`. See UNA_IMPLEMENTATION_NOTES.md.
+# in numpy by `calculate_nature_access`. See DESIGN_NOTES.md.
 _nature_access = results.get('nature_access_pct', 0.0)
 hs_na.metric(
     "Nature Access",
@@ -2847,7 +2847,7 @@ hs_na.metric(
         "methodology). Reports only the modelable-extent population (~43% of MN total) — "
         "the remainder sits on cooling-LULC nodata pixels InVEST cannot model. "
         "Parameters: 800m uniform search radius, dichotomy decay. See "
-        "UNA_IMPLEMENTATION_NOTES.md for parameter rationale. "
+        "DESIGN_NOTES.md for parameter rationale. "
         "Underlying model: [InVEST Urban Nature Access]"
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
     ),

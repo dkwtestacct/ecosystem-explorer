@@ -165,7 +165,7 @@ is therefore **Pearson r = 1.000 and MAE = 0 by construction** — and
 file-level byte-identity is stronger evidence of "no difference" than two
 model runs could ever be.
 
-The single run used the parameters from `UNA_IMPLEMENTATION_NOTES.md`
+The single run used the parameters from `DESIGN_NOTES.md`
 (natcap.invest 3.16.2):
 
 | Parameter | Value |
@@ -249,7 +249,7 @@ For the forthcoming **UNA Session 1** (canonical InVEST UNA):
    settled.** This investigation only concerns the LULC raster. The
    `una_table_file` config key already points at the InVEST UNA biophysical
    table (`LULC_attribute_table_UNA.csv`), and the demand / radius / decay /
-   aggregation parameters are chosen in `UNA_IMPLEMENTATION_NOTES.md`
+   aggregation parameters are chosen in `DESIGN_NOTES.md`
    (16.7 / 800 m / dichotomy / no pop-group aggregation). Note that the
    InVEST args JSON shipped with the sample data uses *different* values
    (demand 250, radius 1000, exponential decay) — but that is a parameter
