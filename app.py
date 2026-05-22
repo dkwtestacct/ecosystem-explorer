@@ -307,10 +307,6 @@ class CityState(NamedTuple):
     # Energy table (small dict)
     energy_by_type: dict
     energy_table_available: bool
-    # InVEST UNA biophysical (small DataFrame)
-    una_active: pd.DataFrame
-    # Pre-computed nature-distance fields (one float32 raster per static lucode)
-    precomputed_nature_distances: dict
     # Rasterization template
     ref_shape: tuple
     ref_transform: Any
@@ -390,7 +386,7 @@ with st.expander("How this prototype works", expanded=False):
         "- **Medium confidence** — Model-based estimates or order-of-magnitude "
         "calculations with empirical grounding. Includes InVEST UMH "
         "preventable cases (peer-reviewed effect sizes, synthetic NDVI input), "
-        "proximity-based nature access metrics, and $-valued cards backed by "
+        "canonical InVEST Urban Nature Access (2SFCA), and $-valued cards backed by "
         "per-building or per-acre lookup tables. Use for directional planning; "
         "verify with locally calibrated data for final decisions.  \n"
         "  \n"
@@ -740,23 +736,6 @@ def _compute_access_score_raster_pure(scenario_lulc, una_active, precomputed_nat
     return access_score
 
 
-def _compute_access_score_raster(scenario_lulc):
-    """0–1 nature-access score raster for the given scenario LULC.
-
-    For each natural class with a positive `urban_nature` score in the InVEST
-    UNA biophysical table, mask the scenario_lulc, compute distance-to-class,
-    and combine via `np.maximum` (NOT sum) so a pixel near multiple natural
-    classes takes the highest single class score — preventing double-counting.
-    Pre-computed distance arrays are reused for natural classes whose pixel
-    set never changes across scenarios.
-
-    Wrapper that pulls per-city deps from module aliases populated by
-    `_load_city_runtime_state`."""
-    return _compute_access_score_raster_pure(
-        scenario_lulc, UNA_ACTIVE, PRECOMPUTED_NATURE_DISTANCES,
-    )
-
-
 # ── Canonical InVEST Urban Nature Access (UNA) — numpy 2SFCA ─────────────────
 # Re-implements natcap.invest.urban_nature_access (uniform search radius,
 # dichotomy decay) in numpy — the same approach `_compute_hmi_raster` takes for
@@ -878,13 +857,6 @@ def calculate_nature_access(scenario_lulc, pop_count_raster):
         scenario_lulc, pop_count_raster
     )
     return round(float(pct), 1), 0.0, int(round(people_supplied))
-
-
-# Threshold for "Nature Access %" — pixels with access_score above this count
-# as having meaningful nature access (binary headline metric). Below this and
-# the resident still has *some* nature score, but it's reported via the
-# continuous Nature Quality Score instead.
-NATURE_ACCESS_THRESHOLD = 0.3
 
 
 # Baseline food production is zero by definition (no conversions means no
@@ -1646,7 +1618,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     una_active["lucode"] = una_active["lucode"].astype(int)
     una_active["search_radius_m"] = una_active["search_radius_m"].clip(upper=NATURE_RADIUS_CAP_M)
 
-    # ── Phase 6: PRECOMPUTED_NATURE_DISTANCES (.npy disk cache) ─────────────
+    # ── Phase 6: precomputed nature-distance fields (.npy disk cache) ───────
     precomp_dir = cfg.get("precomputed_dir")
     if precomp_dir:
         Path(precomp_dir).mkdir(parents=True, exist_ok=True)
@@ -1885,8 +1857,6 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         et_data_available=et_data_available,
         energy_by_type=energy_by_type,
         energy_table_available=energy_table_available,
-        una_active=una_active,
-        precomputed_nature_distances=precomputed_nature_distances,
         ref_shape=ref_shape, ref_transform=ref_transform,
         buildings_raster=buildings_raster,
         buildings_type_raster=buildings_type_raster,
@@ -1942,9 +1912,6 @@ ET_DATA_AVAILABLE = _CURRENT_CITY_STATE.et_data_available
 # Energy
 ENERGY_BY_TYPE         = _CURRENT_CITY_STATE.energy_by_type
 ENERGY_TABLE_AVAILABLE = _CURRENT_CITY_STATE.energy_table_available
-# UNA + nature distances
-UNA_ACTIVE                   = _CURRENT_CITY_STATE.una_active
-PRECOMPUTED_NATURE_DISTANCES = _CURRENT_CITY_STATE.precomputed_nature_distances
 # Rasterization template
 _REF_SHAPE     = _CURRENT_CITY_STATE.ref_shape
 _REF_TRANSFORM = _CURRENT_CITY_STATE.ref_transform

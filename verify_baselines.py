@@ -226,8 +226,6 @@ def _rebind_city(app_mod, city_name):
     app_mod.ET_DATA_AVAILABLE   = state.et_data_available
     app_mod.ENERGY_BY_TYPE           = state.energy_by_type
     app_mod.ENERGY_TABLE_AVAILABLE   = state.energy_table_available
-    app_mod.UNA_ACTIVE               = state.una_active
-    app_mod.PRECOMPUTED_NATURE_DISTANCES = state.precomputed_nature_distances
     app_mod._REF_SHAPE          = state.ref_shape
     app_mod._REF_TRANSFORM      = state.ref_transform
     app_mod.BUILDINGS_RASTER         = state.buildings_raster

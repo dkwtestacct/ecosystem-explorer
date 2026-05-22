@@ -409,9 +409,8 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   aliased to module-level by design — see Architecture notes). Don't
   hardcode Minneapolis values outside of the `CITIES` dict.
 - **Pure-variant helpers for code the loader calls.** Heavy compute helpers
-  that the loader invokes (currently `_compute_hmi_raster`,
-  `_compute_access_score_raster`) come in two variants:
-  `_fn(scenario_lulc)` reads module aliases populated by the loader, and
+  that the loader invokes (currently `_compute_hmi_raster`) come in two
+  variants: `_fn(scenario_lulc)` reads module aliases populated by the loader, and
   `_fn_pure(scenario_lulc, *deps)` takes its dependencies explicitly. The
   loader uses the pure variant because the module aliases haven't been
   rebound yet at the moment the loader runs; downstream code uses the
@@ -470,15 +469,16 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
 - **Metric cards are grouped into four labeled sections** — 🌿 Ecological (5 cards in two
   rows: row 1 has Flood Risk Reduction, Temperature Change, and Runoff Volume in 3 columns;
   row 2 has Carbon Sequestration and NDVI in 2 columns),
-  👥 Human & Social (2 cards: Preventable MH Cases, Avoided MH Costs — the InVEST Urban
-  Mental Health v3.19.0 outputs replaced the earlier weighted-composite Wellbeing Score;
-  Nature Access and Nature Quality Score cards were removed 2026-05-21, see WHATS_NEW),
+  👥 Human & Social (3 cards: Nature Access, Preventable MH Cases, Avoided MH Costs — the
+  InVEST Urban Mental Health v3.19.0 outputs replaced the earlier weighted-composite
+  Wellbeing Score; Nature Access was reimplemented as canonical InVEST UNA 2SFCA and
+  restored 2026-05-22, while the Nature Quality Score card stays removed — see WHATS_NEW),
   💵 Economic (5 cards in two rows: row 1 has Food Production + Est. Implementation Cost
   in 2 columns; row 2 has Flood Damage Avoided + Cooling Energy Savings + Avoided Carbon
   Cost in 3 columns — the EPA Social Cost of Carbon dollar metric is `carbon_tons_co2_yr ×
   EPA_SOCIAL_COST_CARBON`, deterministic so not in the surrogate),
   📊 Cost Effectiveness (3 sub-ratios under their own header). Each group is separated by
-  `st.divider()`. **12 metric cards total**. Keep this grouping when adding new metrics — place
+  `st.divider()`. **13 metric cards total**. Keep this grouping when adding new metrics — place
   new cards in the section that matches their category rather than appending to a flat list.
 - **NDVI is a synthetic proxy** — values come from a per-NLCD-code lookup
   (`NDVI_PROXY` plus `NDVI_OTHER_DEVELOPED` / `NDVI_OTHER_NATURAL` defaults), not from
@@ -528,23 +528,31 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   that drives the metric (placement of converted pixels relative to existing parks and
   population centers), so its predictions are an indicative trend, not a precise spatial
   estimate.
-- **Nature Access is a Euclidean-distance proximity proxy** —
-  `calculate_nature_access(scenario_lulc, pop_count_raster)` runs
-  `distance_transform_edt(~nature_mask) * PIXEL_SIZE_M` (30 m/pixel) over
-  `NATURE_CODES = [41, 42, 43, 52, 71, 90, 95]`, marks pixels within
-  `ACCESS_DISTANCE_M = 800` as "in access," and sums the per-pixel population counts
-  inside that mask. Returns `(access_pct, people_with_access)`. Population data comes
-  from `data/population/minneapolis_pop_2020.tif`, built by `download_census_pop.py`
+- **Nature Access is canonical InVEST UNA (2SFCA), re-implemented in numpy** —
+  `calculate_nature_access(scenario_lulc, pop_count_raster)` runs a two-step
+  floating catchment area calculation (`_una_supply_percapita` /
+  `_invest_una_pct_pop_supply_ge_demand`): per-pixel urban-nature area =
+  `URBAN_NATURE_PROPORTION[lucode] × pixel_area`; the population raster and the
+  R_j nature/population ratio are each convolved with a dichotomy disk kernel
+  (`_UNA_KERNEL`, uniform 800 m radius); the headline `pct_pop_supply_ge_demand`
+  is the population-weighted share of pixels where `urban_nature_supply_percapita
+  ≥ UNA_DEMAND_M2_PER_CAPITA` (16.7 m²/capita). Returns
+  `(access_pct, 0.0, people_with_access)` — the middle slot is a retained legacy
+  tuple position (was the removed Nature Quality Score). Validated against
+  `natcap.invest.urban_nature_access.execute()` at MAE ≈ 0 (see REFERENCE.md
+  "Official InVEST alignment — UNA"). Population data comes from
+  `data/population/minneapolis_pop_2020.tif`, built by `download_census_pop.py`
   from US Census 2020 block-level totals (P1_001N for Hennepin County, FIPS 27053)
   joined to TIGER 2020 tabulation-block polygons and rasterized to the NLCD grid
   (each block's pop spread uniformly across its pixels). At startup `app.py` calls
   `load_population_data(...)` inside a `try/except (FileNotFoundError,
   RasterioIOError)`; on failure it falls back to a uniform `np.ones(...)` raster with
-  `POPULATION_DATA_AVAILABLE = False` so the app still launches. The metric card's
-  help text branches on the flag. **Extent caveat:** the NLCD template covers only
-  ~10.8 km × 10.7 km (~154k residents) — a downtown-and-near-neighborhoods cutout,
-  not all of Minneapolis. This is explicitly a proximity proxy: no street network,
-  no barriers, no slope.
+  `POPULATION_DATA_AVAILABLE = False` so the app still launches. **Extent caveat:**
+  the NLCD template covers only ~10.8 km × 10.7 km (~154k residents) — a
+  downtown-and-near-neighborhoods cutout, not all of Minneapolis; the headline
+  reports the modelable-extent population (~43%), the rest sitting on cooling-LULC
+  nodata pixels the model cannot evaluate. The search kernel is Euclidean: no
+  street network, no barriers, no slope.
 - **REFERENCE.md is not rendered in-app** — the sidebar uses `st.sidebar.link_button` to
   open `REFERENCE.md` on GitHub in a new tab rather than embedding the content inline. The
   GitHub URL is hardcoded; update it if the repo moves.
