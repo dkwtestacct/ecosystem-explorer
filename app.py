@@ -58,6 +58,7 @@ CHANGE_COLORS = {
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
+- **Canonical InVEST Urban Nature Access (UNA) implemented for Minneapolis.** The Nature Access metric card returns, now reporting `pct_pop_supply_ge_demand` from a canonical InVEST UNA two-step floating catchment area (2SFCA) calculation — validated by direct comparison against `natcap.invest.urban_nature_access.execute()`. Parameters per `UNA_IMPLEMENTATION_NOTES.md` (16.7 m²/capita demand, 800 m uniform search radius, dichotomy decay). Reports the % of modelable-extent population (~43% of MN total); the remainder sit on cooling-LULC nodata pixels the model cannot evaluate.
 - **Placement strategy picker** in the sidebar — five options for where conversions get sited.
 - **Confidence badges** on every metric card (High / Medium / Prototype).
 - **InVEST alignment section** in the methodology docs, with metric tooltips linking directly to the relevant InVEST user guides.
@@ -66,8 +67,7 @@ WHATS_NEW = """
 - **Nature Access and Nature Quality Score removed from the dashboard.** Phase 1 InVEST comparison and sensitivity testing showed neither metric meaningfully discriminates between scenarios at the MN downtown scale. Both metric cards, the per-tract map overlay, and the in-app methodology tab have been removed. The underlying calculations remain (used by the lookup table and surrogate); a redesigned nature-access metric is an open design question. See `UNA_DIVERGENCE_CASE_STUDIES.md`, `UNA_METHODOLOGY_CROSS_CHECK.md`, and `UNA_QUALITY_SCORE_SENSITIVITY.md`.
 
 ### Working on now
-- **Implementing canonical InVEST Urban Nature Access (UNA)** — replacing the removed proxy with `natcap.invest.urban_nature_access.execute()` per scenario. Parameters and methodology choices documented in `UNA_IMPLEMENTATION_NOTES.md`.
-- **Investigating LULC consistency** — checking whether the prototype's existing cooling LULC and the InVEST UNA sample LULC differ in ways that matter for the UNA implementation. If they differ, deciding which to use is a real methodological choice.
+_Nothing in flight at the moment._
 
 ### On the radar
 - **San Antonio as a fuller pilot** once more data is in place.
@@ -757,53 +757,127 @@ def _compute_access_score_raster(scenario_lulc):
     )
 
 
+# ── Canonical InVEST Urban Nature Access (UNA) — numpy 2SFCA ─────────────────
+# Re-implements natcap.invest.urban_nature_access (uniform search radius,
+# dichotomy decay) in numpy — the same approach `_compute_hmi_raster` takes for
+# the InVEST UCM. The model runs inside the app's own environment (no
+# natcap.invest runtime dependency); the numpy result is validated offline
+# against `natcap.invest.urban_nature_access.execute()`. Parameter rationale is
+# in UNA_IMPLEMENTATION_NOTES.md.
+UNA_DEMAND_M2_PER_CAPITA = 16.7   # per-capita supply standard (NatCap SA study)
+UNA_SEARCH_RADIUS_M      = 800    # uniform search radius, ~10-min walk
+
+# urban_nature proportion (0-1 of pixel area) per LULC code, from the InVEST
+# UNA biophysical table. Codes absent from the table contribute no nature.
+URBAN_NATURE_PROPORTION = {
+    int(r.lucode): float(r.urban_nature)
+    for r in pd.read_csv(UNA_TABLE_PATH).itertuples()
+}
+
+# Dichotomy-decay kernel: a binary disk of radius `search_radius / pixel_size`
+# pixels, built exactly as pygeoprocessing.kernels.dichotomous_kernel does
+# (apothem = floor(radius_px); kernel side = 2·apothem + 1; a pixel is 1 where
+# its euclidean distance from the centre <= radius_px, else 0; un-normalized).
+_UNA_RADIUS_PX = UNA_SEARCH_RADIUS_M / PIXEL_SIZE_M
+_UNA_APOTHEM   = int(np.floor(_UNA_RADIUS_PX))
+_una_yy, _una_xx = np.mgrid[
+    -_UNA_APOTHEM:_UNA_APOTHEM + 1, -_UNA_APOTHEM:_UNA_APOTHEM + 1]
+_UNA_KERNEL = (np.hypot(_una_yy, _una_xx) <= _UNA_RADIUS_PX).astype(np.float32)
+del _una_yy, _una_xx
+
+
+def _una_convolve(signal):
+    """Zero-padded 2-D convolution with the dichotomy disk kernel, matching
+    `pygeoprocessing.convolve_2d(ignore_nodata_and_edges=False)` as InVEST UNA
+    uses it: edges are zero-padded (not edge-corrected), then the negative-value
+    clamp of InVEST's `_convolve_and_set_lower_bound` is applied."""
+    out = _fftconvolve(signal, _UNA_KERNEL, mode="same")
+    np.clip(out, 0.0, None, out=out)
+    return out
+
+
+def _una_supply_percapita(scenario_lulc, pop_count_raster):
+    """InVEST UNA `urban_nature_supply_percapita` raster via two-step floating
+    catchment area (2SFCA), re-implemented in numpy.
+
+    Returns `(supply_percapita, valid_mask)`. `supply_percapita` is m² of urban
+    nature available per capita reachable from each pixel; `valid_mask` is the
+    modelable extent (valid-LULC pixels — InVEST masks LULC and population to
+    their common valid extent before convolving)."""
+    valid = (scenario_lulc != NODATA)
+    pixel_area_m2 = float(PIXEL_SIZE_M * PIXEL_SIZE_M)
+
+    # Population masked to the modelable extent; off-extent population counts as
+    # 0, exactly as InVEST's `masked_population` feeds the convolution.
+    pop = np.where(valid, np.asarray(pop_count_raster, dtype=np.float64), 0.0)
+
+    # Urban-nature area per pixel = urban_nature_proportion × pixel area.
+    nature_area = np.zeros(scenario_lulc.shape, dtype=np.float64)
+    for lucode, proportion in URBAN_NATURE_PROPORTION.items():
+        if proportion > 0:
+            nature_area[scenario_lulc == lucode] = proportion * pixel_area_m2
+
+    # 2SFCA step 1 — decay-weighted population within the search radius.
+    decayed_pop = _una_convolve(pop)
+
+    # 2SFCA step 1b — R_j, the urban-nature/population ratio. Mirrors InVEST's
+    # `_urban_nature_population_ratio`: nature_area / decayed_pop, except where
+    # the reachable population is <= 1 person the ratio is set to nature_area
+    # (InVEST science-team rule — avoids a divide-by-near-zero blow-up).
+    nature_pixels = nature_area > 0
+    ratio = np.zeros(scenario_lulc.shape, dtype=np.float64)
+    pop_le_one = decayed_pop <= 1.0
+    sel = nature_pixels & pop_le_one
+    ratio[sel] = nature_area[sel]
+    sel = nature_pixels & ~pop_le_one
+    ratio[sel] = nature_area[sel] / decayed_pop[sel]
+
+    # 2SFCA step 2 — supply per capita = decay-weighted sum of R_j.
+    return _una_convolve(ratio), valid
+
+
+def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster):
+    """Headline UNA metric: the share of the modelable-extent population whose
+    per-capita urban-nature supply meets `UNA_DEMAND_M2_PER_CAPITA`.
+
+    Returns `(pct, modelable_pop, people_supplied)`. The modelable extent is the
+    population on valid-LULC pixels; InVEST cannot model supply for residents on
+    LULC nodata (a large share of the prototype's downtown MN AOI)."""
+    supply_percapita, valid = _una_supply_percapita(
+        scenario_lulc, pop_count_raster)
+    pop = np.asarray(pop_count_raster, dtype=np.float64)
+    modelable_pop = float(pop[valid].sum())
+    if modelable_pop <= 0:
+        return 0.0, 0.0, 0.0
+    adequate = valid & (supply_percapita >= UNA_DEMAND_M2_PER_CAPITA)
+    people_supplied = float(pop[adequate].sum())
+    return 100.0 * people_supplied / modelable_pop, modelable_pop, people_supplied
+
+
 def calculate_nature_access(scenario_lulc, pop_count_raster):
+    """Canonical InVEST Urban Nature Access for the given scenario LULC.
+
+    Re-implements `natcap.invest.urban_nature_access` (uniform 800 m search
+    radius, dichotomy decay, 16.7 m²/capita demand — see
+    UNA_IMPLEMENTATION_NOTES.md) in numpy via two-step floating catchment area
+    (2SFCA). The headline metric is `pct_pop_supply_ge_demand`: the share of the
+    modelable-extent population whose per-capita nature supply meets the demand
+    standard.
+
+    `pop_count_raster` must be per-pixel population **counts** (not density).
+
+    Returns a 3-tuple `(access_pct, _legacy_slot, people_with_access)`:
+
+    - `access_pct` — pct_pop_supply_ge_demand, 0-100, rounded to 0.1.
+    - `_legacy_slot` — always 0.0. Formerly the Nature Quality Score (removed);
+      the slot is retained so existing three-value call sites are unaffected.
+    - `people_with_access` — integer headcount, access_pct/100 × modelable-
+      extent population.
     """
-    Returns (access_pct, weighted_people_with_access).
-
-    For each LULC class with a positive `urban_nature` score in the InVEST UNA
-    table, compute the in-range mask using that class's `search_radius_m`.
-    Per pixel, the access score is the maximum `score × in_range` across all
-    contributing classes. The reported metric is the population-weighted mean
-    of that score, expressed as a percentage. With a continuous 0–1 score
-    (rather than the previous binary in-or-out flag) this generalizes the old
-    "% of residents with access" framing — a pixel near a class-1.0 forest
-    and a class-0.5 open-space patch counts toward the higher of the two.
-
-    pop_count_raster must be per-pixel **counts** (not density).
-
-    Returns `(access_pct, quality_score, weighted_people)`:
-
-    - `access_pct` — share of residents with access_score above
-      `NATURE_ACCESS_THRESHOLD` (default 0.3). A pedestrian-style headline
-      number: "what fraction of residents reach *meaningful* nature?".
-    - `quality_score` — population-weighted mean access score (0-1). Captures
-      both proximity and nature class quality. The `np.maximum(...)` step
-      inside `_compute_access_score_raster` is what prevents double-counting:
-      a pixel near multiple natural classes gets the **highest** of their
-      per-class scores, not the sum.
-    - `weighted_people` — int of `pop × access_score` summed, useful as a
-      population-scale companion number.
-    """
-    valid_pop = pop_count_raster > 0
-    total_pop = pop_count_raster[valid_pop].sum()
-    if total_pop <= 0:
-        return 0.0, 0.0, 0
-
-    access_score = _compute_access_score_raster(scenario_lulc)
-
-    weighted_pop_score = (pop_count_raster * access_score)[valid_pop].sum()
-    quality_score = float(weighted_pop_score / total_pop)
-
-    above_threshold = access_score > NATURE_ACCESS_THRESHOLD
-    pop_above_thresh = pop_count_raster[above_threshold & valid_pop].sum()
-    access_pct = 100 * pop_above_thresh / total_pop
-
-    return (
-        round(float(access_pct), 1),
-        round(quality_score, 3),
-        int(weighted_pop_score),
+    pct, _modelable_pop, people_supplied = _invest_una_pct_pop_supply_ge_demand(
+        scenario_lulc, pop_count_raster
     )
+    return round(float(pct), 1), 0.0, int(round(people_supplied))
 
 
 # Threshold for "Nature Access %" — pixels with access_score above this count
@@ -1234,7 +1308,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     )
     avoided_carbon_cost_usd = round(carbon_tons_co2_yr * EPA_SOCIAL_COST_CARBON, 0)
 
-    nat_pct, nat_quality, nat_people = calculate_nature_access(
+    nat_pct, _nat_quality, nat_people = calculate_nature_access(
         scenario_lulc, pop_count_raster
     )
 
@@ -1274,7 +1348,6 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'carbon_tons_co2_yr':       carbon_tons_co2_yr,
         'avoided_carbon_cost_usd':  avoided_carbon_cost_usd,
         'nature_access_pct':        nat_pct,
-        'nature_quality_score':     nat_quality,
         'people_with_nature_access': nat_people,
         'preventable_mh_cases':     preventable_mh_cases,
         'avoided_mh_cost_usd':      avoided_mh_cost_usd,
@@ -1331,11 +1404,10 @@ def compute_scenario_grid(_state, city_key, data_dir_flood, data_dir_cooling,
                     row['carbon_tons_co2_yr'] = _compute_carbon(
                         row['n_wet'], row['n_for'], row['n_hd']
                     )
-                    nature_access_pct, nature_quality_score, people_with_nature_access = calculate_nature_access(
+                    nature_access_pct, _nature_quality, people_with_nature_access = calculate_nature_access(
                         result['scenario_lulc'], _state.pop_count_raster
                     )
                     row['nature_access_pct'] = nature_access_pct
-                    row['nature_quality_score'] = nature_quality_score
                     row['people_with_nature_access'] = people_with_nature_access
                     rows.append(row)
     df = pd.DataFrame(rows)
@@ -1379,11 +1451,10 @@ def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, sch
                     entry['carbon_tons_co2_yr'] = _compute_carbon(
                         entry['n_wet'], entry['n_for'], entry['n_hd']
                     )
-                    nature_access_pct, nature_quality_score, people_with_nature_access = calculate_nature_access(
+                    nature_access_pct, _nature_quality, people_with_nature_access = calculate_nature_access(
                         result['scenario_lulc'], _state.pop_count_raster
                     )
                     entry['nature_access_pct'] = nature_access_pct
-                    entry['nature_quality_score'] = nature_quality_score
                     entry['people_with_nature_access'] = people_with_nature_access
                     missing = [c for c in REQUIRED_TARGET_COLUMNS if c not in entry]
                     if missing:
@@ -2794,7 +2865,28 @@ st.markdown("#### Human & Social")
 # for negative deltas. Both are internally consistent answers to
 # st.metric's sign-parses-arrow constraint; the MH framing is the
 # right one for healthcare burden specifically.
-hs3, hs4 = st.columns(2)
+hs_na, hs3, hs4 = st.columns(3)
+
+# Nature Access — canonical InVEST Urban Nature Access (2SFCA), re-implemented
+# in numpy by `calculate_nature_access`. See UNA_IMPLEMENTATION_NOTES.md.
+_nature_access = results.get('nature_access_pct', 0.0)
+hs_na.metric(
+    "Nature Access",
+    f'{_nature_access:.1f}%',
+    help=(
+        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
+        "% of MN population whose per-capita nature supply meets the 16.7 m²/capita "
+        "demand standard, computed via canonical InVEST Urban Nature Access (2SFCA "
+        "methodology). Reports only the modelable-extent population (~43% of MN total) — "
+        "the remainder sits on cooling-LULC nodata pixels InVEST cannot model. "
+        "Parameters: 800m uniform search radius, dichotomy decay. See "
+        "UNA_IMPLEMENTATION_NOTES.md for parameter rationale. "
+        "Underlying model: [InVEST Urban Nature Access]"
+        "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
+    ),
+)
+_confidence_caption(hs_na, "medium")
+
 _mh_cases = results.get('preventable_mh_cases', 0.0)
 _mh_cost  = results.get('avoided_mh_cost_usd', 0.0)
 if _mh_cases >= _MH_CASES_PILL_EPSILON:
