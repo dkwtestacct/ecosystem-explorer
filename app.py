@@ -58,6 +58,7 @@ CHANGE_COLORS = {
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
+- **Comprehensive OSM building footprints for the Minneapolis placement mask.** The placement-strategy non-convertible mask now unions the existing InVEST UFR sample buildings (downtown-core typed) with comprehensive Geofabrik OSM building footprints (~113k city-wide, untyped). Conversions can no longer be placed on any OSM building anywhere in the MN AOI — previously only downtown-core buildings were masked. The InVEST UFR sample buildings continue to drive Cooling Energy Savings and Flood Damage Avoided dollar metrics (which need the typed data), so those metrics are unchanged. Aligns with NatCap's recommendation to separate placement-constraint inputs from model-input data.
 - **Canonical InVEST Urban Nature Access (UNA) implemented for Minneapolis.** The Nature Access metric card returns, now reporting `pct_pop_supply_ge_demand` from a canonical InVEST UNA two-step floating catchment area (2SFCA) calculation — validated by direct comparison against `natcap.invest.urban_nature_access.execute()`. Parameters per `DESIGN_NOTES.md` (16.7 m²/capita demand, 800 m uniform search radius, dichotomy decay). Reports the % of modelable-extent population (~43% of MN total); the remainder sit on cooling-LULC nodata pixels the model cannot evaluate.
 - **Placement strategy picker** in the sidebar — five options for where conversions get sited.
 - **Confidence badges** on every metric card (High / Medium / Prototype).
@@ -320,6 +321,8 @@ class CityState(NamedTuple):
     # Roads
     roads_raster: np.ndarray
     osm_roads_available: bool
+    # OSM placement-mask buildings (supplements the typed buildings_file)
+    osm_buildings_available: bool
     # Per-pixel AC consumption rate
     consumption_rate_per_pixel: np.ndarray
     # Convertible-pixel pool (developed minus buildings/roads)
@@ -1772,6 +1775,41 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         roads_raster = np.zeros(l_cooling_lulc.shape, dtype="uint8")
         osm_roads_available = False
 
+    # ── Phase 9b: OSM buildings mask union ──────────────────────────────────
+    # Supplements the typed `buildings_raster` from `buildings_file` for
+    # placement-mask purposes only: `mask_buildings_file` is untyped OSM data
+    # and does NOT feed `buildings_type_raster` (the $ metrics still use the
+    # typed raster from `buildings_file`). Mirrors the Phase 9 roads union;
+    # runs before Phase 10 so the final `buildings_raster` is the union of
+    # typed buildings + roads + OSM mask buildings. Cities without
+    # `mask_buildings_file` configured (SA, Mpls Full) skip this cleanly.
+    mask_buildings_file = cfg.get("mask_buildings_file")
+    try:
+        if not mask_buildings_file or not Path(mask_buildings_file).exists():
+            raise FileNotFoundError(
+                f"mask_buildings_file not configured or missing: {mask_buildings_file}"
+            )
+        mask_buildings_gdf = _gpd.read_file(mask_buildings_file)
+        if mask_buildings_gdf.crs is None or str(mask_buildings_gdf.crs) != cfg['crs']:
+            mask_buildings_gdf = mask_buildings_gdf.to_crs(cfg['crs'])
+        mask_buildings_raster = _rasterize(
+            ((g, 1) for g in mask_buildings_gdf.geometry),
+            out_shape=ref_shape, transform=ref_transform,
+            fill=0, dtype="uint8",
+        )
+        _mask_px_before = int(np.sum(buildings_raster > 0))
+        buildings_raster = np.maximum(buildings_raster, mask_buildings_raster)
+        _mask_px_after = int(np.sum(buildings_raster > 0))
+        osm_buildings_available = True
+        print(
+            f"[MASK] {city_key}: non-convertible mask {_mask_px_before:,} px "
+            f"-> {_mask_px_after:,} px after OSM buildings union "
+            f"(+{_mask_px_after - _mask_px_before:,})"
+        )
+        del mask_buildings_gdf
+    except Exception:
+        osm_buildings_available = False
+
     # ── Phase 10: Per-pixel AC consumption rate ─────────────────────────────
     if energy_by_type:
         max_bldg_type = int(max(buildings_type_raster.max(), max(energy_by_type.keys())))
@@ -1865,6 +1903,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         buildings_type_coverage=buildings_type_coverage,
         total_potential_damage_usd=total_potential_damage_usd,
         roads_raster=roads_raster, osm_roads_available=osm_roads_available,
+        osm_buildings_available=osm_buildings_available,
         consumption_rate_per_pixel=consumption_rate_per_pixel,
         convertible_pixels=convertible_pixels,
         tracts=tracts, tract_id_raster=tract_id_raster,
@@ -1925,6 +1964,7 @@ TOTAL_POTENTIAL_DAMAGE_USD = _CURRENT_CITY_STATE.total_potential_damage_usd
 # Roads
 ROADS_RASTER        = _CURRENT_CITY_STATE.roads_raster
 OSM_ROADS_AVAILABLE = _CURRENT_CITY_STATE.osm_roads_available
+OSM_BUILDINGS_AVAILABLE = _CURRENT_CITY_STATE.osm_buildings_available
 # Energy + buildings derived
 CONSUMPTION_RATE_PER_PIXEL = _CURRENT_CITY_STATE.consumption_rate_per_pixel
 # Convertible-pixel pool

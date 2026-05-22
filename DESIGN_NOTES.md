@@ -182,10 +182,19 @@ improvement: it constrains *where* conversions can physically land using
 grounded data, without attempting to predict *where they would* land
 (the domain of the land-use simulation models below).
 
-**Remaining gap.** Minneapolis's building layer is the InVEST UFR sample
-shapefile, which covers only the downtown core; comprehensive OSM
-building footprints for Minneapolis would extend the non-convertible
-mask's coverage. Roads are already comprehensive OSM for every city.
+**Phase 2 update.** Comprehensive OSM building footprints
+(`data/osm/minneapolis_buildings.geojson` — ~113k city-wide footprints
+from Geofabrik) are now integrated for Minneapolis via a **split-config
+architecture**. Two config keys: `buildings_file` (the InVEST UFR sample
+shapefile — typed, a model input) drives the `buildings_type_raster`
+behind the Cooling Energy Savings and Flood Damage Avoided dollar
+metrics; `mask_buildings_file` (the OSM footprints — untyped, a placement
+constraint) is unioned into the non-convertible mask only. This closes
+the earlier downtown-core-only coverage gap without regressing the typed
+$ metrics, and reflects NatCap's explicit separation of
+placement-constraint inputs from model inputs. The MN non-convertible
+mask grew 37,812 → 54,268 pixels; the convertible pool shrank ~21%
+(33,357 → 26,372). Roads were already comprehensive OSM for every city.
 
 ### Considered but deferred — PLUS / CLUE / LCM
 

@@ -28,6 +28,11 @@ CITIES = {
         'roads_file':           'data/osm/minneapolis_roads.geojson',
         'dense_scenarios_file': 'data/scenarios_dense_mpls.csv',
         'buildings_file':       'data/invest/flood/UFR_sample_data_MN/buildings.shp',
+        # Comprehensive Geofabrik OSM building footprints (~113k city-wide).
+        # Unioned into the placement non-convertible mask only; the typed
+        # buildings_type_raster that drives the $ metrics still comes from
+        # buildings_file (the InVEST UFR sample). See app.py Phase 9b.
+        'mask_buildings_file':  'data/osm/minneapolis_buildings.geojson',
         'damage_table_file':    'data/invest/flood/UFR_sample_data_MN/Damage_loss_table_MN.csv',
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
         'et_file':              'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/reference_evapotranspiration_annual.tif',

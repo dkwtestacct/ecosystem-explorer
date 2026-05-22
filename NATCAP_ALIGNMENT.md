@@ -54,11 +54,22 @@ recommended equivalents.
 | Population (San Antonio) | US Census 2020 block-level (P1_001N, Bexar County) | Standard NLCD-grid rasterization | ✅ Aligned |
 | UNA biophysical table | InVEST sample: `LULC_attribute_table_UNA.csv` | NatCap-published canonical table | ✅ Aligned |
 | UCM biophysical table | MN: InVEST UCM sample values; SA: tuned for Köppen BSh climate (classes 41/42/52/81) | NatCap-published canonical table | ✅ Aligned (MN) / ⚠️ Tuned (SA) |
-| Building footprints (Minneapolis) | InVEST UFR sample building shapefile — downtown-core coverage only | Comprehensive OSM building footprints | ⚠️ Improvised — sample-only coverage |
+| Building footprints (Minneapolis) | Split-config — Geofabrik OSM footprints (~113k, city-wide) feed the placement mask (`mask_buildings_file`); the InVEST UFR sample shapefile (`buildings_file`) drives the typed $-metric raster | Comprehensive OSM building footprints | ✅ Aligned |
 | Road network (Minneapolis) | Geofabrik OSM (Minnesota extract, Option B class filter), rasterized into the non-convertible mask | Geofabrik OSM extracts, recommended | ✅ Aligned |
 | Buildings + roads (San Antonio) | Geofabrik OSM (Texas extract) — `buildings_sa.gpkg` (345,900 polygons), `roads_sa.geojson` (55,553 segments) | Geofabrik OSM extracts, recommended | ✅ Aligned |
 | NatCap MN production config (UNA) | Not yet adopted; using SA-study-derived parameters | NatCap's MN-specific UNA configuration | ⏸️ Pending data sharing |
 | NatCap SA production config (UNA, UCM, UFR) | Pending access to NatCap SA folder | NatCap's SA Urban Agriculture project data | ⏸️ Pending data access |
+
+**Split-config buildings (Minneapolis).** Placement-constraint inputs and
+model inputs serve different purposes, so they are sourced separately. The
+non-convertible *placement mask* unions comprehensive Geofabrik OSM building
+footprints (`mask_buildings_file`, ~113k city-wide); the *typed $-metric
+raster* — Cooling Energy Savings, Flood Damage Avoided — stays on the InVEST
+UFR sample shapefile (`buildings_file`), which carries the per-building InVEST
+type codes those metrics require. NatCap's framing explicitly separates
+placement-constraint data (where OSM is recommended) from model-input data
+(where typed sample data is canonical), so the split is an alignment, not a
+compromise.
 
 ## 3. Parameter Alignment
 
@@ -88,7 +99,7 @@ Tracks the prototype's spatial representation vs NatCap recommendations.
 | AOI extent (MN) | Downtown + near-neighborhoods, ~123 km², ~154k residents (InVEST UFR sample AOI) | NatCap's MN study extent | ✅ Aligned (uses NatCap-provided AOI) |
 | AOI extent (SA) | Bexar County bbox, ~1,907k residents | NatCap's SA Urban Agriculture study extent | ⏸️ Pending verification |
 | Placement constraints | Three-layer non-convertible mask: buildings + roads excluded via the rasterized mask; existing nature never a candidate (pool is developed NLCD 21–24 only). Random or strategy-weighted selection within the remaining pool. | 3-layer mask: buildings + roads + existing nature | ✅ Aligned |
-| Building footprint coverage | MN: InVEST UFR sample buildings (downtown core only); SA + Minneapolis Full: comprehensive OSM footprints | Comprehensive OSM building footprints | ⚠️ Partial — MN sample-only; SA aligned |
+| Building footprint coverage | Placement mask uses comprehensive OSM footprints city-wide for every city; the typed $-metrics use the InVEST UFR sample for MN (downtown core, where its per-building type codes are valid) | Comprehensive OSM building footprints | ✅ Aligned |
 | Road network coverage | OSM road network rasterized into the non-convertible mask, all cities | OSM road network | ✅ Aligned |
 | LULC resolution | 30 m / pixel (NLCD standard) | 30 m / pixel | ✅ Aligned |
 
@@ -99,7 +110,7 @@ prototype's status on each.
 
 | Direction | NatCap mention | Current status | Notes |
 |---|---|---|---|
-| OSM buildings + roads as placement constraints | "Simpler approaches" in NatCap document | ✅ Implemented | Roads (all cities) + buildings unioned into the non-convertible mask; MN buildings use the InVEST sample, so comprehensive MN OSM buildings remain open. See `DESIGN_NOTES.md` placement strategy section. |
+| OSM buildings + roads as placement constraints | "Simpler approaches" in NatCap document | ✅ Implemented | Roads + comprehensive OSM building footprints unioned into the non-convertible mask for every city (MN via the split-config `mask_buildings_file`). See `DESIGN_NOTES.md` placement strategy section. |
 | Wallpaper approach | "Simpler approaches" in NatCap document | ⏸️ Interpretation unclear; to discuss with NatCap | See `DESIGN_NOTES.md` |
 | PLUS land-use simulation | "Existing models" in NatCap document | 🔵 Considered, deferred | C++/Qt app, integration heavy; see `DESIGN_NOTES.md` |
 | CLUE land-use simulation | "Existing models" in NatCap document | 🔵 Considered, deferred | Java-based; same constraints as PLUS |
