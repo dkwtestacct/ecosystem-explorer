@@ -66,7 +66,8 @@ WHATS_NEW = """
 - **Nature Access and Nature Quality Score removed from the dashboard.** Phase 1 InVEST comparison and sensitivity testing showed neither metric meaningfully discriminates between scenarios at the MN downtown scale. Both metric cards, the per-tract map overlay, and the in-app methodology tab have been removed. The underlying calculations remain (used by the lookup table and surrogate); a redesigned nature-access metric is an open design question. See `UNA_DIVERGENCE_CASE_STUDIES.md`, `UNA_METHODOLOGY_CROSS_CHECK.md`, and `UNA_QUALITY_SCORE_SENSITIVITY.md`.
 
 ### Working on now
-- **Redesigning the nature-access metric.** The current proximity proxy is too coarse to discriminate between scenarios at the MN downtown scale; designing something with finer-grained quality discrimination, distance decay, or related improvements.
+- **Implementing canonical InVEST Urban Nature Access (UNA)** — replacing the removed proxy with `natcap.invest.urban_nature_access.execute()` per scenario. Parameters and methodology choices documented in `UNA_IMPLEMENTATION_NOTES.md`.
+- **Investigating LULC consistency** — checking whether the prototype's existing cooling LULC and the InVEST UNA sample LULC differ in ways that matter for the UNA implementation. If they differ, deciding which to use is a real methodological choice.
 
 ### On the radar
 - **San Antonio as a fuller pilot** once more data is in place.
