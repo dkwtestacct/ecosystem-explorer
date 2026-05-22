@@ -58,7 +58,7 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 Pipeline scripts: `download_sa_data.py` (NLCD), `download_ssurgo_sa.py` +
 `process_ssurgo_sa.py` (soil), `download_census_pop_sa.py` (population),
 `download_et_sa.py` (CGIAR ET0), `download_osm_sa.py` (roads + buildings),
-`process_tracts_sa.py` (tracts), `verify_sa_baselines.py` (baseline check).
+`process_tracts_sa.py` (tracts).
 Detailed sourcing notes in `data/sa/README.md`.
 
 OSM buildings carry `type` as OSM strings ('house', 'apartments', 'retail', …)

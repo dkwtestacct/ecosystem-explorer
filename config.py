@@ -166,9 +166,9 @@ CITIES = {
         'et_file':              'data/sa/cooling/et_annual_sa.tif',
         'tracts_file':          'data/sa/tracts_bexar.shp',
         'una_table_file':       'data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv',
-        # Live baselines from verify_sa_baselines.py (real SSURGO TX029, CGIAR
-        # ET0 v3.1, full InVEST UCM CC pipeline). Documentation only — the
-        # live override at module load recomputes these from the rasters.
+        # Documentation only (sourced from real SSURGO TX029, CGIAR ET0 v3.1,
+        # full InVEST UCM CC pipeline) — the live override at module load
+        # recomputes these baselines from the rasters and is authoritative.
         'baseline_cn':          76.54,
         'baseline_hm':          0.2866,
         'baseline_ndvi':        0.4242,
@@ -199,7 +199,7 @@ CITIES = {
             'LULC from NLCD 2021, SSURGO from USDA SDA (TX029, 44 % D-class), '
             'population from Census 2020 Bexar (FIPS 48029, 1.91 M in raster), '
             'reference ET from CGIAR Global-AI/ET0 v3.1 (1,580–1,716 mm/yr). '
-            'Baseline constants computed via verify_sa_baselines.py.'
+            'Baseline constants recomputed live at module load.'
         ),
         # Reference points for the tradeoff scatter. `cooling` is mean HMI
         # under the canonical InVEST UCM algorithm (HMI = max(CC_local,
