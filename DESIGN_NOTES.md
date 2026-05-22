@@ -239,6 +239,64 @@ not wallpaper.
 NatCap mean by "wallpaper approach" specifically? Whether the prototype
 should pursue this as an option depends on the answer.
 
+## Land use and land cover sources
+
+The prototype uses **NLCD 2021** (legacy MRLC product) across all cities.
+NLCD 2021 is also the LULC vintage shipped with the InVEST UFR, UCM, and
+UNA sample data the prototype builds on.
+
+### Rasters in use
+
+Four LULC rasters across the three cities. Minneapolis downtown uses two
+distinct rasters — one for the flood / Curve Number calculation, one for
+cooling and as the canonical scenario LULC — inherited from separate
+InVEST sample bundles (UFR vs UCM/UNA). San Antonio and Minneapolis Full
+each use a single raster for both flood and cooling.
+
+| City (role) | Path | CRS | Dimensions | Notes |
+|---|---|---|---|---|
+| Minneapolis — cooling & scenario LULC | `data/cooling/land_use_2021.tif` | EPSG:26915 | 356 × 360, int16 | The canonical scenario raster. **Byte-identical to the InVEST UNA sample** LULC — see `UNA_LULC_INVESTIGATION.md` (MD5 `56d1080fa70576cad15896642a107a3d`). |
+| Minneapolis — flood / CN LULC | `data/flood/LULC_NLCD_2021_MN.tif` | EPSG:26915 | 356 × 360, int16 | Drives the Curve Number / flood calculation. Same AOI and grid as the cooling LULC but a distinct file (MD5 `a8687db9f76394aa1333b8a3d35ec57e`) — from the InVEST UFR sample bundle rather than UCM/UNA. |
+| Minneapolis Full (dormant) | `data/minneapolis_expanded/lulc_nlcd_2021_mpls_full.tif` | EPSG:5070 | 607 × 374, uint8 | `available=False` — hidden from the city selector. One raster for both flood and cooling. |
+| San Antonio | `data/sa/flood/land_use_2021_sa.tif` | EPSG:5070 | 1713 × 1984, uint8 | One raster for both flood and cooling (the `cooling_lulc_file` is a `../flood/` relative reference to the same file). Independently sourced via `download_sa_data.py`. |
+
+Minneapolis downtown carries the InVEST sample's native EPSG:26915
+(UTM 15N) projection; Minneapolis Full and San Antonio use NLCD's native
+EPSG:5070 (CONUS Albers). All four rasters are tracked in git.
+
+### Planned future source for San Antonio
+
+NatCap maintains a curated SA Urban Agriculture data folder (access
+pending). When access is granted, the planned migration is to adopt the
+curated SA LULC and parameters, replacing the current
+independently-sourced raster. Tracked in `NATCAP_ALIGNMENT.md` Tables 2
+and 3 as ⏸️ Pending data access.
+
+The SA project covers: Crop yield, Urban Cooling, Carbon Storage, Urban
+Nature Access, Flood Mitigation, and Nutrient Delivery Ratio (pending
+complete data).
+
+### NLCD legacy vs Annual NLCD (May 2026)
+
+USGS replaced legacy NLCD with **Annual NLCD** in 2024 — a new ensemble
+deep-learning methodology with annual coverage 1985–2024 and a revised
+class system (21 → 16 classes). MRLC states that "Legacy NLCD data are
+not directly comparable to the newer Annual NLCD data due to differences
+in methodologies, inputs, and ancillary data."
+
+The prototype stays on **legacy NLCD 2021** because the InVEST sample
+data and the biophysical tables (CN, cooling, UNA) are all calibrated
+against the legacy 21-class schema. Migrating to Annual NLCD would
+require re-validating every lucode mapping and regenerating all
+baselines.
+
+**Open question for NatCap:** has the canonical SA Urban Agriculture
+data folder migrated to Annual NLCD, or does it remain on legacy
+NLCD 2021? The answer determines whether the prototype's continued use
+of legacy NLCD aligns with current NatCap practice or diverges from it.
+
+Reference: <https://www.mrlc.gov/faq>
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
@@ -247,7 +305,6 @@ so future sessions know this doc is the right home.
 - UCM cooling parameters (UHI_MAX_C, energy table, HMI vs energy aggregation)
 - NDVI source (synthetic proxy vs satellite-derived AlphaEarth)
 - Population data (Census 2020 block vs ACS block-group)
-- AOI extent decisions for each city
 - Carbon sequestration methodology
 - Surrogate model architecture and hyperparameters
 - "Wallpaper approach" — to clarify with NatCap (see Placement strategy section)
