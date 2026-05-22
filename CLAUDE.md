@@ -513,10 +513,16 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   user-tunable weights, so there's nothing to expose in the sidebar. See REFERENCE.md
   "Official InVEST alignment — UMH" for parity status and divergences (uniform BIR vs
   per-admin, Gaussian kernel vs uniform buffer, synthetic vs satellite NDVI).
-- **The surrogate predicts eight outputs** — `train_surrogate` fits the Random Forest on
+- **The surrogate predicts six outputs** — `train_surrogate` fits the Random Forest on
   `[flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet, carbon_tons_co2_yr,
-  nature_access_pct, preventable_mh_cases, avoided_mh_cost_usd]`, so `predict_with_uncertainty`
-  returns `(n, 8)` arrays.
+  nature_access_pct]`, so `predict_with_uncertainty` returns `(n, 6)` arrays. The two
+  InVEST UMH metrics (`preventable_mh_cases`, `avoided_mh_cost_usd`) are **not** RF
+  targets — they are computed deterministically inside `evaluate_scenario` from the
+  scenario's NDVI exposure, so the surrogate doesn't need to predict them.
+  (`evaluate_scenario` returns many more fields than these six — intermediate
+  metrics, pixel counts, the scenario name — the six above are just the columns the
+  surrogate learns. `REQUIRED_TARGET_COLUMNS` lists eight must-exist grid columns,
+  a superset of the six RF targets plus the two deterministic MH metrics.)
   `optimize_scenario` adds a `min_carbon` constraint (`mean_preds[:, 4] >= min_carbon`)
   alongside the existing flood, cooling, food, and runoff filters. The carbon column flows
   into the candidate DataFrame (with `carbon_lower` / `carbon_upper` uncertainty bands) and

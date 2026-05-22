@@ -45,26 +45,40 @@ CITY_KEY = _args.city
 
 # ── 1. Stub streamlit so importing app.py doesn't try to render a UI ──────────
 class _SessionStateStub:
-    """Mimic st.session_state — `.get(key, default)` must return `default`,
-    item/attr reads return None, writes are no-ops."""
+    """Mimic st.session_state with a real dict store so app.py's module-level
+    session-state access (.get / .pop / .setdefault, item + attribute reads
+    and writes, `in` checks) behaves consistently during `import app`."""
+
+    _store = {}
 
     def get(self, key, default=None):
-        return default
+        return self._store.get(key, default)
+
+    def pop(self, key, *args):
+        return self._store.pop(key, *args) if args else self._store.pop(key, None)
+
+    def setdefault(self, key, default=None):
+        return self._store.setdefault(key, default)
 
     def __getattr__(self, name):
-        return None
+        if name == "_store":
+            return object.__getattribute__(self, "_store")
+        return self._store.get(name)
 
     def __getitem__(self, key):
-        return None
+        return self._store.get(key)
 
     def __setitem__(self, key, value):
-        pass
+        self._store[key] = value
 
     def __setattr__(self, name, value):
-        pass
+        if name == "_store":
+            object.__setattr__(self, name, value)
+        else:
+            self._store[name] = value
 
     def __contains__(self, key):
-        return False
+        return key in self._store
 
 
 class _StubSt:
@@ -195,11 +209,10 @@ for i, (pct, gi, ff) in enumerate(combos, start=1):
     row["carbon_tons_co2_yr"] = app._compute_carbon(
         row["n_wet"], row["n_for"], row["n_hd"]
     )
-    nature_pct, nature_quality, nature_people = app.calculate_nature_access(
+    nature_pct, _nature_quality, nature_people = app.calculate_nature_access(
         result["scenario_lulc"], app.pop_count_raster
     )
     row["nature_access_pct"] = nature_pct
-    row["nature_quality_score"] = nature_quality
     row["people_with_nature_access"] = nature_people
     rows.append(row)
 
