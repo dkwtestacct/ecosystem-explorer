@@ -597,3 +597,17 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   should not already have a `# Design Notes` heading" sentinel caught an existing heading
   and prevented duplicate-heading commit. Sentinels are the parts of the brief where CC
   judgment is *constrained*, not just guided.
+- **Planning artifacts can run in parallel with the investigations that inform them.**
+  Drafting the next brief (or planning doc) while CC executes the current one
+  compresses session wall-clock without compressing thought. The default to wait
+  for "full information" before drafting planning artifacts is usually too
+  conservative — most planning content is methodology-driven and data-independent.
+  Use `[CC: detail pending from Brief N]` placeholders for the specific findings
+  that haven't landed yet; fill them in once the predecessor brief reports.
+  Example from real session experience: Brief 26 (SA integration planning doc)
+  was held until Brief 24 (structural audit) landed, even though ~70% of its
+  content — CRS choice rationale, integration sequence, planning structure —
+  was data-independent. Only the specific tie-breaker logic in Decision 2 and
+  the extent-loss tradeoff in Decision 1 needed Brief 24's findings. The lesson:
+  default to drafting in parallel; mark pending findings with placeholders;
+  fill them in when the data arrives.
