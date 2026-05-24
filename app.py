@@ -58,17 +58,10 @@ CHANGE_COLORS = {
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
-- **Placement strategies grounded in canonical InVEST outputs.** Flood-focused now uses per-pixel runoff `Q_{p,i}`, cooling-focused uses HMI plus real distance-to-buildings, and "equity-focused" is renamed "Prioritize areas with unmet nature demand" with a canonical UNA per-capita supply deficit formula.
-- **InVEST vocabulary alignment.** Metric card and chart labels now use "Heat Mitigation Index (HMI)" rather than "Cooling Capacity / CC".
-- **Fixed equity-focused placement crash at high conversion fractions.**
-- **Comprehensive OSM building footprints integrated for the Minneapolis placement mask.**
+- **Placement strategies aligned with InVEST canonical quantities.**
 - **Canonical InVEST Urban Nature Access implemented for Minneapolis.**
 - **Placement strategy picker** in the sidebar.
-- **Confidence badges** on every metric card.
-- **InVEST alignment section** in the methodology docs.
 - **Interactive Input Influence chart** on the Tradeoff Analysis tab.
-- **Cooling-model gap closed** — temperature values now match canonical InVEST.
-- **Nature Access and Nature Quality Score temporarily removed** while metric is redesigned.
 
 ### On the radar
 - **San Antonio as a fuller pilot** once more data is in place.
