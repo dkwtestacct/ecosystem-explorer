@@ -646,3 +646,16 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   entries — name a specific thing the user will see change, not an abstract
   direction. The trim bar applies on every brief that touches WHATS_NEW — when
   in doubt, cut rather than keep.
+- **Interface changes require auditing all consumers.** When a brief changes the
+  shape of a shared interface — adding a field to a return dict, changing a
+  function signature, adding a config key — the brief's scope boundary must
+  enumerate every consumer of that interface. The default consumer list is broader
+  than it feels: not just direct callers in the same file, but also scripts that
+  import the function (`precompute_scenarios.py`, `verify_baselines.py`, any
+  standalone utility), tests that exercise the interface, and serialized formats
+  that capture the interface's output (CSVs, JSON baselines). Brief 28b learned
+  this the expensive way: adding `scenario_lulc_ucm` to `evaluate_scenario`'s
+  return dict required stripping the field in three places — two were caught in
+  the brief, one (`precompute_scenarios.py`) was missed and surfaced as a 15-min
+  regeneration's worth of garbage CSV data. The lesson: when changing an
+  interface, grep for every caller before writing the scope boundary.
