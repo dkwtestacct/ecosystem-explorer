@@ -75,7 +75,7 @@ The prototype's MN UNA and MN UFR parameters happen to match the NatCap **SA pro
 | ~~MN UNA `urban_nature_demand_per_capita`~~ | ~~16.7 m²/capita (SA-project value)~~ | ~~250 m²/capita~~ | ✅ Resolved 2026-05-24 (Brief 22). Switched to 250 m²/capita per MN-project args.json. |
 | ~~MN UNA `search_radius`~~ | ~~800 m (SA-project value)~~ | ~~1000 m~~ | ✅ Resolved 2026-05-24 (Brief 22). Switched to 1000 m per MN-project args.json. |
 | ~~MN UNA `decay_function`~~ | ~~dichotomy (SA-project value)~~ | ~~exponential~~ | ✅ Resolved 2026-05-24 (Brief 22). Switched to exponential per MN-project args.json; canonical InVEST exponential-decay kernel implemented (`exp(-d / expected_distance)`, max_distance = `ceil(radius_px) * 2 + 1`). |
-| MN UFR `rainfall_depth` | 50.8 mm (2 inches) | 100 mm | Prototype's 2-inch design storm is its own choice, not the SA project's 157 mm either. So this isn't a "wrong city" issue — it's a prototype-specific divergence from both NatCap projects. Worth raising with NatCap which they'd consider appropriate. |
+| ~~MN UFR `rainfall_depth`~~ | ~~50.8 mm (2 inches)~~ | ~~100 mm~~ | ✅ Resolved 2026-05-24 (Brief 23). Migrated from global `DESIGN_STORM_INCHES = 2.0` to per-city `city_cfg['design_storm_inches']`. MN now 3.94" (100 mm per NatCap MN args.json); SA now 6.18" (157 mm per NatCap SA README). |
 
 ### Methodology gaps (acknowledged, not fixable)
 
@@ -108,6 +108,7 @@ Choices made based on Daniel's reading of canonical NatCap output, not explicit 
 |---|---|---|---|
 | SA UCM aligned to NatCap's heat-wave-day scenario (`uhi_max=11`, `t_ref documented but not used`) | 2026-05-24 (Brief 14) | NatCap's SA README states these values explicitly; aligning per working principle. SA temperature deltas now ~3× larger than before. | NatCap doesn't need to confirm — they've already documented this. |
 | Prototype MN UNA migrated to MN-project canonical values (`demand=250`, `radius=1000`, `decay=exponential`) | 2026-05-24 (Brief 22) | NatCap's MN sample data (March 2026, recent) documents these values explicitly. The per-city framing principle (Brief 14 for SA UCM) applies: align MN with the MN project, not blend with SA-project values. MN nature_access_pct dropped from ~43% to ~9.5% baseline — expected magnitude given 15× demand increase. | NatCap confirmation at the symposium would close this; not blocking. The decision is reversible if NatCap flags the MN-project values as superseded. |
+| `DESIGN_STORM_INCHES` migrated from global (2.0) to per-city (`design_storm_inches` in `city_cfg` — MN: 3.94" / 100 mm; SA: 6.18" / 157 mm) | 2026-05-24 (Brief 23) | Same per-city framing as Brief 22. NatCap's MN args.json (rainfall_depth=100) and SA README (rainfall_depth=157) document the project-specific values. The prototype's previous 2-inch global was a "typical minor storm" plausibility default with no NatCap or InVEST source. Runoff metrics shift ~3-5× per the non-linear SCS-CN formula in P; flood-focused placement pixel selection also shifts because Brief 9's per-pixel Q weighting reads the storm depth (small <5% cascades into UNA/UMH/cooling/NDVI on flood-focused + balanced cells). | NatCap confirmation at the symposium would close this. Reversible. |
 | Use per-capita supply deficit (no population multiplier) for undersupply-focused placement | 2026-05-23 (Brief 9) | Matches InVEST UNA's `urban_nature_balance_percapita.tif` framing. Aggregate-need form was a homegrown proxy. | Could surface to NatCap with empirical findings — Brief 9 saturation (100% SA, 67% MN) suggests the canonical framing may not be usable as-is for placement on county-scale AOIs. |
 | Rename "equity-focused" → "undersupply-focused" | 2026-05-23 (Brief 9) | InVEST UNA reserves "equity" for demographic-group stratification. | Vocabulary change; no expected NatCap pushback. |
 | Use per-pixel runoff Q from SCS-CN equation for flood-focused, not raw CN | 2026-05-23 (Brief 9) | Q is canonical UFR output. | Routine alignment. |
@@ -124,9 +125,7 @@ Grouped by priority. Things to ask next time there's a chance to.
 
 ### Highest priority — per-city alignment
 
-1. **Same per-city question for UFR `rainfall_depth`.** NatCap MN uses 100 mm; NatCap SA uses 157 mm; prototype uses 50.8 mm for both. The prototype's 2-inch design storm doesn't match either project. Should the prototype switch to per-city rainfall (100 mm MN / 157 mm SA), or is its design-storm choice defensible as a different framing?
-
-2. **Are the MN sample data values still current, or have they been superseded by the SA-project framing?** The MN UNA bundle is dated March 2026 (3 months ago); the SA README is from later. NatCap may have updated their thinking and not retroactively republished MN. Brief 22 adopted the MN-project values pending this confirmation; reversible if NatCap flags MN as superseded.
+1. **Are the MN sample data values still current, or have they been superseded by the SA-project framing?** The MN UNA bundle is dated March 2026 (3 months ago); the SA README is from later. NatCap may have updated their thinking and not retroactively republished MN. Briefs 22 + 23 adopted the MN-project values (UNA params + rainfall depth) pending this confirmation; reversible if NatCap flags MN as superseded.
 
 ### High priority — operational
 
@@ -157,6 +156,7 @@ The following were open at session start (2026-05-24) and have been resolved by 
 - ~~NatCap UNA search radius for SA~~ → 800 m uniform (per SA README)
 - ~~NatCap UCM `uhi_max` for SA~~ → 11 °C (per SA README, applied in Brief 14)
 - ~~MN UNA: switch from SA-project values to MN-project canonical?~~ → ✅ Done in Brief 22 (demand 16.7→250, radius 800→1000, decay dichotomy→exponential). Reversible if NatCap flags MN-project framing as superseded.
+- ~~UFR rainfall depth — should the prototype use per-city values?~~ → ✅ Done in Brief 23 (MN 3.94" / 100 mm; SA 6.18" / 157 mm; migrated from global `DESIGN_STORM_INCHES = 2.0`).
 - ~~"Wallpaper approach" meaning~~ → Uniform tiling of conversions; equivalent to prototype's `random` placement strategy
 - ~~NatCap UCM weights for SA~~ → shade=0.6, albedo=0.2, et=0.2 (per SA README; prototype matches)
 - ~~NatCap UCM `uhi_max` for MN~~ → 2.05 °C (per MN args.json; prototype matches)

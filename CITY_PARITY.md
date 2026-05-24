@@ -51,7 +51,7 @@
 
 | Parameter | Prototype | NatCap MN project | Status |
 |---|---|---|---|
-| `rainfall_depth` | 50.8 mm (2 inches, prototype design-storm choice) | 100 mm | ⚠️ Diverges. Prototype's 2-inch design storm is its own choice, not aligned with either NatCap project's value. |
+| `rainfall_depth` | **100 mm (3.94", NatCap MN canonical, Brief 23)** | **100 mm** | ✅ Aligned 2026-05-24 (Brief 23). |
 | LULC raster | `data/flood/LULC_NLCD_2021_MN.tif` | `LULC_NLCD_2021_MN.tif` | ✅ (same file, MD5-confirmed) |
 | Soil HSG raster | `data/flood/soil_group_MN.tif` | `soil_group_MN.tif` | ✅ |
 | Buildings | `data/flood/buildings.shp` (UFR sample) | `buildings.shp` | ✅ |
@@ -59,7 +59,7 @@
 | Damage loss table | `data/invest/flood/UFR_sample_data_MN/Damage_loss_table_MN.csv` | `Damage_loss_table_MN.csv` (Roads=40, Commercial=120, Residential=150, Industrial=100) | ✅ Verified bit-identical 2026-05-24 — same file from same InVEST UFR sample bundle. |
 | AOI watersheds | `data/invest/flood/UFR_sample_data_MN/admin_boundaries_census_tracts.shp` (declared as `tracts_file` in `config.py`) | `admin_boundaries_census_tracts.shp` | ✅ MD5 verified identical 2026-05-24 (`acbd9a8d28892dd4dfaf003b896235b4` on `.shp`; `.dbf` and `.prj` also identical). Same file from same InVEST UFR sample bundle. |
 
-**UFR summary:** Same data sources as NatCap. Rainfall depth diverges — prototype's choice, not NatCap-aligned. CN biophysical and damage loss tables verified identical 2026-05-24.
+**UFR summary:** Same data sources as NatCap; rainfall depth aligned to MN-project canonical 2026-05-24 (Brief 23). CN biophysical and damage loss tables verified identical.
 
 ### UNA (Urban Nature Access)
 
@@ -107,13 +107,13 @@
 | Model | Status |
 |---|---|
 | UCM | ✅ Fully aligned on args and biophysical table |
-| UFR | ⚠️ Rainfall depth diverges; CN + damage tables verified identical |
+| UFR | ✅ Rainfall depth aligned with MN-project canonical (Brief 23); CN + damage tables verified identical |
 | UNA | ✅ All three parameters + biophysical table aligned with MN-project canonical (Brief 22). Population vintage (2020 vs 2010) is the one remaining minor divergence. |
 | Carbon | ⚠️ Methodology simplification (single rate vs four-pool) |
 | UMH | ✅ Aligned (uniform-national prevalence improvised) |
 | Food Forest | ✅ |
 
-**Overall MN parity:** Mostly aligned. UCM, UNA, and UMH are tight (UNA closed by Brief 22). UFR has one parameter divergence (rainfall depth) atop verified-identical tables — the one remaining headline gap. Carbon is methodologically simplified.
+**Overall MN parity:** Mostly aligned. UCM, UFR, UNA, and UMH are all tight after Brief 22 (UNA) and Brief 23 (UFR rainfall). Carbon is methodologically simplified (single rate vs four-pool) — the one remaining methodology gap.
 
 ---
 
@@ -145,7 +145,7 @@
 
 | Parameter | Prototype | NatCap SA project | Status |
 |---|---|---|---|
-| `rainfall_depth` | 50.8 mm (2 inches) | 157 mm | ⚠️ Diverges. Prototype's 2-inch design storm doesn't match NatCap's value. |
+| `rainfall_depth` | **157 mm (6.18", NatCap SA canonical, Brief 23)** | **157 mm (NatCap SA README)** | ✅ Aligned 2026-05-24 (Brief 23). |
 | LULC raster | `data/sa/flood/land_use_2021_sa.tif` (NLCD-only) | `sa_lc_w_20ac_foodfor_10m.tif` and `sa_lc_w_40ac_foodfor_10m.tif` (pre-computed food-forest scenarios at 10 m) | ⚠️ Methodology divergence: NatCap pre-computes 2 scenarios; prototype runs live |
 | Soil HSG raster | `data/sa/flood/soil_group_SA.tif` (Bexar County SSURGO, ~30 m) | `sa_env_hsg_int_10m.tif` (10 m) | ⚠️ Different resolution |
 | CN biophysical table | Per-NLCD CN values | `biophys_floodmitig_sa.csv` | ❓ — values not yet diff'd |
@@ -203,7 +203,7 @@
 | Model | Status |
 |---|---|
 | UCM | ✅ Args fully aligned (post-Brief 14); ⚠️ biophysical table/LULC framework divergence (integration queued) |
-| UFR | ⚠️ Rainfall depth diverges; methodology divergence (live vs pre-computed scenarios) |
+| UFR | ⚠️ Methodology divergence (live vs pre-computed scenarios); rainfall depth aligned with SA-project canonical (Brief 23) |
 | UNA | ✅ Args fully aligned; ⚠️ biophysical table/LULC framework divergence (integration queued) |
 | Carbon | ⚠️ Methodology simplification (single rate vs four-pool); integration queued |
 | UMH | ✅ |
@@ -228,7 +228,7 @@
 
 These are city-specific parity questions; the methodology-agnostic ones live in NATCAP_COLLABORATION.md.
 
-1. **MN UNA parameter divergences and MN UFR rainfall depth** — both are city-parity-relevant but the decisions belong to NATCAP_COLLABORATION.md. See its open-questions section for the MN UNA values (demand 16.7→250, radius 800→1000, decay dichotomy→exponential) and the MN UFR rainfall (50.8→100 mm) questions.
+1. ~~MN UNA parameter divergences and MN UFR rainfall depth~~ — ✅ Both resolved 2026-05-24 (Briefs 22 + 23). Per-city alignment applied: MN UNA now uses NatCap MN-project canonical, MN/SA UFR rainfall now uses each project's canonical depth.
 
 2. **Does NatCap have a MN Carbon bundle?** No `Carbon_sample_data_MN.zip` appeared in the shared Drive. May exist elsewhere; ask.
 

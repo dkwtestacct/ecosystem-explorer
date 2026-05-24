@@ -133,8 +133,8 @@ separate cache entries via the path parameters.
 |----------|-------|---------|
 | `PIXEL_AREA_ACRES` | 0.222 | Acres per raster pixel |
 | `FOOD_FOREST_LBS_ACRE` | 11,500 | Food forest yield benchmark (lbs/acre/year) — from San Antonio NatCap study |
-| `DESIGN_STORM_INCHES` | 2.0 | Rainfall depth used for the SCS runoff calculation |
-| `UHI_MAX_C` | per-city | Read from `city_cfg['uhi_max_c']` at module load (i.e. on every script rerun) — NOT a fixed global. MN downtown: 2.05 °C (InVEST `urban_cooling_model_args_MN.json`); MN Full: 2.05 °C (same AOI climate); SA: 3.5 °C (estimate for Köppen BSh hot semi-arid — no published SA InVEST args yet, so treat as ±0.5 °C). Used in `compute_cooling_energy_savings` for CC → ΔT °C conversion. Consumers: app.py:1422 (cooling) and app.py:3307 (assumptions tab display). |
+| `UHI_MAX_C` | per-city | Read from `city_cfg['uhi_max_c']` at module load (i.e. on every script rerun) — NOT a fixed global. MN downtown: 2.05 °C (InVEST `urban_cooling_model_args_MN.json`); MN Full: 2.05 °C (same AOI climate); SA: 11 °C (NatCap SA README, Brief 14). Used in `compute_cooling_energy_savings` for CC → ΔT °C conversion. Consumers: app.py:1422 (cooling) and app.py:3307 (assumptions tab display). |
+| `DESIGN_STORM_INCHES` | per-city | Read from `city_cfg['design_storm_inches']` at module load — NOT a fixed global (post-Brief 23). MN downtown: 3.94" (100 mm per NatCap MN `invest_urban_flood_risk_args_MN.json`); MN Full: 3.94" (same MN-project framing); SA: 6.18" (157 mm per NatCap SA README). Derived `DESIGN_STORM_MM = DESIGN_STORM_INCHES × 25.4` for tooltip display. The SCS-CN formula uses inches internally. |
 | `HM_TO_FAHRENHEIT` | per-city | Derived as `UHI_MAX_C × 1.8`. MN: 3.69 °F/CC; SA: 6.30 °F/CC. Rebound every rerun alongside `UHI_MAX_C`. |
 | `GREEN_AREA_COOLING_DISTANCE_M` | 450 | InVEST UCM `green_area_cooling_distance` (d_cool), from InVEST args JSON. Drives the exponential-decay kernel for `CC_park` in the canonical HMI. `_HMI_DECAY_PX = 450/30 = 15` at 30 m NLCD resolution. |
 | `COST_PER_KWH_USD` | 0.13 | US average residential electricity price (EIA 2024). Used to convert avoided-AC-kWh into $. |
@@ -167,7 +167,7 @@ separate cache entries via the path parameters.
 All three numeric baselines are dynamically recomputed at module load (the hardcoded values in `CITIES[city]['baseline_*']` are documentation only — the live overrides keep them in sync with the current pipeline).
 
 > **Cross-city `BASELINE_HM` caveat:** SA's HM is *higher* than both Minneapolis values despite SA being the hotter city. This is **not** a result of higher absolute ET — the InVEST CC formula's ETI term normalises ET within each AOI (`Kc × ET / max(ET)`), so absolute mm/yr cancels out. The real driver is the shade term (weight 0.6, dominant): SA's bbox contains 14.9 % forest+woody-wetland pixels (NLCD 41/42/43/90, all with `shade=1`) versus 2.7 % in MN downtown and 1.8 % in MN Full. SA's mean shade across the AOI (0.198) is 3.4× MN downtown's (0.059). When comparing scenario impact across cities, prefer **CC deltas** over absolute CC values. See REFERENCE.md "Cross-city Cooling Capacity comparison" for the full breakdown.
-| `BASELINE_RUNOFF_ACRE_FEET` | computed | Runoff from baseline CN over a 2-inch storm; used for cost-effectiveness ratios |
+| `BASELINE_RUNOFF_ACRE_FEET` | computed | Runoff from baseline CN over the city's design storm (per-city `DESIGN_STORM_INCHES`); used for cost-effectiveness ratios |
 
 ### Cost defaults ($/acre, adjustable via sidebar sliders)
 

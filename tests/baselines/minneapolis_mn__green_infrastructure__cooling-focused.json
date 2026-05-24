@@ -4,7 +4,7 @@
   "carbon_tons_co2_yr": 1172.9,
   "cooling_energy_savings_usd": 13236.0,
   "cooling_f": 0.1,
-  "flood_damage_avoided_usd": 12129928.0,
+  "flood_damage_avoided_usd": 6587165.0,
   "flood_reduction": 27.34,
   "food_forest_pct": 0,
   "food_mln_lbs": 0.0,
@@ -21,7 +21,7 @@
   "people_fed": 0,
   "people_with_nature_access": 9548,
   "preventable_mh_cases": 211.3,
-  "runoff_acre_feet": 296.1,
+  "runoff_acre_feet": 1393.4,
   "scenario_lulc__md5": "0457b4e2620651712951ed91b2379801",
   "scenario_name": "10% converted \u2014 GI 100% / FF 0%",
   "total_cost_mln": 29.32

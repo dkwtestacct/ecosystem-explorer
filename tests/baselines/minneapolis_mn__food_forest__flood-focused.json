@@ -1,10 +1,10 @@
 {
   "avoided_carbon_cost_usd": 389994.0,
-  "avoided_mh_cost_usd": 1637111.0,
+  "avoided_mh_cost_usd": 1711023.0,
   "carbon_tons_co2_yr": 2052.6,
-  "cooling_energy_savings_usd": 10413.0,
+  "cooling_energy_savings_usd": 10219.0,
   "cooling_f": 0.1,
-  "flood_damage_avoided_usd": 1174310.0,
+  "flood_damage_avoided_usd": 610046.0,
   "flood_reduction": 24.6,
   "food_forest_pct": 100,
   "food_mln_lbs": 6.744,
@@ -19,10 +19,10 @@
   "pct_converted": 10,
   "pct_highdensity": 0,
   "people_fed": 3372,
-  "people_with_nature_access": 9440,
-  "preventable_mh_cases": 221.9,
-  "runoff_acre_feet": 375.4,
-  "scenario_lulc__md5": "993554923fb3001fb01a94d887695ca4",
+  "people_with_nature_access": 9434,
+  "preventable_mh_cases": 231.9,
+  "runoff_acre_feet": 1572.7,
+  "scenario_lulc__md5": "a2a84949bad1922e32840dc13536374b",
   "scenario_name": "10% converted \u2014 GI 0% / FF 100%",
   "total_cost_mln": 5.86
 }

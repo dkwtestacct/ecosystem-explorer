@@ -19,7 +19,7 @@ InVEST alignment" section.
 | App metric | Current implementation | InVEST analogue | Parity | Confidence |
 |---|---|---|---|---|
 | Flood Risk Reduction | CN-based area-weighted index (`100 − mean_CN`) | Urban Flood Risk Mitigation (retention index) | Implemented | High |
-| Runoff Volume | SCS CN per-pixel runoff × developed acreage, 2-inch storm | Urban Flood Risk Mitigation (Q_mm, flood_vol) | Implemented | High |
+| Runoff Volume | SCS CN per-pixel runoff × developed acreage, per-city design storm (MN: 100 mm / 3.94"; SA: 157 mm / 6.18" per NatCap projects, Brief 23) | Urban Flood Risk Mitigation (Q_mm, flood_vol) | Implemented | High |
 | Flood Damage Avoided | `total_potential_damage × runoff_reduction_fraction` | Urban Flood Risk Mitigation (serv_blt indicator) | Approximate | Medium |
 | Temperature Change | Canonical HMI = `max(CC_local, CC_park)`, `ΔHMI × UHI_MAX_C × 1.8` | Urban Cooling (HMI → T_air → anomaly) | Implemented | High |
 | Cooling Energy Savings | `consumption_rate × ΔHMI × UHI_MAX_C × pixel_area × $/kWh`, applied per pixel | Urban Cooling (energy module: `consumption × ΔT_air × $/kWh` per building) | Approximate | Medium |
@@ -140,7 +140,7 @@ Tracks how the prototype's user-facing vocabulary (metric card names, tooltips, 
 | Balanced placement strategy | App-specific heuristic, with pointer to ROOT | (no InVEST analog) | ⚠️ App-specific — explicit. |
 | Smart Scenario Search / surrogate optimizer | App-specific, with pointer to ROOT for true LP optimization | ROOT (LP, Pareto, agreement maps) | ⚠️ App-specific — explicit. |
 | `undersupply-focused` placement strategy (renamed from `equity-focused`) | `max(0, urban_nature_demand − urban_nature_supply_percapita)` per pixel — canonical UNA per-capita supply deficit, no population multiplier | InVEST UNA's `urban_nature_balance_percapita` framing | ✅ Aligned 2026-05-23 (Brief 9). Saved scenarios with legacy `equity-focused` key are routed via shim. |
-| `flood-focused` placement strategy | Per-pixel runoff `Q_{p,i}` from SCS-CN equation at the 2-inch design storm — matches InVEST UFR `Q_mm.tif` | InVEST UFR's per-pixel `Q_{p,i}` runoff (eq. 127) | ✅ Aligned 2026-05-23 (Brief 9). Previously used raw CN as the weight. |
+| `flood-focused` placement strategy | Per-pixel runoff `Q_{p,i}` from SCS-CN equation at the per-city design storm — matches InVEST UFR `Q_mm.tif`. Brief 23 made the storm depth per-city. | InVEST UFR's per-pixel `Q_{p,i}` runoff (eq. 127) | ✅ Aligned 2026-05-23 (Brief 9, refreshed Brief 23). |
 | `cooling-focused` placement strategy | `(1 − baseline_HMI) × (1 / (1 + distance_to_buildings_px))` — canonical HMI + distance transform on `BUILDINGS_RASTER` | Canonical HMI + true building-proximity raster | ✅ Aligned 2026-05-23 (Brief 9). Previously used bare CC sub-component + NLCD-intensity three-value proxy. |
 
 ## Status legend

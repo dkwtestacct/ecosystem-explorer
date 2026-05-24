@@ -476,6 +476,97 @@ than per-building T_air aggregation over the 600 m blending radius
 — is unchanged and affects only the dollar-valued Cooling Energy
 Savings metric, not Temperature Change.
 
+## Per-city NatCap parameter framing (2026-05-24, Briefs 22 + 23)
+
+**The meta-decision.** NatCap parameters are project-specific by design.
+Each city's project is tuned to its own policy framing — SA project for
+the SA Urban Agriculture work uses WHO-minimum-green-space demand and
+heat-wave-day climate parameters; MN project uses aspirational green-
+space targets and moderate-summer climate parameters. There is no
+single "NatCap canonical" value per parameter — alignment is per-city.
+
+This isn't NatCap inconsistency; it's appropriate project-by-project
+parameter variation. Different teams, different time periods, different
+policy goals per city. Working principle: align MN-side parameters with
+the MN project's args.json; align SA-side parameters with the SA
+project's README values.
+
+**Why we're acting on this without waiting for NatCap confirmation.**
+
+- The MN sample data bundles (received 2026-05-24) and the SA README
+  (received 2026-05-23) are both internally consistent and represent
+  NatCap's documented parameter choices for each city. Adopting them
+  is alignment, not improvisation.
+- The questions worth asking NatCap are confirmatory ("we assumed
+  your two framings are intentional — is that right?"), not blocking
+  ("we can't proceed without knowing which is canonical").
+- The Natural Capital Symposium (June 29 – July 1) is the natural
+  place to confirm. Briefs 22/23 changes are the foundation we'll
+  discuss against, not a tentative position waiting for confirmation.
+
+**The UNA values (Brief 22).** Minneapolis UNA switched from SA-project
+values (`demand=16.7`, `radius=800`, `decay=dichotomy`) to MN-project
+canonical (`demand=250`, `radius=1000`, `decay=exponential`). The 15×
+demand increase reflects the MN project's higher "adequate green space"
+target. Source:
+`data/invest/mn_sample_data_natcap_2026/UrbanNatureAccess_sample_data_MN/invest_urban_nature_access_args_MN.json`.
+SA UNA stays at SA-project values; per-city framing in action.
+
+The exponential-decay kernel is built canonically per
+`pygeoprocessing.kernels.exponential_decay_kernel` as
+`natcap.invest.urban_nature_access` calls it: `k(d) = exp(-d /
+expected_distance)` for `d ≤ max_distance` else 0, where
+`expected_distance = search_radius_in_pixels` and
+`max_distance = ceil(search_radius_in_pixels) * 2 + 1`. For MN at
+1000 m / 30 m pixels, the kernel is 139×139 (~19k elements). The
+dichotomy branch (SA) keeps the existing binary-disk form.
+
+**The rainfall values (Brief 23).** `DESIGN_STORM_INCHES` migrated
+from a 2.0-inch global default (introduced April 2026 as "typical
+minor storm") to per-city values: MN gets 3.94" (100 mm per NatCap MN
+args.json), SA gets 6.18" (157 mm per NatCap SA README). The 2-inch
+default wasn't anchored in NatCap or InVEST canonical; it was a
+plausibility-level prototype default. Per-city NatCap-aligned values
+better reflect each city's climate (SA's heavier convective storms
+vs MN's lighter regional events).
+
+Two non-obvious effects of the rainfall change:
+
+1. **SCS-CN nonlinearity in P.** `Q = (P − 0.2S)² / (P + 0.8S)` is not
+   linear in P. Doubling P more than doubles Q. The observed
+   regeneration ratios (~4-5×) reflect this — *not* a linear scaling
+   from the 2× MN / 3× SA rainfall ratio. Correct behavior.
+2. **Flood-focused placement cascade.** Brief 9's `flood-focused`
+   weighting computes per-pixel Q at the design storm. When rainfall
+   changes, those weights shift, and the strategy selects slightly
+   different pixels. Downstream metrics (UNA, UMH, cooling, NDVI) then
+   show small (<5%) cascades on flood-focused and balanced cells. Not
+   a bug — it's the intended Brief 9 design that placement reads the
+   per-city rainfall. Random / cooling-focused / undersupply-focused
+   cells are unaffected because their weights don't depend on rainfall.
+
+**What this does NOT decide.** Some open questions remain even with
+this framing accepted:
+
+- Whether NatCap considers the MN-project framing still current or
+  has since shifted toward SA-style values. Worth confirming at the
+  symposium. The MN sample data is from March 2026 (recent), so
+  likely still current.
+- Whether UFR rainfall depth should reflect a 100-year design storm
+  vs a typical-rainfall scenario. NatCap's choice of 100mm/157mm is
+  their methodology call; we're inheriting it.
+- For SA-side parameters where NatCap hasn't published per-city
+  values (e.g., Carbon rates, food forest yield), the prototype
+  continues using plausibility-level defaults pending more data.
+
+**The pattern this establishes.** Future per-city parameter decisions
+follow the same logic: identify the NatCap project's canonical value
+for each city; use it; document the decision here rather than holding
+for explicit NatCap confirmation. The discipline applies for parameters
+where NatCap has clearly documented per-city values. For parameters
+without clear NatCap guidance, the prototype's default stays and is
+noted in `NATCAP_COLLABORATION.md` as an open question.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

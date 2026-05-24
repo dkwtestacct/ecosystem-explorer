@@ -55,6 +55,11 @@ CITIES = {
         'una_demand_m2_per_capita': 250,
         'una_search_radius_m':      1000,
         'una_decay_function':       'exponential',
+        # NatCap MN UFR project canonical (Brief 23, source:
+        # data/invest/mn_sample_data_natcap_2026/UFR_sample_data_MN/
+        # invest_urban_flood_risk_args_MN.json — rainfall_depth=100 mm).
+        # 100 mm = 3.94 inches; SCS-CN formula uses inches internally.
+        'design_storm_inches':      3.94,
         'available':            True,
         'crs':                  'EPSG:26915',
         'precomputed_dir':      'data/precomputed/minneapolis_mn',
@@ -113,6 +118,8 @@ CITIES = {
         'una_demand_m2_per_capita': 250,
         'una_search_radius_m':      1000,
         'una_decay_function':       'exponential',
+        # Same MN-project UFR rainfall as downtown (Brief 23).
+        'design_storm_inches':      3.94,  # 100 mm per NatCap MN args.json
         # Hidden from the UI pending per-building-type data for the expanded
         # area. OSM-derived buildings carry no `type` codes, so the
         # Flood Damage Avoided and Cooling Energy Savings $-metrics degrade
@@ -214,6 +221,9 @@ CITIES = {
         'una_demand_m2_per_capita': 16.7,
         'una_search_radius_m':      800,
         'una_decay_function':       'dichotomy',
+        # NatCap SA UFR rainfall per the README (Brief 23): 157 mm = 6.18 inches.
+        # SA's heavier sub-tropical convective rain regime vs MN's 100 mm.
+        'design_storm_inches':      6.18,
         # Re-enabled now that data/scenarios_dense_sa.csv is committed
         # (Balanced mode reads the precomputed grid instead of recomputing
         # the 25–50 min lookup table) and the High-Resolution lookup compute
