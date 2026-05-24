@@ -1,0 +1,88 @@
+Ecosystem Explorer
+https://github.com/dkwtestacct/ecosystem-explorer 
+https://github.com/dkwtestacct/ecosystem-explorer/blob/main/REFERENCE.md 
+
+
+	•	Natural Capital Symposium (June 29 - July 1, 2026)
+
+	•	Additional models for consideration 
+	•	Carbon Storage and Sequestration model
+	•	Urban Mental Health model 
+
+	•	Minneapolis urban dataset 
+	•	model inputs (flood mitigation, urban cooling nature access) https://drive.google.com/drive/u/1/folders/1dbDyZX59pZ4z6P3sMMysI6TA5AH-jjvh
+	•	🆕Roads and Building footprint data: Minneapolis  (source: https://download.geofabrik.de/)
+
+	•	San Antonio (Urban Agriculture project data)
+	•	San Antonio project report 
+	•	Models used in the project:
+	•	Readme - input data paths: README_San Antonio InVEST model inputs
+	•	Data folder: LULC and Parameters August 2024 
+	•	Models 
+	•	Crop yield (food yield): CoSA_Crop_production_ESModeling 
+	•	Urban cooling
+	•	Carbon Storage (or climate change mitigation)
+	•	Urban Nature Access
+	•	Flood mitigation
+	•	Nutrient retention (or called Nutrient Delivery Ratio)
+	•	Not ready - pending in getting complete data 
+
+
+	•	Land use and land cover data from NLCD: https://www.mrlc.gov/data → check the box “Land Cover” in “Products” section → right panel to access / download national land cover data by year 
+
+
+	•	Land ownership layer (for future consideration): refer to this page Urban food forest scenario map  
+
+
+
+
+
+Spatial placement of land conversions: 
+	•	Simpler approaches
+	•	Road layer + building layer + existing tree layer
+	•	Road network data from OpenStreetMaps 
+	•	Building footprint (can use data from OSM, or https://github.com/zhu-xlab/GlobalBuildingAtlas)
+	•	Wallpaper approach 
+	•	Existing models land use simulation models/ tools
+	•	The CLUE (Conversion of Land Use and its Effects) model https://www.environmentalgeography.nl/site/data-models/data/clue-model/
+	•	Patch-generating Land Use Simulation (PLUS) Model https://github.com/HPSCIL/Patch-generating_Land_Use_Simulation_Model (This model is similar to CLUE but incorporates machine-learning algorithms; it is relatively recent and open source.)
+	•	LCM (Land Change Modeler) https://www.clarku.edu/geospatial-analytics/terrset-liberagis-features/land-change-modeler/ 
+
+Optimization approaches
+	•	Deborah’s 
+	•	ROOT (Restoration Opportunities Optimization Tool) https://natcap.github.io/ROOT/index.html (I have not used this before and plan to look into it)
+
+Cost-effectiveness metrics 
+	•	
+
+
+
+
+From: Deborah Weisser <deborah.weisser@gmail.com>
+Sent: Monday, April 20, 2026 10:52 PM
+To: Yingjie Li <yingjieli@stanford.edu>; Gretchen Cara Daily <gdaily@stanford.edu>
+Subject: prototype 
+
+I wanted to share a prototype I’ve been building - an Ecosystem Explorer
+https://ecosystem-explorer.streamlit.app/
+
+It’s a simple tool for exploring tradeoffs in urban land-use strategies, specifically how different allocations across green infrastructure, food forests, and development affect flood risk, cooling, food production, and cost.
+
+The current version uses Minneapolis data, but the structure is meant to be flexible so we can plug in other cities (like San Antonio) as data becomes available.
+
+If you have a few minutes, I’d really appreciate your reactions, especially:
+	•	whether the outputs feel meaningful and understandable
+	•	whether this seems useful for exploring scenarios (like the San Antonio work)
+	•	what directions would make it more valuable (e.g., adding new cities, incorporating heat vulnerability indices, introducing cost-effectiveness metrics like $/acre-foot of runoff prevented)
+
+
+	•	Google AI for Science proposal https://docs.google.com/document/d/1GXlGKAXdSACWHpRJnRF5ldmnzu7jLYND4Y-Me8ARkCM/edit?usp=sharing
+	•	The core idea is to build an AI-augmented InVEST platform that uses agentic systems to automate data, modeling, and interpretation workflows, while integrating multiple models with scenario generation and optimization to deliver scalable, decision-ready urban sustainability planning.
+	•	Then we will need dynamic input data (e.g., deriving from satellite embeddings), multi-model integration (this proposal plans to focus on urban systems), scenario generation, and trade-off/optimization analysis. I am also listing relevant data and tools as follows for your reference. 
+	•	AlphaEarth Foundations satellite embeddings and the applications https://deepmind.google/blog/alphaearth-foundations-helps-map-our-planet-in-unprecedented-detail/
+
+	•	InVEST model suite (as we thinking of integration of different models for trade-off analysis)
+	•	Open-source code for all models, on GitHub https://github.com/natcap/invest
+	•	Urban models https://naturalcapitalalliance.stanford.edu/invest/urban-invest
+	•	We will release the new Urban Mental Health model next week, and I will share related information once it is online. 
+

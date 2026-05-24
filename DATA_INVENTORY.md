@@ -118,6 +118,16 @@ The compound `lulc_overlay_3857.tif` encodes a **Cartesian product lucode space*
 
 Integration is queued as a multi-brief workstream. Until then, all NatCap rasters are gitignored (`data/sa/natcap_2024/*.tif`) except small CSVs/docs.
 
+**Documentation files in `data/sa/natcap_2024/`** (committed, grep-able):
+
+| File | Content |
+|---|---|
+| `README.docx` + `Notes_on_NASA_Urban_parameterization_QA.txt` | NatCap's original SA dataset documentation (NASA Urban project parameterization QA). |
+| `README_San_Antonio_InVEST_model_inputs.docx` + `.txt` | NatCap's per-InVEST-model SA input recipe — args.json-equivalent values for UCM, Carbon, UNA, UFR, NDR (read 2026-05-24). Source of the Brief 14 UHI calibration and the NDR integration scope. |
+| `Ecosystem_Explorer_-_Meeting_Note.docx` + `.txt` | NatCap meeting note with project context: Symposium 2026 dates, Google AI for Science proposal framing, six-model SA scope, "wallpaper approach" definition (read 2026-05-24). |
+
+`.docx` files preserved alongside `textutil`-converted `.txt` versions so the contents are grep-able in the repo.
+
 ### NLCD vintage — legacy NLCD 2021 confirmed for NatCap data
 
 Resolved 2026-05-24. `nlcd_3857.tif` contains 16 unique non-zero values: `{11, 21, 22, 23, 24, 31, 41, 42, 43, 52, 71, 81, 82, 90, 95}` plus 0/nodata. This is **consistent with the legacy NLCD 21-class schema** — no Annual NLCD-specific codes are present. The prototype's continued use of legacy NLCD 2021 aligns with what NatCap shipped here.
