@@ -638,6 +638,11 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   the change *happened* (not queued/upcoming), is from the past ~7 days, would be
   noticed by a returning user, and reads as one line without internal vocabulary
   or specific parameter values. Doc-only changes, methodology refactors, and
-  internal infrastructure don't qualify. Forward-looking work goes in the
-  Underway section, which renders only when non-empty. The trim bar applies on
-  every brief that touches WHATS_NEW — when in doubt, cut rather than keep.
+  internal infrastructure don't qualify. The Underway section is for forward-
+  looking work a user will *recognize when they see it* (a new model, a new
+  city, a UI feature) — internal methodology refinements like biophysical-table
+  swaps don't qualify there either. Empty by default; renders only when there's
+  something genuinely user-anticipatable in flight. Same bar for On the radar
+  entries — name a specific thing the user will see change, not an abstract
+  direction. The trim bar applies on every brief that touches WHATS_NEW — when
+  in doubt, cut rather than keep.

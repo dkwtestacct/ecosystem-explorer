@@ -70,12 +70,9 @@ WHATS_NEW_ENTRIES = [
     "Interactive Input Influence chart on the Tradeoff Analysis tab.",
 ]
 
-UNDERWAY_ENTRIES = [
-    "Per-model biophysical tables for San Antonio (carbon).",
-]
+UNDERWAY_ENTRIES = []
 
 ON_THE_RADAR = """\
-- **San Antonio as a fuller pilot** once more data is in place.
 - **AlphaEarth Foundations satellite embeddings** as a future land-cover source — [feasibility research here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md).
 """
 
