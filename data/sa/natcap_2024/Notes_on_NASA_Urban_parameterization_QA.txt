@@ -1,0 +1,155 @@
+Notes on NASA Urban LULC overlay QA/QC
+	•	We start with each NLUD category and proceed with logical rules as to what is allowed to be created by a user, which is not the same as what shows up in the data
+	•	Note that the combinations that show up to users may not all be differentiated by parameterization at this time. The parameterization by land use is an ongoing process.
+
+LULC Categories allowed to be created
+	•	Tree Canopy rules:
+	•	NLCD water categories (Open Water, Perennial Ice/Snow) were only allowed to have “None” tree canopy
+	•	NLCD Barren was only allowed to have “None” tree canopy
+	•	NLCD forest categories (Deciduous, Evergreen, Mixed) were never allowed to have “None” tree canopy
+
+Permissible types
+	•	NLUD – Agriculture
+	•	NLCD – Cultivated Crops
+	•	NLCD – Hay/Pasture
+	•	NLCD – Mixed Forest
+	•	NLUD – Barren
+	•	NLCD – Barren 
+	•	NLUD – Commercial
+	•	NLCD – Developed [all]
+	•	NLUD – Conservation [all]
+	•	NLCD – Open Water 
+	•	NLCD – Perennial Ice/Snow 
+	•	NLCD – Developed, Open Space
+	•	NLCD – Deciduous Forest
+	•	NLCD – Evergreen Forest
+	•	NLCD – Mixed Forest
+	•	NLCD – Shrub/Scrub
+	•	NLCD – Grassland/Herbaceous
+	•	NLCD – Hay/Pasture
+	•	NLCD – Cultivated Crops
+	•	NLCD – Woody Wetlands
+	•	NLCD - Emergent Herbaceous Wetlands
+	•	NLUD – Developed Park
+	•	Golf course
+	•	NLCD – Developed, Open Space
+	•	NLCD – Developed, Low Intensity
+	•	NLCD – Grassland/Herbaceous
+	•	Other
+	•	NLCD – [all]
+	•	Resort/ski area
+	•	NLCD – Perennial Ice/Snow 
+	•	NLCD – Developed, Open Space
+	•	NLCD – Deciduous Forest
+	•	NLCD – Evergreen Forest
+	•	NLCD – Mixed Forest
+	•	NLCD – Shrub/Scrub
+	•	NLCD – Grassland/Herbaceous
+	•	Urban park
+	•	NLCD – Open Water 
+	•	NLCD – Developed, Open Space
+	•	NLCD – Developed, Low Intensity
+	•	NLCD – Deciduous Forest
+	•	NLCD – Evergreen Forest
+	•	NLCD – Mixed Forest
+	•	NLCD – Shrub/Scrub
+	•	NLCD – Grassland/Herbaceous
+	•	NLCD – Woody Wetlands
+	•	NLCD - Emergent Herbaceous Wetlands
+	•	NLUD – Extractive/Mining
+	•	NLCD – Developed [all]
+	•	NLCD - Barren
+	•	NLUD – Industrial
+	•	NLCD – Developed [all]
+	•	NLCD - Barren
+	•	NLUD – Institutional [all]
+	•	NLCD – Developed [all]
+	•	NLUD – Natural Park
+	•	NLCD – Open Water 
+	•	NLCD – Perennial Ice/Snow 
+	•	NLCD – Barren
+	•	NLCD – Deciduous Forest
+	•	NLCD – Evergreen Forest
+	•	NLCD – Mixed Forest
+	•	NLCD – Shrub/Scrub
+	•	NLCD – Grassland/Herbaceous
+	•	NLCD – Woody Wetlands
+	•	NLCD - Emergent Herbaceous Wetlands
+	•	NLUD – Other Development
+	•	NLCD – [all]
+	•	NLUD – Rangeland
+	•	NLCD – Shrub/Scrub
+	•	NLCD – Grassland/Herbaceous
+	•	NLCD – Hay/Pasture
+	•	NLUD – Residential
+	•	Dense Urban
+	•	NLCD – Developed [all]
+	•	Urban; Suburban
+	•	… +
+	•	NLCD – Deciduous Forest
+	•	NLCD – Evergreen Forest
+	•	NLCD – Mixed Forest
+	•	NLCD – Shrub/Scrub
+	•	NLCD – Grassland/Herbaceous
+	•	Exurban; Rural
+	•	… +
+	•	NLCD – Hay/Pasture
+	•	NLCD – Cultivated Crops
+	•	NLUD – Timber
+	•	NLCD – Deciduous Forest
+	•	NLCD – Evergreen Forest
+	•	NLCD – Mixed Forest
+	•	NLUD – Transportation [all]
+	•	NLCD – Developed [all]
+	•	NLCD – Barren
+	•	NLUD – Undifferentiated Park
+	•	NLCD – [all]
+	•	NLUD – Waterbody 
+	•	Artificial
+	•	NLCD - Emergent Herbaceous Wetlands
+	•	NLCD - Woody Wetlands
+	•	NLCD – Open Water
+	•	Natural
+	•	NLCD – Open Water
+	•	Perennial Ice/Snow
+	•	NLCD – Perennial Ice/Snow 
+	•	Wetland
+	•	NLCD - Emergent Herbaceous Wetlands
+	•	NLCD - Woody Wetlands
+
+QA/QC Concerns w/r/t frequency of existing classes
+	•	Several land types show up with high frequency (>10000 pixels) that we do not allow to be created. Select forests and shrublands in Industrial, Institutional, or Agricultural areas are reasonable categories in themselves but when prescribing the LULC of an area at the parcel level it makes little sense to allow a user to zone something as “Industrial” then make it all trees. If we were “painting” the landscape within a parcel that’s a whole different story, hence the secondary column “is_realistic_to_paint”
+	•	Similar issues come up at a medium frequency (between 1000 and 10000 pixels) for a wider variety of classes, mostly natural classifications within more urban zoning definitions (e.g., Herbaceous in Commercial). Same point as above: these are realistic classes that will not ever be prescribed from a parcel-based zoning perspective.
+
+
+
+Notes on NASA Urban parameterization QA/QC
+
+	•	Urban Nature Access: changed “NLCD Developed, Open Space” to be considered “nature”
+	•	Urban Nature Access
+	•	We forbit “urban nature” in all areas considered Commercial, Industrial, Institutional (Private), Transportation, Agriculture, Rangeland, Extractive/Mining, Timber, Barren, or Conservation land in Public-limited* or Private easements in the NLUD zoning data.
+	•	In all other zoning categories, we allow tree canopy to override the underlying parameter value.
+	•	How this plays out: a Developed, High Intensity area is usually not considered urban nature. However, if it has High tree canopy, it might be urban nature depending on the zoning context (yes in Residential, no in Commercial).
+	•	Urban Cooling
+	•	Shade: weighted average (base parameter, tree parameter) based on the amount of tree canopy. No impact of zoning.
+	•	kC: 
+	•	weighted average (base parameter, tree parameter) based on the amount of tree canopy
+	•	Then increased by up to 10% based on expected irrigation use (as identified by NLUD)
+	•	Albedo: 
+	•	weighted average (base parameter, tree parameter) based on the amount of tree canopy
+	•	Then increased by up to 10% based on expected irrigation use (as identified by NLUD)
+	•	Green Area:
+	•	any areas with greater than 50% tree canopy cover (i.e. “High” tree canopy cover) were considered Green Areas no matter their underlying NLCD/NLUD classification.
+	•	Areas Zoned as Rangeland, Timber, Developed Parks, Natural Parks, or Conservation were all considered Green Areas no matter their land cover type
+	•	Carbon:
+	•	All carbon categories
+	•	weighted average (base parameter, tree parameter) based on the amount of tree canopy
+	•	Base parameterization methods
+	•	Refactored the original carbon literature review, separating urban cabon ammendments into three categories (embedded emissions, embedded storage, and annual emissions) that we ignore for this project. But the carbon pool parameters are now sensical and useful on their own. 
+	•	Lingling parameterized the LULC based on Spawn et al. data
+	•	Unusable because the regression does not provide values for categories not within SA but reasonable to expect to zone for
+
+
+*We gave this category a 0.5, since it is limited access.
+ 
+

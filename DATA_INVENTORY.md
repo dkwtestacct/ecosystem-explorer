@@ -116,13 +116,21 @@ The compound `lulc_overlay_3857.tif` encodes a **Cartesian product lucode space*
 
 Integration is queued as a multi-brief workstream. Until then, all NatCap rasters are gitignored (`data/sa/natcap_2024/*.tif`) except small CSVs/docs.
 
-**Documentation files in `data/sa/natcap_2024/`** (committed, grep-able):
+**Committed files in `data/sa/natcap_2024/`** (provenance + small data, grep-able where applicable):
 
 | File | Content |
 |---|---|
-| `README.docx` + `Notes_on_NASA_Urban_parameterization_QA.txt` | NatCap's original SA dataset documentation (NASA Urban project parameterization QA). |
+| `README.docx` + `README.txt` | NatCap's original SA dataset README (predates `README_San_Antonio_InVEST_model_inputs.docx`). |
+| `Notes_on_NASA_Urban_parameterization_QA.docx` + `.txt` | NatCap's NASA Urban project parameterization QA notes. |
 | `README_San_Antonio_InVEST_model_inputs.docx` + `.txt` | NatCap's per-InVEST-model SA input recipe — args.json-equivalent values for UCM, Carbon, UNA, UFR, NDR (read 2026-05-24). Source of the Brief 14 UHI calibration and the NDR integration scope. |
 | `Ecosystem_Explorer_-_Meeting_Note.docx` + `.txt` | NatCap meeting note with project context: Symposium 2026 dates, Google AI for Science proposal framing, six-model SA scope, "wallpaper approach" definition (read 2026-05-24). |
+| `ucm__nlcd_nlud_tree.csv` | NatCap SA Urban Cooling biophysical table — 1,984-row compound NLCD×NLUD×tree-canopy lookup with shade/kc/albedo/green_area/building_intensity per compound lucode. Source for the SA UCM integration queued in future briefs. |
+| `una__nlcd_nlud_tree.csv` | NatCap SA Urban Nature Access LULC attribute table — 1,984-row categorical (0/0.5/1.0) `urban_nature` score per compound lucode. |
+| `carbon__nlcd_nlud_tree.csv` | NatCap SA Carbon table — 1,984-row, four-pool (above/below/soil/dead carbon) per compound lucode. Methodology upgrade target for prototype's single-rate Carbon. |
+| `lulc_crosswalk.csv` | Cross-reference table mapping NLCD codes × NLUD codes × tree-canopy bins → compound lucodes used in the three biophysical tables above. Essential for interpreting them. |
+| `acs_block_group_equity_data.csv` | Census ACS demographic + equity data joined to SA block groups. Source for any equity-by-group analysis. |
+| `acs_block_groups_3857.gpkg` | SA Census block group polygons in EPSG:3857. NatCap's UNA AOI (replaces the prototype's Bexar County bbox if/when the SA NatCap data integration lands). |
+| `classification_structure_qaqc.xlsx` | NatCap's methodology QA/QC documentation for the compound LULC framework. Binary file (Excel); kept as-is for provenance. |
 
 `.docx` files preserved alongside `textutil`-converted `.txt` versions so the contents are grep-able in the repo.
 
