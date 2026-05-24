@@ -1,0 +1,15 @@
+{
+    "args": {
+        "aoi_watersheds_path": "admin_boundaries_census_tracts.shp",
+        "built_infrastructure_vector_path": "buildings.shp",
+        "curve_number_table_path": "UFR_biophysical_table_MN.csv",
+        "infrastructure_damage_loss_table_path": "Damage_loss_table_MN.csv",
+        "lulc_path": "LULC_NLCD_2021_MN.tif",
+        "rainfall_depth": "100",
+        "results_suffix": "",
+        "soils_hydrological_group_raster_path": "soil_group_MN.tif",
+        "workspace_dir": ""
+    },
+    "invest_version": "3.14.3",
+    "model_name": "natcap.invest.urban_flood_risk_mitigation"
+}

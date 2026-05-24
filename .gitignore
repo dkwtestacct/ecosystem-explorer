@@ -68,3 +68,24 @@ data/sa/natcap_2024/*.tif
 data/sa/natcap_2024/*.tif.aux.xml
 data/sa/natcap_2024/InVEST Results/
 data/sa/natcap_2024/_archive/
+
+# NatCap MN sample data (Brief 16, received 2026-05-24) — raster/shapefile contents
+# of the unzipped bundles. The ZIPs themselves + args.json + small CSVs ARE tracked
+# as provenance for the MN UNA/UCM/UFR parameter audit. Re-extract from the ZIPs to
+# rebuild the rasters.
+data/invest/mn_sample_data_natcap_2026/**/*.tif
+data/invest/mn_sample_data_natcap_2026/**/*.tif.aux.xml
+data/invest/mn_sample_data_natcap_2026/**/*.tif.vat.dbf
+data/invest/mn_sample_data_natcap_2026/**/*.tif.vat.cpg
+data/invest/mn_sample_data_natcap_2026/**/*.tfw
+data/invest/mn_sample_data_natcap_2026/**/*.qlr
+data/invest/mn_sample_data_natcap_2026/**/*.shp
+data/invest/mn_sample_data_natcap_2026/**/*.dbf
+data/invest/mn_sample_data_natcap_2026/**/*.shx
+data/invest/mn_sample_data_natcap_2026/**/*.prj
+data/invest/mn_sample_data_natcap_2026/**/*.sbn
+data/invest/mn_sample_data_natcap_2026/**/*.sbx
+data/invest/mn_sample_data_natcap_2026/**/*.cpg
+data/invest/mn_sample_data_natcap_2026/**/*.shp.xml
+data/invest/mn_sample_data_natcap_2026/**/*.tif.ovr
+data/invest/mn_sample_data_natcap_2026/**/*.tif.xml

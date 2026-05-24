@@ -1,0 +1,15 @@
+lucode,lulc_desc,shade,kc,albedo,green_area,building_intensity
+11,Open Water,0,1,0.056,0,0
+21,"Developed, Open Space",0.3,0.516,0.161,1,0
+22,"Developed, Low Intensity",0.1,0.43,0.228,0,0.33
+23,"Developed, Medium Intensity",0,0.328,0.208,0,0.66
+24,"Developed, High Intensity",0,0.179,0.162,0,1
+31,Barren Land,0,0.613,0.232,0,0
+41,Deciduous Forest,1,1.004,0.142,1,0
+42,Evergreen Forest,1,1.004,0.142,1,0
+43,Mixed Forest,1,1.004,0.142,1,0
+52,Shrub/Scrub,0,0.968,0.189,1,0
+71,Herbaceous,0,0.932,0.193,1,0
+81,Hay/Pasture,0,0.932,0.171,1,0
+90,Woody Wetlands,1,1.1,0.161,1,0
+95,Emergent Herbaceous Wetlands,0,1.1,0.142,1,0

@@ -1,0 +1,15 @@
+﻿lucode,NLCD_Land,CN_A,CN_B,CN_C,CN_D
+11,Open Water,1,1,1,1
+21,"Developed, Open Space",49,69,79,84
+22,"Developed, Low Intensity",51,68,79,84
+23,"Developed, Medium Intensity",61,75,83,87
+24,"Developed, High Intensity",89,92,94,95
+31,Barren Land,77,86,91,94
+41,Deciduous Forest,36,60,73,79
+42,Evergreen Forest,36,60,73,79
+43,Mixed Forest,36,60,73,79
+52,Shrub/Scrub,35,56,70,77
+71,Herbaceous,49,69,79,84
+81,Hay/Pasture,49,69,79,84
+90,Woody Wetlands,1,1,1,1
+95,Emergent Herbaceous Wetlands,1,1,1,1
