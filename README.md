@@ -53,6 +53,7 @@ Different paths through the docs depending on what you need:
 | `NATCAP_ALIGNMENT.md` | Per-surface alignment status against NatCap canonical. Six tables (methodology, parameters, AOI, research directions, vocabulary). The methodology view. |
 | `NATCAP_COLLABORATION.md` | Running conversation log. Asks, inferred priorities, gaps, decisions made without confirmation, open questions. The process view. |
 | `CITY_PARITY.md` | Per-city alignment matrix. How closely the prototype matches NatCap's published configurations for each specific city. The city view. |
+| `SA_INTEGRATION_PLAN.md` | Multi-brief plan for adopting NatCap's curated SA dataset (compound LULC + three biophysical tables). Foundational CRS/extent, conversion-mapping, and sequencing decisions ahead of Briefs 27+. |
 
 ### Data
 
