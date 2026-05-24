@@ -1,10 +1,19 @@
 # Design Notes
 
-Running record of design decisions and considered-but-deferred directions
-for the Ecosystem Explorer prototype. Organized by topic. Purpose:
-single-source-of-truth for "what was considered, what was chosen, what's
-still open" — useful before any conversation with collaborators about
-methodology or future direction.
+**Purpose:** Internal design decisions for the Urban Ecosystem Tradeoff Explorer. Records what options were considered, what was chosen, and why — for decisions that don't surface to users or to NatCap collaborators.
+
+**Audience:** Future Claude sessions and Daniel-six-months-from-now. Not user-facing; not part of the NatCap collaboration log.
+
+**Related docs:**
+
+- `REFERENCE.md` — user-facing methodology (what each metric means).
+- `ARCHITECTURE.md` — three-layer system overview.
+- `NATCAP_COLLABORATION.md` — running collaboration log with NatCap (asks, gaps, decisions made without confirmation, open questions).
+- `NATCAP_ALIGNMENT.md` — per-surface alignment status.
+- `CITY_PARITY.md` — per-city alignment matrix.
+- `DATA_INVENTORY.md` — every external data source the prototype consumes.
+
+---
 
 ## City-specific copy convention
 

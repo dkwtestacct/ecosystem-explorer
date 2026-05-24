@@ -1,0 +1,149 @@
+# Architecture
+
+**Purpose:** A high-level map of how the Urban Ecosystem Tradeoff Explorer is built. For someone who needs to understand the system before reading code, or who wants to know where to look for a specific concern.
+
+**Audience:** Anyone — Daniel, future Claude sessions, NatCap collaborators, anyone picking up the project after a break.
+
+**For deeper detail:** `REFERENCE.md` covers methodology (what each metric means, which model produced it). `DESIGN_NOTES.md` covers internal design decisions (options considered, chosen, why). This doc is the orienting overview that sits above both.
+
+---
+
+## At a glance
+
+The prototype is a Streamlit app that lets users explore tradeoffs in urban land-use scenarios — how different allocations across green infrastructure, food forests, and high-density development affect flood risk, cooling, food production, mental health, carbon, and cost.
+
+Three layers sit underneath the UI:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  UI (Streamlit)                                                  │
+│  Sidebar sliders, metric cards, Tradeoff Analysis,              │
+│  Find Best Scenario, Map View                                    │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+        ┌────────────────┼────────────────────────────────┐
+        ▼                ▼                                ▼
+┌──────────────┐  ┌─────────────────┐  ┌────────────────────────────┐
+│ Layer 1      │  │ Layer 2         │  │ Layer 3                    │
+│ Raster sims  │  │ Lookup table    │  │ Surrogate model            │
+│              │  │                 │  │                            │
+│ Per-pixel    │  │ Pre-computed    │  │ Random-forest predictions  │
+│ InVEST       │  │ scenarios.csv   │  │ trained on ~90 sims        │
+│ calculations │  │                 │  │                            │
+│              │  │                 │  │                            │
+│ Realism      │  │ Speed           │  │ Wide-scenario search       │
+└──────────────┘  └─────────────────┘  └────────────────────────────┘
+```
+
+Each layer exists for a different reason. Together they let users explore conversions at interactive speeds (Layer 2), see InVEST-canonical biophysical detail (Layer 1), and search a much larger space than the lookup table can hold (Layer 3).
+
+---
+
+## Layer 1 — Raster simulations
+
+**What it does.** For a given scenario (specified by city, percent converted, mix of cover types, and placement strategy), compute the actual InVEST biophysical metrics per pixel. The function entry point is `evaluate_scenario()` in `app.py`.
+
+**Models implemented (per city):**
+
+- **InVEST Urban Cooling Model (UCM)** — Heat Mitigation Index, temperature deltas, cooling energy savings
+- **InVEST Urban Flood Risk Mitigation (UFR)** — SCS-CN runoff, flood damage avoided
+- **InVEST Urban Nature Access (UNA)** — per-capita nature supply, % of population meeting demand
+- **InVEST Urban Mental Health (UMH)** — preventable cases, avoided costs
+- **Carbon Storage** — sequestration tons CO₂e/yr (single-rate proxy, not full InVEST 4-pool)
+
+**Validation status.** UCM matches `natcap.invest.urban_cooling_model.execute()` at MAE=0. UFR uses canonical SCS-CN runoff. UNA uses canonical 2SFCA implementation. UMH uses InVEST RR formula. Carbon is methodologically simplified (see CITY_PARITY.md).
+
+**Why it exists.** Realism. Layer 2 and Layer 3 derive from Layer 1. Without per-pixel biophysical calculation, the prototype has no ground truth.
+
+**Speed cost.** A single SA `evaluate_scenario()` call takes ~0.9 seconds. MN downtown takes ~0.03 seconds. Too slow for interactive slider response on SA, which is why Layer 2 exists.
+
+**For deeper reading:** `REFERENCE.md` (per-metric methodology), `INVEST_PLACEMENT.md` (placement-strategy formulas), `PLACEMENT_STRATEGY_DIAGNOSTIC.md` (empirical findings).
+
+---
+
+## Layer 2 — Lookup table
+
+**What it does.** Pre-computes Layer 1 across the full slider space (city × scenario × pct × placement strategy) and stores the results in `data/scenarios_dense.csv`. At runtime the UI looks up the user's current slider position and returns the answer instantly.
+
+**Generation.** `precompute_scenarios.py` enumerates the grid (typically 4 scenarios × ~10 pct values × 5 placement strategies × 3 cities ≈ 600 rows) and runs `evaluate_scenario()` for each. Takes ~15 minutes for a full regenerate.
+
+**Bumps.** Whenever a substantive change affects scenario outputs, `SCENARIO_SCHEMA_VERSION` increments and the lookup table is regenerated. The baseline test suite (`verify_baselines.py`) sits on top of the same data.
+
+**Why it exists.** Speed. Interactive slider response requires sub-second updates. Layer 2 makes the common case (user dragging sliders) instant by hiding Layer 1's cost behind a precomputation step.
+
+**Coverage gap.** The lookup table is *grid-shaped* — it covers fixed (scenario, pct, strategy) tuples. The Find Best Scenario tab needs to search a much higher-dimensional continuous space than the grid can represent. That's Layer 3.
+
+**For deeper reading:** `precompute_scenarios.py` for generation logic. `DESIGN_NOTES.md` for the SCENARIO_SCHEMA_VERSION discipline.
+
+---
+
+## Layer 3 — Surrogate model
+
+**What it does.** A random-forest regressor trained on ~90 pre-computed Layer 1 simulations. Predicts metric outcomes for arbitrary continuous scenario inputs (any pct, any allocation mix). Lives in `surrogate.py`.
+
+**Used by.** The Find Best Scenario tab. The user specifies what they're optimizing for (e.g., "minimize flood risk subject to cooling ≥ X"), and the surrogate evaluates thousands of candidate scenarios in seconds, finding Pareto-efficient frontiers. Layer 1 is too slow for this; Layer 2 doesn't cover the continuous input space.
+
+**Training.** Surrogate is trained at app startup via `train_surrogate()`, cached with `@st.cache_resource` so it persists across reruns. Training data comes from `data/scenarios_dense.csv` (the same Layer 2 lookup table); training itself takes a few seconds.
+
+**Optimization.** Once trained, the optimizer samples candidate scenarios (typically thousands), uses the surrogate to predict each one's metrics, filters by user-specified constraints, and returns the best Pareto-efficient candidates.
+
+**Limitations.** Placement strategy is not yet a surrogate input — the optimizer effectively assumes the user's currently-selected placement strategy. Cost-effectiveness isn't a surrogate target; it's computed downstream from surrogate predictions.
+
+**Why it exists.** Exploration. Users want to ask "what's the best mix?" rather than "what happens at this specific mix?" Layer 3 enables that high-dimensional search.
+
+**Why not ROOT?** NatCap's [ROOT](https://natcap.github.io/ROOT/index.html) does linear-programming-based optimization for ecosystem services and is a real alternative. The prototype's surrogate is a different (simpler, ML-based) approach. See NATCAP_COLLABORATION.md for context — ROOT is acknowledged but not pursued.
+
+**For deeper reading:** `surrogate.py` for the random-forest training and Pareto-filtering logic.
+
+---
+
+## Data flow
+
+```
+Source data            Layer 1            Layer 2            Layer 3
+──────────────────    ──────────────    ────────────────    ──────────────
+data/ (rasters,        evaluate_         scenarios_dense    surrogate.py
+biophysical tables,    scenario()        .csv                random forest
+config.py)             per-pixel         pre-computed        trained on ~90
+                       InVEST            grid lookup         sims; predicts
+                       calculations                          arbitrary mixes
+       │                    │                  │                  │
+       └────────────────────┴──────────────────┴──────────────────┘
+                                     │
+                                     ▼
+                              Streamlit UI
+                              (sliders, cards, tabs)
+```
+
+**For deeper reading on data:** `DATA_INVENTORY.md` (every external data source the prototype consumes, per-city). `CITY_PARITY.md` (per-city alignment with NatCap's published configurations).
+
+---
+
+## Per-city configuration
+
+Each city is a row in `config.py`'s `CITIES` dict, with paths to its LULC/soil/buildings/ET rasters, biophysical tables, and city-specific scalars (UHI magnitude, food yield benchmark). Adding a new city is in principle a matter of adding a new row and providing its data — the layered architecture is city-agnostic.
+
+Currently active cities: Minneapolis (downtown), San Antonio. Minneapolis Full is dormant (`available=False`) but retained in the config so scripts/tests can still reference it.
+
+---
+
+## Testing
+
+`verify_baselines.py` runs the full pipeline (Layer 1) for every (city, scenario, strategy) tuple and compares against snapshotted outputs in `tests/baselines/`. Currently 40 baselines. Bumps to `SCENARIO_SCHEMA_VERSION` invalidate baselines; running `verify_baselines.py --update` regenerates them.
+
+This is the regression gate. Every brief that touches biophysical math or scenario outputs must end with 40/40 passing.
+
+---
+
+## Where to read next
+
+| If you want to understand... | Read |
+|---|---|
+| What each user-facing metric means | `REFERENCE.md` |
+| Why a particular design choice was made | `DESIGN_NOTES.md` |
+| What data the prototype consumes | `DATA_INVENTORY.md` |
+| How aligned the prototype is with NatCap canonical, per city | `CITY_PARITY.md` |
+| Per-methodology NatCap alignment status | `NATCAP_ALIGNMENT.md` |
+| The collaboration log with NatCap | `NATCAP_COLLABORATION.md` |
+| Empirical placement-strategy effect sizes | `PLACEMENT_STRATEGY_DIAGNOSTIC.md` |
+| Per-InVEST-model placement analysis | `INVEST_PLACEMENT.md` |

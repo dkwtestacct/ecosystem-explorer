@@ -58,6 +58,7 @@ CHANGE_COLORS = {
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
+- **Project README and architecture overview** now in the repo root.
 - **San Antonio temperature deltas now use NatCap-calibrated UHI parameters.**
 - **Placement strategies aligned with InVEST canonical quantities.**
 - **Canonical InVEST Urban Nature Access implemented for Minneapolis.**
