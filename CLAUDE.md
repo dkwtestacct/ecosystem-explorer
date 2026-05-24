@@ -570,3 +570,15 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   is visible, so an auto-clear there fires on the next unrelated rerun instead of when
   the user actually opens the tab. Streamlit has no API for detecting tab switches, so
   the dismiss-X button (or running a new optimization) is the only way to clear the flag.
+- **Stop-and-report sentinels are signal, not noise.** Briefs often include sentinel checks
+  in their investigate-first section — file presence, content-string matches, line counts,
+  "should-not-already-exist" assertions. When a sentinel fires, the precondition the brief
+  required isn't actually met. The right response is to stop, report what was expected
+  vs. what was found, surface options to the user, and wait for direction. Do NOT override
+  the trigger by skipping the check or reframing the content as "close enough." Examples
+  from real session experience: a v2.5 doc wasn't placed at the expected path (browser
+  cache served v1), and a sentinel "should contain 'Per-city parameter framing'" caught it
+  — without the sentinel, CC would have committed wrong content. A "DESIGN_NOTES.md
+  should not already have a `# Design Notes` heading" sentinel caught an existing heading
+  and prevented duplicate-heading commit. Sentinels are the parts of the brief where CC
+  judgment is *constrained*, not just guided.
