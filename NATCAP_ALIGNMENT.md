@@ -53,7 +53,7 @@ recommended equivalents.
 | Population (Minneapolis) | US Census 2020 block-level (P1_001N, Hennepin County) | Standard NLCD-grid rasterization | ✅ Aligned |
 | Population (San Antonio) | US Census 2020 block-level (P1_001N, Bexar County) | Standard NLCD-grid rasterization | ✅ Aligned |
 | UNA biophysical table | InVEST sample: `LULC_attribute_table_UNA.csv` | NatCap-published canonical table | ✅ Aligned |
-| UCM biophysical table | MN: InVEST UCM sample values; SA: tuned for Köppen BSh climate (classes 41/42/52/81) | NatCap-published canonical table | ✅ Aligned (MN) / ⚠️ Tuned (SA) |
+| UCM biophysical table | MN: InVEST UCM sample values; SA: NatCap compound NLCD×NLUD×tree-canopy table (`data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv`, 1,984 rows keyed on the compound LULC raster) | NatCap-published canonical table | ✅ Aligned (MN + SA, 2026-05-24 Brief 28b — Köppen-BSh per-NLCD tuning retired; SA UCM consumes compound view directly) |
 | Building footprints (Minneapolis) | Split-config — Geofabrik OSM footprints (~113k, city-wide) feed the placement mask (`mask_buildings_file`); the InVEST UFR sample shapefile (`buildings_file`) drives the typed $-metric raster | Comprehensive OSM building footprints | ✅ Aligned |
 | Road network (Minneapolis) | Geofabrik OSM (Minnesota extract, Option B class filter), rasterized into the non-convertible mask | Geofabrik OSM extracts, recommended | ✅ Aligned |
 | Buildings + roads (San Antonio) | Geofabrik OSM (Texas extract) — `buildings_sa.gpkg` (345,900 polygons), `roads_sa.geojson` (55,553 segments) | Geofabrik OSM extracts, recommended | ✅ Aligned |

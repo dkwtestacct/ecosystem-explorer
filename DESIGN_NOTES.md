@@ -669,6 +669,100 @@ converted scenario rather than the NLCD-only `scenario_lulc`.
   documented logic. The serial `lucode` (0–1983) is the join key.
   Worth raising with NatCap as a clarifying question.
 
+## SA UCM compound biophysical table adoption (2026-05-24, Brief 28b)
+
+Brief 28b swapped SA's per-NLCD Köppen-BSh-tuned UCM biophysical table
+for NatCap's compound NLCD×NLUD×tree-canopy table
+(`data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv`, 1,984 rows), keyed on
+the compound LULC raster adopted in Brief 27. SA UCM is now the first
+prototype model to consume the compound view directly without going
+through `reduce_compound_to_nlcd()`.
+
+**Köppen-BSh tuning retirement.** The prototype's previous SA UCM
+table (`data/sa/cooling/biophysical_table_urban_cooling_SA.csv`)
+tuned four NLCD classes (41, 42, 52, 81) for hot semi-arid climate,
+leaving the rest at the MN-copy defaults. This was a workaround for
+not having SA-specific compound LULC. NatCap's compound table
+captures the climate-relevant variation through the tree-canopy bin
+(none/low/medium/high) and the NLUD code (residential/commercial/
+managed-natural/etc.) rather than through climate-tuned per-NLCD
+values. The retired table file is kept on disk for historical
+reference; it is no longer loaded.
+
+**What changes in metric calculation.** SA's Heat Mitigation Index
+(HMI), Cooling Energy Savings ($), and Temperature Change (°F) all
+shift. Measured at baseline regeneration (`verify_baselines.py`):
+
+- `baseline_hm`: **0.2866 → 0.3937 (+37.4 %)**
+- `mean_hm` on the food-forest scenario at 10 % conversion:
+  0.325 → 0.409 (+25.8 %)
+- `cooling_energy_savings_usd`: **−77 % to −86 %** across SA
+  scenarios
+
+**Why the $ shift exceeds the HMI shift.** The energy-savings formula
+is `clip(ΔHMI × UHI_max, 0, ∞) × consumption × area × $/kWh`. With
+baseline_hm now ~37 % higher, the marginal scenario ΔHMI shrinks
+proportionally — AND the clip-at-zero asymmetry punishes pixels
+whose scenario HMI fell below baseline (no negative credit). The
+compounded effect of a higher baseline plus the asymmetric clip is
+the 77–86 % drop.
+
+**Why the baseline rises.** The compound table gives systematically
+different per-pixel inputs for SA's lucode distribution. Aggregating
+the compound-keyed values back to NLCD buckets at the SA AOI:
+
+| NLCD | OLD shade | NEW shade | OLD green_area | NEW green_area |
+| ---: | --------: | --------: | -------------: | -------------: |
+|   21 |    0.300  |    0.231  |          1.000 |          0.030 |
+|   22 |    0.100  |    0.215  |          0.000 |          0.009 |
+|   23 |    0.000  |    0.193  |          0.000 |          0.005 |
+|   24 |    0.000  |    0.164  |          0.000 |          0.002 |
+|   42 |    0.850  |    1.000  |          1.000 |          1.000 |
+|   81 |    0.000  |    0.158  |          1.000 |          1.000 |
+
+The mechanism is real, not a lookup error. Two specific corrections
+the compound table makes that the per-NLCD table couldn't:
+
+- **NLCD-21 (Developed, Open Space) green_area: 1.000 → 0.030.**
+  The per-NLCD table flagged every "Developed, Open Space" pixel
+  as 2-ha-eligible park green — i.e., as a source of `CC_park`
+  cooling for surrounding pixels. The compound table only flags the
+  ~3 % with high tree canopy as such; the rest are mowed lawns,
+  road shoulders, and managed open lots that aren't parks. The old
+  framing was inflating the area of SA "effective park" by ~30×.
+- **NLCD-23 (Developed, Medium-Density) shade: 0.000 → 0.193.**
+  The per-NLCD table credited zero canopy shade across all
+  medium-density developed pixels. The compound table reflects that
+  SA's medium-density residential carries non-trivial existing tree
+  canopy (back yards, street trees, lot-line trees), and the
+  shade-eligible fraction of these pixels is genuinely ~0.2.
+
+Net effect across the developed mask (NLCD 21–24): more shade, more
+Kc, less park-credit. The Köppen-BSh tuning was overstating cooling
+leverage by understating baseline canopy on the very pixels where
+interventions would land. The new baseline is more accurate; the
+smaller marginal scenario improvements are too.
+
+**Worth surfacing to NatCap.** The +37 % baseline_hm shift on SA
+from the per-NLCD → compound migration is a meaningful finding for
+any other group running an InVEST UCM prototype on a per-NLCD table
+in hot-canopied cities. Suggests per-NLCD tuning systematically
+overstates cooling-intervention $-value in places where developed
+land carries non-trivial tree cover.
+
+**MN UCM unchanged.** Brief 28b's table swap is SA-only; MN keeps
+`biophysical_table_urban_cooling_MN.csv` and shows zero divergences
+across the 20 MN baseline cells.
+
+**Reduction routing for UCM removed.** Brief 27's
+`reduce_compound_to_nlcd()` is no longer used by UCM — the compound
+table is keyed directly on compound lucodes. UFR and UNA still use
+the reduction routing pending Briefs 29 and 30. `scenario_lulc_ucm`
+is the new return-dict field that carries the right LULC view per
+city (compound for SA, NLCD for MN); the previously-singular
+`scenario_lulc` continues to carry the NLCD view for every consumer
+that wants it.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

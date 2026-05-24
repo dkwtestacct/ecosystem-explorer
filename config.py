@@ -153,7 +153,15 @@ CITIES = {
         'data_dir_flood':       'data/sa/flood',
         'data_dir_cooling':     'data/sa/cooling',
         'cn_table_file':        'UFR_biophysical_table_SA.csv',
-        'cooling_table_file':   'biophysical_table_urban_cooling_SA.csv',
+        # Brief 28b: switched from the Köppen-BSh-tuned per-NLCD prototype
+        # table to NatCap's compound NLCD×NLUD×tree-canopy UCM table (1,984
+        # rows). Keyed on the compound `lucode` 0–1983 — UCM consumers index
+        # the compound raster (`cooling_lulc_compound`) directly. The retired
+        # `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` is kept on
+        # disk for historical reference and is no longer loaded. Relative
+        # `../natcap_2024/` traversal mirrors the existing `cooling_lulc_file`
+        # convention so we don't duplicate the file.
+        'cooling_table_file':   '../natcap_2024/ucm__nlcd_nlud_tree.csv',
         # Path keys. Inputs sourced 2026-05-09:
         #   - SSURGO via download_ssurgo_sa.py (TX029, 6,090 polygons,
         #     44 % D-class clay-rich vs Hennepin's 0 % pure-D)

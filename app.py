@@ -62,6 +62,7 @@ CHANGE_COLORS = {
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
     "San Antonio land cover now uses NatCap's San Antonio data.",
+    "San Antonio cooling estimates updated to NatCap's calibration.",
     "Flood metrics use per-city design storm depths.",
     "San Antonio temperature estimates updated to NatCap's calibration.",
     "Minneapolis nature access updated to NatCap's calibration.",
@@ -70,7 +71,7 @@ WHATS_NEW_ENTRIES = [
 ]
 
 UNDERWAY_ENTRIES = [
-    "Per-model biophysical tables for San Antonio.",
+    "Per-model biophysical tables for San Antonio (nature access and carbon).",
 ]
 
 ON_THE_RADAR = """\
@@ -178,10 +179,10 @@ _COOLING_BIOPHYSICAL_SOURCE_TEXT = {
         "(humid continental Köppen Dfa)."
     ),
     "San Antonio, TX": (
-        "Biophysical table tuned for Köppen BSh (hot semi-arid) climate on "
-        "four high-impact NLCD classes (Shrub/Scrub, Evergreen Forest, "
-        "Deciduous Forest, Hay/Pasture); medium-confidence interim values "
-        "pending a SA-calibrated InVEST UCM args run."
+        "Biophysical table is NatCap's compound NLCD×NLUD×tree-canopy "
+        "lookup (`ucm__nlcd_nlud_tree.csv`, 1,984 rows), keyed on the "
+        "compound LULC raster. UCM consumes it directly; UNA and Carbon "
+        "biophysical tables are still queued for upcoming releases."
     ),
 }
 
@@ -1420,7 +1421,6 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 
     pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
-    scenario_lulc = cooling_lulc.copy()
     # Sample from the convertible (= developed AND non-building) pool so
     # conversions land on feasible interstitial spaces (parking lots, lawns,
     # vacant land) rather than on top of existing structures. Total developed
@@ -1439,15 +1439,43 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     n_for = int(n_convert * food_forest_pct / 100)
     n_hd  = n_convert - n_wet - n_for
 
-    if n_wet > 0:
-        p = pixels_to_convert[:n_wet]
-        scenario_lulc[p[:, 0], p[:, 1]] = CODE_GREEN_INFRA
-    if n_for > 0:
-        p = pixels_to_convert[n_wet:n_wet + n_for]
-        scenario_lulc[p[:, 0], p[:, 1]] = CODE_FOOD_FOREST
-    if n_hd > 0:
-        p = pixels_to_convert[n_wet + n_for:]
-        scenario_lulc[p[:, 0], p[:, 1]] = CODE_HIGH_DENSITY
+    # Brief 28b: branch on whether this city has a NatCap compound LULC view
+    # (SA after Brief 27) or only the NLCD view (MN). For SA, UCM consumes
+    # the compound view and conversions map source compound codes → target
+    # compound codes via the `COMPOUND_AFTER_*` lookups so the (NLUD,
+    # tree-canopy) bin is preserved. UFR / UNA / food / NDVI / MH still
+    # operate on the NLCD reduction; for SA that's derived from the converted
+    # compound raster via `reduce_compound_to_nlcd`. For MN, both views are
+    # the same NLCD raster.
+    if cooling_lulc_compound is not None:
+        scenario_lulc_compound = cooling_lulc_compound.copy()
+        if n_wet > 0:
+            p = pixels_to_convert[:n_wet]
+            src = scenario_lulc_compound[p[:, 0], p[:, 1]]
+            scenario_lulc_compound[p[:, 0], p[:, 1]] = COMPOUND_AFTER_GI[src]
+        if n_for > 0:
+            p = pixels_to_convert[n_wet:n_wet + n_for]
+            src = scenario_lulc_compound[p[:, 0], p[:, 1]]
+            scenario_lulc_compound[p[:, 0], p[:, 1]] = COMPOUND_AFTER_FF[src]
+        if n_hd > 0:
+            p = pixels_to_convert[n_wet + n_for:]
+            src = scenario_lulc_compound[p[:, 0], p[:, 1]]
+            scenario_lulc_compound[p[:, 0], p[:, 1]] = COMPOUND_AFTER_HD[src]
+        scenario_lulc = reduce_compound_to_nlcd(scenario_lulc_compound, COMPOUND_TO_NLCD)
+        scenario_lulc_ucm = scenario_lulc_compound
+    else:
+        scenario_lulc = cooling_lulc.copy()
+        if n_wet > 0:
+            p = pixels_to_convert[:n_wet]
+            scenario_lulc[p[:, 0], p[:, 1]] = CODE_GREEN_INFRA
+        if n_for > 0:
+            p = pixels_to_convert[n_wet:n_wet + n_for]
+            scenario_lulc[p[:, 0], p[:, 1]] = CODE_FOOD_FOREST
+        if n_hd > 0:
+            p = pixels_to_convert[n_wet + n_for:]
+            scenario_lulc[p[:, 0], p[:, 1]] = CODE_HIGH_DENSITY
+        scenario_lulc_compound = None
+        scenario_lulc_ucm = scenario_lulc
 
     soil_clamped = np.clip(soil_resized, 1, 4)
     lulc_safe    = np.clip(scenario_lulc, 0, len(lucode_idx_arr) - 1)
@@ -1460,7 +1488,9 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     # higher = more cooling); the per-pixel value factors shade, albedo,
     # per-pixel ET, and exponentially distance-weighted cooling from green
     # areas ≥ 2 ha within the 450 m cooling distance.
-    hmi_map  = _compute_hmi_raster(scenario_lulc)
+    # Brief 28b: `scenario_lulc_ucm` is the compound view for SA (indexes
+    # the compound-keyed `shade_arr` etc.) and the NLCD view for MN.
+    hmi_map  = _compute_hmi_raster(scenario_lulc_ucm)
     valid_hm = hmi_map[~np.isnan(hmi_map) & (scenario_lulc != NODATA)]
     mean_hm  = float(valid_hm.mean().round(4))
     cooling_energy_savings_usd = compute_cooling_energy_savings(hmi_map)
@@ -1525,13 +1555,19 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'total_cost_mln':           total_cost_mln,
         'scenario_name':            f"{pct_converted}% converted — GI {green_infrastructure_pct}% / FF {food_forest_pct}%",
         'scenario_lulc':            scenario_lulc,
+        # Brief 28b: the UCM-view scenario raster. Compound (0–1983 lucodes)
+        # for SA; the same array as `scenario_lulc` (NLCD) for MN. Consumers
+        # that re-run the UCM helpers — chiefly `compute_per_tract_summary`
+        # — must use this view so per-pixel `shade_arr[...]` lookups land in
+        # the right lucode space.
+        'scenario_lulc_ucm':        scenario_lulc_ucm,
     }
 
 
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 22  # bumped: Brief 27 adopts NatCap compound NLCD×NLUD×tree-canopy LULC for SA (data/sa/flood/land_use_compound_sa.tif, reprojected EPSG:3857→EPSG:5070, reduced via crosswalk to NLCD view that existing per-NLCD biophysical tables consume). 97.91% pixel-wise agreement with prior `land_use_2021_sa.tif`; 2% drift drives small (~1-3%) SA baseline shifts. MN unchanged (compound framework is SA-only). Brief 23 was at 20→21.
+SCENARIO_SCHEMA_VERSION = 23  # bumped: Brief 28b swaps SA's UCM biophysical table from the prototype's per-NLCD Köppen-BSh-tuned `biophysical_table_urban_cooling_SA.csv` to NatCap's compound NLCD×NLUD×tree-canopy `ucm__nlcd_nlud_tree.csv` (1,984 rows, keyed on the compound `lucode` 0–1983 from Brief 27). SA UCM consumers (`_compute_hmi_raster`, baseline HMI raster, `compute_per_tract_summary`) now index the compound raster directly; UFR + UNA still route through the compound→NLCD reduction layer. SA cooling metrics shift; MN untouched. Brief 27 was at 21→22.
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -1567,7 +1603,11 @@ def compute_scenario_grid(_state, city_key, data_dir_flood, data_dir_cooling,
             for ff in range(0, 101, step_alloc):
                 if gi + ff <= 100:
                     result = evaluate_scenario(pct, gi, ff, seed=42)
-                    row = {k: v for k, v in result.items() if k != 'scenario_lulc'}
+                    # Brief 28b: also strip `scenario_lulc_ucm` — for SA it's
+                    # a separate full-AOI compound raster; for MN it's the
+                    # same object as `scenario_lulc` and stripping is a no-op.
+                    row = {k: v for k, v in result.items()
+                           if k not in ('scenario_lulc', 'scenario_lulc_ucm')}
                     # Explicit recomputation guarantees the surrogate-target
                     # columns exist regardless of evaluate_scenario's return.
                     row['carbon_tons_co2_yr'] = _compute_carbon(
@@ -1616,7 +1656,10 @@ def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, sch
             for ff in range(0, 101, 5):
                 if gi + ff <= 100:
                     result = evaluate_scenario(pct, gi, ff, seed=42)
-                    entry = {k: v for k, v in result.items() if k != 'scenario_lulc'}
+                    # Brief 28b: also strip `scenario_lulc_ucm` (same logic
+                    # as `compute_scenario_grid` — see comment there).
+                    entry = {k: v for k, v in result.items()
+                             if k not in ('scenario_lulc', 'scenario_lulc_ucm')}
                     entry['carbon_tons_co2_yr'] = _compute_carbon(
                         entry['n_wet'], entry['n_for'], entry['n_hd']
                     )
@@ -2021,8 +2064,18 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     # ── Phase 13: Baseline rasters (use *_pure helpers because module aliases
     # haven't been rebound to this state's arrays yet — we're inside the
     # cache_resource call that produces the state). ─────────────────────────
+    # Brief 28b: for cities with a NatCap compound UCM table (SA),
+    # `l_shade_arr`/`l_kc_arr`/`l_albedo_arr`/`l_green_area_arr` are sized
+    # to the compound lucode space (0–1983) and must be indexed by the
+    # compound raster, not the NLCD-reduced view. For cities without a
+    # compound view (MN), the NLCD raster is the right input.
+    _ucm_baseline_lulc = (
+        l_cooling_lulc_compound
+        if l_cooling_lulc_compound is not None
+        else l_cooling_lulc
+    )
     baseline_hm_raster = _compute_hmi_raster_pure(
-        l_cooling_lulc, l_shade_arr, l_kc_arr, l_albedo_arr, et_resized, max_et_ref,
+        _ucm_baseline_lulc, l_shade_arr, l_kc_arr, l_albedo_arr, et_resized, max_et_ref,
         l_green_area_arr,
     )
     baseline_ne_raster = _gaussian_filter(
@@ -2176,13 +2229,19 @@ COMPOUND_AFTER_GI     = _CURRENT_CITY_STATE.compound_after_gi
 COMPOUND_AFTER_HD     = _CURRENT_CITY_STATE.compound_after_hd
 
 
-def compute_per_tract_summary(scenario_lulc):
+def compute_per_tract_summary(scenario_lulc_ucm):
     """DataFrame with one row per tract: baseline + scenario temperature (°F)
-    vs the global baseline, plus the difference (improvement)."""
+    vs the global baseline, plus the difference (improvement).
+
+    Brief 28b: takes the UCM-view scenario raster (compound for SA, NLCD for
+    MN). The caller has both views in `results`; pick
+    `results['scenario_lulc_ucm']`. Re-running `_compute_hmi_raster` against
+    the NLCD view for SA would index the compound-keyed `shade_arr` with
+    NLCD codes and silently produce wrong numbers."""
     if not TRACTS_DATA_AVAILABLE or len(TRACTS) == 0:
         return pd.DataFrame()
 
-    hm_s_raster = _compute_hmi_raster(scenario_lulc)
+    hm_s_raster = _compute_hmi_raster(scenario_lulc_ucm)
 
     rows = []
     for i in range(len(TRACTS)):
@@ -2890,6 +2949,10 @@ if lookup_key in lookup_table and placement_strategy == 'random':
         carbon_rate_gi=st.session_state.carbon_rate_gi,
     )
     results['scenario_lulc'] = _fresh['scenario_lulc']
+    # Brief 28b: also restore the UCM-view raster from _fresh so downstream
+    # consumers (compute_per_tract_summary) can re-run the HMI helpers on the
+    # right lucode-space view (compound for SA, NLCD for MN).
+    results['scenario_lulc_ucm'] = _fresh['scenario_lulc_ucm']
     # Food values are recomputed live — lookup table may predate the n_food_pixels fix
     results['food_mln_lbs'] = _fresh['food_mln_lbs']
     results['people_fed']   = _fresh['people_fed']
@@ -3536,10 +3599,10 @@ with st.expander("Assumptions and limitations"):
         st.info(
             "**SA Land Cover:** Using NatCap's compound NLCD×NLUD×tree-canopy "
             "LULC framework (1,984 compound lucodes; foundational adoption "
-            "landed Brief 27). The compound raster is reduced via the LULC "
-            "crosswalk to NLCD codes for the existing per-NLCD biophysical "
-            "tables (UCM with Köppen-BSh tuning, UFR, UNA) — per-model "
-            "compound-keyed tables are queued for upcoming releases. See "
+            "landed Brief 27). UCM now consumes the compound-keyed "
+            "biophysical table directly; UNA and Carbon biophysical tables "
+            "are still queued for upcoming releases (those models continue "
+            "to read the NLCD-reduced view for now). See "
             "`SA_INTEGRATION_PLAN.md` for the brief sequence."
         )
     _assumption_tabs = st.tabs([
@@ -3797,7 +3860,7 @@ with tab2:
             "Top 5 most-improved Census tracts under this scenario, ranked by "
             "temperature change (°F cooler). Population-weighted within each tract."
         )
-        _tracts_summary = compute_per_tract_summary(results['scenario_lulc'])
+        _tracts_summary = compute_per_tract_summary(results['scenario_lulc_ucm'])
         if not _tracts_summary.empty:
             _top5 = (
                 _tracts_summary

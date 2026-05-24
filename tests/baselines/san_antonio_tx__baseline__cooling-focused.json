@@ -10,7 +10,7 @@
   "food_mln_lbs": 0.0,
   "green_infrastructure_pct": 0,
   "mean_cn": 76.55999755859375,
-  "mean_hm": 0.3068000078201294,
+  "mean_hm": 0.3937000036239624,
   "mean_ndvi": 0.42260000109672546,
   "n_for": 0,
   "n_hd": 0,
@@ -23,6 +23,7 @@
   "preventable_mh_cases": 0.0,
   "runoff_acre_feet": 40910.3,
   "scenario_lulc__md5": "ffa4b438d8d7b47225f5838baf546330",
+  "scenario_lulc_ucm__md5": "daaea04e3dfc585f6cd55ef366f90086",
   "scenario_name": "0% converted \u2014 GI 0% / FF 0%",
   "total_cost_mln": 0.0
 }

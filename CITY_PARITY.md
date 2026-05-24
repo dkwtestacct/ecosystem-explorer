@@ -135,11 +135,11 @@
 | `cc_weight_eti` | 0.2 | 0.2 | ✅ |
 | `do_energy_valuation` | False (SA has no typed buildings) | False | ✅ |
 | `do_productivity_valuation` | False | False | ✅ |
-| Biophysical table | Köppen-BSh-tuned per-NLCD (14 rows; 4 classes tuned, rest at MN defaults); `data/sa/cooling/biophysical_table_urban_cooling_SA.csv`; columns: `lucode, lulc_desc, shade, kc, albedo, green_area, building_intensity` | Compound NLCD×NLUD×tree-canopy lookup (1,984 rows × 27 cols); `ucm__nlcd_nlud_tree.csv`; columns include `lucode, code, nlcd, lulc_desc, nlud_simple, nlud_simple_class, tree_canopy_cover` (keys) + per-pixel ag/maintenance signals (`fertilizer, pesticide, irrigation, planting_diversity, mowing, public_access, green_space, building_type`) + model params (`shade, kc, albedo, green_area, building_intensity`) + `bioregion`. Value ranges sane (shade 0–1, kc 0–1.1, albedo 0.06–0.80, green_area 0–1, building_intensity 0–1). | ⚠️ Methodology divergence — NatCap uses compound LULC keyed on `lucode` (serial 0–1983); prototype uses per-NLCD. Integration adopts the compound framework. See "SA Compound LULC Framework" subsection below. |
+| Biophysical table | NatCap compound NLCD×NLUD×tree-canopy lookup (1,984 rows × 27 cols); `data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv`; loaded via the SA `cooling_table_file` config; UCM consumers index the compound LULC raster (`cooling_lulc_compound`) directly | Same file | ✅ Aligned 2026-05-24 (Brief 28b — Köppen-BSh per-NLCD tuning retired; the prior `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` is preserved on disk as historical reference, no longer loaded). |
 | LULC raster | `data/sa/flood/land_use_compound_sa.tif` (compound NLCD×NLUD×tree-canopy, reprojected to EPSG:5070 + nearest-neighbor resampled at 30 m to the prototype's 1984×1713 grid; reduced via `lulc_crosswalk.csv` to NLCD codes for the existing per-NLCD biophysical table) | `lulc_overlay_3857.tif` (compound, EPSG:3857) | ✅ Adopted 2026-05-24 (Brief 27); per-model compound-keyed table pending Brief 28 |
 | ET raster | CGIAR Global-AI/ET0 v3.1 reprojected (~30 arcsec / ~1 km) | `et0_annual_cgiar_3857.tif` (60×63 px at 1,215 m — unusably coarse) | ⚠️ Prototype uses higher-resolution version; NatCap raster not adoptable as-is |
 
-**UCM summary:** Args fully aligned post-Brief-14. LULC raster aligned with NatCap's compound framework 2026-05-24 (Brief 27); biophysical table still per-NLCD with Köppen-BSh tuning, with the compound-keyed `ucm__nlcd_nlud_tree.csv` adoption queued for Brief 28. NatCap's provided ET raster is unusably coarse; prototype's reprojected CGIAR raster is the better source.
+**UCM summary:** Fully aligned 2026-05-24. Args (Brief 14), LULC raster (Brief 27), and biophysical table (Brief 28b) all on NatCap-canonical SA inputs. The Brief 28b table swap shifted SA `baseline_hm` from 0.2866 → 0.3937 (+37%) because the compound table captures tree-canopy variation on developed land that the per-NLCD table couldn't represent — `cooling_energy_savings_usd` correspondingly dropped 77–86%. See `DESIGN_NOTES.md` "SA UCM compound biophysical table adoption" for the per-NLCD-bucket evidence. NatCap's provided ET raster is unusably coarse; prototype's reprojected CGIAR raster remains the better source.
 
 ### UFR (Urban Flood Risk Mitigation)
 
@@ -252,7 +252,7 @@ NatCap's SA data uses a compound LULC framework that overlays three signals: NLC
 
 | Model | Status |
 |---|---|
-| UCM | ✅ Args fully aligned (post-Brief 14); ⚠️ biophysical table/LULC framework divergence (integration queued) |
+| UCM | ✅ Fully aligned post-Brief 28b — args (Brief 14), LULC raster (Brief 27), biophysical table (Brief 28b) all on NatCap-canonical SA inputs |
 | UFR | ⚠️ Methodology divergence (live vs pre-computed scenarios); rainfall depth aligned with SA-project canonical (Brief 23) |
 | UNA | ✅ Args fully aligned; ⚠️ biophysical table/LULC framework divergence (integration queued) |
 | Carbon | ⚠️ Methodology simplification (single rate vs four-pool); integration queued |

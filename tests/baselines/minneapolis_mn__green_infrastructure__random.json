@@ -23,6 +23,7 @@
   "preventable_mh_cases": 193.9,
   "runoff_acre_feet": 1394.0,
   "scenario_lulc__md5": "55b8b426a979fa13a8a4e81b9ff133ef",
+  "scenario_lulc_ucm__md5": "55b8b426a979fa13a8a4e81b9ff133ef",
   "scenario_name": "10% converted \u2014 GI 100% / FF 0%",
   "total_cost_mln": 29.32
 }
