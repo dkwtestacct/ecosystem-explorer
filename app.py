@@ -55,25 +55,39 @@ CHANGE_COLORS = {
 }
 
 # ── "What's new" in-app changelog ──────────────────────────────────────────────
-# A small changelog for returning visitors. Surfaces user-facing changes and
-# direction signals only — architecture / testing / refactoring / internal-doc
-# changes are deliberately left out. Edit WHATS_NEW whenever something
-# user-visible ships.
-WHATS_NEW = """
-### What's new
-- **San Antonio land cover migrated to NatCap's compound LULC framework** (foundation; per-model biophysical tables adopted in upcoming releases).
-- **Flood metrics calibrated to per-city design storm depths** (MN: 100 mm; SA: 157 mm).
-- **Minneapolis nature access aligned with NatCap MN-project parameters.**
-- **San Antonio temperature deltas now use NatCap-calibrated UHI parameters.**
-- **Placement strategies aligned with InVEST canonical quantities.**
-- **Canonical InVEST Urban Nature Access implemented for Minneapolis.**
-- **Placement strategy picker** in the sidebar.
-- **Interactive Input Influence chart** on the Tradeoff Analysis tab.
+# A small changelog for returning visitors. Each entry clears a strict bar:
+# the change *happened* (not queued/upcoming), is from the past ~7 days, would
+# be noticed by a returning user, and reads as one line without internal
+# vocabulary or specific parameter values. Forward-looking work goes in
+# UNDERWAY_ENTRIES, which renders only when non-empty.
+WHATS_NEW_ENTRIES = [
+    "San Antonio land cover now uses NatCap's San Antonio data.",
+    "Flood metrics use per-city design storm depths.",
+    "San Antonio temperature estimates updated to NatCap's calibration.",
+    "Minneapolis nature access updated to NatCap's calibration.",
+    "Placement strategy picker in the sidebar.",
+    "Interactive Input Influence chart on the Tradeoff Analysis tab.",
+]
 
-### On the radar
+UNDERWAY_ENTRIES = [
+    "Per-model biophysical tables for San Antonio.",
+]
+
+ON_THE_RADAR = """\
 - **San Antonio as a fuller pilot** once more data is in place.
 - **AlphaEarth Foundations satellite embeddings** as a future land-cover source — [feasibility research here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md).
 """
+
+def _build_whats_new():
+    sections = []
+    if WHATS_NEW_ENTRIES:
+        sections.append("### What's new\n" + "\n".join(f"- {e}" for e in WHATS_NEW_ENTRIES))
+    if UNDERWAY_ENTRIES:
+        sections.append("### Underway\n" + "\n".join(f"- {e}" for e in UNDERWAY_ENTRIES))
+    sections.append("### On the radar\n" + ON_THE_RADAR.rstrip())
+    return "\n\n".join(sections)
+
+WHATS_NEW = _build_whats_new()
 
 # ── Page setup ─────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Ecosystem Explorer", layout="wide")

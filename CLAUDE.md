@@ -611,3 +611,10 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   the extent-loss tradeoff in Decision 1 needed Brief 24's findings. The lesson:
   default to drafting in parallel; mark pending findings with placeholders;
   fill them in when the data arrives.
+- **WHATS_NEW + Underway discipline.** WHATS_NEW entries each clear a strict bar:
+  the change *happened* (not queued/upcoming), is from the past ~7 days, would be
+  noticed by a returning user, and reads as one line without internal vocabulary
+  or specific parameter values. Doc-only changes, methodology refactors, and
+  internal infrastructure don't qualify. Forward-looking work goes in the
+  Underway section, which renders only when non-empty. The trim bar applies on
+  every brief that touches WHATS_NEW — when in doubt, cut rather than keep.
