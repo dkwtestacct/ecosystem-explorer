@@ -6,6 +6,27 @@ single-source-of-truth for "what was considered, what was chosen, what's
 still open" — useful before any conversation with collaborators about
 methodology or future direction.
 
+## City-specific copy convention
+
+User-visible strings that reference city-specific values (baseline
+numbers, data sources, climate framing, yield benchmarks) should
+interpolate from one of:
+
+- `_CURRENT_CITY_STATE.*` — for live-computed baselines (`baseline_cn`,
+  `baseline_hm`, `baseline_ndvi`)
+- Module-level constants set from `city_cfg` — `UHI_MAX_C`,
+  `HM_TO_FAHRENHEIT`, `FOOD_FOREST_LBS_ACRE`
+- A per-city dict (`_CITY_CAPTIONS`-style) — for prose that varies in
+  structure, not just numbers
+- A `selected_city.startswith("Minneapolis")` branch — for paragraph-
+  level prose that has fundamentally different framing per city
+
+The Temperature assumption tab (app.py around line 3320–3333) is the
+reference example for the branch pattern.
+
+When adding a new city, run `grep -n "Minneapolis\|\bMN\b" app.py`
+and confirm no hardcoded city names remain in user-facing strings.
+
 ## UNA parameters
 
 Working log of InVEST UNA parameter choices for the Minneapolis prototype. For
@@ -238,6 +259,113 @@ not wallpaper.
 **To clarify with NatCap.** This is a real question to ask: what does
 NatCap mean by "wallpaper approach" specifically? Whether the prototype
 should pursue this as an option depends on the answer.
+
+### Suitability formulas (2026-05-23 reformulation)
+
+For each of the four weighted placement strategies, the suitability
+formula determines per-pixel weights used to bias conversion away from
+uniform random selection. The 2026-05-23 reformulation aligned each
+formula to a canonical InVEST quantity where one exists, replacing
+earlier homegrown proxies.
+
+#### `undersupply-focused` (formerly `equity-focused`)
+
+**Options considered:**
+- `population × (1 − access_score + 0.01)` — aggregate need with homegrown reachability proxy (the prior implementation)
+- `deficit / population` — per-capita inequity weighting
+- `max(0, urban_nature_demand − urban_nature_supply_percapita)` — per-capita supply deficit per InVEST UNA canonical `urban_nature_balance_percapita.tif` framing
+
+**Chosen: per-capita supply deficit** (the third option).
+
+The prior formula's population multiplier made it an aggregate-need
+metric: a pixel with 1000 undersupplied residents got 10× the weight
+of a pixel with 100 equally-undersupplied residents. InVEST UNA's
+canonical `urban_nature_balance_percapita.tif` output is per-capita
+— a pixel where residents have 5 m²/capita supply is equally undersupplied
+regardless of how many residents are there. Adopting the per-capita
+form aligns with InVEST UNA's framing exactly. It also has a real
+ethical character (every resident's access deficit counts equally,
+rather than dense areas dominating by aggregate weight) — both readings
+are defensible; the alignment-to-NatCap argument was decisive.
+
+The strategy was also renamed from `equity-focused` to
+`undersupply-focused`. InVEST UNA reserves "equity" for demographic-group
+stratification (age, income, race); using it for generic undersupply
+crosses NatCap vocabulary. `Pund_adm` (the count of undersupplied
+population) is the InVEST canonical name for this concept.
+
+The `+ 0.01` floor on the old formula is gone. Pixels with no per-capita
+deficit get true zero weight. The saturation fallback in
+`_select_pixels_for_conversion` (added in Brief 7) handles cases where
+the strategy doesn't have enough non-zero pixels for the requested
+conversion count.
+
+#### `flood-focused`
+
+**Options considered:**
+- Per-pixel CN as the weight (the prior implementation)
+- Per-pixel runoff `Q_{p,i}` from the SCS-CN equation at the design storm — matches InVEST UFR's canonical `Q_mm.tif` output
+- Per-pixel `1 − R_i` (non-retention fraction) — equivalent to `Q/P`, also canonical
+
+**Chosen: per-pixel runoff `Q_{p,i}`** (mm at the 2-inch design storm).
+
+The prior `weights = CN` form is monotone with runoff but has the wrong
+shape. At low CN (high retention), `Q ≈ 0` regardless of CN — but the
+old formula assigned non-zero weight to those pixels. The canonical
+SCS-CN runoff equation `Q = (P − 0.2·S)² / (P + 0.8·S)` produces a
+sharper distribution that more aggressively concentrates on
+high-runoff pixels — closer to what "prioritize flood-prone areas"
+should mean.
+
+The placement-strategy diagnostic (Brief 6) found `flood-focused`
+under the old formula was the weakest mover on the flood metric.
+The reformulation's sharper concentration is expected to address this.
+Brief 9's diagnostic re-run measures whether it does.
+
+#### `cooling-focused`
+
+**Options considered:**
+- `(1 − baseline_CC) × (NLCD_intensity_proxy + 0.1)` — bare CC + NLCD-class proxy for building proximity (the prior implementation)
+- `(1 − baseline_HMI) × (NLCD_intensity_proxy + 0.1)` — same form, canonical HMI substituted
+- `(1 − baseline_HMI) × distance_to_buildings_weight` — canonical HMI + real distance-to-building from `BUILDINGS_RASTER`
+
+**Chosen: canonical HMI + real distance-to-buildings** (the third option).
+
+The prior formula's first term used the bare CC sub-component when
+the canonical HMI raster (validated against InVEST at MAE=0) was
+available. The HMI is what the Temperature Change metric card already
+reports; using it here aligns the strategy with the metric it's
+trying to improve. The prior formula's second term used the NLCD
+intensity raster (NLCD 23→1.0, 22→0.6, 21→0.3) as a proxy for
+"near buildings" — a three-value approximation when the actual
+buildings raster was available. The reformulation uses
+`scipy.ndimage.distance_transform_edt` on `BUILDINGS_RASTER` to
+produce a real distance-to-buildings raster (pixel units), then
+weights via `1 / (1 + distance)` so a pixel on a building gets weight
+1.0 and a pixel 300 m away gets ~0.1.
+
+The `+ 0.1` floor is gone. Pixels truly distant from buildings get
+near-zero weight rather than an artificial floor. The saturation
+fallback handles edge cases.
+
+#### `balanced`
+
+Unchanged in structure: equal-weighted normalized combination of the
+three reformulated focused strategies. Implicitly absorbs the
+reformulations through its component strategies. Still an app-specific
+heuristic — no InVEST analog.
+
+#### Decision principle
+
+Across all three reformulations: where a canonical InVEST quantity
+exists, use it. The user's explicit principle (2026-05-23):
+*"I want to be as closely aligned to natcap as possible. even if it
+takes more time and results in undoing previous work."* This document
+records the chosen formulas; the rationale per strategy is above; the
+methodology shift is real, not cosmetic — the new formulas can produce
+materially different scenario outputs from the old ones. Brief 9's
+verify_baselines regeneration and PLACEMENT_STRATEGY_DIAGNOSTIC.md
+re-run capture the empirical impact.
 
 ## Land use and land cover sources
 

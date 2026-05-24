@@ -45,7 +45,7 @@ SCENARIOS = {
 # All five placement strategies.  When pct_converted=0 (baseline), the strategy
 # has no effect — all 5 produce identical output — but we snapshot them anyway
 # for uniform data shape.
-STRATEGIES = ['random', 'flood-focused', 'cooling-focused', 'equity-focused', 'balanced']
+STRATEGIES = ['random', 'flood-focused', 'cooling-focused', 'undersupply-focused', 'balanced']
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -214,7 +214,7 @@ def _rebind_city(app_mod, city_name):
     app_mod.hm_arr              = state.hm_arr
     app_mod.max_raster_lucode   = state.max_raster_lucode
     app_mod.max_hm_lucode       = state.max_hm_lucode
-    app_mod.equity_weights      = state.equity_weights
+    app_mod.nlcd_intensity_weights = state.nlcd_intensity_weights
     app_mod.shade_arr           = state.shade_arr
     app_mod.kc_arr              = state.kc_arr
     app_mod.albedo_arr          = state.albedo_arr
@@ -241,9 +241,10 @@ def _rebind_city(app_mod, city_name):
     app_mod.TRACTS              = state.tracts
     app_mod.TRACT_ID_RASTER     = state.tract_id_raster
     app_mod.TRACTS_DATA_AVAILABLE = state.tracts_data_available
-    app_mod._BASELINE_ACCESS_SCORE_RASTER = state.baseline_access_score_raster
     app_mod._BASELINE_HM_RASTER = state.baseline_hm_raster
     app_mod._BASELINE_NE_RASTER = state.baseline_ne_raster
+    app_mod._BASELINE_UNA_SUPPLY_PERCAPITA_RASTER = state.baseline_una_supply_percapita_raster
+    app_mod._BUILDINGS_DISTANCE_RASTER = state.buildings_distance_raster
     app_mod._CURRENT_CITY_STATE = state
 
     # City-config scalars (lines 2054–2070 area)

@@ -35,8 +35,8 @@ literally the same file.
 - **Config key:** `CITIES['Minneapolis, MN']['cooling_lulc_file']` =
   `land_use_2021.tif`, resolved against `data_dir_cooling` = `data/cooling`.
 - This is the raster the prototype already uses for the Urban Cooling Model
-  (HMI / Cooling Capacity), spatial scenario mapping, and — via the shared
-  loader — every other LULC-driven metric for Minneapolis.
+  (HMI), spatial scenario mapping, and — via the shared loader — every other
+  LULC-driven metric for Minneapolis.
 
 | Property | Value |
 |---|---|

@@ -51,24 +51,24 @@ CHANGE_COLORS = {
     'High Density':         '#e53935',
 }
 
-# ── "Recently / Coming up" in-app changelog ────────────────────────────────────
+# ── "What's new" in-app changelog ──────────────────────────────────────────────
 # A small changelog for returning visitors. Surfaces user-facing changes and
 # direction signals only — architecture / testing / refactoring / internal-doc
 # changes are deliberately left out. Edit WHATS_NEW whenever something
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
-- **Comprehensive OSM building footprints for the Minneapolis placement mask.** The placement-strategy non-convertible mask now unions the existing InVEST UFR sample buildings (downtown-core typed) with comprehensive Geofabrik OSM building footprints (~113k city-wide, untyped). Conversions can no longer be placed on any OSM building anywhere in the MN AOI — previously only downtown-core buildings were masked. The InVEST UFR sample buildings continue to drive Cooling Energy Savings and Flood Damage Avoided dollar metrics (which need the typed data), so those metrics are unchanged. Aligns with NatCap's recommendation to separate placement-constraint inputs from model-input data.
-- **Canonical InVEST Urban Nature Access (UNA) implemented for Minneapolis.** The Nature Access metric card returns, now reporting `pct_pop_supply_ge_demand` from a canonical InVEST UNA two-step floating catchment area (2SFCA) calculation — validated by direct comparison against `natcap.invest.urban_nature_access.execute()`. Parameters per `DESIGN_NOTES.md` (16.7 m²/capita demand, 800 m uniform search radius, dichotomy decay). Reports the % of modelable-extent population (~43% of MN total); the remainder sit on cooling-LULC nodata pixels the model cannot evaluate.
-- **Placement strategy picker** in the sidebar — five options for where conversions get sited.
-- **Confidence badges** on every metric card (High / Medium / Prototype).
-- **InVEST alignment section** in the methodology docs, with metric tooltips linking directly to the relevant InVEST user guides.
+- **Placement strategies grounded in canonical InVEST outputs.** Flood-focused now uses per-pixel runoff `Q_{p,i}`, cooling-focused uses HMI plus real distance-to-buildings, and "equity-focused" is renamed "Prioritize areas with unmet nature demand" with a canonical UNA per-capita supply deficit formula.
+- **InVEST vocabulary alignment.** Metric card and chart labels now use "Heat Mitigation Index (HMI)" rather than "Cooling Capacity / CC".
+- **Fixed equity-focused placement crash at high conversion fractions.**
+- **Comprehensive OSM building footprints integrated for the Minneapolis placement mask.**
+- **Canonical InVEST Urban Nature Access implemented for Minneapolis.**
+- **Placement strategy picker** in the sidebar.
+- **Confidence badges** on every metric card.
+- **InVEST alignment section** in the methodology docs.
 - **Interactive Input Influence chart** on the Tradeoff Analysis tab.
-- **Cooling-model gap closed** — Temperature Change values now match canonical InVEST exactly, validated by direct comparison against `natcap.invest.urban_cooling_model.execute()`. Energy-cost values use the same canonical cooling input (per-pixel aggregation gap still open).
-- **Nature Access and Nature Quality Score removed from the dashboard.** Phase 1 InVEST comparison and sensitivity testing showed neither metric meaningfully discriminates between scenarios at the MN downtown scale. Both metric cards, the per-tract map overlay, and the in-app methodology tab have been removed. The underlying calculations remain (used by the lookup table and surrogate); a redesigned nature-access metric is an open design question. See `UNA_DIVERGENCE_CASE_STUDIES.md`, `UNA_METHODOLOGY_CROSS_CHECK.md`, and `UNA_QUALITY_SCORE_SENSITIVITY.md`.
-
-### Working on now
-_Nothing in flight at the moment._
+- **Cooling-model gap closed** — temperature values now match canonical InVEST.
+- **Nature Access and Nature Quality Score temporarily removed** while metric is redesigned.
 
 ### On the radar
 - **San Antonio as a fuller pilot** once more data is in place.
@@ -184,7 +184,7 @@ st.title("🌿 Urban Ecosystem Tradeoff Explorer")
 # reload; collapsible once read. Sits between the title and the city subheader.
 # Wrapped in a bordered container for card-like visual separation.
 with st.container(border=True):
-    with st.expander("What's new / Coming up", expanded=True):
+    with st.expander("What's new", expanded=True):
         st.markdown(WHATS_NEW)
 
 st.subheader(selected_city)
@@ -293,7 +293,7 @@ class CityState(NamedTuple):
     hm_arr: np.ndarray
     max_raster_lucode: int
     max_hm_lucode: int
-    equity_weights: np.ndarray
+    nlcd_intensity_weights: np.ndarray
     shade_arr: np.ndarray
     kc_arr: np.ndarray
     albedo_arr: np.ndarray
@@ -332,9 +332,12 @@ class CityState(NamedTuple):
     tract_id_raster: np.ndarray
     tracts_data_available: bool
     # Baseline rasters
-    baseline_access_score_raster: np.ndarray
     baseline_hm_raster: np.ndarray
     baseline_ne_raster: np.ndarray
+    # Per-Brief-9 placement strategy reformulation: canonical baseline rasters
+    # consumed by `_compute_suitability_weights`.
+    baseline_una_supply_percapita_raster: np.ndarray  # InVEST UNA `urban_nature_supply_percapita.tif`
+    buildings_distance_raster: np.ndarray             # distance (px) to nearest building from BUILDINGS_RASTER
     # Baseline scalars — read via _CURRENT_CITY_STATE only (not aliased)
     baseline_hm: float
     baseline_cn: float
@@ -382,7 +385,7 @@ with st.expander("How this prototype works", expanded=False):
         "under its value:  \n"
         "  \n"
         "- **High confidence** — Direct raster outputs grounded in published "
-        "methodology (USDA SCS curve numbers, InVEST UCM Cooling Capacity). "
+        "methodology (USDA SCS curve numbers, InVEST UCM Heat Mitigation Index). "
         "Numerical value reflects pixel-level simulation; uncertainty is in "
         "the input data, not the method.  \n"
         "  \n"
@@ -473,18 +476,20 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
         green_area_arr[lc] = row['green_area']
     hm_arr = (shade_arr + kc_arr) / 2  # legacy compatibility
 
-    # ── Equity proxy raster ────────────────────────────────────────────────────
-    # TODO: replace with real heat vulnerability index (e.g. CDC/ATSDR HVI by census tract)
-    # For now: weight developed pixels by land-use intensity as a rough proxy —
-    # high-intensity developed (code 23) scores 1.0, medium (22) scores 0.6, low (21) scores 0.3.
-    equity_weights = np.zeros(cooling_lulc.shape, dtype=np.float32)
-    equity_weights[cooling_lulc == 23] = 1.0   # high-intensity developed → highest need
-    equity_weights[cooling_lulc == 22] = 0.6
-    equity_weights[cooling_lulc == 21] = 0.3
+    # ── NLCD intensity proxy raster ────────────────────────────────────────────
+    # Used by the Map View "heat vulnerability" overlay. NLCD 23→1.0, 22→0.6, 21→0.3.
+    # TODO: replace with real heat vulnerability index (e.g. CDC/ATSDR HVI by census tract).
+    # Renamed from `equity_weights` in Brief 9 — was previously misused as a
+    # building-proximity proxy in cooling-focused; that path now uses the real
+    # distance-to-buildings raster (see _BUILDINGS_DISTANCE_RASTER).
+    nlcd_intensity_weights = np.zeros(cooling_lulc.shape, dtype=np.float32)
+    nlcd_intensity_weights[cooling_lulc == 23] = 1.0   # high-intensity developed
+    nlcd_intensity_weights[cooling_lulc == 22] = 0.6
+    nlcd_intensity_weights[cooling_lulc == 21] = 0.3
 
     return (lulc, soil_resized, cooling_lulc, developed_pixels,
             cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
-            equity_weights, shade_arr, kc_arr, albedo_arr, green_area_arr)
+            nlcd_intensity_weights, shade_arr, kc_arr, albedo_arr, green_area_arr)
 
 
 # ── Population raster loader (for Nature Access metric) ──────────────────────
@@ -709,34 +714,13 @@ UNA_TABLE_PATH = Path(city_cfg["una_table_file"])
 # ~12-minute walk, matches InVEST's own value for "Developed, Open Space".
 NATURE_RADIUS_CAP_M = 1000
 
-# Pre-compute distance transforms for natural classes whose pixel set never
-# changes across scenarios (the model only converts NLCD 21–24 to GI/FF/HD).
-# Those three lucodes are recomputed live; all other natural classes use the
-# pre-built array stored on the city runtime state.
-_DYNAMIC_NATURE_LUCODES = {21, 41, 90}
-
-
-def _compute_access_score_raster_pure(scenario_lulc, una_active, precomputed_nature_distances):
-    """Pure variant — explicit deps. Used by `_load_city_runtime_state` to
-    compute the baseline access-score raster before module aliases exist."""
-    access_score = np.zeros(scenario_lulc.shape, dtype=np.float32)
-    for _, row in una_active.iterrows():
-        lucode = int(row["lucode"])
-        radius = float(row["search_radius_m"])
-        score  = float(row["urban_nature"])
-        if lucode in precomputed_nature_distances:
-            distance = precomputed_nature_distances[lucode]
-        else:
-            mask = (scenario_lulc == lucode)
-            if not mask.any():
-                continue
-            # Cast to float32 immediately — `_distance_transform_edt` returns
-            # float64, doubling the per-call transient on a hot path that runs
-            # ~3 times per scenario for the dynamic lucodes (21/41/90).
-            distance = (_distance_transform_edt(~mask) * PIXEL_SIZE_M).astype(np.float32, copy=False)
-        in_range = distance <= radius
-        np.maximum(access_score, in_range * score, out=access_score)
-    return access_score
+# (Retired Brief 9: `_DYNAMIC_NATURE_LUCODES` and `_compute_access_score_raster_pure`
+# supported a homegrown "reachability proxy" `_BASELINE_ACCESS_SCORE_RASTER` that
+# the equity-focused placement strategy consumed. After Brief 9 reformulated
+# equity-focused as `undersupply-focused` driven by the canonical InVEST UNA
+# `urban_nature_supply_percapita` raster, the proxy chain had zero consumers and
+# was deleted. The canonical UNA pipeline below is the only consumer of UNA
+# data in the app.)
 
 
 # ── Canonical InVEST Urban Nature Access (UNA) — numpy 2SFCA ─────────────────
@@ -1072,20 +1056,27 @@ def _fmt_ce(val):
 # highest benefit per the INVEST_PLACEMENT.md research. UI exposure is deferred
 # to a future session; for now these are Python-API-only.
 PLACEMENT_STRATEGIES = {
-    'random':          'Uniform random sampling',
-    'flood-focused':   'Prioritize pixels with highest runoff reduction potential',
-    'cooling-focused': 'Prioritize pixels in hot areas near buildings',
-    'equity-focused':  'Prioritize pixels in nature-deficit areas with high population',
-    'balanced':        'Weighted combination of flood, cooling, and equity signals',
+    'random':              'Uniform random sampling',
+    'flood-focused':       'Prioritize pixels with highest per-pixel runoff Q_{p,i} (InVEST UFR canonical)',
+    'cooling-focused':     'Prioritize pixels with low HMI near buildings (canonical HMI + distance to BUILDINGS_RASTER)',
+    'undersupply-focused': 'Prioritize pixels with the largest per-capita UNA supply deficit (InVEST UNA canonical)',
+    'balanced':            'Equal-weight normalized combination of the three focused strategies',
 }
 
 # Human-readable labels for the sidebar radio. Keys must match PLACEMENT_STRATEGIES.
 PLACEMENT_STRATEGY_LABELS = {
-    'random':          'Random placement',
-    'flood-focused':   'Prioritize flood-prone areas',
-    'cooling-focused': 'Prioritize hot areas near buildings',
-    'equity-focused':  'Prioritize underserved areas',
-    'balanced':        'Balanced approach',
+    'random':              'Random placement',
+    'flood-focused':       'Prioritize flood-prone areas',
+    'cooling-focused':     'Prioritize hot areas near buildings',
+    'undersupply-focused': 'Prioritize areas with unmet nature demand',
+    'balanced':            'Balanced approach',
+}
+
+# Backward-compatibility shim — saved scenarios from before the Brief 9
+# reformulation may carry the legacy key 'equity-focused'. Map transparently
+# to the canonical reformulated key on read; remove after one schema cycle.
+_LEGACY_PLACEMENT_STRATEGY_ALIASES = {
+    'equity-focused': 'undersupply-focused',
 }
 
 
@@ -1105,64 +1096,53 @@ def _compute_suitability_weights(convertible_pixels, strategy):
     n = len(convertible_pixels)
 
     if strategy == 'flood-focused':
-        # Higher baseline CN = more runoff from this pixel = more benefit
-        # from converting it to GI/FF. Extract per-pixel CN from the
-        # baseline LULC using the same lookup as evaluate_scenario.
+        # Per-pixel runoff Q_{p,i} for the design storm — InVEST UFR's
+        # canonical signal for "this pixel produces a lot of runoff."
+        # Higher runoff = more potential benefit from greening (greening
+        # lowers CN, which lowers Q). See InVEST UFR user guide eq. 127.
         lulc_vals = np.clip(cooling_lulc[rows, cols], 0, len(lucode_idx_arr) - 1)
         soil_vals = np.clip(soil_resized[rows, cols].astype(int), 1, cn_table.shape[1] - 1)
         pixel_cn = cn_table[lucode_idx_arr[lulc_vals], soil_vals].astype(np.float64)
-        # CN ranges ~30-98; use it directly as the weight (higher CN = higher priority).
-        weights = np.maximum(pixel_cn, 0.0)
+        # SCS-CN runoff equation. CN is dimensionless; output Q is in mm.
+        s_max = 25400.0 / np.maximum(pixel_cn, 1e-6) - 254.0  # mm
+        p_mm = DESIGN_STORM_INCHES * 25.4  # mm
+        ia = 0.2 * s_max
+        q_mm = np.where(p_mm > ia, (p_mm - ia) ** 2 / (p_mm + 0.8 * s_max), 0.0)
+        weights = np.maximum(q_mm, 0.0)
 
     elif strategy == 'cooling-focused':
-        # Two signals: (a) heat exposure = 1 - baseline CC (hotter pixels
-        # benefit more from greening), and (b) building proximity (pixels
-        # near buildings save more AC energy when cooled).
-        # Heat exposure from baseline CC raster (smoothed, 0-1 range).
+        # Two signals: (a) heat exposure = (1 − HMI) using the canonical
+        # InVEST UCM Heat Mitigation Index raster (validated at MAE=0 against
+        # natcap.invest.urban_cooling_model.execute()), and (b) real
+        # distance-to-buildings from BUILDINGS_RASTER via a distance
+        # transform precomputed at module load (see Stage D in Brief 9).
+        # Pixels closer to buildings save more AC energy when cooled.
         heat = 1.0 - _BASELINE_HM_RASTER[rows, cols].astype(np.float64)
         heat = np.maximum(heat, 0.0)
 
-        # Building proximity: pixels ON or adjacent to buildings are high-value.
-        # Use the buildings raster directly: 1 where building exists, 0 otherwise.
-        # A pixel adjacent to a building is high-value but isn't itself a building
-        # (buildings are excluded from CONVERTIBLE_PIXELS). So use a distance-based
-        # signal: distance_to_nearest_building, inverted. For efficiency, use the
-        # existing equity_weights raster (NLCD 23→1.0, 22→0.6, 21→0.3) as a
-        # development-intensity proxy — higher-intensity developed pixels are
-        # closer to buildings and commercial areas.
-        intensity = equity_weights[rows, cols].astype(np.float64)
-        intensity = np.maximum(intensity, 0.0)
+        bldg_dist = _BUILDINGS_DISTANCE_RASTER[rows, cols].astype(np.float64)
+        proximity = 1.0 / (1.0 + bldg_dist)  # 1.0 on a building pixel; decays with distance
 
-        # Combine: multiply heat exposure by development intensity.
-        # Both are non-negative; product emphasizes pixels that are both hot
-        # and in high-intensity areas.
-        weights = heat * (intensity + 0.1)  # +0.1 floor so low-intensity pixels aren't zeroed out
+        weights = heat * proximity
 
-    elif strategy == 'equity-focused':
-        # Two signals: (a) population density (more people = more benefit),
-        # and (b) nature deficit (1 - access score; underserved pixels need
-        # nature more). Product maximizes benefit to underserved populations.
-        if POPULATION_DATA_AVAILABLE:
-            pop = pop_count_raster[rows, cols].astype(np.float64)
-            pop = np.maximum(pop, 0.0)
-        else:
-            pop = np.ones(n, dtype=np.float64)
-
-        # Nature deficit: 1 - access_score. Pixels far from nature with low
-        # quality score get higher weight.
-        access = _BASELINE_ACCESS_SCORE_RASTER[rows, cols].astype(np.float64)
-        deficit = np.maximum(1.0 - access, 0.0)
-
-        # Combine: population × deficit. A high-pop, low-access pixel is the
-        # highest-priority target.
-        weights = pop * (deficit + 0.01)  # +0.01 floor so zero-deficit pixels aren't impossible
+    elif strategy == 'undersupply-focused':
+        # Per-pixel unmet nature demand per InVEST UNA's canonical framing:
+        # `urban_nature_balance_percapita = supply_percapita − demand` per
+        # pixel (UNA user guide; SUP_DEM_{i,cap}). Pixels with negative
+        # balance are "undersupplied" — those are the candidates for new
+        # nature. Weight = magnitude of the per-capita deficit (zero where
+        # balance ≥ 0). No population multiplier — adequacy of per-capita
+        # access is what InVEST UNA measures.
+        supply = _BASELINE_UNA_SUPPLY_PERCAPITA_RASTER[rows, cols].astype(np.float64)
+        deficit = np.maximum(UNA_DEMAND_M2_PER_CAPITA - supply, 0.0)
+        weights = deficit
 
     elif strategy == 'balanced':
         # Equal-weight combination of the three focused strategies.
         # Normalize each component to sum to 1, then average.
         flood_w = _compute_suitability_weights(convertible_pixels, 'flood-focused')
         cool_w = _compute_suitability_weights(convertible_pixels, 'cooling-focused')
-        equity_w = _compute_suitability_weights(convertible_pixels, 'equity-focused')
+        undersupply_w = _compute_suitability_weights(convertible_pixels, 'undersupply-focused')
 
         def _safe_normalize(w):
             s = w.sum()
@@ -1170,7 +1150,7 @@ def _compute_suitability_weights(convertible_pixels, strategy):
 
         weights = (_safe_normalize(flood_w)
                    + _safe_normalize(cool_w)
-                   + _safe_normalize(equity_w)) / 3.0
+                   + _safe_normalize(undersupply_w)) / 3.0
     else:
         raise ValueError(f"Unknown placement strategy: {strategy!r}. "
                          f"Valid: {list(PLACEMENT_STRATEGIES)}")
@@ -1193,12 +1173,36 @@ def _select_pixels_for_conversion(convertible_pixels, n_to_convert, strategy, rn
     weights = np.maximum(weights, 0.0)
     weight_sum = weights.sum()
 
-    if weight_sum > 0:
-        weights /= weight_sum
-        return rng.choice(len(convertible_pixels), size=n_to_convert, replace=False, p=weights)
-    else:
+    if weight_sum == 0:
         # Fallback to uniform random if all weights are zero
         return rng.choice(len(convertible_pixels), size=n_to_convert, replace=False)
+
+    # Saturation fallback: when a strategy's suitability surface has fewer
+    # non-zero-weighted pixels than n_to_convert (e.g. equity-focused at
+    # pct >= ~35% on Minneapolis downtown, where ~64% of convertible pixels
+    # have pop=0), `rng.choice(replace=False, p=weights)` would raise
+    # ValueError. We take all the non-zero pixels first (preserving strategy
+    # intent for the pixels the strategy can rank — sampled in weighted-
+    # priority order, same convention as the non-saturated path) and fill
+    # the remainder uniformly from the zero-weighted pool.
+    # See PLACEMENT_STRATEGY_DIAGNOSTIC.md §3 and §7.
+    nonzero_mask = weights > 0
+    nonzero_count = int(nonzero_mask.sum())
+    if nonzero_count < n_to_convert:
+        nonzero_idx = np.flatnonzero(nonzero_mask)
+        zero_idx = np.flatnonzero(~nonzero_mask)
+        nonzero_weights = weights[nonzero_mask]
+        nonzero_weights = nonzero_weights / nonzero_weights.sum()
+        chosen_nonzero = rng.choice(
+            nonzero_idx, size=nonzero_count, replace=False, p=nonzero_weights
+        )
+        n_remainder = n_to_convert - nonzero_count
+        chosen_zero = rng.choice(zero_idx, size=n_remainder, replace=False)
+        return np.concatenate([chosen_nonzero, chosen_zero])
+
+    # Normal weighted-sample path
+    weights /= weight_sum
+    return rng.choice(len(convertible_pixels), size=n_to_convert, replace=False, p=weights)
 
 
 # ── Scenario evaluation ────────────────────────────────────────────────────────
@@ -1223,6 +1227,12 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     # existing callers that pass it should get the behavior they expect).
     if use_heat_priority:
         placement_strategy = 'cooling-focused'
+    # Brief 9 backward compat: saved scenarios from before the placement-strategy
+    # reformulation may carry the legacy 'equity-focused' key. Map transparently
+    # to the canonical reformulated key on entry. Remove after one schema cycle.
+    placement_strategy = _LEGACY_PLACEMENT_STRATEGY_ALIASES.get(
+        placement_strategy, placement_strategy
+    )
 
     pct_highdensity = 100 - green_infrastructure_pct - food_forest_pct
 
@@ -1337,7 +1347,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 17  # bumped: revert SA class 21 Kc to MN's 0.516 — was incorrectly tuned in v16 despite explicit Stage-3 instruction to leave it alone. Authorized SA-tuned classes are now 41, 42, 52, 81 only. See data/sa/cooling/biophysical_table_sources.md.
+SCENARIO_SCHEMA_VERSION = 18  # bumped: Brief 9 reformulated three placement strategies to use canonical InVEST quantities (flood-focused → per-pixel Q, cooling-focused → HMI + distance-to-buildings, equity-focused renamed to undersupply-focused → UNA per-capita supply deficit). Saved scenarios from prior versions are routed through a legacy alias shim; output column set is unchanged but the interpretation of saved placement_strategy values has shifted.
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -1562,7 +1572,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     # ── Phase 1: cached load_data outputs ────────────────────────────────────
     (l_lulc, l_soil_resized, l_cooling_lulc, l_developed_pixels,
      l_cn_table, l_lucode_idx_arr, l_hm_arr, l_max_raster_lucode, l_max_hm_lucode,
-     l_equity_weights, l_shade_arr, l_kc_arr, l_albedo_arr,
+     l_nlcd_intensity_weights, l_shade_arr, l_kc_arr, l_albedo_arr,
      l_green_area_arr) = load_data(
         cfg['data_dir_flood'], cfg['data_dir_cooling'],
         cfg['cn_table_file'], cfg['cooling_table_file'],
@@ -1613,48 +1623,14 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         energy_by_type = {}
         energy_table_available = False
 
-    # ── Phase 5: UNA biophysical (small DataFrame) ──────────────────────────
-    una_table = pd.read_csv(Path(cfg["una_table_file"]))
-    una_active = una_table[
-        (una_table["urban_nature"] > 0) & una_table["search_radius_m"].notna()
-    ].copy()
-    una_active["lucode"] = una_active["lucode"].astype(int)
-    una_active["search_radius_m"] = una_active["search_radius_m"].clip(upper=NATURE_RADIUS_CAP_M)
+    # ── Phase 5: (deleted — was UNA biophysical filtering for the
+    # `_BASELINE_ACCESS_SCORE_RASTER` homegrown reachability proxy, retired
+    # in Brief 9 when undersupply-focused was reformulated to use the
+    # canonical UNA per-capita supply deficit instead.) ──────────────────────
 
-    # ── Phase 6: precomputed nature-distance fields (.npy disk cache) ───────
-    precomp_dir = cfg.get("precomputed_dir")
-    if precomp_dir:
-        Path(precomp_dir).mkdir(parents=True, exist_ok=True)
-    static_lucodes = [
-        int(lc) for lc in una_active["lucode"]
-        if int(lc) not in _DYNAMIC_NATURE_LUCODES
-    ]
-    precomputed_nature_distances = {}
-    computed_any = False
-    for lucode in static_lucodes:
-        cache_file = (
-            Path(precomp_dir) / f"nature_distance_{lucode}.npy"
-            if precomp_dir else None
-        )
-        if cache_file is not None and cache_file.exists():
-            try:
-                arr = np.load(cache_file)
-                if arr.shape == l_cooling_lulc.shape and arr.dtype == np.float32:
-                    precomputed_nature_distances[lucode] = arr
-                    continue
-            except Exception:
-                pass
-        mask = (l_cooling_lulc == lucode)
-        if not mask.any():
-            continue
-        arr = (_distance_transform_edt(~mask) * PIXEL_SIZE_M).astype(np.float32)
-        precomputed_nature_distances[lucode] = arr
-        computed_any = True
-        if cache_file is not None:
-            try:
-                np.save(cache_file, arr)
-            except Exception:
-                pass
+    # ── Phase 6: (deleted — was precomputed nature-distance .npy disk cache,
+    # also part of the retired access-score raster pipeline.) ───────────────
+
     # ── Phase 7: Rasterization template ─────────────────────────────────────
     with rasterio.open(f"{cfg['data_dir_cooling']}/{cfg['cooling_lulc_file']}") as ref:
         ref_shape     = (ref.height, ref.width)
@@ -1854,9 +1830,6 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     # ── Phase 13: Baseline rasters (use *_pure helpers because module aliases
     # haven't been rebound to this state's arrays yet — we're inside the
     # cache_resource call that produces the state). ─────────────────────────
-    baseline_access_score_raster = _compute_access_score_raster_pure(
-        l_cooling_lulc, una_active, precomputed_nature_distances,
-    )
     baseline_hm_raster = _compute_hmi_raster_pure(
         l_cooling_lulc, l_shade_arr, l_kc_arr, l_albedo_arr, et_resized, max_et_ref,
         l_green_area_arr,
@@ -1864,6 +1837,20 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     baseline_ne_raster = _gaussian_filter(
         _lulc_to_ndvi_raster(l_cooling_lulc), sigma=_UMH_SIGMA_PX, mode="nearest",
     )
+    # Canonical InVEST UNA `urban_nature_supply_percapita` at baseline — for
+    # the undersupply-focused placement strategy (Brief 9 Stage D). Reuses
+    # the canonical 2SFCA implementation; the second return value (valid
+    # mask) is unused here.
+    baseline_una_supply_percapita_raster, _ = _una_supply_percapita(
+        l_cooling_lulc, pop_count_raster,
+    )
+    baseline_una_supply_percapita_raster = baseline_una_supply_percapita_raster.astype(np.float32)
+    # Distance-to-buildings raster (pixel units) — for the cooling-focused
+    # placement strategy. `_distance_transform_edt` returns float64; cast
+    # immediately to float32 to halve the per-AOI memory cost on SA.
+    buildings_distance_raster = _distance_transform_edt(
+        ~buildings_raster.astype(bool)
+    ).astype(np.float32)
 
     # ── Phase 14: Baseline scalars ──────────────────────────────────────────
     valid_base_cc = baseline_hm_raster[~np.isnan(baseline_hm_raster)]
@@ -1886,7 +1873,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         developed_pixels=l_developed_pixels, cn_table=l_cn_table,
         lucode_idx_arr=l_lucode_idx_arr, hm_arr=l_hm_arr,
         max_raster_lucode=l_max_raster_lucode, max_hm_lucode=l_max_hm_lucode,
-        equity_weights=l_equity_weights,
+        nlcd_intensity_weights=l_nlcd_intensity_weights,
         shade_arr=l_shade_arr, kc_arr=l_kc_arr, albedo_arr=l_albedo_arr,
         green_area_arr=l_green_area_arr,
         pop_count_raster=pop_count_raster,
@@ -1908,9 +1895,10 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         convertible_pixels=convertible_pixels,
         tracts=tracts, tract_id_raster=tract_id_raster,
         tracts_data_available=tracts_data_available,
-        baseline_access_score_raster=baseline_access_score_raster,
         baseline_hm_raster=baseline_hm_raster,
         baseline_ne_raster=baseline_ne_raster,
+        baseline_una_supply_percapita_raster=baseline_una_supply_percapita_raster,
+        buildings_distance_raster=buildings_distance_raster,
         baseline_hm=baseline_hm, baseline_cn=baseline_cn,
     )
 
@@ -1936,7 +1924,7 @@ lucode_idx_arr      = _CURRENT_CITY_STATE.lucode_idx_arr
 hm_arr              = _CURRENT_CITY_STATE.hm_arr
 max_raster_lucode   = _CURRENT_CITY_STATE.max_raster_lucode
 max_hm_lucode       = _CURRENT_CITY_STATE.max_hm_lucode
-equity_weights      = _CURRENT_CITY_STATE.equity_weights
+nlcd_intensity_weights = _CURRENT_CITY_STATE.nlcd_intensity_weights
 shade_arr           = _CURRENT_CITY_STATE.shade_arr
 kc_arr              = _CURRENT_CITY_STATE.kc_arr
 albedo_arr          = _CURRENT_CITY_STATE.albedo_arr
@@ -1974,9 +1962,10 @@ TRACTS                = _CURRENT_CITY_STATE.tracts
 TRACT_ID_RASTER       = _CURRENT_CITY_STATE.tract_id_raster
 TRACTS_DATA_AVAILABLE = _CURRENT_CITY_STATE.tracts_data_available
 # Baseline rasters (module-level for legacy reads; same array as state.X)
-_BASELINE_ACCESS_SCORE_RASTER = _CURRENT_CITY_STATE.baseline_access_score_raster
-_BASELINE_HM_RASTER           = _CURRENT_CITY_STATE.baseline_hm_raster
-_BASELINE_NE_RASTER           = _CURRENT_CITY_STATE.baseline_ne_raster
+_BASELINE_HM_RASTER                     = _CURRENT_CITY_STATE.baseline_hm_raster
+_BASELINE_NE_RASTER                     = _CURRENT_CITY_STATE.baseline_ne_raster
+_BASELINE_UNA_SUPPLY_PERCAPITA_RASTER   = _CURRENT_CITY_STATE.baseline_una_supply_percapita_raster
+_BUILDINGS_DISTANCE_RASTER              = _CURRENT_CITY_STATE.buildings_distance_raster
 # NOTE: BASELINE_HM and BASELINE_CN are intentionally NOT aliased here. Read
 # them as `_CURRENT_CITY_STATE.baseline_hm` / `.baseline_cn` everywhere
 # downstream — see CityState comment above.
@@ -2332,7 +2321,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
                     # Prefer the user-given display_name; fall back to scenario_name
                     # for older saves that predate the named-scenarios feature.
                     f"{getattr(r, 'display_name', None) or r.scenario_name}<br>"
-                    f"Flood: {r.flood_reduction:.1f} | Cooling: {r.mean_hm:.4f} | "
+                    f"Flood: {r.flood_reduction:.1f} | HMI: {r.mean_hm:.4f} | "
                     f"Food: {r.food_mln_lbs:.3f}M lbs"
                 ), axis=1),
             hoverinfo='text',
@@ -2349,7 +2338,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             text=pareto_df.apply(
                 lambda r: (
                     f"<b>Frontier scenario</b><br>{r.scenario_name}<br>"
-                    f"Flood: {r.flood_reduction:.1f} | Cooling: {r.mean_hm:.4f}"
+                    f"Flood: {r.flood_reduction:.1f} | HMI: {r.mean_hm:.4f}"
                 ), axis=1),
             hoverinfo='text',
             name='Most efficient tradeoffs (saved)',
@@ -2378,7 +2367,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
                 lambda r: (
                     f"<b>Optimized suggestion</b><br>{r.scenario_name}<br>"
                     f"Flood: {r.flood_reduction:.1f} [{r.flood_lower:.1f}–{r.flood_upper:.1f}]<br>"
-                    f"Cooling: {r.mean_hm:.4f} [{r.hm_lower:.4f}–{r.hm_upper:.4f}]<br>"
+                    f"HMI: {r.mean_hm:.4f} [{r.hm_lower:.4f}–{r.hm_upper:.4f}]<br>"
                     f"Food: {r.food_mln_lbs:.3f}M lbs [{r.food_lower:.3f}–{r.food_upper:.3f}]"
                 ), axis=1),
             hoverinfo='text',
@@ -2408,7 +2397,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     fig.update_layout(
         title='',
         xaxis_title='Flood Risk Reduction (higher = better)',
-        yaxis_title='Cooling Capacity (higher = better)',
+        yaxis_title='Heat Mitigation Index (higher = better)',
         xaxis=dict(range=[0, 100]),
         yaxis=dict(range=[0, 0.6]),
         height=520,
@@ -2532,25 +2521,46 @@ st.sidebar.caption(
     "sequestration. Cost and placement strategy are not yet included in the surrogate."
 )
 
+st.sidebar.caption(
+    "Set targets the optimizer must satisfy. The sliders define minimum "
+    "acceptable performance (flood reduction, cooling, food, carbon) or "
+    "cap an unwanted outcome (runoff). The optimizer searches for "
+    "scenarios that meet all targets at once."
+)
+
 with st.sidebar.container(border=True):
 
-    min_flood  = st.slider("Min flood reduction", 0, 90, 30, 5,
-        help="Corresponds to the Flood Risk Reduction metric card. Baseline is 24.3. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.")
+    # Flood slider max uses the precomputed grid's actual achievable maximum
+    # rather than the theoretical 0–100 ceiling, so the slider range
+    # represents reachable targets. Round up to the next 5 for headroom.
+    _flood_achievable_max = int(scenario_df['flood_reduction'].max())
+    _flood_slider_max = ((_flood_achievable_max + 4) // 5) * 5
+    _flood_default = max(0, _flood_slider_max - 10)
+    min_flood  = st.slider(
+        "Flood reduction ≥",
+        0, _flood_slider_max, _flood_default, 5,
+        help=f"Corresponds to the Flood Risk Reduction metric card. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f}. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.",
+    )
     # read from state to avoid silent-staleness if city switches
     _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
+    # Cooling slider max uses the precomputed grid's actual achievable maximum
+    # rather than the theoretical CC ceiling, so the slider range represents
+    # reachable targets. +0.2 °F headroom.
+    _cool_achievable_max = (scenario_df['mean_hm'].max() - _baseline_hm_local) * HM_TO_FAHRENHEIT
+    _cool_slider_max = round(_cool_achievable_max + 0.2, 1)
     min_cool_f = st.slider(
-        "Min cooling (°F vs baseline)",
-        min_value=-1.0, max_value=round((1.0 - _baseline_hm_local) * HM_TO_FAHRENHEIT, 1),
+        "Cooling ≥ (°F vs baseline)",
+        min_value=-1.0, max_value=_cool_slider_max,
         value=0.1, step=0.1,
         help="Corresponds to the Temperature Change metric card. Set to 0.1 for at least 0.1°F cooler than baseline."
     )
     min_cool   = _baseline_hm_local + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
-    min_food   = st.slider("Min food production (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01,
+    min_food   = st.slider("Food production ≥ (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01,
         help="Corresponds directly to the Food Production metric card value in M lbs/yr.")
     _runoff_min = float(scenario_df['runoff_acre_feet'].min())
     _runoff_max = float(scenario_df['runoff_acre_feet'].max())
     max_runoff = st.slider(
-        "Max allowable runoff (ac-ft)",
+        "Runoff ≤ (ac-ft)",
         min_value=round(_runoff_min),
         max_value=round(_runoff_max),
         value=round(BASELINE_RUNOFF_ACRE_FEET),
@@ -2558,7 +2568,7 @@ with st.sidebar.container(border=True):
         help=f"Scenarios must stay below this runoff volume. Baseline is approximately {BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft."
     )
     min_carbon = st.slider(
-        "Min carbon sequestration (tons CO2e/yr)",
+        "Carbon sequestration ≥ (tons CO2e/yr)",
         0, int(scenario_df['carbon_tons_co2_yr'].max()), 0, 100,
         help="Corresponds to the Carbon Sequestration metric card. Counts only converted pixels; baseline is 0."
     )
@@ -2600,7 +2610,7 @@ placement_strategy = st.sidebar.radio(
         "Which pixels get converted. Random samples uniformly across "
         "convertible developed pixels. Focused strategies bias placement "
         "toward pixels where conversion yields the most benefit for the "
-        "chosen objective. Balanced combines flood, cooling, and equity "
+        "chosen criterion. Balanced combines flood, cooling, and equity "
         "signals equally."
     ),
     label_visibility="collapsed",
@@ -2790,7 +2800,11 @@ eco1.metric(
     help=(
         "Confidence: High — see 'How this prototype works' for tier definitions. "
         "Unitless index (0–100) based on the USDA Curve Number. Higher = less "
-        "runoff potential. Baseline is 24.3 for Minneapolis developed land. "
+        f"runoff potential. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f} "
+        "for the current AOI's developed land. "
+        "Note: this is the app's CN-inversion index (100 − mean_CN), monotone "
+        "with but not identical to InVEST UFR's canonical runoff retention "
+        "index `rnf_rt_idx = mean(1 − Q/P)`. "
         "Underlying model: [InVEST Urban Flood Risk Mitigation]"
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
     )
@@ -2801,7 +2815,7 @@ eco2.metric(
     _cooling_label,
     delta=None,
     delta_color="off",
-    help="Confidence: High — see 'How this prototype works' for tier definitions. Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from mean Cooling Capacity (CC) under the InVEST UCM (calibration factor 3.69°F/CC unit from Minneapolis UHI=2.05°C; ±2°F accuracy). Note: this is mean(CC), an approximation of the canonical InVEST Heat Mitigation Index — see UCM_AUDIT.md. Underlying model: [InVEST Urban Cooling Model](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_cooling_model.html)."
+    help=f"Confidence: High — see 'How this prototype works' for tier definitions. Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from mean Heat Mitigation Index (HMI) under the InVEST UCM (calibration factor {HM_TO_FAHRENHEIT:.2f}°F/HMI unit, UHI_max = {UHI_MAX_C:.2f}°C; ±2°F accuracy). HMI is the canonical InVEST UCM output, validated at MAE = 0.0000 against `natcap.invest.urban_cooling_model.execute()`. Underlying model: [InVEST Urban Cooling Model](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_cooling_model.html)."
 )
 _confidence_caption(eco2, "high")
 eco3.metric(
@@ -2882,10 +2896,11 @@ hs_na.metric(
     f'{_nature_access:.1f}%',
     help=(
         "Confidence: Medium — see 'How this prototype works' for tier definitions. "
-        "% of MN population whose per-capita nature supply meets the 16.7 m²/capita "
-        "demand standard, computed via canonical InVEST Urban Nature Access (2SFCA "
-        "methodology). Reports only the modelable-extent population (~43% of MN total) — "
-        "the remainder sits on cooling-LULC nodata pixels InVEST cannot model. "
+        "% of the selected city's modelable-extent population whose per-capita "
+        "nature supply meets the 16.7 m²/capita demand standard, computed via "
+        "canonical InVEST Urban Nature Access (2SFCA methodology). Reports only "
+        "the modelable-extent population — the remainder sits on cooling-LULC "
+        "nodata pixels InVEST cannot model. "
         "Parameters: 800m uniform search radius, dichotomy decay. See "
         "DESIGN_NOTES.md for parameter rationale. "
         "Underlying model: [InVEST Urban Nature Access]"
@@ -2954,6 +2969,10 @@ hs4.metric(
         f"\\${COST_PER_ANXIETY_CASE_USD:,}/anxiety (US nominal; InVEST default "
         "is ~\\$11K USD-PPP/case). Sums depression + anxiety. Order-of-"
         "magnitude — see REFERENCE.md for full caveats. "
+        "Matches InVEST UMH's `preventable_cost.tif` output (paired with "
+        "`preventable_cases.tif`). The card title 'Avoided MH Costs' is the "
+        "app's framing; InVEST uses 'preventable cost' as the canonical name "
+        "for the same quantity. "
         "Underlying model: [InVEST Urban Mental Health]"
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_mental_health.html)."
     ),
@@ -3011,6 +3030,7 @@ _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
 # covers both. SA has types now (OSM mapping) but no damage table, so the
 # total is still $0 and the card must render "—", not "$0.0M".
 if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_USD > 0:
+    _n_typed_buildings = int(np.sum(BUILDINGS_TYPE_RASTER > 0))
     econ3.metric(
         "Flood Damage Avoided",
         f"${_flood_damage_avoided / 1e6:.1f}M",
@@ -3024,10 +3044,16 @@ if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_
             "Estimated reduction in "
             "flood damage costs based on the InVEST damage-loss table by "
             "building type (Roads $40, Commercial $120, Residential $150, "
-            "Industrial $100 per m²) joined to a 3,788-building footprint "
-            "shapefile. Scales with this scenario's runoff reduction vs "
+            f"Industrial $100 per m²) joined to {_n_typed_buildings:,} typed "
+            "building pixels. Scales with this scenario's runoff reduction vs "
             f"baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). Capped at $0 "
             "for scenarios that increase runoff. "
+            "Note: InVEST UFR's analogous `serv_blt` indicator is explicitly "
+            "described in InVEST docs as only an indicator of service in "
+            "currency·m³ units, not an actual measure of damage or savings. "
+            "This card converts to dollars by scaling potential damage "
+            "(`aff_bld`) by the runoff retention fraction — a stronger framing "
+            "than InVEST itself makes. Treat as directional. "
             "Underlying model: [InVEST Urban Flood Risk Mitigation]"
             "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
         ),
@@ -3208,7 +3234,7 @@ ceff2.metric(
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
     delta_color="off" if _cooling_f <= 0 else "normal",
-    help="Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement."
+    help="Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement. InVEST UCM canonical units are °C — to translate, this is approximately (Cost / °F) × 1.8 per °C."
 )
 _confidence_caption(ceff2, "medium")
 ceff3.metric(
@@ -3309,22 +3335,26 @@ with st.expander("Assumptions and limitations"):
             "- **Method:** USDA SCS Curve Number method, computed at 30 m raster "
             "resolution from per-pixel CN values × soil hydrologic group lookup. "
             "Reported as `100 − mean_CN` so higher = better.\n"
-            "- **Design storm:** 2-inch rainfall — a common minor event for "
-            "Minneapolis. Larger storms scale runoff non-linearly; results don't "
-            "extrapolate to extreme events.\n"
+            "- **Design storm:** 2-inch rainfall — a common minor design storm "
+            "in temperate North American cities. Larger storms scale runoff "
+            "non-linearly; results don't extrapolate to extreme events.\n"
             "- **Green Infrastructure** is modeled as woody wetlands (NLCD 90). "
             "The broader GI category (rain gardens, bioswales, permeable pavement, "
             "green roofs, urban tree canopy) is not modeled — each would have "
-            "different curve numbers."
+            "different curve numbers.\n"
+            "- **Relationship to InVEST UFR's runoff retention index.** The "
+            "app reports `100 − mean_CN`, monotone with but not identical to "
+            "InVEST UFR's canonical `rnf_rt_idx = mean(1 − Q/P)`. See "
+            "REFERENCE.md's Flood Risk Reduction section for the relationship."
         )
     with _assumption_tabs[1]:
         _temp_calibration = (
-            f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per CC unit. "
+            f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per HMI unit. "
             f"Values come from the InVEST UCM args JSON for the Minneapolis AOI "
             f"(`uhi_max = {UHI_MAX_C:.2f} °C`, humid continental Köppen Dfa). "
             "Treat the °F output as ±2 °F at best.\n"
             if selected_city.startswith("Minneapolis") else
-            f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per CC unit. "
+            f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per HMI unit. "
             f"No published InVEST args exist for hot semi-arid Köppen BSh; "
             f"values are an estimate from regional UHI literature "
             f"(`uhi_max = {UHI_MAX_C:.2f} °C`). "
@@ -3332,26 +3362,38 @@ with st.expander("Assumptions and limitations"):
             "here than for MN.\n"
         )
         st.markdown(
-            "- **Method:** InVEST Urban Cooling Model. Per-pixel Cooling "
-            "Capacity `CC = 0.6·shade + 0.2·albedo + 0.2·ETI`, then Gaussian-"
-            "smoothed over a 450 m kernel so cooling propagates onto "
-            "neighbouring pixels (per InVEST `green_area_cooling_distance`).\n"
-            "- **Reported value:** mean(CC) across the AOI, labeled CC. This "
-            "approximates but is not identical to the canonical InVEST Heat "
-            "Mitigation Index (HMI) — see UCM_AUDIT.md.\n"
+            "- **Method:** InVEST Urban Cooling Model. Per-pixel "
+            "Cooling Capacity `CC = 0.6·shade + 0.2·albedo + 0.2·ETI`. "
+            "The canonical Heat Mitigation Index `HMI = max(CC_local, "
+            "CC_park)`, where `CC_park` is the exponentially distance-"
+            "weighted average of CC values from green areas ≥2 hectares "
+            "within `d_cool = 450 m` (per InVEST UCM eq. 118: "
+            "`e^(-d/d_cool)`).\n"
+            "- **Reported value:** mean(HMI) across valid pixels — "
+            "validated against `natcap.invest.urban_cooling_model."
+            "execute()` at MAE = 0.0000.\n"
             + _temp_calibration +
             "- **Not captured:** wind, humidity, urban geometry, building "
             "materials, anthropogenic heat. The model sees land cover only."
         )
     with _assumption_tabs[2]:
+        _food_yield_line = (
+            f"- **Yield benchmark:** {FOOD_FOREST_LBS_ACRE:,} lbs/acre/year, "
+            "from NatCap food-forest studies. Assumes a mature, well-managed "
+            "system at peak productivity. Newly established food forests will "
+            "produce significantly less in early years.\n"
+            if selected_city.startswith("Minneapolis") else
+            f"- **Yield benchmark:** {FOOD_FOREST_LBS_ACRE:,} lbs/acre/year, "
+            "from the NatCap SA Urban Agriculture project (2023) — conservative "
+            "placeholder for hot semi-arid climate, below the MN benchmark to "
+            "reflect lower productivity. Replace with project-published "
+            "weighted average when available.\n"
+        )
         st.markdown(
             "- **Food Forest** is modeled as deciduous forest (NLCD 41) — the "
             "closest available NLCD class. No NLCD class exists specifically for "
             "agroforestry or food forests.\n"
-            "- **Yield benchmark:** 11,500 lbs/acre/year, from NatCap food-forest "
-            "studies. Assumes a mature, well-managed system at peak productivity. "
-            "Newly established food forests will produce significantly less in "
-            "early years.\n"
+            + _food_yield_line +
             "- **Counts only newly converted pixels** — pre-existing deciduous "
             "forest doesn't add to the food production tally."
         )
@@ -3391,9 +3433,11 @@ with st.expander("Assumptions and limitations"):
             "the population raster is unchanged across scenarios; the model "
             "captures only the *direct* exposure pathway, not air-quality or "
             "social-cohesion mechanisms.\n"
-            "- **Not in the surrogate** — UMH outputs are computed live but "
-            "are now in the surrogate target list (REQUIRED_TARGET_COLUMNS), "
-            "so future training cycles will pick them up."
+            "- **Not in the surrogate.** UMH outputs are computed "
+            "deterministically inside `evaluate_scenario` from the scenario's "
+            "NDVI exposure — the surrogate doesn't need to predict them. They "
+            "appear in the precomputed grid columns alongside the RF targets, "
+            "but are recomputed live for any scenario the optimizer surfaces."
         )
     with _assumption_tabs[5]:
         st.markdown(
@@ -3407,10 +3451,9 @@ with st.expander("Assumptions and limitations"):
             "Returns N/A when the denominator is zero or negative — never "
             "infinite or misleading.\n"
             "- **Buildings and roads excluded.** Conversions never land on "
-            "top of existing buildings or road infrastructure — the InVEST "
-            "UFR buildings shapefile and a citywide OpenStreetMap road "
-            "network (fetched once via `download_osm_roads.py`) are both "
-            "rasterized, unioned, and subtracted from the candidate pool. "
+            "top of existing buildings or road infrastructure — building "
+            "footprints and OSM road networks are both rasterized, unioned, "
+            "and subtracted from the candidate pool. "
             "Both are still part of the runoff calculation (they shed water "
             "like any developed surface), but they're not eligible to be "
             "replaced by GI/FF/HD. Real projects still need site-by-site "
@@ -3480,7 +3523,7 @@ with tab1:
                color=['#5b8db8', '#7b4fa6'])
         ax.axhline(_baseline_hm_local, color='gray', linestyle='--', alpha=0.5)
         ax.set_title('Urban Cooling', fontsize=16, fontweight='bold')
-        ax.set_ylabel('Cooling Capacity\n(higher = more cooling)', fontsize=12)
+        ax.set_ylabel('Heat Mitigation Index\n(higher = more cooling)', fontsize=12)
         ax.set_ylim(0, 1.1)
         ax.tick_params(labelsize=12)
         plt.tight_layout()
@@ -3639,7 +3682,7 @@ with tab2:
                 f"No scenarios found meeting all targets simultaneously.  \n"
                 f"Maximum achievable values across all candidates:  \n"
                 f"- Flood reduction: up to **{opt['max_flood']}** (your target: {min_flood})  \n"
-                f"- Cooling: up to **{opt['max_cool']:.4f} HM** (your target: {min_cool:.4f})  \n"
+                f"- Cooling: up to **{opt['max_cool']:.4f} HMI** (your target: {min_cool:.4f})  \n"
                 f"- Food: up to **{opt['max_food']:.3f}M lbs** (your target: {min_food:.3f})  \n"
                 f"- Carbon: up to **{opt['max_carbon']:,.0f} tons CO2e/yr** (your target: {min_carbon:,})  \n"
                 f"Try lowering the target for whichever metric is furthest from its maximum."
@@ -3791,16 +3834,17 @@ with tab3:
         0.0, 0.5, 0.2, 0.05,
         help=(
             "Transparency of the heat vulnerability overlay on the map. "
-            "Currently uses high-intensity developed pixels (NLCD class 23) "
-            "as a proxy for heat-vulnerable areas — this is a placeholder "
-            "for a future CDC/ATSDR Heat Vulnerability Index by census "
-            "tract. Set to 0 to hide."
+            "Currently uses developed-land intensity as a proxy for "
+            "heat-vulnerable areas — NLCD 23 (high-intensity) weighted 1.0, "
+            "NLCD 22 (medium) 0.6, NLCD 21 (low) 0.3. This is a placeholder "
+            "for a future CDC/ATSDR Heat Vulnerability Index by census tract. "
+            "Set to 0 to hide."
         ),
     )
 
     render_matplotlib(plot_spatial_map(
         results['scenario_lulc'], cooling_lulc,
-        heat_overlay=equity_weights, overlay_alpha=overlay_opacity,
+        heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
     ))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "

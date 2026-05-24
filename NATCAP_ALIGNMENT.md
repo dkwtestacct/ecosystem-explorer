@@ -122,6 +122,27 @@ prototype's status on each.
 | Urban Mental Health model (already integrated) | Listed as additional model for consideration | ✅ Implemented | InVEST UMH v3.19.0 |
 | ROOT (Restoration Opportunities Optimization Tool) | Mentioned in NatCap document | 🔵 Not pursued | Different optimization framework |
 
+## 6. Vocabulary and Reporting Alignment
+
+Tracks how the prototype's user-facing vocabulary (metric card names, tooltips, axis labels, prose) aligns with InVEST canonical terminology. Surfaced by the 2026-05-23 vocabulary audit (`NATCAP_VOCABULARY_AUDIT.md`).
+
+| Surface | Current wording | InVEST canonical | Status |
+|---|---|---|---|
+| Temperature Change card underlying quantity | Heat Mitigation Index (HMI) | `hm.tif`, `mean(HMI)` | ✅ Aligned (renamed from "Cooling Capacity / CC" 2026-05-23) |
+| Tradeoff plot Y axis | Heat Mitigation Index | `hm` | ✅ Aligned (renamed 2026-05-23) |
+| Temperature assumption tab kernel description | exponential decay at d_cool, eq. 118 | exponential decay | ✅ Aligned (corrected from "Gaussian" 2026-05-23) |
+| Flood Risk Reduction card | App's `100 − mean_CN` index, with explicit pointer to InVEST UFR `rnf_rt_idx = mean(1 − Q/P)` | `rnf_rt_idx` | ⚠️ Documented divergence — the app's index is monotone but not identical to UFR's canonical retention index. |
+| Flood Damage Avoided card | App's dollar-scaled formula, with explicit pointer to InVEST UFR `serv_blt` indicator caveats | `serv_blt` (indicator only, currency·m³ units) | ⚠️ Documented divergence — the app produces dollars; InVEST itself treats `serv_blt` as an indicator only. |
+| Nature Access card | `pct_pop_supply_ge_demand`, canonical UNA 2SFCA | `Pund_adm` / `Povr_adm` framing | ✅ Aligned (uses canonical UNA quantity) |
+| Preventable MH Cases card | InVEST UMH formula | `preventable_cases.tif` | ✅ Aligned |
+| Avoided MH Costs card | InVEST UMH formula with cross-reference to canonical "preventable_cost" naming | `preventable_cost.tif` | ✅ Aligned (cross-reference added 2026-05-23) |
+| Cost-Effectiveness section | App-level synthesis, no InVEST analog, with pointer to ROOT | (no InVEST analog) | ⚠️ App-specific — explicit. |
+| Balanced placement strategy | App-specific heuristic, with pointer to ROOT | (no InVEST analog) | ⚠️ App-specific — explicit. |
+| Smart Scenario Search / surrogate optimizer | App-specific, with pointer to ROOT for true LP optimization | ROOT (LP, Pareto, agreement maps) | ⚠️ App-specific — explicit. |
+| `undersupply-focused` placement strategy (renamed from `equity-focused`) | `max(0, urban_nature_demand − urban_nature_supply_percapita)` per pixel — canonical UNA per-capita supply deficit, no population multiplier | InVEST UNA's `urban_nature_balance_percapita` framing | ✅ Aligned 2026-05-23 (Brief 9). Saved scenarios with legacy `equity-focused` key are routed via shim. |
+| `flood-focused` placement strategy | Per-pixel runoff `Q_{p,i}` from SCS-CN equation at the 2-inch design storm — matches InVEST UFR `Q_mm.tif` | InVEST UFR's per-pixel `Q_{p,i}` runoff (eq. 127) | ✅ Aligned 2026-05-23 (Brief 9). Previously used raw CN as the weight. |
+| `cooling-focused` placement strategy | `(1 − baseline_HMI) × (1 / (1 + distance_to_buildings_px))` — canonical HMI + distance transform on `BUILDINGS_RASTER` | Canonical HMI + true building-proximity raster | ✅ Aligned 2026-05-23 (Brief 9). Previously used bare CC sub-component + NLCD-intensity three-value proxy. |
+
 ## Status legend
 
 - ✅ **Aligned** — current state matches NatCap recommendation
@@ -138,6 +159,7 @@ When a commit changes any of:
 - A parameter value (Table 3)
 - An AOI, placement constraint, or coverage area (Table 4)
 - A research direction's status (Table 5)
+- A user-facing vocabulary surface (Table 6)
 
 ...update the relevant table row(s) as part of the commit. Same
 discipline as `WHATS_NEW` updates.

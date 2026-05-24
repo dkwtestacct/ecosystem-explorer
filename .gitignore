@@ -62,3 +62,9 @@ data/sa/cooling/cgiar_et0/
 # The rasterized output data/sa/flood/soil_group_sa.tif (~116 KB) IS tracked.
 data/sa/flood/ssurgo_bexar_hsg.*
 data/sa/flood/ssurgo_hydgrp_bexar.csv
+
+# NatCap-curated SA dataset (received 2026-05-23) — large rasters and bulk validation outputs
+data/sa/natcap_2024/*.tif
+data/sa/natcap_2024/*.tif.aux.xml
+data/sa/natcap_2024/InVEST Results/
+data/sa/natcap_2024/_archive/

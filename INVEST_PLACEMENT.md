@@ -61,7 +61,7 @@ models.
 | **Does InVEST recommend a placement strategy?** | No. The model is placement-agnostic. |
 | **Strategy description** | N/A. The guide describes CC computation, the HMI park-proximity step, air temperature interpolation, and energy savings, but contains no siting guidance for cooling interventions. The 2-hectare park threshold and `d_cool` distance parameter describe how the model *propagates* cooling effects from green spaces, not where to *create* them. The guide notes that `d_cool` and the air-blending radius `r` are "difficult to derive from the literature as they vary with vegetation properties, climate (effect of large green spaces), and wind patterns (air mixing)." |
 | **Inputs that could inform placement** | The biophysical table's `green_area` flag (binary 0/1) classifies which LULC types count as green space. The 2-ha threshold means that interventions creating contiguous green areas ≥ 2 ha would trigger the park-cooling-plume effect. Building footprints with per-type energy consumption rates identify where cooling saves the most AC dollars. Population density identifies where cooling benefits the most people. |
-| **Does the app have those inputs?** | Partially. Building footprints and energy consumption tables exist. Population rasters exist. The app does not currently compute a "cooling benefit potential" surface, but the baseline CC raster identifies the coldest and hottest pixels — hot pixels adjacent to buildings are the highest-value targets. |
+| **Does the app have those inputs?** | Partially. Building footprints and energy consumption tables exist. Population rasters exist. The app does not currently compute a "cooling benefit potential" surface, but the baseline HMI raster identifies the coldest and hottest pixels — hot pixels adjacent to buildings are the highest-value targets. |
 | **Gap from random placement** | Random placement scatters green conversions uniformly, preventing the formation of contiguous ≥ 2 ha patches that would trigger the park-cooling-plume effect in canonical InVEST. It also ignores proximity to buildings (where cooling saves AC energy) and to high-population pixels (where cooling benefits the most people). The existing heat-priority mode partially addresses this by weighting toward high-intensity development, but doesn't consider building proximity or contiguity. |
 
 **Source:** [InVEST UCM User Guide](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_cooling_model.html)
@@ -90,7 +90,7 @@ models.
 | **Strategy description** | N/A. The guide describes the preventable-cases formula (`PC = (1 − RR) × BIR × POP`) and notes that "land use scenarios are key to understanding how alternative land use change and associated greenery change might impact mental health benefits." But it provides no methodology for identifying optimal greenspace placement. The model accepts baseline + alternate LULC (or NDVI) rasters and quantifies health outcomes from the difference. |
 | **Inputs that could inform placement** | Population count raster (where more people live, more cases are preventable), baseline NDVI (where NDVI is lowest, the marginal gain from greening is largest — the RR formula is exponential in ΔNE, so gains are largest where baseline NE is low). |
 | **Does the app have those inputs?** | Yes. Population rasters and baseline NE rasters exist for both cities. The app could compute a "mental health benefit potential" surface: `population × (1 − exp(ln(RR) × 10 × expected_ΔNE))` per pixel, where `expected_ΔNE` is the NDVI gain from converting that pixel. |
-| **Gap from random placement** | The RR formula means that greening a high-population, low-NDVI pixel prevents more cases than greening a low-population, high-NDVI pixel. Random placement averages over this gradient. The gap is largest in cities with high spatial variance in population density and baseline NDVI — SA (1.9M people, large suburban-to-urban gradient) likely has a bigger placement effect than MN downtown (154K, more uniform). |
+| **Gap from random placement** | The RR formula means that greening a high-population, low-NDVI pixel prevents more cases than greening a low-population, high-NDVI pixel. Random placement averages over this gradient. Whether SA's larger AOI translates to a bigger UMH placement effect than MN downtown's is not yet measured. The non-UMH metrics in `PLACEMENT_STRATEGY_DIAGNOSTIC.md` show that the "larger AOI → larger placement effect" intuition doesn't hold uniformly across metrics; UMH-specific measurement is needed to settle this for the mental-health pathway specifically. |
 
 **Source:** [InVEST UMH User Guide](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_mental_health.html)
 
@@ -235,7 +235,7 @@ list.*
    per-class rates that are location-independent).
 
 3. **The data for smarter placement already exists in the app.** Soil
-   groups (runoff potential), baseline CC raster (heat exposure),
+   groups (runoff potential), baseline HMI raster (heat exposure),
    building footprints (cooling-energy value), population rasters
    (nature access + mental health impact), and baseline NE rasters
    (mental health marginal benefit) are all loaded at startup.
@@ -264,7 +264,7 @@ placement strategies. Rationale:
 | Component | Source data | What it captures |
 |-----------|-----------|-----------------|
 | Runoff reduction potential | CN table + soil raster | Pixels where GI yields the most flood benefit |
-| Heat exposure | Baseline CC raster (inverted) | Pixels where greening yields the most cooling |
+| Heat exposure | Baseline HMI raster (inverted) | Pixels where greening yields the most cooling |
 | Building proximity | Distance to BUILDINGS_RASTER | Pixels where cooling saves the most AC energy |
 | Nature deficit | Baseline access score (inverted) | Pixels where nature is most needed |
 | Population density | Pop raster | Pixels where benefits reach the most people |
@@ -284,7 +284,12 @@ step rather than a suitability weight.
 
 ---
 
-## Recommended next steps
+## Implementation status
+
+This section was written as forward-looking recommendations during the
+placement research; most items have since landed in the app. Marked
+status follows each recommendation; full details for the shipped pieces
+are in `DESIGN_NOTES.md` and CLAUDE.md.
 
 1. **Implement a single suitability-weighted placement mode** as an
    alternative to uniform random sampling. The mode computes a per-pixel
@@ -294,6 +299,8 @@ step rather than a suitability weight.
    (which is a single-signal version of the same idea) with a
    multi-signal version.
 
+   **Status: shipped.** See `_compute_suitability_weights` in `app.py`.
+
 2. **Expose suitability weights in the sidebar** — either as individual
    sliders (runoff, cooling, access, population, MH) or as a preset
    menu ("Flood-focused," "Cooling-focused," "Equity-focused,"
@@ -301,14 +308,22 @@ step rather than a suitability weight.
    explosion; individual sliders are more flexible but harder to
    explain.
 
+   **Status: shipped — preset menu chosen.** The five-strategy radio
+   (Random + four named presets) is in the sidebar.
+
 3. **Keep uniform random as the default.** The suitability mode is an
    opt-in upgrade, not a replacement. Users exploring general tradeoffs
    benefit from seeing average-case outcomes; users testing specific
    interventions benefit from targeted placement.
 
+   **Status: shipped.** Random placement is the default radio option.
+
 4. **Do not attribute the suitability strategy to InVEST.** Document it
    as an app-specific placement heuristic informed by InVEST model
    structure but not part of any InVEST model.
+
+   **Status: shipped.** `REFERENCE.md` "Placement strategies" includes
+   the "No InVEST parity claim" caveat.
 
 5. **Validate before shipping.** Run the suitability-weighted mode
    against the existing baseline test suite (`verify_baselines.py`) to
@@ -317,7 +332,14 @@ step rather than a suitability weight.
    homogeneous for placement to matter), the feature isn't worth the
    complexity.
 
+   **Status: shipped.** `verify_baselines.py` covers 40 baseline
+   scenarios across cities, scenarios, and placement strategies.
+
 6. **Defer land-ownership and food-desert layers.** These would make
    the suitability surface more realistic (per the SA precedent) but
    require new data sourcing. Treat as a future enhancement, not a
    blocker for the initial implementation.
+
+   **Status: deferred — future enhancement.** Land ownership and
+   food-desert layers would require new data-sourcing work; not
+   blocking the current feature.
