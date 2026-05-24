@@ -203,7 +203,14 @@ rows = []
 _t_loop = time.time()
 for i, (pct, gi, ff) in enumerate(combos, start=1):
     result = app.evaluate_scenario(pct, gi, ff, seed=42)
-    row = {k: v for k, v in result.items() if k != "scenario_lulc"}
+    # Strip both full-AOI scenario rasters — `scenario_lulc` (always) and
+    # `scenario_lulc_ucm` (added in Brief 28b; the compound view for SA,
+    # the same object as `scenario_lulc` for MN). Neither belongs in the
+    # surrogate CSV; without this guard pandas serialises numpy arrays as
+    # truncated string reprs into one cell per row, producing garbage data
+    # and ~7-line CSV rows from the embedded newlines.
+    row = {k: v for k, v in result.items()
+           if k not in ("scenario_lulc", "scenario_lulc_ucm")}
     # Mirror the explicit recomputation in app.compute_scenario_grid so the
     # CSV schema lines up with what train_surrogate expects.
     row["carbon_tons_co2_yr"] = app._compute_carbon(
