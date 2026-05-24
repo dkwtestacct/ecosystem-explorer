@@ -224,6 +224,29 @@ CITIES = {
         # NatCap SA UFR rainfall per the README (Brief 23): 157 mm = 6.18 inches.
         # SA's heavier sub-tropical convective rain regime vs MN's 100 mm.
         'design_storm_inches':      6.18,
+        # NatCap compound LULC framework (Brief 27, foundational adoption).
+        # `compound_lulc_file` is reprojected EPSG:3857 → EPSG:5070 with
+        # nearest-neighbor at 30 m (1984×1713 grid) by hand-run gdalwarp; see
+        # `data/sa/README.md` and `SA_INTEGRATION_PLAN.md`. `crosswalk_file`
+        # maps each compound `lucode` (0–1983) to its constituent NLCD/NLUD/
+        # tree-canopy bins; the prototype reduces compound → NLCD via the
+        # crosswalk's `nlcd` column at load time so existing per-NLCD
+        # biophysical tables (UCM/UFR/UNA) keep working unchanged. Briefs
+        # 28–30 will swap individual model tables to compound-keyed versions.
+        'compound_lulc_file':       'land_use_compound_sa.tif',
+        'crosswalk_file':           '../natcap_2024/lulc_crosswalk.csv',
+        # Fallback compound lucodes for the three conversion targets, picked
+        # by surveying `is_realistic_to_create=yes` rows in the crosswalk and
+        # preferring the highest-frequency representative of each target NLCD:
+        #   FF (NLCD 41) → 1310: Deciduous Forest, Timber NLUD, medium canopy
+        #   GI (NLCD 90) →  122: Woody Wetlands, Wetland NLUD, medium canopy
+        #   HD (NLCD 24) →  341: Developed High Intensity, Residential/Urban, low canopy
+        # Used by Brief 28+ when an NLUD/tree-canopy combination from a source
+        # pixel doesn't appear with the target NLCD in the crosswalk. Logged
+        # in DESIGN_NOTES.md for durable rationale.
+        'default_ff_lucode':        1310,
+        'default_gi_lucode':         122,
+        'default_hd_lucode':         341,
         # Re-enabled now that data/scenarios_dense_sa.csv is committed
         # (Balanced mode reads the precomputed grid instead of recomputing
         # the 25–50 min lookup table) and the High-Resolution lookup compute

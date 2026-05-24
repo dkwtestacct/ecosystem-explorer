@@ -270,6 +270,13 @@ def _rebind_city(app_mod, city_name):
     app_mod._BASELINE_NE_RASTER = state.baseline_ne_raster
     app_mod._BASELINE_UNA_SUPPLY_PERCAPITA_RASTER = state.baseline_una_supply_percapita_raster
     app_mod._BUILDINGS_DISTANCE_RASTER = state.buildings_distance_raster
+    # NatCap compound LULC aliases (Brief 27). None for cities without a
+    # `compound_lulc_file` in CITIES — that's the intended cross-city default.
+    app_mod.cooling_lulc_compound = state.cooling_lulc_compound
+    app_mod.COMPOUND_TO_NLCD      = state.compound_to_nlcd
+    app_mod.COMPOUND_AFTER_FF     = state.compound_after_ff
+    app_mod.COMPOUND_AFTER_GI     = state.compound_after_gi
+    app_mod.COMPOUND_AFTER_HD     = state.compound_after_hd
     app_mod._CURRENT_CITY_STATE = state
 
     # City-config scalars (lines 2054–2070 area)

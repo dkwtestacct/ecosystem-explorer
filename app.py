@@ -61,7 +61,7 @@ CHANGE_COLORS = {
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
-- **San Antonio land cover currently uses NLCD only; integration of NatCap's compound LULC framework is queued.**
+- **San Antonio land cover migrated to NatCap's compound LULC framework** (foundation; per-model biophysical tables adopted in upcoming releases).
 - **Flood metrics calibrated to per-city design storm depths** (MN: 100 mm; SA: 157 mm).
 - **Minneapolis nature access aligned with NatCap MN-project parameters.**
 - **San Antonio temperature deltas now use NatCap-calibrated UHI parameters.**
@@ -243,6 +243,26 @@ def _preflight_data_check(city_cfg, city_name):
     if not una or not Path(una).exists():
         missing.append(f"`una_table_file` missing: {una}")
 
+    # Optional compound LULC + crosswalk (Brief 27). Both must exist when
+    # `compound_lulc_file` is set; otherwise neither is required.
+    compound_lulc = city_cfg.get("compound_lulc_file")
+    crosswalk    = city_cfg.get("crosswalk_file")
+    if compound_lulc or crosswalk:
+        if not (compound_lulc and crosswalk):
+            missing.append(
+                "`compound_lulc_file` and `crosswalk_file` must be set together"
+            )
+        else:
+            cl_path = Path(f"{city_cfg['data_dir_flood']}/{compound_lulc}").resolve()
+            cw_path = Path(f"{city_cfg['data_dir_flood']}/{crosswalk}").resolve()
+            if not cl_path.exists():
+                missing.append(f"`compound_lulc_file` resolves to a missing file: {cl_path}")
+            if not cw_path.exists():
+                missing.append(f"`crosswalk_file` resolves to a missing file: {cw_path}")
+            for k in ('default_ff_lucode', 'default_gi_lucode', 'default_hd_lucode'):
+                if city_cfg.get(k) is None:
+                    missing.append(f"`{k}` must be set when compound LULC is used")
+
     if missing:
         st.error(
             f"**Cannot load {city_name}** — required input files are missing.\n\n"
@@ -343,6 +363,19 @@ class CityState(NamedTuple):
     # Baseline scalars — read via _CURRENT_CITY_STATE only (not aliased)
     baseline_hm: float
     baseline_cn: float
+    # NatCap compound LULC framework (Brief 27, SA only — None for cities
+    # without a `compound_lulc_file`). The full compound raster sits on the
+    # prototype's 30 m grid; the reduction is already baked into
+    # `cooling_lulc` (and `lulc`) above so Brief 27 metrics route unchanged.
+    # The three `compound_after_*` arrays carry, per source compound lucode,
+    # the target compound lucode that preserves NLUD+tree-canopy while
+    # swapping NLCD to the conversion target (or DEFAULT_<target>_LUCODE
+    # fallback). Briefs 28–30 will consume them inside evaluate_scenario.
+    cooling_lulc_compound: Optional[np.ndarray]
+    compound_to_nlcd: Optional[np.ndarray]
+    compound_after_ff: Optional[np.ndarray]
+    compound_after_gi: Optional[np.ndarray]
+    compound_after_hd: Optional[np.ndarray]
 
 
 # Module-level escape-hatch handle to the active city runtime state. Populated
@@ -423,19 +456,122 @@ def _resolve_table(data_dir, filename, *fallback_dirs):
     raise FileNotFoundError(f"could not find {filename}; tried: {candidates}")
 
 
+# ── NatCap compound LULC crosswalk (Brief 27, foundational) ──────────────────
+# Loads `lulc_crosswalk.csv` and builds vectorized lookup arrays:
+#   compound_to_nlcd[lucode]       → NLCD code (the reduction layer)
+#   compound_after_<target>[lucode] → compound code of the same (NLUD,
+#       tree-canopy) bin with NLCD swapped to the conversion target. Built
+#       only for the three conversion-target NLCDs (FF=41, GI=90, HD=24).
+#       When the source pixel's (NLUD, tree) tuple has no matching row for
+#       the target NLCD, the array carries the configured
+#       `DEFAULT_<target>_LUCODE` fallback. Currently used only at load
+#       time for the reduction; Brief 28+ will consume the compound_after_*
+#       arrays inside evaluate_scenario when per-model tables go compound-
+#       keyed. See SA_INTEGRATION_PLAN.md Decision 2 and DESIGN_NOTES.md.
+@st.cache_data
+def load_lulc_crosswalk(crosswalk_path, default_ff, default_gi, default_hd):
+    df = pd.read_csv(crosswalk_path)
+    max_lucode = int(df['lucode'].max())
+
+    compound_to_nlcd = np.full(max_lucode + 1, -1, dtype=np.int16)
+    compound_to_nlcd[df['lucode'].astype(int).values] = df['nlcd'].astype(int).values
+
+    # Per-source-pixel "convert to target" lookups. Build once for each
+    # conversion target by grouping crosswalk rows on (nlud_simple, tree)
+    # and picking, for each (NLUD, tree) tuple present, the lucode row with
+    # the target NLCD — preferring is_realistic_to_create=yes when multiple
+    # rows match. Pixels whose (NLUD, tree) tuple has no row for the target
+    # NLCD fall back to DEFAULT_<target>_LUCODE.
+    df['_create_ok'] = df['is_realistic_to_create'].astype(str).str.lower() == 'yes'
+    targets = [(41, default_ff), (90, default_gi), (24, default_hd)]
+    compound_after = {}
+    for target_nlcd, fallback in targets:
+        # First-match per (NLUD, tree) → target compound lucode, preferring
+        # create_ok=yes rows, then ascending lucode as a deterministic
+        # tiebreaker.
+        target_rows = (df[df['nlcd'] == target_nlcd]
+                       .sort_values(by=['_create_ok', 'lucode'],
+                                    ascending=[False, True])
+                       .drop_duplicates(subset=['nlud_simple', 'tree'],
+                                        keep='first'))
+        # Vectorized fill: every source row's (NLUD, tree) tuple is looked
+        # up in the target's first-match map; pixels whose tuple has no
+        # match fall back to the configured DEFAULT_<target>_LUCODE.
+        key_to_lucode = dict(
+            zip(zip(target_rows['nlud_simple'].astype(int),
+                    target_rows['tree'].astype(int)),
+                target_rows['lucode'].astype(int))
+        )
+        out = np.full(max_lucode + 1, fallback, dtype=np.int16)
+        src_keys = list(zip(df['nlud_simple'].astype(int),
+                            df['tree'].astype(int)))
+        src_lucodes = df['lucode'].astype(int).values
+        for i, key in enumerate(src_keys):
+            if key in key_to_lucode:
+                out[src_lucodes[i]] = key_to_lucode[key]
+        compound_after[target_nlcd] = out
+
+    return (df, compound_to_nlcd,
+            compound_after[41], compound_after[90], compound_after[24])
+
+
+def reduce_compound_to_nlcd(compound_raster, compound_to_nlcd):
+    """Map a compound LULC raster to its per-NLCD reduction.
+
+    Compound nodata (-1) is rewritten to the prototype's module-wide
+    `NODATA` (-128) sentinel so downstream `(scenario_lulc != NODATA)`
+    masks continue to work. Returned dtype is int16. Vectorized — no
+    per-pixel loop."""
+    max_lc = compound_to_nlcd.shape[0] - 1
+    safe = np.where((compound_raster >= 0) & (compound_raster <= max_lc),
+                    compound_raster, 0)
+    return np.where(compound_raster == -1, NODATA,
+                    compound_to_nlcd[safe]).astype(np.int16)
+
+
 @st.cache_data
 def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_file,
-              lulc_file, soil_file, cooling_lulc_file):
+              lulc_file, soil_file, cooling_lulc_file,
+              compound_lulc_file=None, crosswalk_file=None,
+              default_ff_lucode=None, default_gi_lucode=None, default_hd_lucode=None):
     bio = pd.read_csv(_resolve_table(data_dir_flood, cn_table_file, "data/flood"))
 
-    with rasterio.open(f'{data_dir_flood}/{lulc_file}') as src:
-        lulc = src.read(1)
+    cooling_bio = pd.read_csv(_resolve_table(data_dir_cooling, cooling_table_file, "data/cooling"))
+
+    # Compound-LULC path (SA post-Brief 27): load NatCap's compound raster +
+    # crosswalk, then derive the NLCD-reduced view that downstream consumers
+    # see. Both rasters are kept in the city state; until per-model tables
+    # go compound-keyed (Briefs 28–30) the reduced view drives every metric.
+    cooling_lulc_compound = None
+    compound_to_nlcd = None
+    compound_after_ff = compound_after_gi = compound_after_hd = None
+    if compound_lulc_file is not None and crosswalk_file is not None:
+        with rasterio.open(f'{data_dir_flood}/{compound_lulc_file}') as src:
+            cooling_lulc_compound = src.read(1).astype(np.int16)
+        # crosswalk_file is given relative to data_dir_flood (e.g.
+        # '../natcap_2024/lulc_crosswalk.csv'), matching the existing
+        # cooling_lulc_file convention.
+        cw_path = f'{data_dir_flood}/{crosswalk_file}'
+        _xwalk_df, compound_to_nlcd, compound_after_ff, compound_after_gi, compound_after_hd = (
+            load_lulc_crosswalk(cw_path,
+                                int(default_ff_lucode),
+                                int(default_gi_lucode),
+                                int(default_hd_lucode))
+        )
+        reduced = reduce_compound_to_nlcd(cooling_lulc_compound, compound_to_nlcd)
+        # The reduced NLCD view replaces both `lulc` (flood) and
+        # `cooling_lulc` since SA's prior config has them pointing at the
+        # same raster. Downstream consumers continue to see NLCD codes.
+        lulc = reduced.copy()
+        cooling_lulc = reduced
+    else:
+        with rasterio.open(f'{data_dir_flood}/{lulc_file}') as src:
+            lulc = src.read(1)
+        with rasterio.open(f'{data_dir_cooling}/{cooling_lulc_file}') as src:
+            cooling_lulc = src.read(1)
+
     with rasterio.open(f'{data_dir_flood}/{soil_file}') as src:
         soil = src.read(1)
-
-    cooling_bio = pd.read_csv(_resolve_table(data_dir_cooling, cooling_table_file, "data/cooling"))
-    with rasterio.open(f'{data_dir_cooling}/{cooling_lulc_file}') as src:
-        cooling_lulc = src.read(1)
 
     developed_pixels = np.argwhere(np.isin(cooling_lulc, DEVELOPED_CODES))
 
@@ -491,7 +627,9 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
 
     return (lulc, soil_resized, cooling_lulc, developed_pixels,
             cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
-            nlcd_intensity_weights, shade_arr, kc_arr, albedo_arr, green_area_arr)
+            nlcd_intensity_weights, shade_arr, kc_arr, albedo_arr, green_area_arr,
+            cooling_lulc_compound, compound_to_nlcd,
+            compound_after_ff, compound_after_gi, compound_after_hd)
 
 
 # ── Population raster loader (for Nature Access metric) ──────────────────────
@@ -1379,7 +1517,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 21  # bumped: Brief 23 migrated DESIGN_STORM_INCHES from global (2.0) to per-city (MN: 3.94" / 100 mm per NatCap MN args.json; SA: 6.18" / 157 mm per NatCap SA README). Every flood-related metric shifts in both cities (MN ~2×, SA ~3× on runoff). Brief 22 (MN UNA) was at 19→20.
+SCENARIO_SCHEMA_VERSION = 22  # bumped: Brief 27 adopts NatCap compound NLCD×NLUD×tree-canopy LULC for SA (data/sa/flood/land_use_compound_sa.tif, reprojected EPSG:3857→EPSG:5070, reduced via crosswalk to NLCD view that existing per-NLCD biophysical tables consume). 97.91% pixel-wise agreement with prior `land_use_2021_sa.tif`; 2% drift drives small (~1-3%) SA baseline shifts. MN unchanged (compound framework is SA-only). Brief 23 was at 20→21.
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -1605,10 +1743,17 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     (l_lulc, l_soil_resized, l_cooling_lulc, l_developed_pixels,
      l_cn_table, l_lucode_idx_arr, l_hm_arr, l_max_raster_lucode, l_max_hm_lucode,
      l_nlcd_intensity_weights, l_shade_arr, l_kc_arr, l_albedo_arr,
-     l_green_area_arr) = load_data(
+     l_green_area_arr,
+     l_cooling_lulc_compound, l_compound_to_nlcd,
+     l_compound_after_ff, l_compound_after_gi, l_compound_after_hd) = load_data(
         cfg['data_dir_flood'], cfg['data_dir_cooling'],
         cfg['cn_table_file'], cfg['cooling_table_file'],
-        cfg['lulc_file'], cfg['soil_file'], cfg['cooling_lulc_file'])
+        cfg['lulc_file'], cfg['soil_file'], cfg['cooling_lulc_file'],
+        compound_lulc_file=cfg.get('compound_lulc_file'),
+        crosswalk_file=cfg.get('crosswalk_file'),
+        default_ff_lucode=cfg.get('default_ff_lucode'),
+        default_gi_lucode=cfg.get('default_gi_lucode'),
+        default_hd_lucode=cfg.get('default_hd_lucode'))
 
     # ── Phase 2: Population raster ──────────────────────────────────────────
     pop_file = cfg.get("pop_file")
@@ -1932,6 +2077,11 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         baseline_una_supply_percapita_raster=baseline_una_supply_percapita_raster,
         buildings_distance_raster=buildings_distance_raster,
         baseline_hm=baseline_hm, baseline_cn=baseline_cn,
+        cooling_lulc_compound=l_cooling_lulc_compound,
+        compound_to_nlcd=l_compound_to_nlcd,
+        compound_after_ff=l_compound_after_ff,
+        compound_after_gi=l_compound_after_gi,
+        compound_after_hd=l_compound_after_hd,
     )
 
 
@@ -2001,6 +2151,15 @@ _BUILDINGS_DISTANCE_RASTER              = _CURRENT_CITY_STATE.buildings_distance
 # NOTE: BASELINE_HM and BASELINE_CN are intentionally NOT aliased here. Read
 # them as `_CURRENT_CITY_STATE.baseline_hm` / `.baseline_cn` everywhere
 # downstream — see CityState comment above.
+# NatCap compound LULC (Brief 27). All five are None for cities without a
+# `compound_lulc_file`. Aliased for legacy bare-name reads; Brief 28+ will
+# extend evaluate_scenario to consume `cooling_lulc_compound` and the three
+# `COMPOUND_AFTER_*` arrays when per-model tables go compound-keyed.
+cooling_lulc_compound = _CURRENT_CITY_STATE.cooling_lulc_compound
+COMPOUND_TO_NLCD      = _CURRENT_CITY_STATE.compound_to_nlcd
+COMPOUND_AFTER_FF     = _CURRENT_CITY_STATE.compound_after_ff
+COMPOUND_AFTER_GI     = _CURRENT_CITY_STATE.compound_after_gi
+COMPOUND_AFTER_HD     = _CURRENT_CITY_STATE.compound_after_hd
 
 
 def compute_per_tract_summary(scenario_lulc):
@@ -3361,13 +3520,13 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
 with st.expander("Assumptions and limitations"):
     if selected_city.startswith("San Antonio"):
         st.info(
-            "**SA Land Cover:** Currently using NLCD 2021 (legacy 21-class), "
-            "per-NLCD biophysical tables with Köppen-BSh tuning for hot semi-arid "
-            "climate. NatCap has shared a compound NLCD×NLUD×tree-canopy LULC "
-            "framework (1,984 compound lucodes) that captures more "
-            "climate-relevant variation; integration is queued. See "
-            "`CITY_PARITY.md` § 'SA Compound LULC Framework' for the structural "
-            "inventory."
+            "**SA Land Cover:** Using NatCap's compound NLCD×NLUD×tree-canopy "
+            "LULC framework (1,984 compound lucodes; foundational adoption "
+            "landed Brief 27). The compound raster is reduced via the LULC "
+            "crosswalk to NLCD codes for the existing per-NLCD biophysical "
+            "tables (UCM with Köppen-BSh tuning, UFR, UNA) — per-model "
+            "compound-keyed tables are queued for upcoming releases. See "
+            "`SA_INTEGRATION_PLAN.md` for the brief sequence."
         )
     _assumption_tabs = st.tabs([
         "Flood & Runoff", "Temperature", "Food", "Carbon",

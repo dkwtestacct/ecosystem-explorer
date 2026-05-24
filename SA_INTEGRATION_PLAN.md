@@ -172,7 +172,7 @@ table swap is a clean atomic update on top.
 
 | Brief | Scope | Output impact |
 |---|---|---|
-| 27 | Adopt compound LULC raster + crosswalk. Reproject to 5070 + clip. Add `lulc_crosswalk.csv` loading. Add `DEFAULT_FF/GI/HD_LUCODE` config. Route compound lucodes through to existing per-NLCD tables via crosswalk's `nlcd` column. | Minimal — should be approximately a no-op on baseline metrics. Slight shifts possible from resampling at edges. |
+| 27 | ✅ Done 2026-05-24. Adopt compound LULC raster + crosswalk. Reproject to 5070 + clip. Add `lulc_crosswalk.csv` loading. Add `DEFAULT_FF/GI/HD_LUCODE` config (1310 / 122 / 341, picked from `is_realistic_to_create=yes` rows by descending frequency). Route compound lucodes through to existing per-NLCD tables via crosswalk's `nlcd` column. | Minimal — 97.91 % pixel-wise agreement with prior `land_use_2021_sa.tif`; SA baselines drift <0.5 % on every headline metric (mean_hm, mean_cn, flood_reduction, runoff_acre_feet, nature_access_pct). MN untouched. |
 | 28 | Switch SA UCM biophysical table to `ucm__nlcd_nlud_tree.csv`. Remove Köppen-BSh tuning. | Substantial — SA UCM metrics change. Köppen tuning becomes obsolete. |
 | 29 | Switch SA UNA biophysical table to `una__nlcd_nlud_tree.csv`. | Substantial — SA UNA metrics change. |
 | 30 | Switch SA Carbon to four-pool framework via `carbon__nlcd_nlud_tree.csv`. | Substantial — SA Carbon metrics change. Methodology upgrade, not just table swap. |

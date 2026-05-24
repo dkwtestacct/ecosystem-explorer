@@ -49,7 +49,7 @@ recommended equivalents.
 | Data type | Current source | NatCap recommendation | Status |
 |---|---|---|---|
 | LULC (Minneapolis) | `data/cooling/land_use_2021.tif` — byte-identical to InVEST UNA sample LULC (`LULC_NLCD_2021.tif`) | InVEST UNA sample data | ✅ Aligned |
-| LULC (San Antonio) | NLCD 2021, custom-clipped to Bexar County | Not provided by NatCap (SA is not in InVEST sample data) | ⚠️ Improvised |
+| LULC (San Antonio) | NatCap compound NLCD×NLUD×tree-canopy LULC (`data/sa/flood/land_use_compound_sa.tif`); reprojected EPSG:3857 → EPSG:5070 with nearest-neighbor, clipped to prototype's 1984×1713 grid; reduced via `lulc_crosswalk.csv` to NLCD codes for the existing per-NLCD biophysical tables | NatCap-shipped `lulc_overlay_3857.tif` + `lulc_crosswalk.csv` (`data/sa/natcap_2024/`) | ✅ Adopted 2026-05-24 (Brief 27); compound LULC routed through crosswalk to existing per-NLCD biophysical tables pending Briefs 28–30 |
 | Population (Minneapolis) | US Census 2020 block-level (P1_001N, Hennepin County) | Standard NLCD-grid rasterization | ✅ Aligned |
 | Population (San Antonio) | US Census 2020 block-level (P1_001N, Bexar County) | Standard NLCD-grid rasterization | ✅ Aligned |
 | UNA biophysical table | InVEST sample: `LULC_attribute_table_UNA.csv` | NatCap-published canonical table | ✅ Aligned |

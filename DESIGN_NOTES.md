@@ -567,6 +567,108 @@ where NatCap has clearly documented per-city values. For parameters
 without clear NatCap guidance, the prototype's default stays and is
 noted in `NATCAP_COLLABORATION.md` as an open question.
 
+## SA compound LULC integration — foundational decisions (2026-05-24, Brief 27)
+
+Brief 27 adopted NatCap's compound NLCD×NLUD×tree-canopy LULC framework
+for SA, with three judgment calls worth recording durably (the
+planning artifact `SA_INTEGRATION_PLAN.md` walks through the same
+decisions ahead of execution; this section is the long-lived record
+once that planning artifact ages out of relevance).
+
+**CRS: reprojected to EPSG:5070, accepting coverage loss at extent
+edges.** NatCap's SA data ships in EPSG:3857 (Web Mercator). The
+prototype's SA stack is EPSG:5070 (Conus Albers, equal-area).
+NatCap's choice of 3857 was likely operational (web display); their
+MN sample data uses an equal-area projection. The prototype's metrics
+are area-based (acres converted, runoff volume, etc.), so equal-area
+preservation matters. Reprojecting NatCap → 5070 with nearest-neighbor
+resampling at 30 m preserves the prototype's existing grid and avoids
+regenerating 5 other SA rasters (soil, ET, population, buildings,
+roads). Tradeoff: NatCap's raster extends ~6 minutes farther north,
+~3 farther south, ~2 farther west; clipping to the prototype's extent
+loses those edge pixels (~1% nodata coverage on the reprojected output;
+~15% raw-extent loss). Accepted because the analysis is constrained to
+roughly Bexar County regardless.
+
+**Conversion-target mapping: preserve NLUD + tree-canopy, change NLCD
+only.** When a user converts a developed pixel "to food forest," the
+new lucode in compound LULC must encode the post-conversion (NLCD,
+NLUD, tree-canopy) state. The chosen rule preserves the source pixel's
+NLUD and tree-canopy bins and changes only the NLCD signal. This is
+least presumptuous — the conversion models the land cover change
+without claiming knowledge of how the land use or canopy state changes.
+The compound code is looked up in `lulc_crosswalk.csv` via (NLCD=target,
+NLUD=source_NLUD, tree=source_tree), with `is_realistic_to_create=yes`
+rows preferred and ascending `lucode` as a deterministic tiebreaker.
+When the (NLUD, tree) tuple doesn't appear with the target NLCD, fall
+back to `DEFAULT_FF_LUCODE`, `DEFAULT_GI_LUCODE`, or `DEFAULT_HD_LUCODE`
+(see below).
+
+**`DEFAULT_*_LUCODE` choices and rationale.** Fallback compound lucodes
+for conversion targets when the (NLUD, tree-canopy) combination from the
+source pixel doesn't have a matching row for the target NLCD in the
+crosswalk. Picked by filtering for `is_realistic_to_create=yes` in the
+crosswalk, then preferring the highest-`frequency` row (the "typical"
+representative of the target land cover as seen in NatCap's SA raster).
+The `is_realistic_to_paint` column is empty across the entire crosswalk
+(all NaN), so `is_realistic_to_create` is the only available flag.
+
+- `DEFAULT_FF_LUCODE = 1310` — Deciduous Forest, Timber NLUD, medium
+  tree canopy. Frequency 36,939 (highest among NLCD-41 create-OK rows).
+- `DEFAULT_GI_LUCODE = 122` — Woody Wetlands, Wetland NLUD (under
+  Waterbody class), medium tree canopy. Frequency 50,384 (highest among
+  NLCD-90 create-OK rows).
+- `DEFAULT_HD_LUCODE = 341` — Developed High Intensity, Residential
+  Urban NLUD, low tree canopy. Frequency 53,389 (highest among NLCD-24
+  create-OK rows).
+
+Edge case: when the fallback fires for a substantial fraction of
+conversions (>5% of converted pixels), surface it — the rule may need
+refinement. Logging the fallback fraction inside `evaluate_scenario`
+would help; deferred until Brief 28+ when the compound conversion logic
+is actually exercised in metrics.
+
+**Compound→NLCD reduction routing (transitional).** Brief 27 adopts the
+compound LULC raster but keeps the prototype's existing per-NLCD
+biophysical tables (UCM, UFR, UNA). Compound lucodes are reduced to
+NLCD codes via the crosswalk's `nlcd` column once at load time — the
+reduced view is assigned to the existing `cooling_lulc` name that every
+downstream consumer reads. The `reduce_compound_to_nlcd()` helper builds
+a NumPy lookup array (`COMPOUND_TO_NLCD`) and applies it vectorized; the
+compound-nodata sentinel (-1 in NatCap's raster) is rewritten to the
+prototype's module-wide `NODATA` (-128) so `(scenario_lulc != NODATA)`
+masks downstream continue to work. This is a *transitional* state —
+Briefs 28-30 will swap individual model tables to compound-keyed
+versions, removing the reduction step for each one in turn. Until then,
+the SA pipeline runs on compound LULC but reports metrics calibrated to
+per-NLCD biophysical tables. Result: 97.91% pixel-wise agreement between
+the compound-reduced NLCD view and the prior `land_use_2021_sa.tif`;
+SA baselines drift <0.5% on every headline metric.
+
+**Forward-looking infrastructure — `COMPOUND_AFTER_*` lookups.**
+Three `int16` lookup arrays (one per conversion target) are built at
+load time alongside `COMPOUND_TO_NLCD`: `COMPOUND_AFTER_FF`,
+`COMPOUND_AFTER_GI`, `COMPOUND_AFTER_HD`. Each maps source compound
+lucode → target compound lucode that preserves NLUD+tree-canopy while
+swapping NLCD to the conversion target, falling back to
+`DEFAULT_*_LUCODE` when the (NLUD, tree) tuple has no row for the
+target NLCD. These are aliased to module-level on city load (None for
+cities without `compound_lulc_file`) but are not yet consumed in
+`evaluate_scenario` — Brief 28+ will wire them when per-model tables go
+compound-keyed and the downstream lookups need a compound view of the
+converted scenario rather than the NLCD-only `scenario_lulc`.
+
+**What this does NOT decide.**
+- Whether MN should also migrate to compound LULC. Out of scope — MN's
+  NLCD-only framework works and NatCap hasn't shipped MN compound data.
+- When to swap each per-model biophysical table to compound-keyed.
+  Brief sequence in `SA_INTEGRATION_PLAN.md`.
+- Whether to switch SA AOI to NatCap's `acs_block_groups_3857.gpkg`.
+  Optional (Brief 31).
+- The compound `code` column encoding scheme — not positional, no
+  documented logic. The serial `lucode` (0–1983) is the join key.
+  Worth raising with NatCap as a clarifying question.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

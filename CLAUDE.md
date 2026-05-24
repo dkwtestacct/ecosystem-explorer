@@ -42,7 +42,9 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | File | Description | Status |
 |------|-------------|--------|
 | `data/sa/flood/lulc_nlcd_2021_sa.tif` | Raw NLCD 2021 clipped to SA bbox via MRLC WCS (EPSG:5070, 30 m, 1984×1713 px) | done |
-| `data/sa/flood/land_use_2021_sa.tif` | Canonical SA LULC raster (same CRS/grid) | done |
+| `data/sa/flood/land_use_2021_sa.tif` | Prior canonical SA NLCD-only LULC raster (same CRS/grid). Kept as fallback/reference; the live SA pipeline now reads `land_use_compound_sa.tif` (Brief 27) and reduces to NLCD via the crosswalk. | done; superseded by compound LULC |
+| `data/sa/flood/land_use_compound_sa.tif` | NatCap compound NLCD×NLUD×tree-canopy LULC reprojected from `data/sa/natcap_2024/lulc_overlay_3857.tif` to EPSG:5070 + nearest-neighbor resampled at 30 m (1984×1713). 800 unique compound lucodes in raster (of 1,984 possible per crosswalk). 1.06 % nodata at clipped extent edges. Brief 27 foundational adoption. | done (Brief 27) |
+| `data/sa/natcap_2024/lulc_crosswalk.csv` | NatCap LULC crosswalk: each `lucode` (0–1983) maps to its constituent NLCD/NLUD/tree-canopy bins plus `is_realistic_to_create` flag. Loaded by `load_lulc_crosswalk()`; used to build the `COMPOUND_TO_NLCD` reduction lookup and the three `COMPOUND_AFTER_*` per-target lookups. | done (Brief 27) |
 | `data/sa/flood/UFR_biophysical_table_SA.csv` | CN values by lucode × soil group | placeholder copy of MN |
 | `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | shade / Kc / albedo per lucode | Tuned for Köppen BSh climate (2026-05-14) — classes 41, 42, 52, 81 adjusted from the prior MN-copy placeholder; class 21 intentionally left at MN's value (see sidecar for semantic-divergence rationale). Per-class rationale and citations in `data/sa/cooling/biophysical_table_sources.md`. Anchored on eddy-covariance Kc measurements (Pôças et al. 2017) for natural forest classes, FAO-56 Table 12 for grass / shrub, Stewart & Oke 2012 for albedo. Medium-confidence interim values — a SA-specific InVEST UCM args run would supersede them. |
 | `data/sa/flood/soil_group_sa.tif` | SSURGO hydrologic soil group rasterized to LULC grid | done (TX029, 49 % D-class clay-rich Vertisols) |
@@ -262,7 +264,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   unioning with buildings, **~65 % of developed pixels (NLCD 21–24) remain convertible**
   (33,357 of 51,430). Rasterization is unbuffered line-to-pixel via `rasterio.features.rasterize`
   with `dtype="uint8"`; output is binary 0/1.
-- **`SCENARIO_SCHEMA_VERSION = 17`** — bump on every change that shifts `evaluate_scenario`
+- **`SCENARIO_SCHEMA_VERSION = 22`** — bump on every change that shifts `evaluate_scenario`
   outputs so cached lookup tables get regenerated. Recent bumps: 7→8 (UCM rework: ET fix,
   Gaussian convolution, canonical energy formula); 8→9 (ET nodata sentinel masked);
   9→10 (full Geofabrik OSM road network, 62 % AOI); 10→11 (Option B road filter, ~29 % AOI);
@@ -278,13 +280,26 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   with classes 21, 41, 42, 52, 81 adjusted from prior MN-copy placeholder,
   anchored on eddy-covariance Kc measurements per Pôças et al. 2017 + FAO-56
   + Stewart & Oke 2012);
-  **16→17 (revert SA class 21 Kc to MN's 0.516 — class 21 was incorrectly
+  16→17 (revert SA class 21 Kc to MN's 0.516 — class 21 was incorrectly
   tuned in 23328b5 despite the user's explicit Stage-3 instruction to leave
   it alone. Authorized scope was 4 classes [41, 42, 52, 81]. Restores
   bug-discipline correctness; SA cooling value drops slightly from the
   $39.44M measurement on the 16-baseline. See
   data/sa/cooling/biophysical_table_sources.md for the class-21
-  semantic-divergence rationale).**
+  semantic-divergence rationale);
+  17→18, 18→19, 19→20 (Brief sequence bumps not separately documented here);
+  20→21 (Brief 23 per-city UFR rainfall depth: MN 100 mm canonical, SA 157 mm
+  canonical — every flood metric shifts in both cities);
+  **21→22 (Brief 27 foundational SA compound LULC adoption — NatCap
+  `lulc_overlay_3857.tif` reprojected to EPSG:5070 + nearest-neighbor at 30 m
+  produces `data/sa/flood/land_use_compound_sa.tif`; reduced to NLCD via
+  `lulc_crosswalk.csv` for the existing per-NLCD biophysical tables. SA
+  baseline drift <0.5% on every headline; MN untouched.
+  `DEFAULT_FF_LUCODE=1310`, `DEFAULT_GI_LUCODE=122`, `DEFAULT_HD_LUCODE=341`
+  are the configured fallback compound codes for conversion targets when the
+  source pixel's (NLUD, tree) tuple has no row for the target NLCD; consumed
+  by the load-time `COMPOUND_AFTER_*` lookup arrays. See DESIGN_NOTES.md
+  "SA compound LULC integration — foundational decisions").**
 - **City runtime state (`CityState` + `_load_city_runtime_state`).** All heavy
   per-city allocations — rasters from `load_data`, the population raster, the
   resized ET raster, building/road/tract rasterisations, the static nature-
