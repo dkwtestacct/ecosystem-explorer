@@ -61,6 +61,7 @@ CHANGE_COLORS = {
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
+- **San Antonio land cover currently uses NLCD only; integration of NatCap's compound LULC framework is queued.**
 - **Flood metrics calibrated to per-city design storm depths** (MN: 100 mm; SA: 157 mm).
 - **Minneapolis nature access aligned with NatCap MN-project parameters.**
 - **San Antonio temperature deltas now use NatCap-calibrated UHI parameters.**
@@ -3358,6 +3359,16 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     st.dataframe(_styled, width='stretch', hide_index=True)
 
 with st.expander("Assumptions and limitations"):
+    if selected_city.startswith("San Antonio"):
+        st.info(
+            "**SA Land Cover:** Currently using NLCD 2021 (legacy 21-class), "
+            "per-NLCD biophysical tables with Köppen-BSh tuning for hot semi-arid "
+            "climate. NatCap has shared a compound NLCD×NLUD×tree-canopy LULC "
+            "framework (1,984 compound lucodes) that captures more "
+            "climate-relevant variation; integration is queued. See "
+            "`CITY_PARITY.md` § 'SA Compound LULC Framework' for the structural "
+            "inventory."
+        )
     _assumption_tabs = st.tabs([
         "Flood & Runoff", "Temperature", "Food", "Carbon",
         "Mental Health", "Costs",

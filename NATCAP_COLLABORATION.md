@@ -59,6 +59,7 @@ What NatCap probably wants based on documents, project framing, and how they've 
 - **Tree canopy matters more than NLCD class alone.** The compound NLCD+NLUD+tree LULC overlay treats tree canopy as the dominant signal (any pixel with high canopy gets shade=0.66 regardless of NLCD class).
 - **The prototype is positioned as an early example of the Google AI for Science proposal pitch.** The proposal (referenced in meeting note) describes an "AI-augmented InVEST platform" with agentic systems, dynamic data (AlphaEarth), multi-model integration, scenario generation, optimization. The prototype implements pieces of all of these. AlphaEarth integration remains research-only (ALPHAEARTH_FEASIBILITY.md).
 - **ROOT exists but is not being pursued for this prototype.** Mentioned in meeting note as Deborah's planned future investigation. The prototype's surrogate-based optimizer is acknowledged as a different (simpler) approach.
+- **AlphaEarth Foundations as future LULC pipeline upgrade.** Feasibility researched 2026-05-20 (see `ALPHAEARTH_FEASIBILITY.md`). Access path, license, and data shape are clean; the open question is whether an embeddings→NLCD-class classifier reaches usable accuracy. Recommendation is a bounded read-only sample pull + offline classifier spike (MN downtown 2021 tile) before any integration commitment. Deferred pending the SA NatCap data integration workstream.
 
 ---
 
