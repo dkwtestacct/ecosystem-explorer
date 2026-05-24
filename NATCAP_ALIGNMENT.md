@@ -84,7 +84,7 @@ parameter.
 | UNA `search_radius` | 800 m | 800 m (NatCap SA study) | ✅ Aligned |
 | UNA `decay_function` | `'dichotomy'` | `'dichotomy'` (NatCap SA study) | ✅ Aligned |
 | UCM Heat Mitigation Index | Canonical `max(CC_local, CC_park)` | Same — InVEST canonical | ✅ Aligned (validated MAE ≈ 0) |
-| UCM `UHI_MAX_C` | MN: 2.05 °C (InVEST UCM args JSON); SA: 3.5 °C (estimate, Köppen BSh) | MN: InVEST args JSON value; SA: none published | ✅ Aligned (MN) / ⚠️ Improvised (SA estimate) |
+| UCM `UHI_MAX_C` | MN: 2.05 °C (InVEST UCM args JSON); SA: 11 °C (NatCap canonical, heat-wave-day scenario per `data/sa/natcap_2024/README_San_Antonio_InVEST_model_inputs.docx`) | MN: InVEST args JSON value; SA: NatCap-published README | ✅ Aligned (MN + SA, 2026-05-24 Brief 14) |
 | UMH RR per 0.1 NDVI | 0.96 (depression) / 0.97 (anxiety), from Liu et al. 2023 | InVEST UMH effect sizes (same source family) | ✅ Aligned |
 | UMH baseline prevalence | 0.21 / 0.19, uniform national (CDC 2023) | InVEST UMH takes per-administrative-unit BIR from a vector input | ⚠️ Improvised — uniform national rates, not per-admin |
 | Carbon sequestration rate | Single per-class rate | InVEST Carbon 4-pool model (more detailed) | ⚠️ Simplified |

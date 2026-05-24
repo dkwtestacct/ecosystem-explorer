@@ -185,11 +185,15 @@ CITIES = {
         # productivity in hot semi-arid climate. Replace with the project's
         # weighted average once those yield benchmarks are documented.
         'food_forest_lbs_acre': 8_500,
-        # No NatCap-published InVEST UCM args JSON for SA. 3.5 °C is a
-        # defensible estimate for the hot semi-arid (Köppen BSh) climate —
-        # significantly more extreme than MN's 2.05 °C. Replace with the
-        # official value if one is published. ΔT in °F = ΔCC × 6.3.
-        'uhi_max_c':            3.5,
+        # NatCap's curated SA InVEST inputs (`data/sa/natcap_2024/
+        # README_San_Antonio_InVEST_model_inputs.docx`) specify a heat-wave-day
+        # scenario: reference_air_temperature 35 °C + uhi_effect 11 °C → ~46 °C
+        # / ~115 °F peak urban. Adopted 2026-05-24 per the project's
+        # NatCap-canonical alignment principle. The prototype previously
+        # used 3.5 °C, an average-summer-day estimate. ΔT in °F = ΔHMI × 19.8.
+        # (The prototype reports pure deltas — `reference_air_temperature`
+        # has no analog to mirror.) See DESIGN_NOTES.md "UCM args alignment".
+        'uhi_max_c':            11,
         # Re-enabled now that data/scenarios_dense_sa.csv is committed
         # (Balanced mode reads the precomputed grid instead of recomputing
         # the 25–50 min lookup table) and the High-Resolution lookup compute

@@ -58,6 +58,7 @@ CHANGE_COLORS = {
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
+- **San Antonio temperature deltas now use NatCap-calibrated UHI parameters.**
 - **Placement strategies aligned with InVEST canonical quantities.**
 - **Canonical InVEST Urban Nature Access implemented for Minneapolis.**
 - **Placement strategy picker** in the sidebar.
@@ -1340,7 +1341,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 18  # bumped: Brief 9 reformulated three placement strategies to use canonical InVEST quantities (flood-focused → per-pixel Q, cooling-focused → HMI + distance-to-buildings, equity-focused renamed to undersupply-focused → UNA per-capita supply deficit). Saved scenarios from prior versions are routed through a legacy alias shim; output column set is unchanged but the interpretation of saved placement_strategy values has shifted.
+SCENARIO_SCHEMA_VERSION = 19  # bumped: Brief 14 aligned SA UCM `uhi_max_c` with NatCap canonical (3.5 → 11). SA temperature deltas now ~3× larger; HMI calculation unchanged; only output scaling differs. MN parameters unchanged.
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking

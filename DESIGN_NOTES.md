@@ -425,6 +425,48 @@ of legacy NLCD aligns with current NatCap practice or diverges from it.
 
 Reference: <https://www.mrlc.gov/faq>
 
+## UCM args alignment (2026-05-24)
+
+The SA Urban Cooling Model parameters were aligned with the
+NatCap-curated values documented in
+`data/sa/natcap_2024/README_San_Antonio_InVEST_model_inputs.docx`:
+
+- `uhi_max = 11 °C` (was 3.5 °C)
+- `reference_air_temperature = 35 °C` — informational; no analog to
+  update (the prototype reports pure deltas, never absolute T_air,
+  so `reference_air_temperature` doesn't appear in the codebase)
+
+**Interpretation.** NatCap models SA on a heat-wave-day scenario
+(35 °C rural reference + 11 °C peak UHI → ~46 °C / ~115 °F peak
+urban). The prototype's previous `UHI_MAX_C = 3.5` modeled a
+closer-to-average summer day. Both are defensible methodologically;
+the project's working principle is alignment with NatCap canonical,
+so we adopt their values.
+
+**Consequence.** SA temperature deltas are now ~3× larger than under
+the previous parameterization (e.g. an `all_gi` scenario at
+`pct_converted = 10` shifts from ~0.13 °F cooling to ~0.40 °F
+cooling). The HMI calculation is unchanged; only the
+ΔHMI → ΔT_°C → ΔT_°F output scaling differs. `HM_TO_FAHRENHEIT`
+auto-derives as `UHI_MAX_C × 1.8 = 19.8 °F/HMI` for SA. MN
+parameters (`UHI_MAX_C = 2.05` from the InVEST UCM sample args.json)
+are unchanged.
+
+**Other UCM args.** The remaining values from NatCap's README —
+`air_blending_distance = 600 m`, `maximum_cooling_distance = 450 m`,
+`cc_method = factors`, weights `shade = 0.6 / albedo = 0.2 / et = 0.2` —
+already match the prototype's existing values. Energy-savings and
+work-productivity valuations are disabled for SA in both NatCap's
+setup (`do_energy_valuation: False`, `do_productivity_valuation:
+False`) and the prototype (Cooling Energy Savings card gates on
+`BUILDINGS_HAVE_TYPES`; SA has no typed buildings, so the card
+already degrades to `$0` with explanatory tooltip).
+
+The prototype's one remaining UCM divergence — per-pixel rather
+than per-building T_air aggregation over the 600 m blending radius
+— is unchanged and affects only the dollar-valued Cooling Energy
+Savings metric, not Temperature Change.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
