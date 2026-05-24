@@ -198,7 +198,12 @@ CITIES = {
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
         'et_file':              'data/sa/cooling/et_annual_sa.tif',
         'tracts_file':          'data/sa/tracts_bexar.shp',
-        'una_table_file':       'data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv',
+        # Brief 29: NatCap's SA-curated compound NLCD×NLUD×tree-canopy UNA
+        # biophysical table (1,984 rows; urban_nature ∈ {0.0, 0.5, 1.0}).
+        # Indexed directly by the compound LULC raster (no NLCD reduction);
+        # captures NLUD + tree-canopy variation per pixel that the prior
+        # per-NLCD borrowed-from-MN table couldn't represent.
+        'una_table_file':       'data/sa/natcap_2024/una__nlcd_nlud_tree.csv',
         # Documentation only (sourced from real SSURGO TX029, CGIAR ET0 v3.1,
         # full InVEST UCM CC pipeline) — the live override at module load
         # recomputes these baselines from the rasters and is authoritative.

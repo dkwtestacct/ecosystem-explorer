@@ -71,7 +71,7 @@ WHATS_NEW_ENTRIES = [
 ]
 
 UNDERWAY_ENTRIES = [
-    "Per-model biophysical tables for San Antonio (nature access and carbon).",
+    "Per-model biophysical tables for San Antonio (carbon).",
 ]
 
 ON_THE_RADAR = """\
@@ -335,6 +335,10 @@ class CityState(NamedTuple):
     kc_arr: np.ndarray
     albedo_arr: np.ndarray
     green_area_arr: np.ndarray
+    # InVEST UNA per-LULC `urban_nature` proportion (Brief 29). Sized
+    # `max_una_lucode + 1`; for SA that's 1,984 (compound), for MN ~96
+    # (NLCD). Indexed by `scenario_lulc_una` — compound for SA, NLCD for MN.
+    urban_nature_arr: np.ndarray
     # Population
     pop_count_raster: np.ndarray
     population_data_available: bool
@@ -547,11 +551,25 @@ def reduce_compound_to_nlcd(compound_raster, compound_to_nlcd):
 @st.cache_data
 def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_file,
               lulc_file, soil_file, cooling_lulc_file,
+              una_table_file,
               compound_lulc_file=None, crosswalk_file=None,
               default_ff_lucode=None, default_gi_lucode=None, default_hd_lucode=None):
     bio = pd.read_csv(_resolve_table(data_dir_flood, cn_table_file, "data/flood"))
 
     cooling_bio = pd.read_csv(_resolve_table(data_dir_cooling, cooling_table_file, "data/cooling"))
+
+    # InVEST UNA biophysical table (Brief 29: per-city). For MN it's the
+    # NLCD-keyed sample bundle (~14 rows); for SA it's NatCap's compound
+    # NLCD×NLUD×tree-canopy table (1,984 rows). The `urban_nature_arr`
+    # array sized to `max_una_lucode + 1` enables a vectorized
+    # `urban_nature_arr[scenario_lulc_una]` lookup that works at either
+    # cardinality — the prior per-class boolean-mask loop (~14 passes
+    # for MN, ~1,984 passes for SA) becomes one indexed read.
+    una_bio = pd.read_csv(una_table_file)
+    max_una_lucode = int(una_bio['lucode'].max())
+    urban_nature_arr = np.zeros(max_una_lucode + 1, dtype=np.float32)
+    for _, row in una_bio.iterrows():
+        urban_nature_arr[int(row['lucode'])] = float(row['urban_nature'])
 
     # Compound-LULC path (SA post-Brief 27): load NatCap's compound raster +
     # crosswalk, then derive the NLCD-reduced view that downstream consumers
@@ -643,6 +661,7 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
     return (lulc, soil_resized, cooling_lulc, developed_pixels,
             cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
             nlcd_intensity_weights, shade_arr, kc_arr, albedo_arr, green_area_arr,
+            urban_nature_arr,
             cooling_lulc_compound, compound_to_nlcd,
             compound_after_ff, compound_after_gi, compound_after_hd)
 
@@ -894,12 +913,13 @@ UNA_DEMAND_M2_PER_CAPITA = float(city_cfg['una_demand_m2_per_capita'])
 UNA_SEARCH_RADIUS_M      = float(city_cfg['una_search_radius_m'])
 UNA_DECAY_FUNCTION       = str(city_cfg['una_decay_function'])
 
-# urban_nature proportion (0-1 of pixel area) per LULC code, from the InVEST
-# UNA biophysical table. Codes absent from the table contribute no nature.
-URBAN_NATURE_PROPORTION = {
-    int(r.lucode): float(r.urban_nature)
-    for r in pd.read_csv(UNA_TABLE_PATH).itertuples()
-}
+# Brief 29: `URBAN_NATURE_PROPORTION` (Python dict) retired in favour of the
+# vectorized `urban_nature_arr` (np.float32) built inside `load_data` and
+# carried on `CityState`. The dict pattern was fine at MN's ~14 codes but
+# untenable at SA's 1,984 compound lucodes — the prior per-class boolean-mask
+# loop would do 1,984 raster-wide comparisons per `_una_supply_percapita`
+# call. The module-level alias is rebound by the `_CURRENT_CITY_STATE`
+# fan-out block below; `_una_supply_percapita` reads it as a bare name.
 
 # 2SFCA convolution kernel. Built per the configured decay function exactly
 # as natcap.invest.urban_nature_access calls pygeoprocessing.kernels:
@@ -947,15 +967,25 @@ def _una_convolve(signal):
     return out
 
 
-def _una_supply_percapita(scenario_lulc, pop_count_raster):
-    """InVEST UNA `urban_nature_supply_percapita` raster via two-step floating
-    catchment area (2SFCA), re-implemented in numpy.
+def _una_supply_percapita_pure(scenario_lulc, pop_count_raster, urban_nature_arr):
+    """Pure variant of `_una_supply_percapita` — takes `urban_nature_arr`
+    explicitly so the loader can call it before the module-level alias is
+    rebound. The zero-deps wrapper below reads the module alias. Mirrors
+    the `_compute_hmi_raster` / `_compute_hmi_raster_pure` pattern from
+    Brief 28b (see CLAUDE.md "Pure-variant helpers").
+
+    `scenario_lulc` is the UNA-view raster (compound for SA post-Brief-29,
+    NLCD for MN); `urban_nature_arr` is sized to match (compound for SA,
+    NLCD for MN) so a single vectorized indexed read
+    `urban_nature_arr[safe]` retrieves the per-pixel proportion regardless
+    of cardinality. Both nodata sentinels are handled via `>= 0`: NLCD
+    rasters use -128, compound rasters use -1 (see `reduce_compound_to_nlcd`).
 
     Returns `(supply_percapita, valid_mask)`. `supply_percapita` is m² of urban
     nature available per capita reachable from each pixel; `valid_mask` is the
     modelable extent (valid-LULC pixels — InVEST masks LULC and population to
     their common valid extent before convolving)."""
-    valid = (scenario_lulc != NODATA)
+    valid = (scenario_lulc >= 0)
     pixel_area_m2 = float(PIXEL_SIZE_M * PIXEL_SIZE_M)
 
     # Population masked to the modelable extent; off-extent population counts as
@@ -963,10 +993,12 @@ def _una_supply_percapita(scenario_lulc, pop_count_raster):
     pop = np.where(valid, np.asarray(pop_count_raster, dtype=np.float64), 0.0)
 
     # Urban-nature area per pixel = urban_nature_proportion × pixel area.
-    nature_area = np.zeros(scenario_lulc.shape, dtype=np.float64)
-    for lucode, proportion in URBAN_NATURE_PROPORTION.items():
-        if proportion > 0:
-            nature_area[scenario_lulc == lucode] = proportion * pixel_area_m2
+    # Vectorized lookup (Brief 29) — was a Python for-loop over a dict of
+    # ~14 NLCD codes; with SA's compound table the dict pattern would have
+    # done 1,984 raster-wide boolean comparisons per call.
+    safe = np.clip(scenario_lulc, 0, len(urban_nature_arr) - 1)
+    nature_area = urban_nature_arr[safe].astype(np.float64) * pixel_area_m2
+    nature_area[~valid] = 0.0
 
     # 2SFCA step 1 — decay-weighted population within the search radius.
     decayed_pop = _una_convolve(pop)
@@ -985,6 +1017,14 @@ def _una_supply_percapita(scenario_lulc, pop_count_raster):
 
     # 2SFCA step 2 — supply per capita = decay-weighted sum of R_j.
     return _una_convolve(ratio), valid
+
+
+def _una_supply_percapita(scenario_lulc, pop_count_raster):
+    """Zero-deps wrapper that reads the module-level `urban_nature_arr` alias
+    populated by the post-cache_resource fan-out. Downstream code (everything
+    except the in-loader baseline computation) calls this variant."""
+    return _una_supply_percapita_pure(
+        scenario_lulc, pop_count_raster, urban_nature_arr)
 
 
 def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster):
@@ -1463,6 +1503,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
             scenario_lulc_compound[p[:, 0], p[:, 1]] = COMPOUND_AFTER_HD[src]
         scenario_lulc = reduce_compound_to_nlcd(scenario_lulc_compound, COMPOUND_TO_NLCD)
         scenario_lulc_ucm = scenario_lulc_compound
+        scenario_lulc_una = scenario_lulc_compound
     else:
         scenario_lulc = cooling_lulc.copy()
         if n_wet > 0:
@@ -1476,6 +1517,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
             scenario_lulc[p[:, 0], p[:, 1]] = CODE_HIGH_DENSITY
         scenario_lulc_compound = None
         scenario_lulc_ucm = scenario_lulc
+        scenario_lulc_una = scenario_lulc
 
     soil_clamped = np.clip(soil_resized, 1, 4)
     lulc_safe    = np.clip(scenario_lulc, 0, len(lucode_idx_arr) - 1)
@@ -1507,8 +1549,10 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     )
     avoided_carbon_cost_usd = round(carbon_tons_co2_yr * EPA_SOCIAL_COST_CARBON, 0)
 
+    # Brief 29: `scenario_lulc_una` is the compound view for SA (indexes
+    # the compound-keyed `urban_nature_arr`) and the NLCD view for MN.
     nat_pct, _nat_quality, nat_people = calculate_nature_access(
-        scenario_lulc, pop_count_raster
+        scenario_lulc_una, pop_count_raster
     )
 
     # Build the scenario NDVI raster once and pass to both consumers. Saves
@@ -1561,13 +1605,21 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         # — must use this view so per-pixel `shade_arr[...]` lookups land in
         # the right lucode space.
         'scenario_lulc_ucm':        scenario_lulc_ucm,
+        # Brief 29: the UNA-view scenario raster. Compound for SA, NLCD for
+        # MN. Mirrors `scenario_lulc_ucm`'s role for UCM. Consumers that
+        # re-run UNA helpers downstream of `evaluate_scenario` (currently
+        # the lookup-refresh paths in `compute_scenario_grid` /
+        # `compute_lookup_table` / `precompute_scenarios.py`) must pass
+        # this view so per-pixel `urban_nature_arr[...]` lookups land in
+        # the right lucode space.
+        'scenario_lulc_una':        scenario_lulc_una,
     }
 
 
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 23  # bumped: Brief 28b swaps SA's UCM biophysical table from the prototype's per-NLCD Köppen-BSh-tuned `biophysical_table_urban_cooling_SA.csv` to NatCap's compound NLCD×NLUD×tree-canopy `ucm__nlcd_nlud_tree.csv` (1,984 rows, keyed on the compound `lucode` 0–1983 from Brief 27). SA UCM consumers (`_compute_hmi_raster`, baseline HMI raster, `compute_per_tract_summary`) now index the compound raster directly; UFR + UNA still route through the compound→NLCD reduction layer. SA cooling metrics shift; MN untouched. Brief 27 was at 21→22.
+SCENARIO_SCHEMA_VERSION = 24  # bumped: Brief 29 swaps SA's UNA biophysical table from the prototype's per-NLCD `LULC_attribute_table_UNA.csv` (borrowed from MN's UNA sample bundle) to NatCap's compound NLCD×NLUD×tree-canopy `una__nlcd_nlud_tree.csv` (1,984 rows; `urban_nature` ∈ {0.0, 0.5, 1.0} at 960/48/976 row counts). SA UNA consumers now index the compound raster directly via a new `scenario_lulc_una` return field; only Carbon still routes through compound→NLCD reduction (pending Brief 30). The Python for-loop over `URBAN_NATURE_PROPORTION` dict items is replaced with a vectorized `urban_nature_arr[scenario_lulc_una]` lookup so the 1,984-class table doesn't make `_una_supply_percapita` quadratic. SA UNA metrics shift; MN untouched. Brief 28b was at 22→23.
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -1606,15 +1658,17 @@ def compute_scenario_grid(_state, city_key, data_dir_flood, data_dir_cooling,
                     # Brief 28b: also strip `scenario_lulc_ucm` — for SA it's
                     # a separate full-AOI compound raster; for MN it's the
                     # same object as `scenario_lulc` and stripping is a no-op.
+                    # Brief 29: same logic for `scenario_lulc_una`.
                     row = {k: v for k, v in result.items()
-                           if k not in ('scenario_lulc', 'scenario_lulc_ucm')}
+                           if k not in ('scenario_lulc', 'scenario_lulc_ucm',
+                                        'scenario_lulc_una')}
                     # Explicit recomputation guarantees the surrogate-target
                     # columns exist regardless of evaluate_scenario's return.
                     row['carbon_tons_co2_yr'] = _compute_carbon(
                         row['n_wet'], row['n_for'], row['n_hd']
                     )
                     nature_access_pct, _nature_quality, people_with_nature_access = calculate_nature_access(
-                        result['scenario_lulc'], _state.pop_count_raster
+                        result['scenario_lulc_una'], _state.pop_count_raster
                     )
                     row['nature_access_pct'] = nature_access_pct
                     row['people_with_nature_access'] = people_with_nature_access
@@ -1656,15 +1710,17 @@ def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, sch
             for ff in range(0, 101, 5):
                 if gi + ff <= 100:
                     result = evaluate_scenario(pct, gi, ff, seed=42)
-                    # Brief 28b: also strip `scenario_lulc_ucm` (same logic
-                    # as `compute_scenario_grid` — see comment there).
+                    # Brief 28b/29: strip `scenario_lulc_ucm` and
+                    # `scenario_lulc_una` alongside `scenario_lulc` (same
+                    # logic as `compute_scenario_grid` — see comment there).
                     entry = {k: v for k, v in result.items()
-                             if k not in ('scenario_lulc', 'scenario_lulc_ucm')}
+                             if k not in ('scenario_lulc', 'scenario_lulc_ucm',
+                                          'scenario_lulc_una')}
                     entry['carbon_tons_co2_yr'] = _compute_carbon(
                         entry['n_wet'], entry['n_for'], entry['n_hd']
                     )
                     nature_access_pct, _nature_quality, people_with_nature_access = calculate_nature_access(
-                        result['scenario_lulc'], _state.pop_count_raster
+                        result['scenario_lulc_una'], _state.pop_count_raster
                     )
                     entry['nature_access_pct'] = nature_access_pct
                     entry['people_with_nature_access'] = people_with_nature_access
@@ -1801,11 +1857,13 @@ def _load_city_runtime_state(city_key: str) -> CityState:
      l_cn_table, l_lucode_idx_arr, l_hm_arr, l_max_raster_lucode, l_max_hm_lucode,
      l_nlcd_intensity_weights, l_shade_arr, l_kc_arr, l_albedo_arr,
      l_green_area_arr,
+     l_urban_nature_arr,
      l_cooling_lulc_compound, l_compound_to_nlcd,
      l_compound_after_ff, l_compound_after_gi, l_compound_after_hd) = load_data(
         cfg['data_dir_flood'], cfg['data_dir_cooling'],
         cfg['cn_table_file'], cfg['cooling_table_file'],
         cfg['lulc_file'], cfg['soil_file'], cfg['cooling_lulc_file'],
+        cfg['una_table_file'],
         compound_lulc_file=cfg.get('compound_lulc_file'),
         crosswalk_file=cfg.get('crosswalk_file'),
         default_ff_lucode=cfg.get('default_ff_lucode'),
@@ -2083,10 +2141,19 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     )
     # Canonical InVEST UNA `urban_nature_supply_percapita` at baseline — for
     # the undersupply-focused placement strategy (Brief 9 Stage D). Reuses
-    # the canonical 2SFCA implementation; the second return value (valid
-    # mask) is unused here.
-    baseline_una_supply_percapita_raster, _ = _una_supply_percapita(
-        l_cooling_lulc, pop_count_raster,
+    # the canonical 2SFCA implementation via its `_pure` variant because
+    # module aliases haven't been rebound yet (see CLAUDE.md "Pure-variant
+    # helpers"). Brief 29: for cities with a NatCap compound UNA table
+    # (SA), `l_urban_nature_arr` is sized to the compound lucode space
+    # (0-1983) and MUST be indexed by the compound raster — same parity
+    # with how `_ucm_baseline_lulc` selects above.
+    _una_baseline_lulc = (
+        l_cooling_lulc_compound
+        if l_cooling_lulc_compound is not None
+        else l_cooling_lulc
+    )
+    baseline_una_supply_percapita_raster, _ = _una_supply_percapita_pure(
+        _una_baseline_lulc, pop_count_raster, l_urban_nature_arr,
     )
     baseline_una_supply_percapita_raster = baseline_una_supply_percapita_raster.astype(np.float32)
     # Distance-to-buildings raster (pixel units) — for the cooling-focused
@@ -2120,6 +2187,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         nlcd_intensity_weights=l_nlcd_intensity_weights,
         shade_arr=l_shade_arr, kc_arr=l_kc_arr, albedo_arr=l_albedo_arr,
         green_area_arr=l_green_area_arr,
+        urban_nature_arr=l_urban_nature_arr,
         pop_count_raster=pop_count_raster,
         population_data_available=population_data_available,
         et_resized=et_resized, max_et_ref=max_et_ref,
@@ -2178,6 +2246,7 @@ shade_arr           = _CURRENT_CITY_STATE.shade_arr
 kc_arr              = _CURRENT_CITY_STATE.kc_arr
 albedo_arr          = _CURRENT_CITY_STATE.albedo_arr
 green_area_arr      = _CURRENT_CITY_STATE.green_area_arr
+urban_nature_arr    = _CURRENT_CITY_STATE.urban_nature_arr
 # Population
 pop_count_raster          = _CURRENT_CITY_STATE.pop_count_raster
 POPULATION_DATA_AVAILABLE = _CURRENT_CITY_STATE.population_data_available

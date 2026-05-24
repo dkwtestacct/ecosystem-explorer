@@ -163,11 +163,11 @@
 | `decay_function` | dichotomy | dichotomy | ✅ |
 | `search_radius_mode` | uniform radius | uniform radius | ✅ |
 | `aggregate_by_pop_group` | False | False | ✅ |
-| LULC attribute table | Per-NLCD `urban_nature` score | `una__nlcd_nlud_tree.csv` (1,984 rows × 21 cols); columns: keys (`lucode, code, nlcd, lulc_desc, nlud_simple, nlud_simple_class, tree_canopy_cover`) + ag/maintenance signals + `urban_nature` (categorical 0/0.5/1.0: 976 / 960 / 48 rows respectively) + `search_radius_m` (all zeros — the radius is an args-level scalar set at runtime, not in the table) | ⚠️ Methodology divergence — NatCap uses compound LULC keyed on `lucode`; prototype uses per-NLCD. Integration adopts the compound framework. See "SA Compound LULC Framework" below. |
+| LULC attribute table | NatCap compound NLCD×NLUD×tree-canopy table `una__nlcd_nlud_tree.csv` (1,984 rows × 21 cols); columns: keys (`lucode, code, nlcd, lulc_desc, nlud_simple, nlud_simple_class, tree_canopy_cover`) + ag/maintenance signals + `urban_nature` (categorical 0/0.5/1.0: 976 / 960 / 48 rows respectively) + `search_radius_m` (all zeros — the radius is an args-level scalar set at runtime, not in the table). Loaded via the SA `una_table_file` config; the UNA 2SFCA pipeline indexes the compound LULC raster (`cooling_lulc_compound`) directly through the per-city `urban_nature_arr` numpy lookup. | Same file | ✅ Aligned 2026-05-24 (Brief 29 — borrowed-from-MN per-NLCD `LULC_attribute_table_UNA.csv` retired for SA; SA UNA consumes compound view directly). |
 | Population raster | TIGER 2020 block totals, rasterized | `population_per_pixel_2020_3857.tif` (19 MB, higher resolution) | ⚠️ Different sources |
 | AOI | Bexar County bbox | `acs_block_group.gpkg` | ⚠️ Different — NatCap uses census block-group polygons |
 
-**UNA summary:** Args fully aligned. Biophysical table and LULC are different methodologies; integration queued. Population and AOI sources differ.
+**UNA summary:** Fully aligned on args (Brief 22), biophysical table + LULC (Brief 29). Population and AOI sources still differ. The Brief 29 table swap shifted SA baseline `nature_access_pct` from 89.7 → 94.2 (+5.0%) — the compound table credits per-pixel NLUD + tree-canopy variation on developed land (urban_nature ∈ {0.0, 0.5, 1.0} rather than the per-NLCD borrowed-from-MN bucketing), with the new ~1,024 nonzero compound lucodes recognising urban-nature contributions the prior table missed.
 
 ### Carbon
 
@@ -254,13 +254,13 @@ NatCap's SA data uses a compound LULC framework that overlays three signals: NLC
 |---|---|
 | UCM | ✅ Fully aligned post-Brief 28b — args (Brief 14), LULC raster (Brief 27), biophysical table (Brief 28b) all on NatCap-canonical SA inputs |
 | UFR | ⚠️ Methodology divergence (live vs pre-computed scenarios); rainfall depth aligned with SA-project canonical (Brief 23) |
-| UNA | ✅ Args fully aligned; ⚠️ biophysical table/LULC framework divergence (integration queued) |
-| Carbon | ⚠️ Methodology simplification (single rate vs four-pool); integration queued |
+| UNA | ✅ Fully aligned post-Brief 29 — args (Brief 22), biophysical table + LULC (Brief 29) all on NatCap-canonical SA inputs. Population + AOI source differences remain. |
+| Carbon | ⚠️ Methodology simplification (single rate vs four-pool); biophysical table integration queued (Brief 30) |
 | UMH | ✅ |
 | NDR | ❌ Not implemented |
 | Food Forest | ⚠️ Single benchmark vs per-crop CoSA |
 
-**Overall SA parity:** All implemented UCM/UNA args are aligned post-Brief-14. The big-picture divergence is the LULC framework — NatCap uses compound NLCD+NLUD+tree-canopy; prototype uses NLCD-only. Integration queued as Briefs 17+. NDR is a real missing model.
+**Overall SA parity:** UCM (Brief 28b) and UNA (Brief 29) now consume the NatCap compound LULC + compound-keyed biophysical tables directly. Only Carbon still routes through the NLCD reduction layer (queued for Brief 30). NDR remains unimplemented. Population + AOI source divergences are minor relative to the methodology-level alignment achieved by the SA NatCap data integration workstream (Briefs 27 → 30 per SA_INTEGRATION_PLAN.md).
 
 ---
 

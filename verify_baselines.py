@@ -244,6 +244,11 @@ def _rebind_city(app_mod, city_name):
     app_mod.kc_arr              = state.kc_arr
     app_mod.albedo_arr          = state.albedo_arr
     app_mod.green_area_arr      = state.green_area_arr
+    # Brief 29: per-city UNA biophysical array. Compound-sized (1,984) for
+    # SA, NLCD-sized for MN. Critical to rebind when switching cities here
+    # — `_una_supply_percapita`'s vectorized lookup reads it as a bare
+    # module name.
+    app_mod.urban_nature_arr    = state.urban_nature_arr
     app_mod.pop_count_raster    = state.pop_count_raster
     app_mod.POPULATION_DATA_AVAILABLE = state.population_data_available
     app_mod.ET_RESIZED          = state.et_resized
@@ -288,9 +293,20 @@ def _rebind_city(app_mod, city_name):
     # _load_city_runtime_state, to ensure baseline_una_supply_percapita_raster
     # is built under the correct city's kernel.)
 
-    # Derived baselines (lines 1941–1943, 2084–2088)
+    # Derived baselines (lines 1941–1943, 2084–2088).
+    # Brief 29: for cities with a NatCap compound UNA table (SA), the
+    # baseline `calculate_nature_access` call MUST be indexed by the
+    # compound raster — same parity with how `_load_city_runtime_state`
+    # picks `_una_baseline_lulc`. Without this, SA would index the
+    # compound-keyed `urban_nature_arr` (1,984 entries) with NLCD codes
+    # (0-95) and produce silently-wrong baseline pct.
+    _una_baseline_lulc = (
+        state.cooling_lulc_compound
+        if state.cooling_lulc_compound is not None
+        else state.cooling_lulc
+    )
     app_mod.BASELINE_NATURE_ACCESS_PCT, app_mod.BASELINE_NATURE_QUALITY_SCORE, _ = (
-        app_mod.calculate_nature_access(state.cooling_lulc, state.pop_count_raster)
+        app_mod.calculate_nature_access(_una_baseline_lulc, state.pop_count_raster)
     )
     app_mod.BASELINE_RUNOFF_ACRE_FEET = app_mod.cn_to_runoff_acre_feet(
         state.baseline_cn, len(state.developed_pixels) * city_cfg['pixel_area_acres']

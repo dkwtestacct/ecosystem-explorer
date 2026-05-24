@@ -763,6 +763,90 @@ city (compound for SA, NLCD for MN); the previously-singular
 `scenario_lulc` continues to carry the NLCD view for every consumer
 that wants it.
 
+## SA UNA compound biophysical table adoption (2026-05-24, Brief 29)
+
+Brief 29 swapped SA's UNA attribute table from the prototype's
+per-NLCD `LULC_attribute_table_UNA.csv` (borrowed from MN's UNA
+sample bundle) to NatCap's compound NLCD×NLUD×tree-canopy table
+(`data/sa/natcap_2024/una__nlcd_nlud_tree.csv`, 1,984 rows). SA UNA
+consumers now index the compound LULC raster directly; only Carbon
+still routes through compound→NLCD reduction (pending Brief 30).
+
+**What changes in metric calculation.** SA's `nature_access_pct`,
+`people_with_nature_access`, and the baseline
+`urban_nature_supply_percapita` raster that feeds undersupply-focused
+suitability weights all shift. Measured at baseline regeneration:
+
+| Metric | Pre-Brief-29 | Post-Brief-29 | Shift |
+|---|---|---|---|
+| SA baseline `nature_access_pct` | 89.7 | 94.2 | +4.5 pp / +5.0% |
+| SA baseline `people_with_nature_access` | 1,710,167 | 1,794,653 | +84,486 (+4.9%) |
+| SA random food_forest `nature_access_pct` | 99.4 | 99.7 | +0.3 pp (saturated) |
+| SA random high_density `nature_access_pct` | 88.3 | 94.2 | +5.9 pp |
+
+Scenarios already saturated near 100% (food_forest, green_infrastructure)
+shift modestly because there is no headroom. High-density scenarios
+that *remove* urban-nature pixels shift more visibly because the
+prior per-NLCD table understated the baseline accessibility they
+were removing from. Undersupply-focused and balanced placement
+strategies also shift downstream metrics (cooling, MH, NDVI, CN)
+because the baseline UNA raster feeds suitability weights, which
+changes the chosen pixels, which propagates.
+
+**Mechanism.** Brief 24's inventory recorded the compound UNA table's
+`urban_nature` distribution as 976 / 48 / 960 rows at 1.0 / 0.5 / 0.0
+respectively — ~52% of compound lucodes carry nonzero
+`urban_nature`. The prior per-NLCD table treated all developed-class
+pixels (NLCD 21-24) uniformly at `urban_nature=0`. The compound
+table credits the ~10-15% of developed SA pixels whose NLUD +
+tree-canopy bin maps to a compound lucode with `urban_nature` ∈
+{0.5, 1.0} — chiefly developed pixels with high tree-canopy bins or
+managed-natural NLUD context. Lifting `urban_nature` from 0 → 0.5
+or 1.0 on a fraction of developed pixels lifts the baseline 2SFCA
+supply per capita across the AOI, which in turn lifts
+`pct_pop_supply_ge_demand`.
+
+Same direction as Brief 28b's UCM finding (per-NLCD biases against
+existing canopy on developed land); both reflect the compound
+framework recognizing per-pixel signals the per-NLCD framework
+flattens.
+
+**Vectorized lookup replaces dict-iteration pattern.** The previous
+`_una_supply_percapita` used a Python `for lucode, proportion in
+URBAN_NATURE_PROPORTION.items(): nature_area[scenario_lulc ==
+lucode] = ...` loop with per-class boolean-mask writes. Fine at
+MN's ~14 NLCD codes; untenable at SA's 1,984 compound lucodes
+(would do 1,984 raster-wide boolean comparisons per call). Brief
+29 replaced this with a vectorized `urban_nature_arr[safe] *
+pixel_area_m2` indexed read, sized per-city to the table's max
+lucode (1,984 for SA, ~96 for MN). The `urban_nature_arr` array
+joins `shade_arr`/`kc_arr`/`albedo_arr`/`green_area_arr` on
+`CityState`; the wrapper / pure-variant split (zero-deps wrapper
+reads module alias; `_pure` variant takes the array explicitly) is
+the same shape Brief 28b established for `_compute_hmi_raster`.
+
+**Search radius unchanged.** The compound UNA table's
+`search_radius_m` column is all zeros (Brief 24 finding). The
+radius comes from `city_cfg['una_search_radius_m']` at args level,
+not from the per-row table value. No change to that mechanism.
+
+**MN UNA unchanged.** Brief 29's table swap is SA-only. MN
+continues to read its NLCD-keyed sample bundle (`LULC_attribute_table_UNA.csv`).
+All 20 MN baselines: zero value divergence; the only diff is the
+new `scenario_lulc_una__md5` field, whose hash equals
+`scenario_lulc__md5` because for MN the UNA / UCM / NLCD views are
+the same array object.
+
+**Reduction routing for UNA removed.** Brief 27's
+`reduce_compound_to_nlcd()` is no longer used by UNA — the
+compound table is keyed directly on compound lucodes via the new
+`scenario_lulc_una` field. Only Carbon still uses the reduction
+routing pending Brief 30. After Brief 30 the
+`reduce_compound_to_nlcd` helper becomes effectively unused for
+live metric computation (still used for `scenario_lulc`, the NLCD
+view exposed to spatial-map rendering + non-UCM/UNA/Carbon
+consumers).
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

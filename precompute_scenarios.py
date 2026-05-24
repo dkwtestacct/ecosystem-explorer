@@ -203,21 +203,24 @@ rows = []
 _t_loop = time.time()
 for i, (pct, gi, ff) in enumerate(combos, start=1):
     result = app.evaluate_scenario(pct, gi, ff, seed=42)
-    # Strip both full-AOI scenario rasters — `scenario_lulc` (always) and
-    # `scenario_lulc_ucm` (added in Brief 28b; the compound view for SA,
-    # the same object as `scenario_lulc` for MN). Neither belongs in the
-    # surrogate CSV; without this guard pandas serialises numpy arrays as
-    # truncated string reprs into one cell per row, producing garbage data
-    # and ~7-line CSV rows from the embedded newlines.
+    # Strip all full-AOI scenario rasters — `scenario_lulc` (always),
+    # `scenario_lulc_ucm` (Brief 28b, UCM compound view for SA), and
+    # `scenario_lulc_una` (Brief 29, UNA compound view for SA). For MN
+    # both views are the same object as `scenario_lulc` so stripping is
+    # a no-op. Without this guard pandas serialises numpy arrays as
+    # truncated string reprs into one cell per row, producing garbage
+    # data and ~7-line CSV rows from the embedded newlines.
     row = {k: v for k, v in result.items()
-           if k not in ("scenario_lulc", "scenario_lulc_ucm")}
+           if k not in ("scenario_lulc", "scenario_lulc_ucm",
+                        "scenario_lulc_una")}
     # Mirror the explicit recomputation in app.compute_scenario_grid so the
     # CSV schema lines up with what train_surrogate expects.
     row["carbon_tons_co2_yr"] = app._compute_carbon(
         row["n_wet"], row["n_for"], row["n_hd"]
     )
+    # Brief 29: pass the UNA view (compound for SA, NLCD for MN).
     nature_pct, _nature_quality, nature_people = app.calculate_nature_access(
-        result["scenario_lulc"], app.pop_count_raster
+        result["scenario_lulc_una"], app.pop_count_raster
     )
     row["nature_access_pct"] = nature_pct
     row["people_with_nature_access"] = nature_people

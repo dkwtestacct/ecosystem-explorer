@@ -48,6 +48,7 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | `data/sa/flood/UFR_biophysical_table_SA.csv` | CN values by lucode × soil group | placeholder copy of MN |
 | `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | Historical per-NLCD Köppen-BSh-tuned UCM table | **Retired 2026-05-24 (Brief 28b).** Kept on disk for reference. The live SA UCM path now loads NatCap's compound table at `data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv`; the per-class rationale sidecar `data/sa/cooling/biophysical_table_sources.md` documents the historical Köppen tuning and remains useful context for what was replaced. |
 | `data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv` | NatCap compound NLCD×NLUD×tree-canopy UCM biophysical table (1,984 rows × 27 cols, keyed on compound `lucode` 0–1983). Provides per-pixel `shade`, `kc`, `albedo`, `green_area`, `building_intensity` indexed directly by the compound LULC raster. Adopted as SA's live UCM table 2026-05-24 (Brief 28b); referenced via the SA `cooling_table_file = '../natcap_2024/ucm__nlcd_nlud_tree.csv'` config (relative to `data_dir_cooling`). | done (Brief 28b) |
+| `data/sa/natcap_2024/una__nlcd_nlud_tree.csv` | NatCap compound NLCD×NLUD×tree-canopy UNA biophysical table (1,984 rows × 21 cols, keyed on compound `lucode` 0–1983). Provides per-pixel `urban_nature` ∈ {0.0, 0.5, 1.0} (960 / 48 / 976 rows) indexed directly by the compound LULC raster via the per-city `urban_nature_arr` numpy lookup. `search_radius_m` column is all zeros — the radius is an args-level scalar from `city_cfg['una_search_radius_m']`, not the per-row table value. Adopted as SA's live UNA table 2026-05-24 (Brief 29); referenced via the SA `una_table_file = 'data/sa/natcap_2024/una__nlcd_nlud_tree.csv'` config. Retires the borrowed-from-MN per-NLCD `LULC_attribute_table_UNA.csv` for SA. | done (Brief 29) |
 | `data/sa/flood/soil_group_sa.tif` | SSURGO hydrologic soil group rasterized to LULC grid | done (TX029, 49 % D-class clay-rich Vertisols) |
 | `data/sa/cooling/et_annual_sa.tif` | Reference ET raster (CGIAR Global-AI/ET0 v3.1, 1,580–1,716 mm/yr) | done |
 | `data/sa/population/sa_pop_2020.tif` | Census 2020 block totals rasterized to LULC grid | done (1.91 M in raster) |
@@ -291,7 +292,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   17→18, 18→19, 19→20 (Brief sequence bumps not separately documented here);
   20→21 (Brief 23 per-city UFR rainfall depth: MN 100 mm canonical, SA 157 mm
   canonical — every flood metric shifts in both cities);
-  **21→22 (Brief 27 foundational SA compound LULC adoption — NatCap
+  21→22 (Brief 27 foundational SA compound LULC adoption — NatCap
   `lulc_overlay_3857.tif` reprojected to EPSG:5070 + nearest-neighbor at 30 m
   produces `data/sa/flood/land_use_compound_sa.tif`; reduced to NLCD via
   `lulc_crosswalk.csv` for the existing per-NLCD biophysical tables. SA
@@ -300,7 +301,28 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   are the configured fallback compound codes for conversion targets when the
   source pixel's (NLUD, tree) tuple has no row for the target NLCD; consumed
   by the load-time `COMPOUND_AFTER_*` lookup arrays. See DESIGN_NOTES.md
-  "SA compound LULC integration — foundational decisions").**
+  "SA compound LULC integration — foundational decisions");
+  22→23 (Brief 28b SA UCM compound biophysical table — `ucm__nlcd_nlud_tree.csv`
+  replaces the per-NLCD Köppen-BSh tuning; SA `baseline_hm` 0.2866 → 0.3937
+  (+37%) reflecting tree-canopy variation on developed land that per-NLCD
+  couldn't capture; SA `cooling_energy_savings_usd` -77 to -86% as
+  downstream amplification; MN untouched. `scenario_lulc_ucm` field added to
+  `evaluate_scenario`'s return dict — compound view for SA, same as
+  `scenario_lulc` for MN — so UCM consumers index the right lucode space);
+  **23→24 (Brief 29 SA UNA compound biophysical table — `una__nlcd_nlud_tree.csv`
+  replaces the borrowed-from-MN per-NLCD `LULC_attribute_table_UNA.csv` for SA;
+  SA baseline `nature_access_pct` 89.7 → 94.2 (+5.0%, +4.5 pp), baseline
+  `people_with_nature_access` +84,486; MN untouched. `scenario_lulc_una`
+  field added to `evaluate_scenario`'s return dict — compound view for SA,
+  same as `scenario_lulc` for MN — mirroring the Brief 28b `scenario_lulc_ucm`
+  pattern. The `URBAN_NATURE_PROPORTION` Python-dict + per-class boolean-mask
+  loop in `_una_supply_percapita` was replaced with a vectorized
+  `urban_nature_arr[scenario_lulc_una]` indexed lookup because the dict
+  pattern would have done 1,984 raster-wide comparisons per call at SA's
+  cardinality. `urban_nature_arr` joins `shade_arr`/`kc_arr`/`albedo_arr`/
+  `green_area_arr` on `CityState`. Three CSV strip sites updated:
+  `compute_scenario_grid`, `compute_lookup_table`, `precompute_scenarios.py`.
+  See DESIGN_NOTES.md "SA UNA compound biophysical table adoption").**
 - **City runtime state (`CityState` + `_load_city_runtime_state`).** All heavy
   per-city allocations — rasters from `load_data`, the population raster, the
   resized ET raster, building/road/tract rasterisations, the static nature-
