@@ -43,9 +43,9 @@
 | `do_productivity_valuation` | False | False | ✅ |
 | Biophysical table | `data/cooling/biophysical_table_urban_cooling_MN.csv` | `biophysical_table_urban_cooling.csv` (in MN bundle) | ✅ Verified identical 2026-05-24 on all 14 shared lucodes (shade, kc, albedo, green_area, building_intensity). Prototype has one extra row, lucode 82 (Cultivated Crops, documented SA-support addition). |
 | LULC raster | `data/cooling/land_use_2021.tif` (byte-identical to NatCap UNA sample) | `land_use_2021.tif` (in MN bundle) | ✅ (likely; MD5-confirmed against UNA sample bundle in `UNA_LULC_INVESTIGATION.md`) |
-| ET raster | InVEST UCM sample (~1 km, 10×10 km extent) | `reference_evapotranspiration_annual.tif` (in MN bundle) | ❓ — not yet diff'd |
+| ET raster | `data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/reference_evapotranspiration_annual.tif` (~1 km, 10×10 km extent) | `reference_evapotranspiration_annual.tif` (in MN bundle) | ✅ MD5 verified identical 2026-05-24 (`fdf460d9bf5ef5a3641f74af117cbd66`, 4,712 bytes both). Same file from same InVEST UCM sample bundle. |
 
-**UCM summary:** Fully aligned on args and biophysical table (verified 2026-05-24). ET raster MD5 vs the NatCap MN sample's `reference_evapotranspiration_annual.tif` not yet verified.
+**UCM summary:** Fully aligned on args, biophysical table, and ET raster (all MD5-verified 2026-05-24).
 
 ### UFR (Urban Flood Risk Mitigation)
 
@@ -57,7 +57,7 @@
 | Buildings | `data/flood/buildings.shp` (UFR sample) | `buildings.shp` | ✅ |
 | CN biophysical table | `data/flood/UFR_biophysical_table_MN.csv` | `UFR_biophysical_table_MN.csv` | ✅ Verified identical 2026-05-24 on all 14 shared lucodes (CN_A/CN_B/CN_C/CN_D + NLCD_Land label). Prototype has one extra row, lucode 82 (Cultivated Crops, SA support). |
 | Damage loss table | `data/invest/flood/UFR_sample_data_MN/Damage_loss_table_MN.csv` | `Damage_loss_table_MN.csv` (Roads=40, Commercial=120, Residential=150, Industrial=100) | ✅ Verified bit-identical 2026-05-24 — same file from same InVEST UFR sample bundle. |
-| AOI watersheds | `data/invest/flood/UFR_sample_data_MN/admin_boundaries_census_tracts.shp` (declared as `tracts_file` in `config.py`) | `admin_boundaries_census_tracts.shp` | ❓ — same filename in same InVEST UFR sample bundle; MD5 not yet verified |
+| AOI watersheds | `data/invest/flood/UFR_sample_data_MN/admin_boundaries_census_tracts.shp` (declared as `tracts_file` in `config.py`) | `admin_boundaries_census_tracts.shp` | ✅ MD5 verified identical 2026-05-24 (`acbd9a8d28892dd4dfaf003b896235b4` on `.shp`; `.dbf` and `.prj` also identical). Same file from same InVEST UFR sample bundle. |
 
 **UFR summary:** Same data sources as NatCap. Rainfall depth diverges — prototype's choice, not NatCap-aligned. CN biophysical and damage loss tables verified identical 2026-05-24.
 
@@ -71,7 +71,7 @@
 | `search_radius_mode` | uniform radius | uniform radius | ✅ |
 | `aggregate_by_pop_group` | False | False | ✅ |
 | `population_group_radii_table` | not used | empty | ✅ |
-| LULC raster | `data/cooling/land_use_2021.tif` (UNA-sample LULC) | `LULC_NLCD_2021.tif` (in MN bundle) | ❓ — MD5 not yet compared |
+| LULC raster | `data/cooling/land_use_2021.tif` (UNA-sample LULC) | `LULC_NLCD_2021.tif` (in MN bundle) | ✅ MD5 verified identical 2026-05-24 (`56d1080fa70576cad15896642a107a3d`, 297,417 bytes both). Confirms the prototype's cooling LULC is byte-identical to NatCap's MN UNA sample LULC — consistent with the earlier `UNA_LULC_INVESTIGATION.md` finding. |
 | LULC attribute table | `data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv` | `LULC_attribute_table_UNA.csv` | ✅ Verified bit-identical 2026-05-24 (14 rows: lucode, lulc_desc, urban_nature, search_radius_m). Same file from same InVEST UNA sample bundle. |
 | Population raster | Census 2020 blocks, rasterized via `download_census_pop.py` | `total_population_census_2010.tif` | ⚠️ Vintage differs (2020 vs 2010) |
 
