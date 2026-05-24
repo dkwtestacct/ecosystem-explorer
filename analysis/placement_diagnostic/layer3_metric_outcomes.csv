@@ -1,0 +1,1351 @@
+city,strategy,scenario,pct,seed,flood_reduction,mean_hm,food_mln_lbs,carbon_tons_co2_yr,runoff_acre_feet,elapsed_s,saturated
+"Minneapolis, MN",random,all_gi,10,0,27.33,0.22280000150203705,0.0,1172.9,296.3,0.028,False
+"Minneapolis, MN",random,all_gi,10,1,27.32,0.22269999980926514,0.0,1172.9,296.6,0.028,False
+"Minneapolis, MN",random,all_gi,10,2,27.32,0.2224999964237213,0.0,1172.9,296.6,0.027,False
+"Minneapolis, MN",random,all_gi,10,3,27.31,0.2224999964237213,0.0,1172.9,296.9,0.027,False
+"Minneapolis, MN",random,all_gi,10,4,27.33,0.22280000150203705,0.0,1172.9,296.3,0.027,False
+"Minneapolis, MN",random,all_gi,10,5,27.33,0.2224999964237213,0.0,1172.9,296.3,0.029,False
+"Minneapolis, MN",random,all_gi,10,6,27.33,0.22269999980926514,0.0,1172.9,296.3,0.029,False
+"Minneapolis, MN",random,all_gi,10,7,27.33,0.22269999980926514,0.0,1172.9,296.3,0.028,False
+"Minneapolis, MN",random,all_gi,10,8,27.33,0.22259999811649323,0.0,1172.9,296.3,0.027,False
+"Minneapolis, MN",random,all_gi,10,9,27.32,0.2224999964237213,0.0,1172.9,296.6,0.027,False
+"Minneapolis, MN",random,all_gi,25,0,31.8,0.27000001072883606,0.0,2932.6,189.5,0.026,False
+"Minneapolis, MN",random,all_gi,25,1,31.81,0.2700999975204468,0.0,2932.6,189.3,0.027,False
+"Minneapolis, MN",random,all_gi,25,2,31.81,0.26980000734329224,0.0,2932.6,189.3,0.028,False
+"Minneapolis, MN",random,all_gi,25,3,31.8,0.26980000734329224,0.0,2932.6,189.5,0.028,False
+"Minneapolis, MN",random,all_gi,25,4,31.81,0.2700999975204468,0.0,2932.6,189.3,0.027,False
+"Minneapolis, MN",random,all_gi,25,5,31.81,0.26969999074935913,0.0,2932.6,189.3,0.028,False
+"Minneapolis, MN",random,all_gi,25,6,31.81,0.2700999975204468,0.0,2932.6,189.3,0.027,False
+"Minneapolis, MN",random,all_gi,25,7,31.82,0.26989999413490295,0.0,2932.6,189.1,0.027,False
+"Minneapolis, MN",random,all_gi,25,8,31.82,0.2700999975204468,0.0,2932.6,189.1,0.027,False
+"Minneapolis, MN",random,all_gi,25,9,31.82,0.26989999413490295,0.0,2932.6,189.1,0.027,False
+"Minneapolis, MN",random,all_gi,50,0,39.27,0.36500000953674316,0.0,5865.1,66.4,0.028,False
+"Minneapolis, MN",random,all_gi,50,1,39.28,0.365200012922287,0.0,5865.1,66.2,0.028,False
+"Minneapolis, MN",random,all_gi,50,2,39.29,0.36489999294281006,0.0,5865.1,66.1,0.029,False
+"Minneapolis, MN",random,all_gi,50,3,39.28,0.36480000615119934,0.0,5865.1,66.2,0.028,False
+"Minneapolis, MN",random,all_gi,50,4,39.28,0.36489999294281006,0.0,5865.1,66.2,0.028,False
+"Minneapolis, MN",random,all_gi,50,5,39.29,0.36489999294281006,0.0,5865.1,66.1,0.028,False
+"Minneapolis, MN",random,all_gi,50,6,39.3,0.36500000953674316,0.0,5865.1,66.0,0.028,False
+"Minneapolis, MN",random,all_gi,50,7,39.3,0.36500000953674316,0.0,5865.1,66.0,0.028,False
+"Minneapolis, MN",random,all_gi,50,8,39.3,0.365200012922287,0.0,5865.1,66.0,0.027,False
+"Minneapolis, MN",random,all_gi,50,9,39.29,0.36500000953674316,0.0,5865.1,66.1,0.028,False
+"Minneapolis, MN",random,all_ff,10,0,24.62,0.22179999947547913,6.744,2052.6,374.8,0.027,False
+"Minneapolis, MN",random,all_ff,10,1,24.62,0.22169999778270721,6.744,2052.6,374.8,0.027,False
+"Minneapolis, MN",random,all_ff,10,2,24.61,0.2214999943971634,6.744,2052.6,375.1,0.027,False
+"Minneapolis, MN",random,all_ff,10,3,24.62,0.2215999960899353,6.744,2052.6,374.8,0.028,False
+"Minneapolis, MN",random,all_ff,10,4,24.61,0.22179999947547913,6.744,2052.6,375.1,0.028,False
+"Minneapolis, MN",random,all_ff,10,5,24.61,0.2214999943971634,6.744,2052.6,375.1,0.028,False
+"Minneapolis, MN",random,all_ff,10,6,24.61,0.22169999778270721,6.744,2052.6,375.1,0.03,False
+"Minneapolis, MN",random,all_ff,10,7,24.62,0.22169999778270721,6.744,2052.6,374.8,0.028,False
+"Minneapolis, MN",random,all_ff,10,8,24.62,0.2215999960899353,6.744,2052.6,374.8,0.028,False
+"Minneapolis, MN",random,all_ff,10,9,24.61,0.2214999943971634,6.744,2052.6,375.1,0.027,False
+"Minneapolis, MN",random,all_ff,25,0,25.04,0.2671999931335449,16.862,5132.0,361.9,0.027,False
+"Minneapolis, MN",random,all_ff,25,1,25.04,0.2671999931335449,16.862,5132.0,361.9,0.028,False
+"Minneapolis, MN",random,all_ff,25,2,25.03,0.2669000029563904,16.862,5132.0,362.2,0.029,False
+"Minneapolis, MN",random,all_ff,25,3,25.04,0.2669000029563904,16.862,5132.0,361.9,0.028,False
+"Minneapolis, MN",random,all_ff,25,4,25.04,0.2671999931335449,16.862,5132.0,361.9,0.031,False
+"Minneapolis, MN",random,all_ff,25,5,25.03,0.2669000029563904,16.862,5132.0,362.2,0.028,False
+"Minneapolis, MN",random,all_ff,25,6,25.03,0.2671999931335449,16.862,5132.0,362.2,0.028,False
+"Minneapolis, MN",random,all_ff,25,7,25.03,0.2671000063419342,16.862,5132.0,362.2,0.028,False
+"Minneapolis, MN",random,all_ff,25,8,25.03,0.267300009727478,16.862,5132.0,362.2,0.027,False
+"Minneapolis, MN",random,all_ff,25,9,25.03,0.2671000063419342,16.862,5132.0,362.2,0.027,False
+"Minneapolis, MN",random,all_ff,50,0,25.74,0.3582000136375427,33.725,10264.0,341.0,0.027,False
+"Minneapolis, MN",random,all_ff,50,1,25.74,0.35839998722076416,33.725,10264.0,341.0,0.027,False
+"Minneapolis, MN",random,all_ff,50,2,25.73,0.3582000136375427,33.725,10264.0,341.3,0.028,False
+"Minneapolis, MN",random,all_ff,50,3,25.74,0.3580000102519989,33.725,10264.0,341.0,0.03,False
+"Minneapolis, MN",random,all_ff,50,4,25.74,0.3580999970436096,33.725,10264.0,341.0,0.032,False
+"Minneapolis, MN",random,all_ff,50,5,25.74,0.3580999970436096,33.725,10264.0,341.0,0.03,False
+"Minneapolis, MN",random,all_ff,50,6,25.73,0.35830000042915344,33.725,10264.0,341.3,0.028,False
+"Minneapolis, MN",random,all_ff,50,7,25.73,0.3582000136375427,33.725,10264.0,341.3,0.029,False
+"Minneapolis, MN",random,all_ff,50,8,25.74,0.35839998722076416,33.725,10264.0,341.0,0.027,False
+"Minneapolis, MN",random,all_ff,50,9,25.74,0.3582000136375427,33.725,10264.0,341.0,0.027,False
+"Minneapolis, MN",random,all_hd,10,0,23.86,0.19050000607967377,0.0,0.0,398.8,0.029,False
+"Minneapolis, MN",random,all_hd,10,1,23.85,0.19050000607967377,0.0,0.0,399.2,0.028,False
+"Minneapolis, MN",random,all_hd,10,2,23.85,0.19040000438690186,0.0,0.0,399.2,0.028,False
+"Minneapolis, MN",random,all_hd,10,3,23.85,0.19040000438690186,0.0,0.0,399.2,0.028,False
+"Minneapolis, MN",random,all_hd,10,4,23.86,0.19050000607967377,0.0,0.0,398.8,0.027,False
+"Minneapolis, MN",random,all_hd,10,5,23.86,0.19040000438690186,0.0,0.0,398.8,0.027,False
+"Minneapolis, MN",random,all_hd,10,6,23.86,0.19040000438690186,0.0,0.0,398.8,0.027,False
+"Minneapolis, MN",random,all_hd,10,7,23.86,0.19050000607967377,0.0,0.0,398.8,0.027,False
+"Minneapolis, MN",random,all_hd,10,8,23.86,0.19050000607967377,0.0,0.0,398.8,0.028,False
+"Minneapolis, MN",random,all_hd,10,9,23.85,0.19030000269412994,0.0,0.0,399.2,0.028,False
+"Minneapolis, MN",random,all_hd,25,0,23.13,0.1843000054359436,0.0,0.0,422.8,0.028,False
+"Minneapolis, MN",random,all_hd,25,1,23.14,0.18440000712871552,0.0,0.0,422.5,0.028,False
+"Minneapolis, MN",random,all_hd,25,2,23.14,0.18410000205039978,0.0,0.0,422.5,0.028,False
+"Minneapolis, MN",random,all_hd,25,3,23.13,0.1842000037431717,0.0,0.0,422.8,0.028,False
+"Minneapolis, MN",random,all_hd,25,4,23.14,0.1843000054359436,0.0,0.0,422.5,0.027,False
+"Minneapolis, MN",random,all_hd,25,5,23.14,0.1842000037431717,0.0,0.0,422.5,0.027,False
+"Minneapolis, MN",random,all_hd,25,6,23.14,0.1843000054359436,0.0,0.0,422.5,0.028,False
+"Minneapolis, MN",random,all_hd,25,7,23.15,0.18440000712871552,0.0,0.0,422.1,0.028,False
+"Minneapolis, MN",random,all_hd,25,8,23.15,0.18440000712871552,0.0,0.0,422.1,0.029,False
+"Minneapolis, MN",random,all_hd,25,9,23.14,0.1842000037431717,0.0,0.0,422.5,0.028,False
+"Minneapolis, MN",random,all_hd,50,0,21.94,0.1736000031232834,0.0,0.0,463.8,0.027,False
+"Minneapolis, MN",random,all_hd,50,1,21.94,0.1738000065088272,0.0,0.0,463.8,0.028,False
+"Minneapolis, MN",random,all_hd,50,2,21.95,0.17339999973773956,0.0,0.0,463.5,0.027,False
+"Minneapolis, MN",random,all_hd,50,3,21.94,0.17350000143051147,0.0,0.0,463.8,0.027,False
+"Minneapolis, MN",random,all_hd,50,4,21.94,0.17350000143051147,0.0,0.0,463.8,0.027,False
+"Minneapolis, MN",random,all_hd,50,5,21.95,0.17350000143051147,0.0,0.0,463.5,0.031,False
+"Minneapolis, MN",random,all_hd,50,6,21.95,0.17350000143051147,0.0,0.0,463.5,0.044,False
+"Minneapolis, MN",random,all_hd,50,7,21.95,0.1736000031232834,0.0,0.0,463.5,0.038,False
+"Minneapolis, MN",random,all_hd,50,8,21.96,0.1738000065088272,0.0,0.0,463.1,0.032,False
+"Minneapolis, MN",random,all_hd,50,9,21.95,0.17350000143051147,0.0,0.0,463.5,0.033,False
+"Minneapolis, MN",flood-focused,all_gi,10,0,27.41,0.22290000319480896,0.0,1172.9,294.2,0.029,False
+"Minneapolis, MN",flood-focused,all_gi,10,1,27.41,0.22269999980926514,0.0,1172.9,294.2,0.028,False
+"Minneapolis, MN",flood-focused,all_gi,10,2,27.41,0.22290000319480896,0.0,1172.9,294.2,0.031,False
+"Minneapolis, MN",flood-focused,all_gi,10,3,27.4,0.22269999980926514,0.0,1172.9,294.4,0.029,False
+"Minneapolis, MN",flood-focused,all_gi,10,4,27.4,0.22280000150203705,0.0,1172.9,294.4,0.029,False
+"Minneapolis, MN",flood-focused,all_gi,10,5,27.41,0.22280000150203705,0.0,1172.9,294.2,0.03,False
+"Minneapolis, MN",flood-focused,all_gi,10,6,27.41,0.22269999980926514,0.0,1172.9,294.2,0.031,False
+"Minneapolis, MN",flood-focused,all_gi,10,7,27.4,0.22280000150203705,0.0,1172.9,294.4,0.032,False
+"Minneapolis, MN",flood-focused,all_gi,10,8,27.41,0.22269999980926514,0.0,1172.9,294.2,0.035,False
+"Minneapolis, MN",flood-focused,all_gi,10,9,27.41,0.2224999964237213,0.0,1172.9,294.2,0.03,False
+"Minneapolis, MN",flood-focused,all_gi,25,0,32.02,0.2709999978542328,0.0,2932.6,185.0,0.031,False
+"Minneapolis, MN",flood-focused,all_gi,25,1,32.01,0.27090001106262207,0.0,2932.6,185.2,0.031,False
+"Minneapolis, MN",flood-focused,all_gi,25,2,32.01,0.27090001106262207,0.0,2932.6,185.2,0.03,False
+"Minneapolis, MN",flood-focused,all_gi,25,3,32.01,0.27090001106262207,0.0,2932.6,185.2,0.031,False
+"Minneapolis, MN",flood-focused,all_gi,25,4,32.01,0.27079999446868896,0.0,2932.6,185.2,0.03,False
+"Minneapolis, MN",flood-focused,all_gi,25,5,32.0,0.27059999108314514,0.0,2932.6,185.4,0.03,False
+"Minneapolis, MN",flood-focused,all_gi,25,6,32.01,0.27079999446868896,0.0,2932.6,185.2,0.031,False
+"Minneapolis, MN",flood-focused,all_gi,25,7,32.01,0.27070000767707825,0.0,2932.6,185.2,0.03,False
+"Minneapolis, MN",flood-focused,all_gi,25,8,32.01,0.2712000012397766,0.0,2932.6,185.2,0.03,False
+"Minneapolis, MN",flood-focused,all_gi,25,9,32.01,0.27070000767707825,0.0,2932.6,185.2,0.031,False
+"Minneapolis, MN",flood-focused,all_gi,50,0,39.67,0.36730000376701355,0.0,5865.1,61.6,0.033,False
+"Minneapolis, MN",flood-focused,all_gi,50,1,39.66,0.36719998717308044,0.0,5865.1,61.7,0.032,False
+"Minneapolis, MN",flood-focused,all_gi,50,2,39.66,0.367000013589859,0.0,5865.1,61.7,0.032,False
+"Minneapolis, MN",flood-focused,all_gi,50,3,39.66,0.36730000376701355,0.0,5865.1,61.7,0.032,False
+"Minneapolis, MN",flood-focused,all_gi,50,4,39.66,0.36719998717308044,0.0,5865.1,61.7,0.032,False
+"Minneapolis, MN",flood-focused,all_gi,50,5,39.66,0.3671000003814697,0.0,5865.1,61.7,0.032,False
+"Minneapolis, MN",flood-focused,all_gi,50,6,39.66,0.367000013589859,0.0,5865.1,61.7,0.032,False
+"Minneapolis, MN",flood-focused,all_gi,50,7,39.66,0.3668999969959259,0.0,5865.1,61.7,0.033,False
+"Minneapolis, MN",flood-focused,all_gi,50,8,39.65,0.3671000003814697,0.0,5865.1,61.8,0.031,False
+"Minneapolis, MN",flood-focused,all_gi,50,9,39.66,0.36730000376701355,0.0,5865.1,61.7,0.031,False
+"Minneapolis, MN",flood-focused,all_ff,10,0,24.6,0.22190000116825104,6.744,2052.6,375.4,0.029,False
+"Minneapolis, MN",flood-focused,all_ff,10,1,24.6,0.22169999778270721,6.744,2052.6,375.4,0.029,False
+"Minneapolis, MN",flood-focused,all_ff,10,2,24.6,0.22190000116825104,6.744,2052.6,375.4,0.03,False
+"Minneapolis, MN",flood-focused,all_ff,10,3,24.6,0.22179999947547913,6.744,2052.6,375.4,0.029,False
+"Minneapolis, MN",flood-focused,all_ff,10,4,24.6,0.22179999947547913,6.744,2052.6,375.4,0.029,False
+"Minneapolis, MN",flood-focused,all_ff,10,5,24.6,0.22179999947547913,6.744,2052.6,375.4,0.028,False
+"Minneapolis, MN",flood-focused,all_ff,10,6,24.6,0.22169999778270721,6.744,2052.6,375.4,0.028,False
+"Minneapolis, MN",flood-focused,all_ff,10,7,24.6,0.22179999947547913,6.744,2052.6,375.4,0.028,False
+"Minneapolis, MN",flood-focused,all_ff,10,8,24.6,0.22169999778270721,6.744,2052.6,375.4,0.028,False
+"Minneapolis, MN",flood-focused,all_ff,10,9,24.59,0.2215999960899353,6.744,2052.6,375.7,0.029,False
+"Minneapolis, MN",flood-focused,all_ff,25,0,25.0,0.26809999346733093,16.862,5132.0,363.1,0.031,False
+"Minneapolis, MN",flood-focused,all_ff,25,1,24.99,0.2680000066757202,16.862,5132.0,363.4,0.03,False
+"Minneapolis, MN",flood-focused,all_ff,25,2,24.99,0.2680000066757202,16.862,5132.0,363.4,0.03,False
+"Minneapolis, MN",flood-focused,all_ff,25,3,25.0,0.2680000066757202,16.862,5132.0,363.1,0.032,False
+"Minneapolis, MN",flood-focused,all_ff,25,4,24.99,0.2678999900817871,16.862,5132.0,363.4,0.031,False
+"Minneapolis, MN",flood-focused,all_ff,25,5,24.99,0.2676999866962433,16.862,5132.0,363.4,0.031,False
+"Minneapolis, MN",flood-focused,all_ff,25,6,24.99,0.2678999900817871,16.862,5132.0,363.4,0.032,False
+"Minneapolis, MN",flood-focused,all_ff,25,7,24.99,0.2678000032901764,16.862,5132.0,363.4,0.031,False
+"Minneapolis, MN",flood-focused,all_ff,25,8,25.0,0.26829999685287476,16.862,5132.0,363.1,0.031,False
+"Minneapolis, MN",flood-focused,all_ff,25,9,24.99,0.2678000032901764,16.862,5132.0,363.4,0.032,False
+"Minneapolis, MN",flood-focused,all_ff,50,0,25.65,0.3605000078678131,33.725,10264.0,343.7,0.033,False
+"Minneapolis, MN",flood-focused,all_ff,50,1,25.65,0.36039999127388,33.725,10264.0,343.7,0.032,False
+"Minneapolis, MN",flood-focused,all_ff,50,2,25.65,0.3601999878883362,33.725,10264.0,343.7,0.034,False
+"Minneapolis, MN",flood-focused,all_ff,50,3,25.66,0.36039999127388,33.725,10264.0,343.4,0.035,False
+"Minneapolis, MN",flood-focused,all_ff,50,4,25.65,0.3603000044822693,33.725,10264.0,343.7,0.035,False
+"Minneapolis, MN",flood-focused,all_ff,50,5,25.66,0.3603000044822693,33.725,10264.0,343.4,0.035,False
+"Minneapolis, MN",flood-focused,all_ff,50,6,25.65,0.3601999878883362,33.725,10264.0,343.7,0.033,False
+"Minneapolis, MN",flood-focused,all_ff,50,7,25.65,0.36010000109672546,33.725,10264.0,343.7,0.032,False
+"Minneapolis, MN",flood-focused,all_ff,50,8,25.66,0.3603000044822693,33.725,10264.0,343.4,0.032,False
+"Minneapolis, MN",flood-focused,all_ff,50,9,25.65,0.3605000078678131,33.725,10264.0,343.7,0.031,False
+"Minneapolis, MN",flood-focused,all_hd,10,0,23.93,0.19089999794960022,0.0,0.0,396.6,0.027,False
+"Minneapolis, MN",flood-focused,all_hd,10,1,23.93,0.1906999945640564,0.0,0.0,396.6,0.028,False
+"Minneapolis, MN",flood-focused,all_hd,10,2,23.93,0.1907999962568283,0.0,0.0,396.6,0.028,False
+"Minneapolis, MN",flood-focused,all_hd,10,3,23.92,0.1907999962568283,0.0,0.0,396.9,0.029,False
+"Minneapolis, MN",flood-focused,all_hd,10,4,23.92,0.1906999945640564,0.0,0.0,396.9,0.029,False
+"Minneapolis, MN",flood-focused,all_hd,10,5,23.92,0.1907999962568283,0.0,0.0,396.9,0.03,False
+"Minneapolis, MN",flood-focused,all_hd,10,6,23.92,0.1906999945640564,0.0,0.0,396.9,0.029,False
+"Minneapolis, MN",flood-focused,all_hd,10,7,23.92,0.19059999287128448,0.0,0.0,396.9,0.029,False
+"Minneapolis, MN",flood-focused,all_hd,10,8,23.92,0.1907999962568283,0.0,0.0,396.9,0.029,False
+"Minneapolis, MN",flood-focused,all_hd,10,9,23.92,0.1906999945640564,0.0,0.0,396.9,0.03,False
+"Minneapolis, MN",flood-focused,all_hd,25,0,23.31,0.18520000576972961,0.0,0.0,416.8,0.031,False
+"Minneapolis, MN",flood-focused,all_hd,25,1,23.31,0.1850000023841858,0.0,0.0,416.8,0.03,False
+"Minneapolis, MN",flood-focused,all_hd,25,2,23.31,0.1850000023841858,0.0,0.0,416.8,0.03,False
+"Minneapolis, MN",flood-focused,all_hd,25,3,23.31,0.18520000576972961,0.0,0.0,416.8,0.031,False
+"Minneapolis, MN",flood-focused,all_hd,25,4,23.3,0.1850000023841858,0.0,0.0,417.2,0.031,False
+"Minneapolis, MN",flood-focused,all_hd,25,5,23.3,0.18490000069141388,0.0,0.0,417.2,0.03,False
+"Minneapolis, MN",flood-focused,all_hd,25,6,23.31,0.1850000023841858,0.0,0.0,416.8,0.03,False
+"Minneapolis, MN",flood-focused,all_hd,25,7,23.3,0.18490000069141388,0.0,0.0,417.2,0.03,False
+"Minneapolis, MN",flood-focused,all_hd,25,8,23.3,0.1851000040769577,0.0,0.0,417.2,0.031,False
+"Minneapolis, MN",flood-focused,all_hd,25,9,23.3,0.1850000023841858,0.0,0.0,417.2,0.031,False
+"Minneapolis, MN",flood-focused,all_hd,50,0,22.26,0.17499999701976776,0.0,0.0,452.6,0.031,False
+"Minneapolis, MN",flood-focused,all_hd,50,1,22.26,0.17499999701976776,0.0,0.0,452.6,0.031,False
+"Minneapolis, MN",flood-focused,all_hd,50,2,22.25,0.17479999363422394,0.0,0.0,452.9,0.032,False
+"Minneapolis, MN",flood-focused,all_hd,50,3,22.25,0.17509999871253967,0.0,0.0,452.9,0.032,False
+"Minneapolis, MN",flood-focused,all_hd,50,4,22.25,0.17479999363422394,0.0,0.0,452.9,0.032,False
+"Minneapolis, MN",flood-focused,all_hd,50,5,22.25,0.17489999532699585,0.0,0.0,452.9,0.033,False
+"Minneapolis, MN",flood-focused,all_hd,50,6,22.25,0.17479999363422394,0.0,0.0,452.9,0.033,False
+"Minneapolis, MN",flood-focused,all_hd,50,7,22.25,0.17479999363422394,0.0,0.0,452.9,0.033,False
+"Minneapolis, MN",flood-focused,all_hd,50,8,22.25,0.17479999363422394,0.0,0.0,452.9,0.032,False
+"Minneapolis, MN",flood-focused,all_hd,50,9,22.25,0.17489999532699585,0.0,0.0,452.9,0.032,False
+"Minneapolis, MN",cooling-focused,all_gi,10,0,27.34,0.22280000150203705,0.0,1172.9,296.1,0.028,False
+"Minneapolis, MN",cooling-focused,all_gi,10,1,27.34,0.22290000319480896,0.0,1172.9,296.1,0.028,False
+"Minneapolis, MN",cooling-focused,all_gi,10,2,27.33,0.22310000658035278,0.0,1172.9,296.3,0.029,False
+"Minneapolis, MN",cooling-focused,all_gi,10,3,27.33,0.22290000319480896,0.0,1172.9,296.3,0.028,False
+"Minneapolis, MN",cooling-focused,all_gi,10,4,27.33,0.22290000319480896,0.0,1172.9,296.3,0.029,False
+"Minneapolis, MN",cooling-focused,all_gi,10,5,27.34,0.22300000488758087,0.0,1172.9,296.1,0.029,False
+"Minneapolis, MN",cooling-focused,all_gi,10,6,27.34,0.22290000319480896,0.0,1172.9,296.1,0.029,False
+"Minneapolis, MN",cooling-focused,all_gi,10,7,27.34,0.22310000658035278,0.0,1172.9,296.1,0.03,False
+"Minneapolis, MN",cooling-focused,all_gi,10,8,27.34,0.22269999980926514,0.0,1172.9,296.1,0.029,False
+"Minneapolis, MN",cooling-focused,all_gi,10,9,27.34,0.22280000150203705,0.0,1172.9,296.1,0.029,False
+"Minneapolis, MN",cooling-focused,all_gi,25,0,31.85,0.27140000462532043,0.0,2932.6,188.5,0.029,False
+"Minneapolis, MN",cooling-focused,all_gi,25,1,31.85,0.2718000113964081,0.0,2932.6,188.5,0.031,False
+"Minneapolis, MN",cooling-focused,all_gi,25,2,31.85,0.271699994802475,0.0,2932.6,188.5,0.03,False
+"Minneapolis, MN",cooling-focused,all_gi,25,3,31.84,0.27140000462532043,0.0,2932.6,188.7,0.031,False
+"Minneapolis, MN",cooling-focused,all_gi,25,4,31.84,0.27140000462532043,0.0,2932.6,188.7,0.032,False
+"Minneapolis, MN",cooling-focused,all_gi,25,5,31.85,0.2718000113964081,0.0,2932.6,188.5,0.03,False
+"Minneapolis, MN",cooling-focused,all_gi,25,6,31.85,0.27140000462532043,0.0,2932.6,188.5,0.031,False
+"Minneapolis, MN",cooling-focused,all_gi,25,7,31.84,0.27149999141693115,0.0,2932.6,188.7,0.03,False
+"Minneapolis, MN",cooling-focused,all_gi,25,8,31.85,0.27160000801086426,0.0,2932.6,188.5,0.03,False
+"Minneapolis, MN",cooling-focused,all_gi,25,9,31.85,0.27140000462532043,0.0,2932.6,188.5,0.03,False
+"Minneapolis, MN",cooling-focused,all_gi,50,0,39.34,0.3695000112056732,0.0,5865.1,65.5,0.031,False
+"Minneapolis, MN",cooling-focused,all_gi,50,1,39.35,0.36970001459121704,0.0,5865.1,65.4,0.033,False
+"Minneapolis, MN",cooling-focused,all_gi,50,2,39.35,0.36970001459121704,0.0,5865.1,65.4,0.031,False
+"Minneapolis, MN",cooling-focused,all_gi,50,3,39.34,0.3693999946117401,0.0,5865.1,65.5,0.032,False
+"Minneapolis, MN",cooling-focused,all_gi,50,4,39.34,0.36910000443458557,0.0,5865.1,65.5,0.035,False
+"Minneapolis, MN",cooling-focused,all_gi,50,5,39.36,0.3700000047683716,0.0,5865.1,65.3,0.033,False
+"Minneapolis, MN",cooling-focused,all_gi,50,6,39.36,0.3695000112056732,0.0,5865.1,65.3,0.032,False
+"Minneapolis, MN",cooling-focused,all_gi,50,7,39.34,0.3693999946117401,0.0,5865.1,65.5,0.031,False
+"Minneapolis, MN",cooling-focused,all_gi,50,8,39.33,0.3691999912261963,0.0,5865.1,65.6,0.032,False
+"Minneapolis, MN",cooling-focused,all_gi,50,9,39.35,0.3695000112056732,0.0,5865.1,65.4,0.032,False
+"Minneapolis, MN",cooling-focused,all_ff,10,0,24.62,0.22190000116825104,6.744,2052.6,374.8,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,10,1,24.62,0.22190000116825104,6.744,2052.6,374.8,0.03,False
+"Minneapolis, MN",cooling-focused,all_ff,10,2,24.62,0.22210000455379486,6.744,2052.6,374.8,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,10,3,24.62,0.22190000116825104,6.744,2052.6,374.8,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,10,4,24.62,0.22200000286102295,6.744,2052.6,374.8,0.028,False
+"Minneapolis, MN",cooling-focused,all_ff,10,5,24.62,0.22200000286102295,6.744,2052.6,374.8,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,10,6,24.62,0.22190000116825104,6.744,2052.6,374.8,0.028,False
+"Minneapolis, MN",cooling-focused,all_ff,10,7,24.62,0.22210000455379486,6.744,2052.6,374.8,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,10,8,24.62,0.22179999947547913,6.744,2052.6,374.8,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,10,9,24.62,0.22179999947547913,6.744,2052.6,374.8,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,25,0,25.05,0.26840001344680786,16.862,5132.0,361.6,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,25,1,25.05,0.2689000070095062,16.862,5132.0,361.6,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,25,2,25.05,0.2687999904155731,16.862,5132.0,361.6,0.031,False
+"Minneapolis, MN",cooling-focused,all_ff,25,3,25.05,0.2685000002384186,16.862,5132.0,361.6,0.03,False
+"Minneapolis, MN",cooling-focused,all_ff,25,4,25.05,0.2685000002384186,16.862,5132.0,361.6,0.029,False
+"Minneapolis, MN",cooling-focused,all_ff,25,5,25.06,0.2689000070095062,16.862,5132.0,361.3,0.03,False
+"Minneapolis, MN",cooling-focused,all_ff,25,6,25.05,0.2685000002384186,16.862,5132.0,361.6,0.031,False
+"Minneapolis, MN",cooling-focused,all_ff,25,7,25.05,0.2687000036239624,16.862,5132.0,361.6,0.03,False
+"Minneapolis, MN",cooling-focused,all_ff,25,8,25.05,0.2685999870300293,16.862,5132.0,361.6,0.031,False
+"Minneapolis, MN",cooling-focused,all_ff,25,9,25.05,0.2685000002384186,16.862,5132.0,361.6,0.03,False
+"Minneapolis, MN",cooling-focused,all_ff,50,0,25.76,0.3625999987125397,33.725,10264.0,340.4,0.033,False
+"Minneapolis, MN",cooling-focused,all_ff,50,1,25.77,0.3628000020980835,33.725,10264.0,340.1,0.032,False
+"Minneapolis, MN",cooling-focused,all_ff,50,2,25.76,0.3628000020980835,33.725,10264.0,340.4,0.034,False
+"Minneapolis, MN",cooling-focused,all_ff,50,3,25.77,0.36239999532699585,33.725,10264.0,340.1,0.032,False
+"Minneapolis, MN",cooling-focused,all_ff,50,4,25.76,0.362199991941452,33.725,10264.0,340.4,0.033,False
+"Minneapolis, MN",cooling-focused,all_ff,50,5,25.77,0.3630000054836273,33.725,10264.0,340.1,0.033,False
+"Minneapolis, MN",cooling-focused,all_ff,50,6,25.76,0.3625999987125397,33.725,10264.0,340.4,0.033,False
+"Minneapolis, MN",cooling-focused,all_ff,50,7,25.77,0.36250001192092896,33.725,10264.0,340.1,0.032,False
+"Minneapolis, MN",cooling-focused,all_ff,50,8,25.76,0.36230000853538513,33.725,10264.0,340.4,0.032,False
+"Minneapolis, MN",cooling-focused,all_ff,50,9,25.77,0.3625999987125397,33.725,10264.0,340.1,0.033,False
+"Minneapolis, MN",cooling-focused,all_hd,10,0,23.87,0.19089999794960022,0.0,0.0,398.5,0.028,False
+"Minneapolis, MN",cooling-focused,all_hd,10,1,23.87,0.19099999964237213,0.0,0.0,398.5,0.029,False
+"Minneapolis, MN",cooling-focused,all_hd,10,2,23.87,0.19099999964237213,0.0,0.0,398.5,0.029,False
+"Minneapolis, MN",cooling-focused,all_hd,10,3,23.87,0.19099999964237213,0.0,0.0,398.5,0.028,False
+"Minneapolis, MN",cooling-focused,all_hd,10,4,23.87,0.19099999964237213,0.0,0.0,398.5,0.028,False
+"Minneapolis, MN",cooling-focused,all_hd,10,5,23.87,0.19110000133514404,0.0,0.0,398.5,0.028,False
+"Minneapolis, MN",cooling-focused,all_hd,10,6,23.87,0.19099999964237213,0.0,0.0,398.5,0.029,False
+"Minneapolis, MN",cooling-focused,all_hd,10,7,23.87,0.19099999964237213,0.0,0.0,398.5,0.029,False
+"Minneapolis, MN",cooling-focused,all_hd,10,8,23.87,0.19089999794960022,0.0,0.0,398.5,0.029,False
+"Minneapolis, MN",cooling-focused,all_hd,10,9,23.87,0.19099999964237213,0.0,0.0,398.5,0.029,False
+"Minneapolis, MN",cooling-focused,all_hd,25,0,23.17,0.18549999594688416,0.0,0.0,421.5,0.029,False
+"Minneapolis, MN",cooling-focused,all_hd,25,1,23.17,0.18569999933242798,0.0,0.0,421.5,0.03,False
+"Minneapolis, MN",cooling-focused,all_hd,25,2,23.17,0.18569999933242798,0.0,0.0,421.5,0.03,False
+"Minneapolis, MN",cooling-focused,all_hd,25,3,23.16,0.18559999763965607,0.0,0.0,421.8,0.03,False
+"Minneapolis, MN",cooling-focused,all_hd,25,4,23.17,0.18559999763965607,0.0,0.0,421.5,0.031,False
+"Minneapolis, MN",cooling-focused,all_hd,25,5,23.18,0.1859000027179718,0.0,0.0,421.1,0.03,False
+"Minneapolis, MN",cooling-focused,all_hd,25,6,23.18,0.18569999933242798,0.0,0.0,421.1,0.03,False
+"Minneapolis, MN",cooling-focused,all_hd,25,7,23.17,0.18559999763965607,0.0,0.0,421.5,0.03,False
+"Minneapolis, MN",cooling-focused,all_hd,25,8,23.18,0.18559999763965607,0.0,0.0,421.1,0.03,False
+"Minneapolis, MN",cooling-focused,all_hd,25,9,23.17,0.18559999763965607,0.0,0.0,421.5,0.03,False
+"Minneapolis, MN",cooling-focused,all_hd,50,0,22.0,0.17599999904632568,0.0,0.0,461.7,0.032,False
+"Minneapolis, MN",cooling-focused,all_hd,50,1,22.0,0.17630000412464142,0.0,0.0,461.7,0.033,False
+"Minneapolis, MN",cooling-focused,all_hd,50,2,22.01,0.17630000412464142,0.0,0.0,461.4,0.032,False
+"Minneapolis, MN",cooling-focused,all_hd,50,3,21.99,0.1761000007390976,0.0,0.0,462.1,0.033,False
+"Minneapolis, MN",cooling-focused,all_hd,50,4,22.0,0.17599999904632568,0.0,0.0,461.7,0.032,False
+"Minneapolis, MN",cooling-focused,all_hd,50,5,22.01,0.17649999260902405,0.0,0.0,461.4,0.032,False
+"Minneapolis, MN",cooling-focused,all_hd,50,6,22.01,0.1762000024318695,0.0,0.0,461.4,0.033,False
+"Minneapolis, MN",cooling-focused,all_hd,50,7,22.0,0.1762000024318695,0.0,0.0,461.7,0.032,False
+"Minneapolis, MN",cooling-focused,all_hd,50,8,21.99,0.17599999904632568,0.0,0.0,462.1,0.038,False
+"Minneapolis, MN",cooling-focused,all_hd,50,9,22.01,0.1762000024318695,0.0,0.0,461.4,0.034,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,0,27.43,0.2272000014781952,0.0,1172.9,293.6,0.032,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,1,27.43,0.2272000014781952,0.0,1172.9,293.6,0.03,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,2,27.44,0.2272000014781952,0.0,1172.9,293.4,0.029,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,3,27.43,0.2273000031709671,0.0,1172.9,293.6,0.029,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,4,27.43,0.2272000014781952,0.0,1172.9,293.6,0.029,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,5,27.43,0.2272000014781952,0.0,1172.9,293.6,0.03,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,6,27.43,0.2273000031709671,0.0,1172.9,293.6,0.029,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,7,27.43,0.2272000014781952,0.0,1172.9,293.6,0.029,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,8,27.43,0.2272000014781952,0.0,1172.9,293.6,0.029,False
+"Minneapolis, MN",undersupply-focused,all_gi,10,9,27.44,0.2273000031709671,0.0,1172.9,293.4,0.029,False
+"Minneapolis, MN",undersupply-focused,all_gi,25,0,31.97,0.28060001134872437,0.0,2932.6,186.0,0.029,True
+"Minneapolis, MN",undersupply-focused,all_gi,25,1,31.98,0.2806999981403351,0.0,2932.6,185.8,0.029,True
+"Minneapolis, MN",undersupply-focused,all_gi,25,2,31.98,0.2808000147342682,0.0,2932.6,185.8,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,25,3,31.97,0.28060001134872437,0.0,2932.6,186.0,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,25,4,31.98,0.2808000147342682,0.0,2932.6,185.8,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,25,5,31.97,0.28060001134872437,0.0,2932.6,186.0,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,25,6,31.97,0.28060001134872437,0.0,2932.6,186.0,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,25,7,31.98,0.28049999475479126,0.0,2932.6,185.8,0.031,True
+"Minneapolis, MN",undersupply-focused,all_gi,25,8,31.96,0.28060001134872437,0.0,2932.6,186.2,0.031,True
+"Minneapolis, MN",undersupply-focused,all_gi,25,9,31.97,0.28049999475479126,0.0,2932.6,186.0,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,0,39.4,0.3695000112056732,0.0,5865.1,64.8,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,1,39.4,0.36970001459121704,0.0,5865.1,64.8,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,2,39.41,0.3693999946117401,0.0,5865.1,64.7,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,3,39.39,0.3693000078201294,0.0,5865.1,64.9,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,4,39.4,0.3693999946117401,0.0,5865.1,64.8,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,5,39.4,0.36959999799728394,0.0,5865.1,64.8,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,6,39.38,0.3695000112056732,0.0,5865.1,65.0,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,7,39.4,0.3693000078201294,0.0,5865.1,64.8,0.03,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,8,39.39,0.3691999912261963,0.0,5865.1,64.9,0.029,True
+"Minneapolis, MN",undersupply-focused,all_gi,50,9,39.41,0.3691999912261963,0.0,5865.1,64.7,0.03,True
+"Minneapolis, MN",undersupply-focused,all_ff,10,0,24.61,0.22589999437332153,6.744,2052.6,375.1,0.028,False
+"Minneapolis, MN",undersupply-focused,all_ff,10,1,24.61,0.22589999437332153,6.744,2052.6,375.1,0.029,False
+"Minneapolis, MN",undersupply-focused,all_ff,10,2,24.61,0.22589999437332153,6.744,2052.6,375.1,0.029,False
+"Minneapolis, MN",undersupply-focused,all_ff,10,3,24.61,0.22599999606609344,6.744,2052.6,375.1,0.029,False
+"Minneapolis, MN",undersupply-focused,all_ff,10,4,24.61,0.22589999437332153,6.744,2052.6,375.1,0.029,False
+"Minneapolis, MN",undersupply-focused,all_ff,10,5,24.61,0.22589999437332153,6.744,2052.6,375.1,0.028,False
+"Minneapolis, MN",undersupply-focused,all_ff,10,6,24.61,0.22609999775886536,6.744,2052.6,375.1,0.029,False
+"Minneapolis, MN",undersupply-focused,all_ff,10,7,24.61,0.22599999606609344,6.744,2052.6,375.1,0.029,False
+"Minneapolis, MN",undersupply-focused,all_ff,10,8,24.61,0.22589999437332153,6.744,2052.6,375.1,0.028,False
+"Minneapolis, MN",undersupply-focused,all_ff,10,9,24.61,0.22609999775886536,6.744,2052.6,375.1,0.029,False
+"Minneapolis, MN",undersupply-focused,all_ff,25,0,25.03,0.2773999869823456,16.862,5132.0,362.2,0.029,True
+"Minneapolis, MN",undersupply-focused,all_ff,25,1,25.03,0.2775999903678894,16.862,5132.0,362.2,0.029,True
+"Minneapolis, MN",undersupply-focused,all_ff,25,2,25.02,0.2775999903678894,16.862,5132.0,362.5,0.029,True
+"Minneapolis, MN",undersupply-focused,all_ff,25,3,25.03,0.2775000035762787,16.862,5132.0,362.2,0.029,True
+"Minneapolis, MN",undersupply-focused,all_ff,25,4,25.03,0.2775999903678894,16.862,5132.0,362.2,0.029,True
+"Minneapolis, MN",undersupply-focused,all_ff,25,5,25.03,0.2773999869823456,16.862,5132.0,362.2,0.029,True
+"Minneapolis, MN",undersupply-focused,all_ff,25,6,25.03,0.2775000035762787,16.862,5132.0,362.2,0.031,True
+"Minneapolis, MN",undersupply-focused,all_ff,25,7,25.02,0.2773999869823456,16.862,5132.0,362.5,0.032,True
+"Minneapolis, MN",undersupply-focused,all_ff,25,8,25.03,0.2775000035762787,16.862,5132.0,362.2,0.034,True
+"Minneapolis, MN",undersupply-focused,all_ff,25,9,25.03,0.2773999869823456,16.862,5132.0,362.2,0.033,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,0,25.73,0.3628000020980835,33.725,10264.0,341.3,0.032,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,1,25.73,0.3630000054836273,33.725,10264.0,341.3,0.031,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,2,25.73,0.3626999855041504,33.725,10264.0,341.3,0.03,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,3,25.73,0.3625999987125397,33.725,10264.0,341.3,0.03,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,4,25.73,0.3626999855041504,33.725,10264.0,341.3,0.03,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,5,25.73,0.3628999888896942,33.725,10264.0,341.3,0.03,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,6,25.74,0.3628000020980835,33.725,10264.0,341.0,0.03,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,7,25.72,0.36250001192092896,33.725,10264.0,341.6,0.03,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,8,25.73,0.36250001192092896,33.725,10264.0,341.3,0.03,True
+"Minneapolis, MN",undersupply-focused,all_ff,50,9,25.73,0.36250001192092896,33.725,10264.0,341.3,0.031,True
+"Minneapolis, MN",undersupply-focused,all_hd,10,0,23.95,0.1914999932050705,0.0,0.0,395.9,0.03,False
+"Minneapolis, MN",undersupply-focused,all_hd,10,1,23.95,0.1915999948978424,0.0,0.0,395.9,0.028,False
+"Minneapolis, MN",undersupply-focused,all_hd,10,2,23.95,0.1915999948978424,0.0,0.0,395.9,0.028,False
+"Minneapolis, MN",undersupply-focused,all_hd,10,3,23.95,0.1915999948978424,0.0,0.0,395.9,0.028,False
+"Minneapolis, MN",undersupply-focused,all_hd,10,4,23.95,0.1915999948978424,0.0,0.0,395.9,0.029,False
+"Minneapolis, MN",undersupply-focused,all_hd,10,5,23.95,0.1915999948978424,0.0,0.0,395.9,0.03,False
+"Minneapolis, MN",undersupply-focused,all_hd,10,6,23.95,0.1915999948978424,0.0,0.0,395.9,0.029,False
+"Minneapolis, MN",undersupply-focused,all_hd,10,7,23.95,0.1915999948978424,0.0,0.0,395.9,0.029,False
+"Minneapolis, MN",undersupply-focused,all_hd,10,8,23.95,0.1914999932050705,0.0,0.0,395.9,0.029,False
+"Minneapolis, MN",undersupply-focused,all_hd,10,9,23.95,0.1915999948978424,0.0,0.0,395.9,0.028,False
+"Minneapolis, MN",undersupply-focused,all_hd,25,0,23.28,0.18619999289512634,0.0,0.0,417.8,0.03,True
+"Minneapolis, MN",undersupply-focused,all_hd,25,1,23.28,0.18619999289512634,0.0,0.0,417.8,0.029,True
+"Minneapolis, MN",undersupply-focused,all_hd,25,2,23.28,0.18619999289512634,0.0,0.0,417.8,0.03,True
+"Minneapolis, MN",undersupply-focused,all_hd,25,3,23.28,0.18619999289512634,0.0,0.0,417.8,0.029,True
+"Minneapolis, MN",undersupply-focused,all_hd,25,4,23.28,0.18629999458789825,0.0,0.0,417.8,0.029,True
+"Minneapolis, MN",undersupply-focused,all_hd,25,5,23.28,0.18610000610351562,0.0,0.0,417.8,0.028,True
+"Minneapolis, MN",undersupply-focused,all_hd,25,6,23.27,0.18619999289512634,0.0,0.0,418.1,0.028,True
+"Minneapolis, MN",undersupply-focused,all_hd,25,7,23.28,0.18610000610351562,0.0,0.0,417.8,0.028,True
+"Minneapolis, MN",undersupply-focused,all_hd,25,8,23.27,0.18610000610351562,0.0,0.0,418.1,0.029,True
+"Minneapolis, MN",undersupply-focused,all_hd,25,9,23.28,0.18610000610351562,0.0,0.0,417.8,0.029,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,0,22.04,0.17520000040531158,0.0,0.0,460.3,0.029,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,1,22.04,0.17509999871253967,0.0,0.0,460.3,0.029,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,2,22.05,0.17499999701976776,0.0,0.0,459.9,0.03,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,3,22.03,0.17499999701976776,0.0,0.0,460.7,0.031,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,4,22.04,0.17509999871253967,0.0,0.0,460.3,0.031,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,5,22.04,0.17509999871253967,0.0,0.0,460.3,0.029,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,6,22.02,0.17509999871253967,0.0,0.0,461.0,0.029,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,7,22.04,0.17479999363422394,0.0,0.0,460.3,0.03,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,8,22.03,0.17489999532699585,0.0,0.0,460.7,0.03,True
+"Minneapolis, MN",undersupply-focused,all_hd,50,9,22.05,0.17499999701976776,0.0,0.0,459.9,0.03,True
+"Minneapolis, MN",balanced,all_gi,10,0,27.4,0.2224999964237213,0.0,1172.9,294.4,0.03,False
+"Minneapolis, MN",balanced,all_gi,10,1,27.39,0.22259999811649323,0.0,1172.9,294.7,0.031,False
+"Minneapolis, MN",balanced,all_gi,10,2,27.39,0.22269999980926514,0.0,1172.9,294.7,0.03,False
+"Minneapolis, MN",balanced,all_gi,10,3,27.39,0.2223999947309494,0.0,1172.9,294.7,0.03,False
+"Minneapolis, MN",balanced,all_gi,10,4,27.4,0.2224999964237213,0.0,1172.9,294.4,0.03,False
+"Minneapolis, MN",balanced,all_gi,10,5,27.38,0.2223999947309494,0.0,1172.9,295.0,0.03,False
+"Minneapolis, MN",balanced,all_gi,10,6,27.39,0.2224999964237213,0.0,1172.9,294.7,0.03,False
+"Minneapolis, MN",balanced,all_gi,10,7,27.39,0.2224999964237213,0.0,1172.9,294.7,0.03,False
+"Minneapolis, MN",balanced,all_gi,10,8,27.39,0.2222999930381775,0.0,1172.9,294.7,0.03,False
+"Minneapolis, MN",balanced,all_gi,10,9,27.39,0.2223999947309494,0.0,1172.9,294.7,0.03,False
+"Minneapolis, MN",balanced,all_gi,25,0,31.97,0.274399995803833,0.0,2932.6,186.0,0.03,False
+"Minneapolis, MN",balanced,all_gi,25,1,31.96,0.27459999918937683,0.0,2932.6,186.2,0.03,False
+"Minneapolis, MN",balanced,all_gi,25,2,31.96,0.27480000257492065,0.0,2932.6,186.2,0.031,False
+"Minneapolis, MN",balanced,all_gi,25,3,31.96,0.27459999918937683,0.0,2932.6,186.2,0.032,False
+"Minneapolis, MN",balanced,all_gi,25,4,31.97,0.27459999918937683,0.0,2932.6,186.0,0.032,False
+"Minneapolis, MN",balanced,all_gi,25,5,31.96,0.27480000257492065,0.0,2932.6,186.2,0.033,False
+"Minneapolis, MN",balanced,all_gi,25,6,31.97,0.274399995803833,0.0,2932.6,186.0,0.032,False
+"Minneapolis, MN",balanced,all_gi,25,7,31.97,0.27480000257492065,0.0,2932.6,186.0,0.031,False
+"Minneapolis, MN",balanced,all_gi,25,8,31.96,0.27459999918937683,0.0,2932.6,186.2,0.031,False
+"Minneapolis, MN",balanced,all_gi,25,9,31.97,0.27469998598098755,0.0,2932.6,186.0,0.031,False
+"Minneapolis, MN",balanced,all_gi,50,0,39.53,0.3707999885082245,0.0,5865.1,63.2,0.034,False
+"Minneapolis, MN",balanced,all_gi,50,1,39.54,0.3709999918937683,0.0,5865.1,63.1,0.033,False
+"Minneapolis, MN",balanced,all_gi,50,2,39.54,0.3709999918937683,0.0,5865.1,63.1,0.034,False
+"Minneapolis, MN",balanced,all_gi,50,3,39.53,0.37059998512268066,0.0,5865.1,63.2,0.034,False
+"Minneapolis, MN",balanced,all_gi,50,4,39.54,0.3709000051021576,0.0,5865.1,63.1,0.037,False
+"Minneapolis, MN",balanced,all_gi,50,5,39.53,0.3709000051021576,0.0,5865.1,63.2,0.034,False
+"Minneapolis, MN",balanced,all_gi,50,6,39.54,0.37070000171661377,0.0,5865.1,63.1,0.033,False
+"Minneapolis, MN",balanced,all_gi,50,7,39.54,0.37119999527931213,0.0,5865.1,63.1,0.034,False
+"Minneapolis, MN",balanced,all_gi,50,8,39.53,0.3709999918937683,0.0,5865.1,63.2,0.032,False
+"Minneapolis, MN",balanced,all_gi,50,9,39.54,0.3707999885082245,0.0,5865.1,63.1,0.033,False
+"Minneapolis, MN",balanced,all_ff,10,0,24.61,0.2215999960899353,6.744,2052.6,375.1,0.031,False
+"Minneapolis, MN",balanced,all_ff,10,1,24.61,0.2215999960899353,6.744,2052.6,375.1,0.03,False
+"Minneapolis, MN",balanced,all_ff,10,2,24.61,0.22169999778270721,6.744,2052.6,375.1,0.031,False
+"Minneapolis, MN",balanced,all_ff,10,3,24.61,0.22139999270439148,6.744,2052.6,375.1,0.031,False
+"Minneapolis, MN",balanced,all_ff,10,4,24.61,0.2214999943971634,6.744,2052.6,375.1,0.03,False
+"Minneapolis, MN",balanced,all_ff,10,5,24.61,0.2214999943971634,6.744,2052.6,375.1,0.03,False
+"Minneapolis, MN",balanced,all_ff,10,6,24.61,0.2214999943971634,6.744,2052.6,375.1,0.03,False
+"Minneapolis, MN",balanced,all_ff,10,7,24.61,0.2214999943971634,6.744,2052.6,375.1,0.029,False
+"Minneapolis, MN",balanced,all_ff,10,8,24.61,0.22139999270439148,6.744,2052.6,375.1,0.03,False
+"Minneapolis, MN",balanced,all_ff,10,9,24.61,0.22139999270439148,6.744,2052.6,375.1,0.03,False
+"Minneapolis, MN",balanced,all_ff,25,0,25.02,0.27140000462532043,16.862,5132.0,362.5,0.03,False
+"Minneapolis, MN",balanced,all_ff,25,1,25.02,0.27160000801086426,16.862,5132.0,362.5,0.03,False
+"Minneapolis, MN",balanced,all_ff,25,2,25.03,0.2718000113964081,16.862,5132.0,362.2,0.03,False
+"Minneapolis, MN",balanced,all_ff,25,3,25.02,0.27160000801086426,16.862,5132.0,362.5,0.03,False
+"Minneapolis, MN",balanced,all_ff,25,4,25.02,0.27160000801086426,16.862,5132.0,362.5,0.03,False
+"Minneapolis, MN",balanced,all_ff,25,5,25.02,0.2718000113964081,16.862,5132.0,362.5,0.031,False
+"Minneapolis, MN",balanced,all_ff,25,6,25.02,0.27140000462532043,16.862,5132.0,362.5,0.03,False
+"Minneapolis, MN",balanced,all_ff,25,7,25.02,0.271699994802475,16.862,5132.0,362.5,0.03,False
+"Minneapolis, MN",balanced,all_ff,25,8,25.02,0.27160000801086426,16.862,5132.0,362.5,0.029,False
+"Minneapolis, MN",balanced,all_ff,25,9,25.02,0.271699994802475,16.862,5132.0,362.5,0.029,False
+"Minneapolis, MN",balanced,all_ff,50,0,25.71,0.36399999260902405,33.725,10264.0,341.9,0.032,False
+"Minneapolis, MN",balanced,all_ff,50,1,25.71,0.36419999599456787,33.725,10264.0,341.9,0.032,False
+"Minneapolis, MN",balanced,all_ff,50,2,25.71,0.364300012588501,33.725,10264.0,341.9,0.032,False
+"Minneapolis, MN",balanced,all_ff,50,3,25.71,0.3637999892234802,33.725,10264.0,341.9,0.033,False
+"Minneapolis, MN",balanced,all_ff,50,4,25.72,0.36419999599456787,33.725,10264.0,341.6,0.034,False
+"Minneapolis, MN",balanced,all_ff,50,5,25.71,0.36410000920295715,33.725,10264.0,341.9,0.034,False
+"Minneapolis, MN",balanced,all_ff,50,6,25.71,0.36399999260902405,33.725,10264.0,341.9,0.033,False
+"Minneapolis, MN",balanced,all_ff,50,7,25.71,0.3643999993801117,33.725,10264.0,341.9,0.033,False
+"Minneapolis, MN",balanced,all_ff,50,8,25.71,0.364300012588501,33.725,10264.0,341.9,0.034,False
+"Minneapolis, MN",balanced,all_ff,50,9,25.71,0.36410000920295715,33.725,10264.0,341.9,0.033,False
+"Minneapolis, MN",balanced,all_hd,10,0,23.92,0.19120000302791595,0.0,0.0,396.9,0.031,False
+"Minneapolis, MN",balanced,all_hd,10,1,23.91,0.19110000133514404,0.0,0.0,397.2,0.029,False
+"Minneapolis, MN",balanced,all_hd,10,2,23.91,0.19120000302791595,0.0,0.0,397.2,0.031,False
+"Minneapolis, MN",balanced,all_hd,10,3,23.91,0.19110000133514404,0.0,0.0,397.2,0.031,False
+"Minneapolis, MN",balanced,all_hd,10,4,23.92,0.19110000133514404,0.0,0.0,396.9,0.03,False
+"Minneapolis, MN",balanced,all_hd,10,5,23.91,0.19110000133514404,0.0,0.0,397.2,0.029,False
+"Minneapolis, MN",balanced,all_hd,10,6,23.92,0.19110000133514404,0.0,0.0,396.9,0.03,False
+"Minneapolis, MN",balanced,all_hd,10,7,23.91,0.19110000133514404,0.0,0.0,397.2,0.03,False
+"Minneapolis, MN",balanced,all_hd,10,8,23.91,0.19110000133514404,0.0,0.0,397.2,0.03,False
+"Minneapolis, MN",balanced,all_hd,10,9,23.91,0.19099999964237213,0.0,0.0,397.2,0.03,False
+"Minneapolis, MN",balanced,all_hd,25,0,23.27,0.1859000027179718,0.0,0.0,418.1,0.032,False
+"Minneapolis, MN",balanced,all_hd,25,1,23.27,0.1859000027179718,0.0,0.0,418.1,0.031,False
+"Minneapolis, MN",balanced,all_hd,25,2,23.27,0.1860000044107437,0.0,0.0,418.1,0.031,False
+"Minneapolis, MN",balanced,all_hd,25,3,23.27,0.1859000027179718,0.0,0.0,418.1,0.03,False
+"Minneapolis, MN",balanced,all_hd,25,4,23.27,0.1858000010251999,0.0,0.0,418.1,0.031,False
+"Minneapolis, MN",balanced,all_hd,25,5,23.26,0.1858000010251999,0.0,0.0,418.5,0.031,False
+"Minneapolis, MN",balanced,all_hd,25,6,23.27,0.1858000010251999,0.0,0.0,418.1,0.031,False
+"Minneapolis, MN",balanced,all_hd,25,7,23.27,0.1858000010251999,0.0,0.0,418.1,0.03,False
+"Minneapolis, MN",balanced,all_hd,25,8,23.26,0.1858000010251999,0.0,0.0,418.5,0.03,False
+"Minneapolis, MN",balanced,all_hd,25,9,23.27,0.1858000010251999,0.0,0.0,418.1,0.031,False
+"Minneapolis, MN",balanced,all_hd,50,0,22.15,0.1762000024318695,0.0,0.0,456.4,0.033,False
+"Minneapolis, MN",balanced,all_hd,50,1,22.16,0.1762000024318695,0.0,0.0,456.1,0.033,False
+"Minneapolis, MN",balanced,all_hd,50,2,22.16,0.17630000412464142,0.0,0.0,456.1,0.033,False
+"Minneapolis, MN",balanced,all_hd,50,3,22.15,0.17599999904632568,0.0,0.0,456.4,0.032,False
+"Minneapolis, MN",balanced,all_hd,50,4,22.16,0.17630000412464142,0.0,0.0,456.1,0.032,False
+"Minneapolis, MN",balanced,all_hd,50,5,22.15,0.1761000007390976,0.0,0.0,456.4,0.034,False
+"Minneapolis, MN",balanced,all_hd,50,6,22.16,0.1762000024318695,0.0,0.0,456.1,0.034,False
+"Minneapolis, MN",balanced,all_hd,50,7,22.15,0.17630000412464142,0.0,0.0,456.4,0.033,False
+"Minneapolis, MN",balanced,all_hd,50,8,22.15,0.17630000412464142,0.0,0.0,456.4,0.033,False
+"Minneapolis, MN",balanced,all_hd,50,9,22.16,0.1761000007390976,0.0,0.0,456.1,0.034,False
+"Minneapolis Full, MN",random,all_gi,10,0,25.26,0.1882999986410141,0.0,3819.5,1107.0,0.053,False
+"Minneapolis Full, MN",random,all_gi,10,1,25.25,0.1882999986410141,0.0,3819.5,1108.0,0.055,False
+"Minneapolis Full, MN",random,all_gi,10,2,25.26,0.1881999969482422,0.0,3819.5,1107.0,0.054,False
+"Minneapolis Full, MN",random,all_gi,10,3,25.25,0.1881999969482422,0.0,3819.5,1108.0,0.049,False
+"Minneapolis Full, MN",random,all_gi,10,4,25.26,0.1882999986410141,0.0,3819.5,1107.0,0.05,False
+"Minneapolis Full, MN",random,all_gi,10,5,25.25,0.1881999969482422,0.0,3819.5,1108.0,0.05,False
+"Minneapolis Full, MN",random,all_gi,10,6,25.26,0.18809999525547028,0.0,3819.5,1107.0,0.05,False
+"Minneapolis Full, MN",random,all_gi,10,7,25.25,0.1881999969482422,0.0,3819.5,1108.0,0.05,False
+"Minneapolis Full, MN",random,all_gi,10,8,25.25,0.1881999969482422,0.0,3819.5,1108.0,0.05,False
+"Minneapolis Full, MN",random,all_gi,10,9,25.25,0.1881999969482422,0.0,3819.5,1108.0,0.05,False
+"Minneapolis Full, MN",random,all_gi,25,0,29.66,0.23499999940395355,0.0,9549.0,739.6,0.05,False
+"Minneapolis Full, MN",random,all_gi,25,1,29.66,0.23499999940395355,0.0,9549.0,739.6,0.05,False
+"Minneapolis Full, MN",random,all_gi,25,2,29.66,0.23510000109672546,0.0,9549.0,739.6,0.051,False
+"Minneapolis Full, MN",random,all_gi,25,3,29.66,0.23489999771118164,0.0,9549.0,739.6,0.053,False
+"Minneapolis Full, MN",random,all_gi,25,4,29.67,0.23499999940395355,0.0,9549.0,738.8,0.053,False
+"Minneapolis Full, MN",random,all_gi,25,5,29.66,0.23489999771118164,0.0,9549.0,739.6,0.053,False
+"Minneapolis Full, MN",random,all_gi,25,6,29.67,0.23499999940395355,0.0,9549.0,738.8,0.054,False
+"Minneapolis Full, MN",random,all_gi,25,7,29.65,0.23499999940395355,0.0,9549.0,740.3,0.055,False
+"Minneapolis Full, MN",random,all_gi,25,8,29.66,0.23479999601840973,0.0,9549.0,739.6,0.055,False
+"Minneapolis Full, MN",random,all_gi,25,9,29.65,0.23489999771118164,0.0,9549.0,740.3,0.056,False
+"Minneapolis Full, MN",random,all_gi,50,0,37.01,0.33230000734329224,0.0,19097.9,301.6,0.055,False
+"Minneapolis Full, MN",random,all_gi,50,1,37.01,0.33239999413490295,0.0,19097.9,301.6,0.056,False
+"Minneapolis Full, MN",random,all_gi,50,2,37.0,0.33219999074935913,0.0,19097.9,302.1,0.055,False
+"Minneapolis Full, MN",random,all_gi,50,3,37.0,0.3319999873638153,0.0,19097.9,302.1,0.056,False
+"Minneapolis Full, MN",random,all_gi,50,4,37.01,0.33230000734329224,0.0,19097.9,301.6,0.056,False
+"Minneapolis Full, MN",random,all_gi,50,5,37.0,0.33219999074935913,0.0,19097.9,302.1,0.055,False
+"Minneapolis Full, MN",random,all_gi,50,6,37.01,0.33239999413490295,0.0,19097.9,301.6,0.055,False
+"Minneapolis Full, MN",random,all_gi,50,7,37.0,0.3321000039577484,0.0,19097.9,302.1,0.054,False
+"Minneapolis Full, MN",random,all_gi,50,8,37.01,0.3319999873638153,0.0,19097.9,301.6,0.055,False
+"Minneapolis Full, MN",random,all_gi,50,9,37.0,0.3319999873638153,0.0,19097.9,302.1,0.054,False
+"Minneapolis Full, MN",random,all_ff,10,0,22.63,0.1873999983072281,21.962,6684.1,1370.4,0.053,False
+"Minneapolis Full, MN",random,all_ff,10,1,22.63,0.18729999661445618,21.962,6684.1,1370.4,0.052,False
+"Minneapolis Full, MN",random,all_ff,10,2,22.63,0.18729999661445618,21.962,6684.1,1370.4,0.053,False
+"Minneapolis Full, MN",random,all_ff,10,3,22.63,0.18719999492168427,21.962,6684.1,1370.4,0.054,False
+"Minneapolis Full, MN",random,all_ff,10,4,22.63,0.18729999661445618,21.962,6684.1,1370.4,0.055,False
+"Minneapolis Full, MN",random,all_ff,10,5,22.63,0.18719999492168427,21.962,6684.1,1370.4,0.055,False
+"Minneapolis Full, MN",random,all_ff,10,6,22.63,0.18719999492168427,21.962,6684.1,1370.4,0.053,False
+"Minneapolis Full, MN",random,all_ff,10,7,22.63,0.18719999492168427,21.962,6684.1,1370.4,0.053,False
+"Minneapolis Full, MN",random,all_ff,10,8,22.63,0.18729999661445618,21.962,6684.1,1370.4,0.053,False
+"Minneapolis Full, MN",random,all_ff,10,9,22.63,0.18719999492168427,21.962,6684.1,1370.4,0.053,False
+"Minneapolis Full, MN",random,all_ff,25,0,23.1,0.2321999967098236,54.907,16710.7,1320.7,0.053,False
+"Minneapolis Full, MN",random,all_ff,25,1,23.1,0.2320999950170517,54.907,16710.7,1320.7,0.054,False
+"Minneapolis Full, MN",random,all_ff,25,2,23.1,0.2321999967098236,54.907,16710.7,1320.7,0.054,False
+"Minneapolis Full, MN",random,all_ff,25,3,23.1,0.23199999332427979,54.907,16710.7,1320.7,0.055,False
+"Minneapolis Full, MN",random,all_ff,25,4,23.1,0.2320999950170517,54.907,16710.7,1320.7,0.055,False
+"Minneapolis Full, MN",random,all_ff,25,5,23.1,0.2320999950170517,54.907,16710.7,1320.7,0.053,False
+"Minneapolis Full, MN",random,all_ff,25,6,23.1,0.2320999950170517,54.907,16710.7,1320.7,0.056,False
+"Minneapolis Full, MN",random,all_ff,25,7,23.1,0.2320999950170517,54.907,16710.7,1320.7,0.054,False
+"Minneapolis Full, MN",random,all_ff,25,8,23.1,0.23190000653266907,54.907,16710.7,1320.7,0.054,False
+"Minneapolis Full, MN",random,all_ff,25,9,23.1,0.23199999332427979,54.907,16710.7,1320.7,0.05,False
+"Minneapolis Full, MN",random,all_ff,50,0,23.88,0.3253999948501587,109.813,33421.4,1240.8,0.05,False
+"Minneapolis Full, MN",random,all_ff,50,1,23.88,0.3253999948501587,109.813,33421.4,1240.8,0.051,False
+"Minneapolis Full, MN",random,all_ff,50,2,23.88,0.325300008058548,109.813,33421.4,1240.8,0.051,False
+"Minneapolis Full, MN",random,all_ff,50,3,23.88,0.32510000467300415,109.813,33421.4,1240.8,0.052,False
+"Minneapolis Full, MN",random,all_ff,50,4,23.88,0.325300008058548,109.813,33421.4,1240.8,0.051,False
+"Minneapolis Full, MN",random,all_ff,50,5,23.88,0.32519999146461487,109.813,33421.4,1240.8,0.051,False
+"Minneapolis Full, MN",random,all_ff,50,6,23.88,0.3253999948501587,109.813,33421.4,1240.8,0.052,False
+"Minneapolis Full, MN",random,all_ff,50,7,23.88,0.32519999146461487,109.813,33421.4,1240.8,0.051,False
+"Minneapolis Full, MN",random,all_ff,50,8,23.88,0.32510000467300415,109.813,33421.4,1240.8,0.052,False
+"Minneapolis Full, MN",random,all_ff,50,9,23.88,0.32499998807907104,109.813,33421.4,1240.8,0.051,False
+"Minneapolis Full, MN",random,all_hd,10,0,21.75,0.15719999372959137,0.0,0.0,1466.6,0.05,False
+"Minneapolis Full, MN",random,all_hd,10,1,21.75,0.15719999372959137,0.0,0.0,1466.6,0.05,False
+"Minneapolis Full, MN",random,all_hd,10,2,21.75,0.15719999372959137,0.0,0.0,1466.6,0.05,False
+"Minneapolis Full, MN",random,all_hd,10,3,21.75,0.15719999372959137,0.0,0.0,1466.6,0.063,False
+"Minneapolis Full, MN",random,all_hd,10,4,21.75,0.15719999372959137,0.0,0.0,1466.6,0.056,False
+"Minneapolis Full, MN",random,all_hd,10,5,21.75,0.15710000693798065,0.0,0.0,1466.6,0.053,False
+"Minneapolis Full, MN",random,all_hd,10,6,21.75,0.15719999372959137,0.0,0.0,1466.6,0.052,False
+"Minneapolis Full, MN",random,all_hd,10,7,21.75,0.15719999372959137,0.0,0.0,1466.6,0.052,False
+"Minneapolis Full, MN",random,all_hd,10,8,21.75,0.15729999542236328,0.0,0.0,1466.6,0.053,False
+"Minneapolis Full, MN",random,all_hd,10,9,21.75,0.15719999372959137,0.0,0.0,1466.6,0.051,False
+"Minneapolis Full, MN",random,all_hd,25,0,20.9,0.15080000460147858,0.0,0.0,1563.5,0.052,False
+"Minneapolis Full, MN",random,all_hd,25,1,20.9,0.1509000062942505,0.0,0.0,1563.5,0.054,False
+"Minneapolis Full, MN",random,all_hd,25,2,20.9,0.15080000460147858,0.0,0.0,1563.5,0.055,False
+"Minneapolis Full, MN",random,all_hd,25,3,20.9,0.15070000290870667,0.0,0.0,1563.5,0.054,False
+"Minneapolis Full, MN",random,all_hd,25,4,20.9,0.15080000460147858,0.0,0.0,1563.5,0.054,False
+"Minneapolis Full, MN",random,all_hd,25,5,20.9,0.15080000460147858,0.0,0.0,1563.5,0.055,False
+"Minneapolis Full, MN",random,all_hd,25,6,20.91,0.1509000062942505,0.0,0.0,1562.4,0.055,False
+"Minneapolis Full, MN",random,all_hd,25,7,20.89,0.15080000460147858,0.0,0.0,1564.7,0.054,False
+"Minneapolis Full, MN",random,all_hd,25,8,20.9,0.15080000460147858,0.0,0.0,1563.5,0.053,False
+"Minneapolis Full, MN",random,all_hd,25,9,20.89,0.15080000460147858,0.0,0.0,1564.7,0.054,False
+"Minneapolis Full, MN",random,all_hd,50,0,19.49,0.13989999890327454,0.0,0.0,1733.7,0.054,False
+"Minneapolis Full, MN",random,all_hd,50,1,19.48,0.14000000059604645,0.0,0.0,1735.0,0.054,False
+"Minneapolis Full, MN",random,all_hd,50,2,19.48,0.13989999890327454,0.0,0.0,1735.0,0.051,False
+"Minneapolis Full, MN",random,all_hd,50,3,19.48,0.13979999721050262,0.0,0.0,1735.0,0.053,False
+"Minneapolis Full, MN",random,all_hd,50,4,19.49,0.14000000059604645,0.0,0.0,1733.7,0.052,False
+"Minneapolis Full, MN",random,all_hd,50,5,19.48,0.13989999890327454,0.0,0.0,1735.0,0.051,False
+"Minneapolis Full, MN",random,all_hd,50,6,19.48,0.14000000059604645,0.0,0.0,1735.0,0.049,False
+"Minneapolis Full, MN",random,all_hd,50,7,19.48,0.13989999890327454,0.0,0.0,1735.0,0.056,False
+"Minneapolis Full, MN",random,all_hd,50,8,19.49,0.13989999890327454,0.0,0.0,1733.7,0.053,False
+"Minneapolis Full, MN",random,all_hd,50,9,19.48,0.13989999890327454,0.0,0.0,1735.0,0.054,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,0,25.34,0.18870000541210175,0.0,3819.5,1099.6,0.055,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,1,25.34,0.18860000371932983,0.0,3819.5,1099.6,0.054,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,2,25.34,0.18870000541210175,0.0,3819.5,1099.6,0.054,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,3,25.34,0.18870000541210175,0.0,3819.5,1099.6,0.054,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,4,25.34,0.18870000541210175,0.0,3819.5,1099.6,0.056,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,5,25.34,0.18870000541210175,0.0,3819.5,1099.6,0.055,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,6,25.34,0.18860000371932983,0.0,3819.5,1099.6,0.054,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,7,25.34,0.18870000541210175,0.0,3819.5,1099.6,0.054,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,8,25.34,0.18880000710487366,0.0,3819.5,1099.6,0.055,False
+"Minneapolis Full, MN",flood-focused,all_gi,10,9,25.34,0.18870000541210175,0.0,3819.5,1099.6,0.054,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,0,29.87,0.23690000176429749,0.0,9549.0,724.1,0.058,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,1,29.87,0.23680000007152557,0.0,9549.0,724.1,0.06,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,2,29.88,0.2370000034570694,0.0,9549.0,723.4,0.062,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,3,29.88,0.23680000007152557,0.0,9549.0,723.4,0.06,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,4,29.88,0.2370000034570694,0.0,9549.0,723.4,0.065,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,5,29.88,0.2370000034570694,0.0,9549.0,723.4,0.063,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,6,29.88,0.2370000034570694,0.0,9549.0,723.4,0.062,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,7,29.88,0.23690000176429749,0.0,9549.0,723.4,0.058,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,8,29.88,0.2370000034570694,0.0,9549.0,723.4,0.059,False
+"Minneapolis Full, MN",flood-focused,all_gi,25,9,29.88,0.2370000034570694,0.0,9549.0,723.4,0.061,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,0,37.42,0.33649998903274536,0.0,19097.9,283.1,0.069,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,1,37.42,0.33649998903274536,0.0,19097.9,283.1,0.068,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,2,37.42,0.33629998564720154,0.0,19097.9,283.1,0.066,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,3,37.42,0.33629998564720154,0.0,19097.9,283.1,0.071,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,4,37.42,0.33629998564720154,0.0,19097.9,283.1,0.071,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,5,37.42,0.33640000224113464,0.0,19097.9,283.1,0.066,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,6,37.43,0.33649998903274536,0.0,19097.9,282.7,0.066,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,7,37.42,0.33649998903274536,0.0,19097.9,283.1,0.07,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,8,37.43,0.33649998903274536,0.0,19097.9,282.7,0.068,False
+"Minneapolis Full, MN",flood-focused,all_gi,50,9,37.42,0.33640000224113464,0.0,19097.9,283.1,0.066,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,0,22.62,0.18770000338554382,21.962,6684.1,1371.4,0.054,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,1,22.62,0.18770000338554382,21.962,6684.1,1371.4,0.057,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,2,22.62,0.18770000338554382,21.962,6684.1,1371.4,0.057,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,3,22.62,0.18780000507831573,21.962,6684.1,1371.4,0.054,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,4,22.62,0.18780000507831573,21.962,6684.1,1371.4,0.055,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,5,22.62,0.18780000507831573,21.962,6684.1,1371.4,0.055,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,6,22.62,0.18770000338554382,21.962,6684.1,1371.4,0.055,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,7,22.62,0.18780000507831573,21.962,6684.1,1371.4,0.058,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,8,22.62,0.18790000677108765,21.962,6684.1,1371.4,0.059,False
+"Minneapolis Full, MN",flood-focused,all_ff,10,9,22.62,0.18770000338554382,21.962,6684.1,1371.4,0.058,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,0,23.08,0.23399999737739563,54.907,16710.7,1322.8,0.061,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,1,23.07,0.23389999568462372,54.907,16710.7,1323.8,0.062,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,2,23.08,0.23409999907016754,54.907,16710.7,1322.8,0.063,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,3,23.08,0.23389999568462372,54.907,16710.7,1322.8,0.063,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,4,23.08,0.23409999907016754,54.907,16710.7,1322.8,0.061,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,5,23.08,0.23399999737739563,54.907,16710.7,1322.8,0.063,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,6,23.08,0.23399999737739563,54.907,16710.7,1322.8,0.062,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,7,23.08,0.23399999737739563,54.907,16710.7,1322.8,0.062,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,8,23.08,0.23399999737739563,54.907,16710.7,1322.8,0.062,False
+"Minneapolis Full, MN",flood-focused,all_ff,25,9,23.08,0.23409999907016754,54.907,16710.7,1322.8,0.058,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,0,23.83,0.3294999897480011,109.813,33421.4,1245.9,0.066,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,1,23.83,0.3296000063419342,109.813,33421.4,1245.9,0.066,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,2,23.83,0.3292999863624573,109.813,33421.4,1245.9,0.066,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,3,23.83,0.3294000029563904,109.813,33421.4,1245.9,0.071,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,4,23.83,0.3294000029563904,109.813,33421.4,1245.9,0.069,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,5,23.83,0.3294000029563904,109.813,33421.4,1245.9,0.069,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,6,23.83,0.3296000063419342,109.813,33421.4,1245.9,0.074,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,7,23.83,0.3294999897480011,109.813,33421.4,1245.9,0.069,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,8,23.83,0.3294999897480011,109.813,33421.4,1245.9,0.068,False
+"Minneapolis Full, MN",flood-focused,all_ff,50,9,23.83,0.3294000029563904,109.813,33421.4,1245.9,0.07,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,0,21.82,0.15770000219345093,0.0,0.0,1458.8,0.057,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,1,21.82,0.15770000219345093,0.0,0.0,1458.8,0.057,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,2,21.82,0.15770000219345093,0.0,0.0,1458.8,0.057,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,3,21.82,0.15770000219345093,0.0,0.0,1458.8,0.058,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,4,21.82,0.15770000219345093,0.0,0.0,1458.8,0.058,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,5,21.82,0.15770000219345093,0.0,0.0,1458.8,0.059,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,6,21.82,0.15770000219345093,0.0,0.0,1458.8,0.058,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,7,21.82,0.15780000388622284,0.0,0.0,1458.8,0.06,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,8,21.83,0.15780000388622284,0.0,0.0,1457.6,0.058,False
+"Minneapolis Full, MN",flood-focused,all_hd,10,9,21.82,0.15770000219345093,0.0,0.0,1458.8,0.058,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,0,21.08,0.15209999680519104,0.0,0.0,1542.7,0.063,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,1,21.08,0.15209999680519104,0.0,0.0,1542.7,0.063,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,2,21.08,0.15219999849796295,0.0,0.0,1542.7,0.063,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,3,21.08,0.15209999680519104,0.0,0.0,1542.7,0.058,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,4,21.08,0.15219999849796295,0.0,0.0,1542.7,0.058,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,5,21.08,0.15219999849796295,0.0,0.0,1542.7,0.058,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,6,21.08,0.15209999680519104,0.0,0.0,1542.7,0.06,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,7,21.08,0.15209999680519104,0.0,0.0,1542.7,0.061,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,8,21.08,0.15219999849796295,0.0,0.0,1542.7,0.061,False
+"Minneapolis Full, MN",flood-focused,all_hd,25,9,21.08,0.15209999680519104,0.0,0.0,1542.7,0.063,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,0,19.84,0.14239999651908875,0.0,0.0,1690.4,0.071,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,1,19.84,0.14229999482631683,0.0,0.0,1690.4,0.072,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,2,19.84,0.14219999313354492,0.0,0.0,1690.4,0.071,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,3,19.84,0.14219999313354492,0.0,0.0,1690.4,0.069,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,4,19.84,0.14229999482631683,0.0,0.0,1690.4,0.069,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,5,19.84,0.14229999482631683,0.0,0.0,1690.4,0.069,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,6,19.84,0.14239999651908875,0.0,0.0,1690.4,0.07,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,7,19.84,0.14239999651908875,0.0,0.0,1690.4,0.07,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,8,19.84,0.14239999651908875,0.0,0.0,1690.4,0.069,False
+"Minneapolis Full, MN",flood-focused,all_hd,50,9,19.84,0.14229999482631683,0.0,0.0,1690.4,0.07,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,0,25.29,0.18860000371932983,0.0,3819.5,1104.2,0.059,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,1,25.29,0.18870000541210175,0.0,3819.5,1104.2,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,2,25.29,0.18850000202655792,0.0,3819.5,1104.2,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,3,25.29,0.18860000371932983,0.0,3819.5,1104.2,0.059,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,4,25.3,0.18860000371932983,0.0,3819.5,1103.3,0.058,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,5,25.29,0.18850000202655792,0.0,3819.5,1104.2,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,6,25.29,0.18860000371932983,0.0,3819.5,1104.2,0.055,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,7,25.29,0.18860000371932983,0.0,3819.5,1104.2,0.053,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,8,25.29,0.18860000371932983,0.0,3819.5,1104.2,0.053,False
+"Minneapolis Full, MN",cooling-focused,all_gi,10,9,25.29,0.18860000371932983,0.0,3819.5,1104.2,0.053,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,0,29.75,0.23669999837875366,0.0,9549.0,732.9,0.058,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,1,29.75,0.23680000007152557,0.0,9549.0,732.9,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,2,29.76,0.23690000176429749,0.0,9549.0,732.2,0.063,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,3,29.75,0.23659999668598175,0.0,9549.0,732.9,0.061,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,4,29.75,0.23690000176429749,0.0,9549.0,732.9,0.064,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,5,29.75,0.23669999837875366,0.0,9549.0,732.9,0.062,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,6,29.75,0.23680000007152557,0.0,9549.0,732.9,0.062,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,7,29.75,0.23680000007152557,0.0,9549.0,732.9,0.061,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,8,29.75,0.23669999837875366,0.0,9549.0,732.9,0.061,False
+"Minneapolis Full, MN",cooling-focused,all_gi,25,9,29.75,0.23669999837875366,0.0,9549.0,732.9,0.061,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,0,37.16,0.3370000123977661,0.0,19097.9,294.8,0.068,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,1,37.16,0.336899995803833,0.0,19097.9,294.8,0.067,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,2,37.16,0.336899995803833,0.0,19097.9,294.8,0.069,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,3,37.17,0.3368000090122223,0.0,19097.9,294.3,0.068,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,4,37.16,0.3370000123977661,0.0,19097.9,294.8,0.069,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,5,37.16,0.3366999924182892,0.0,19097.9,294.8,0.069,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,6,37.16,0.336899995803833,0.0,19097.9,294.8,0.069,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,7,37.17,0.33709999918937683,0.0,19097.9,294.3,0.066,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,8,37.16,0.3368000090122223,0.0,19097.9,294.8,0.065,False
+"Minneapolis Full, MN",cooling-focused,all_gi,50,9,37.16,0.3370000123977661,0.0,19097.9,294.8,0.069,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,0,22.63,0.18770000338554382,21.962,6684.1,1370.4,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,1,22.63,0.18770000338554382,21.962,6684.1,1370.4,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,2,22.63,0.1876000016927719,21.962,6684.1,1370.4,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,3,22.63,0.1876000016927719,21.962,6684.1,1370.4,0.054,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,4,22.63,0.18770000338554382,21.962,6684.1,1370.4,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,5,22.63,0.1876000016927719,21.962,6684.1,1370.4,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,6,22.63,0.18770000338554382,21.962,6684.1,1370.4,0.058,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,7,22.63,0.18770000338554382,21.962,6684.1,1370.4,0.053,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,8,22.63,0.18770000338554382,21.962,6684.1,1370.4,0.054,False
+"Minneapolis Full, MN",cooling-focused,all_ff,10,9,22.63,0.1876000016927719,21.962,6684.1,1370.4,0.058,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,0,23.11,0.2337999939918518,54.907,16710.7,1319.7,0.059,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,1,23.11,0.23389999568462372,54.907,16710.7,1319.7,0.067,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,2,23.1,0.23389999568462372,54.907,16710.7,1320.7,0.068,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,3,23.1,0.2337000072002411,54.907,16710.7,1320.7,0.063,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,4,23.1,0.23399999737739563,54.907,16710.7,1320.7,0.058,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,5,23.1,0.2337999939918518,54.907,16710.7,1320.7,0.061,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,6,23.1,0.23389999568462372,54.907,16710.7,1320.7,0.067,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,7,23.1,0.23389999568462372,54.907,16710.7,1320.7,0.062,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,8,23.1,0.2337999939918518,54.907,16710.7,1320.7,0.061,False
+"Minneapolis Full, MN",cooling-focused,all_ff,25,9,23.1,0.2337999939918518,54.907,16710.7,1320.7,0.065,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,0,23.89,0.33000001311302185,109.813,33421.4,1239.8,0.073,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,1,23.89,0.32989999651908875,109.813,33421.4,1239.8,0.069,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,2,23.89,0.32989999651908875,109.813,33421.4,1239.8,0.066,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,3,23.89,0.329800009727478,109.813,33421.4,1239.8,0.065,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,4,23.89,0.33000001311302185,109.813,33421.4,1239.8,0.066,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,5,23.89,0.3296999931335449,109.813,33421.4,1239.8,0.065,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,6,23.89,0.32989999651908875,109.813,33421.4,1239.8,0.07,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,7,23.89,0.33009999990463257,109.813,33421.4,1239.8,0.07,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,8,23.89,0.329800009727478,109.813,33421.4,1239.8,0.071,False
+"Minneapolis Full, MN",cooling-focused,all_ff,50,9,23.89,0.32989999651908875,109.813,33421.4,1239.8,0.069,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,0,21.78,0.15780000388622284,0.0,0.0,1463.2,0.059,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,1,21.78,0.15780000388622284,0.0,0.0,1463.2,0.053,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,2,21.78,0.15770000219345093,0.0,0.0,1463.2,0.053,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,3,21.78,0.15770000219345093,0.0,0.0,1463.2,0.054,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,4,21.79,0.15780000388622284,0.0,0.0,1462.1,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,5,21.78,0.15770000219345093,0.0,0.0,1463.2,0.057,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,6,21.78,0.15780000388622284,0.0,0.0,1463.2,0.053,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,7,21.78,0.15780000388622284,0.0,0.0,1463.2,0.053,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,8,21.78,0.15770000219345093,0.0,0.0,1463.2,0.052,False
+"Minneapolis Full, MN",cooling-focused,all_hd,10,9,21.78,0.15770000219345093,0.0,0.0,1463.2,0.059,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,0,20.98,0.15219999849796295,0.0,0.0,1554.2,0.063,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,1,20.98,0.15219999849796295,0.0,0.0,1554.2,0.062,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,2,20.98,0.15219999849796295,0.0,0.0,1554.2,0.06,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,3,20.98,0.15219999849796295,0.0,0.0,1554.2,0.061,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,4,20.98,0.15219999849796295,0.0,0.0,1554.2,0.056,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,5,20.97,0.15209999680519104,0.0,0.0,1555.4,0.061,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,6,20.98,0.15219999849796295,0.0,0.0,1554.2,0.067,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,7,20.98,0.15219999849796295,0.0,0.0,1554.2,0.064,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,8,20.98,0.15219999849796295,0.0,0.0,1554.2,0.061,False
+"Minneapolis Full, MN",cooling-focused,all_hd,25,9,20.98,0.15219999849796295,0.0,0.0,1554.2,0.06,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,0,19.62,0.14239999651908875,0.0,0.0,1717.5,0.068,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,1,19.62,0.14249999821186066,0.0,0.0,1717.5,0.07,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,2,19.62,0.14239999651908875,0.0,0.0,1717.5,0.068,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,3,19.62,0.14239999651908875,0.0,0.0,1717.5,0.069,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,4,19.62,0.14239999651908875,0.0,0.0,1717.5,0.068,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,5,19.61,0.14229999482631683,0.0,0.0,1718.8,0.064,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,6,19.62,0.14239999651908875,0.0,0.0,1717.5,0.064,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,7,19.62,0.14249999821186066,0.0,0.0,1717.5,0.067,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,8,19.62,0.14239999651908875,0.0,0.0,1717.5,0.069,False
+"Minneapolis Full, MN",cooling-focused,all_hd,50,9,19.62,0.14239999651908875,0.0,0.0,1717.5,0.068,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,0,25.35,0.19120000302791595,0.0,3819.5,1098.6,0.058,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,1,25.35,0.19120000302791595,0.0,3819.5,1098.6,0.058,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,2,25.35,0.19110000133514404,0.0,3819.5,1098.6,0.055,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,3,25.35,0.19120000302791595,0.0,3819.5,1098.6,0.057,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,4,25.36,0.19120000302791595,0.0,3819.5,1097.7,0.054,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,5,25.35,0.19120000302791595,0.0,3819.5,1098.6,0.054,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,6,25.35,0.19120000302791595,0.0,3819.5,1098.6,0.059,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,7,25.36,0.19120000302791595,0.0,3819.5,1097.7,0.057,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,8,25.35,0.19130000472068787,0.0,3819.5,1098.6,0.057,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,10,9,25.36,0.19130000472068787,0.0,3819.5,1097.7,0.056,False
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,0,29.89,0.24959999322891235,0.0,9549.0,722.7,0.064,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,1,29.89,0.24969999492168427,0.0,9549.0,722.7,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,2,29.89,0.24969999492168427,0.0,9549.0,722.7,0.059,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,3,29.89,0.24969999492168427,0.0,9549.0,722.7,0.059,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,4,29.89,0.24969999492168427,0.0,9549.0,722.7,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,5,29.89,0.24969999492168427,0.0,9549.0,722.7,0.058,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,6,29.89,0.24969999492168427,0.0,9549.0,722.7,0.058,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,7,29.89,0.24969999492168427,0.0,9549.0,722.7,0.059,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,8,29.89,0.24969999492168427,0.0,9549.0,722.7,0.059,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,25,9,29.89,0.24969999492168427,0.0,9549.0,722.7,0.061,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,0,37.16,0.33880001306533813,0.0,19097.9,294.8,0.064,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,1,37.16,0.33880001306533813,0.0,19097.9,294.8,0.064,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,2,37.16,0.33889999985694885,0.0,19097.9,294.8,0.064,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,3,37.16,0.33869999647140503,0.0,19097.9,294.8,0.064,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,4,37.15,0.33869999647140503,0.0,19097.9,295.2,0.059,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,5,37.16,0.33869999647140503,0.0,19097.9,294.8,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,6,37.15,0.33869999647140503,0.0,19097.9,295.2,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,7,37.15,0.33880001306533813,0.0,19097.9,295.2,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,8,37.16,0.33869999647140503,0.0,19097.9,294.8,0.059,True
+"Minneapolis Full, MN",undersupply-focused,all_gi,50,9,37.16,0.33869999647140503,0.0,19097.9,294.8,0.059,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,0,22.64,0.19009999930858612,21.962,6684.1,1369.3,0.06,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,1,22.64,0.1899999976158142,21.962,6684.1,1369.3,0.061,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,2,22.64,0.1899999976158142,21.962,6684.1,1369.3,0.057,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,3,22.64,0.1899999976158142,21.962,6684.1,1369.3,0.057,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,4,22.64,0.1899999976158142,21.962,6684.1,1369.3,0.058,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,5,22.64,0.19009999930858612,21.962,6684.1,1369.3,0.057,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,6,22.64,0.1899999976158142,21.962,6684.1,1369.3,0.057,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,7,22.64,0.1899999976158142,21.962,6684.1,1369.3,0.06,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,8,22.64,0.19009999930858612,21.962,6684.1,1369.3,0.054,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,10,9,22.64,0.19020000100135803,21.962,6684.1,1369.3,0.053,False
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,0,23.12,0.24629999697208405,54.907,16710.7,1318.6,0.066,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,1,23.12,0.24639999866485596,54.907,16710.7,1318.6,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,2,23.12,0.24639999866485596,54.907,16710.7,1318.6,0.064,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,3,23.12,0.24639999866485596,54.907,16710.7,1318.6,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,4,23.12,0.24639999866485596,54.907,16710.7,1318.6,0.064,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,5,23.12,0.24639999866485596,54.907,16710.7,1318.6,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,6,23.12,0.24639999866485596,54.907,16710.7,1318.6,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,7,23.12,0.24639999866485596,54.907,16710.7,1318.6,0.064,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,8,23.12,0.24639999866485596,54.907,16710.7,1318.6,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,25,9,23.12,0.24639999866485596,54.907,16710.7,1318.6,0.061,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,0,23.9,0.3319000005722046,109.813,33421.4,1238.8,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,1,23.9,0.3319999873638153,109.813,33421.4,1238.8,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,2,23.9,0.3319999873638153,109.813,33421.4,1238.8,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,3,23.9,0.3319000005722046,109.813,33421.4,1238.8,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,4,23.9,0.3319000005722046,109.813,33421.4,1238.8,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,5,23.89,0.3319000005722046,109.813,33421.4,1239.8,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,6,23.9,0.3319000005722046,109.813,33421.4,1238.8,0.059,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,7,23.9,0.3319999873638153,109.813,33421.4,1238.8,0.061,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,8,23.9,0.3319000005722046,109.813,33421.4,1238.8,0.061,True
+"Minneapolis Full, MN",undersupply-focused,all_ff,50,9,23.9,0.3319000005722046,109.813,33421.4,1238.8,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,0,21.84,0.15850000083446503,0.0,0.0,1456.5,0.058,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,1,21.84,0.15850000083446503,0.0,0.0,1456.5,0.056,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,2,21.84,0.15850000083446503,0.0,0.0,1456.5,0.057,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,3,21.84,0.15850000083446503,0.0,0.0,1456.5,0.057,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,4,21.84,0.15860000252723694,0.0,0.0,1456.5,0.058,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,5,21.84,0.15860000252723694,0.0,0.0,1456.5,0.053,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,6,21.84,0.15850000083446503,0.0,0.0,1456.5,0.056,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,7,21.84,0.15860000252723694,0.0,0.0,1456.5,0.058,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,8,21.84,0.15850000083446503,0.0,0.0,1456.5,0.067,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,10,9,21.84,0.15860000252723694,0.0,0.0,1456.5,0.058,False
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,0,21.1,0.15389999747276306,0.0,0.0,1540.4,0.061,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,1,21.1,0.15389999747276306,0.0,0.0,1540.4,0.061,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,2,21.1,0.15399999916553497,0.0,0.0,1540.4,0.061,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,3,21.1,0.15389999747276306,0.0,0.0,1540.4,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,4,21.1,0.15389999747276306,0.0,0.0,1540.4,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,5,21.1,0.15389999747276306,0.0,0.0,1540.4,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,6,21.1,0.15389999747276306,0.0,0.0,1540.4,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,7,21.1,0.15389999747276306,0.0,0.0,1540.4,0.057,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,8,21.1,0.15389999747276306,0.0,0.0,1540.4,0.061,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,25,9,21.1,0.15389999747276306,0.0,0.0,1540.4,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,0,19.62,0.14229999482631683,0.0,0.0,1717.5,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,1,19.62,0.14229999482631683,0.0,0.0,1717.5,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,2,19.62,0.14219999313354492,0.0,0.0,1717.5,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,3,19.62,0.14219999313354492,0.0,0.0,1717.5,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,4,19.61,0.14229999482631683,0.0,0.0,1718.8,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,5,19.62,0.14219999313354492,0.0,0.0,1717.5,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,6,19.61,0.14219999313354492,0.0,0.0,1718.8,0.061,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,7,19.61,0.14219999313354492,0.0,0.0,1718.8,0.063,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,8,19.62,0.14219999313354492,0.0,0.0,1717.5,0.062,True
+"Minneapolis Full, MN",undersupply-focused,all_hd,50,9,19.62,0.14229999482631683,0.0,0.0,1717.5,0.063,True
+"Minneapolis Full, MN",balanced,all_gi,10,0,25.33,0.188400000333786,0.0,3819.5,1100.5,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,10,1,25.33,0.18850000202655792,0.0,3819.5,1100.5,0.061,False
+"Minneapolis Full, MN",balanced,all_gi,10,2,25.33,0.188400000333786,0.0,3819.5,1100.5,0.059,False
+"Minneapolis Full, MN",balanced,all_gi,10,3,25.33,0.188400000333786,0.0,3819.5,1100.5,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,10,4,25.33,0.18850000202655792,0.0,3819.5,1100.5,0.059,False
+"Minneapolis Full, MN",balanced,all_gi,10,5,25.33,0.188400000333786,0.0,3819.5,1100.5,0.061,False
+"Minneapolis Full, MN",balanced,all_gi,10,6,25.33,0.188400000333786,0.0,3819.5,1100.5,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,10,7,25.32,0.188400000333786,0.0,3819.5,1101.4,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,10,8,25.33,0.18850000202655792,0.0,3819.5,1100.5,0.055,False
+"Minneapolis Full, MN",balanced,all_gi,10,9,25.33,0.188400000333786,0.0,3819.5,1100.5,0.058,False
+"Minneapolis Full, MN",balanced,all_gi,25,0,29.84,0.23899999260902405,0.0,9549.0,726.3,0.084,False
+"Minneapolis Full, MN",balanced,all_gi,25,1,29.84,0.23890000581741333,0.0,9549.0,726.3,0.064,False
+"Minneapolis Full, MN",balanced,all_gi,25,2,29.84,0.23890000581741333,0.0,9549.0,726.3,0.061,False
+"Minneapolis Full, MN",balanced,all_gi,25,3,29.84,0.23880000412464142,0.0,9549.0,726.3,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,25,4,29.83,0.2387000024318695,0.0,9549.0,727.0,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,25,5,29.84,0.23880000412464142,0.0,9549.0,726.3,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,25,6,29.83,0.23880000412464142,0.0,9549.0,727.0,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,25,7,29.83,0.23880000412464142,0.0,9549.0,727.0,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,25,8,29.84,0.2387000024318695,0.0,9549.0,726.3,0.059,False
+"Minneapolis Full, MN",balanced,all_gi,25,9,29.84,0.23880000412464142,0.0,9549.0,726.3,0.06,False
+"Minneapolis Full, MN",balanced,all_gi,50,0,37.32,0.3393999934196472,0.0,19097.9,287.6,0.069,False
+"Minneapolis Full, MN",balanced,all_gi,50,1,37.32,0.3395000100135803,0.0,19097.9,287.6,0.072,False
+"Minneapolis Full, MN",balanced,all_gi,50,2,37.31,0.3395000100135803,0.0,19097.9,288.0,0.074,False
+"Minneapolis Full, MN",balanced,all_gi,50,3,37.31,0.3393999934196472,0.0,19097.9,288.0,0.074,False
+"Minneapolis Full, MN",balanced,all_gi,50,4,37.31,0.3393999934196472,0.0,19097.9,288.0,0.074,False
+"Minneapolis Full, MN",balanced,all_gi,50,5,37.31,0.3393999934196472,0.0,19097.9,288.0,0.072,False
+"Minneapolis Full, MN",balanced,all_gi,50,6,37.31,0.3393999934196472,0.0,19097.9,288.0,0.073,False
+"Minneapolis Full, MN",balanced,all_gi,50,7,37.31,0.3393000066280365,0.0,19097.9,288.0,0.072,False
+"Minneapolis Full, MN",balanced,all_gi,50,8,37.32,0.3395000100135803,0.0,19097.9,287.6,0.073,False
+"Minneapolis Full, MN",balanced,all_gi,50,9,37.31,0.3391000032424927,0.0,19097.9,288.0,0.07,False
+"Minneapolis Full, MN",balanced,all_ff,10,0,22.63,0.1875,21.962,6684.1,1370.4,0.06,False
+"Minneapolis Full, MN",balanced,all_ff,10,1,22.63,0.1876000016927719,21.962,6684.1,1370.4,0.06,False
+"Minneapolis Full, MN",balanced,all_ff,10,2,22.63,0.1875,21.962,6684.1,1370.4,0.055,False
+"Minneapolis Full, MN",balanced,all_ff,10,3,22.63,0.1875,21.962,6684.1,1370.4,0.06,False
+"Minneapolis Full, MN",balanced,all_ff,10,4,22.63,0.1875,21.962,6684.1,1370.4,0.06,False
+"Minneapolis Full, MN",balanced,all_ff,10,5,22.63,0.1873999983072281,21.962,6684.1,1370.4,0.056,False
+"Minneapolis Full, MN",balanced,all_ff,10,6,22.63,0.1875,21.962,6684.1,1370.4,0.056,False
+"Minneapolis Full, MN",balanced,all_ff,10,7,22.63,0.1875,21.962,6684.1,1370.4,0.056,False
+"Minneapolis Full, MN",balanced,all_ff,10,8,22.63,0.1876000016927719,21.962,6684.1,1370.4,0.056,False
+"Minneapolis Full, MN",balanced,all_ff,10,9,22.63,0.1875,21.962,6684.1,1370.4,0.057,False
+"Minneapolis Full, MN",balanced,all_ff,25,0,23.1,0.23589999973773956,54.907,16710.7,1320.7,0.061,False
+"Minneapolis Full, MN",balanced,all_ff,25,1,23.1,0.23579999804496765,54.907,16710.7,1320.7,0.067,False
+"Minneapolis Full, MN",balanced,all_ff,25,2,23.1,0.23589999973773956,54.907,16710.7,1320.7,0.064,False
+"Minneapolis Full, MN",balanced,all_ff,25,3,23.1,0.23569999635219574,54.907,16710.7,1320.7,0.06,False
+"Minneapolis Full, MN",balanced,all_ff,25,4,23.1,0.23569999635219574,54.907,16710.7,1320.7,0.061,False
+"Minneapolis Full, MN",balanced,all_ff,25,5,23.1,0.23569999635219574,54.907,16710.7,1320.7,0.06,False
+"Minneapolis Full, MN",balanced,all_ff,25,6,23.1,0.23569999635219574,54.907,16710.7,1320.7,0.06,False
+"Minneapolis Full, MN",balanced,all_ff,25,7,23.1,0.23569999635219574,54.907,16710.7,1320.7,0.064,False
+"Minneapolis Full, MN",balanced,all_ff,25,8,23.1,0.23569999635219574,54.907,16710.7,1320.7,0.061,False
+"Minneapolis Full, MN",balanced,all_ff,25,9,23.1,0.23569999635219574,54.907,16710.7,1320.7,0.063,False
+"Minneapolis Full, MN",balanced,all_ff,50,0,23.87,0.33239999413490295,109.813,33421.4,1241.8,0.073,False
+"Minneapolis Full, MN",balanced,all_ff,50,1,23.87,0.33250001072883606,109.813,33421.4,1241.8,0.071,False
+"Minneapolis Full, MN",balanced,all_ff,50,2,23.87,0.33250001072883606,109.813,33421.4,1241.8,0.073,False
+"Minneapolis Full, MN",balanced,all_ff,50,3,23.88,0.33239999413490295,109.813,33421.4,1240.8,0.073,False
+"Minneapolis Full, MN",balanced,all_ff,50,4,23.87,0.33239999413490295,109.813,33421.4,1241.8,0.068,False
+"Minneapolis Full, MN",balanced,all_ff,50,5,23.87,0.33239999413490295,109.813,33421.4,1241.8,0.073,False
+"Minneapolis Full, MN",balanced,all_ff,50,6,23.87,0.33239999413490295,109.813,33421.4,1241.8,0.072,False
+"Minneapolis Full, MN",balanced,all_ff,50,7,23.87,0.33230000734329224,109.813,33421.4,1241.8,0.068,False
+"Minneapolis Full, MN",balanced,all_ff,50,8,23.87,0.33250001072883606,109.813,33421.4,1241.8,0.07,False
+"Minneapolis Full, MN",balanced,all_ff,50,9,23.87,0.33219999074935913,109.813,33421.4,1241.8,0.07,False
+"Minneapolis Full, MN",balanced,all_hd,10,0,21.82,0.15800000727176666,0.0,0.0,1458.8,0.06,False
+"Minneapolis Full, MN",balanced,all_hd,10,1,21.82,0.15800000727176666,0.0,0.0,1458.8,0.057,False
+"Minneapolis Full, MN",balanced,all_hd,10,2,21.81,0.15800000727176666,0.0,0.0,1459.9,0.06,False
+"Minneapolis Full, MN",balanced,all_hd,10,3,21.81,0.15800000727176666,0.0,0.0,1459.9,0.061,False
+"Minneapolis Full, MN",balanced,all_hd,10,4,21.81,0.15800000727176666,0.0,0.0,1459.9,0.06,False
+"Minneapolis Full, MN",balanced,all_hd,10,5,21.81,0.15790000557899475,0.0,0.0,1459.9,0.058,False
+"Minneapolis Full, MN",balanced,all_hd,10,6,21.82,0.15800000727176666,0.0,0.0,1458.8,0.059,False
+"Minneapolis Full, MN",balanced,all_hd,10,7,21.81,0.15800000727176666,0.0,0.0,1459.9,0.062,False
+"Minneapolis Full, MN",balanced,all_hd,10,8,21.81,0.15800000727176666,0.0,0.0,1459.9,0.064,False
+"Minneapolis Full, MN",balanced,all_hd,10,9,21.81,0.15800000727176666,0.0,0.0,1459.9,0.061,False
+"Minneapolis Full, MN",balanced,all_hd,25,0,21.05,0.15279999375343323,0.0,0.0,1546.1,0.063,False
+"Minneapolis Full, MN",balanced,all_hd,25,1,21.05,0.15279999375343323,0.0,0.0,1546.1,0.065,False
+"Minneapolis Full, MN",balanced,all_hd,25,2,21.05,0.15279999375343323,0.0,0.0,1546.1,0.066,False
+"Minneapolis Full, MN",balanced,all_hd,25,3,21.05,0.1527000069618225,0.0,0.0,1546.1,0.063,False
+"Minneapolis Full, MN",balanced,all_hd,25,4,21.05,0.1527000069618225,0.0,0.0,1546.1,0.065,False
+"Minneapolis Full, MN",balanced,all_hd,25,5,21.05,0.1527000069618225,0.0,0.0,1546.1,0.059,False
+"Minneapolis Full, MN",balanced,all_hd,25,6,21.05,0.1527000069618225,0.0,0.0,1546.1,0.065,False
+"Minneapolis Full, MN",balanced,all_hd,25,7,21.05,0.1527000069618225,0.0,0.0,1546.1,0.064,False
+"Minneapolis Full, MN",balanced,all_hd,25,8,21.05,0.1527000069618225,0.0,0.0,1546.1,0.066,False
+"Minneapolis Full, MN",balanced,all_hd,25,9,21.05,0.1527000069618225,0.0,0.0,1546.1,0.061,False
+"Minneapolis Full, MN",balanced,all_hd,50,0,19.75,0.14319999516010284,0.0,0.0,1701.4,0.071,False
+"Minneapolis Full, MN",balanced,all_hd,50,1,19.75,0.14319999516010284,0.0,0.0,1701.4,0.07,False
+"Minneapolis Full, MN",balanced,all_hd,50,2,19.75,0.14319999516010284,0.0,0.0,1701.4,0.071,False
+"Minneapolis Full, MN",balanced,all_hd,50,3,19.75,0.14319999516010284,0.0,0.0,1701.4,0.072,False
+"Minneapolis Full, MN",balanced,all_hd,50,4,19.75,0.14309999346733093,0.0,0.0,1701.4,0.067,False
+"Minneapolis Full, MN",balanced,all_hd,50,5,19.75,0.14309999346733093,0.0,0.0,1701.4,0.071,False
+"Minneapolis Full, MN",balanced,all_hd,50,6,19.75,0.14319999516010284,0.0,0.0,1701.4,0.071,False
+"Minneapolis Full, MN",balanced,all_hd,50,7,19.74,0.14309999346733093,0.0,0.0,1702.7,0.071,False
+"Minneapolis Full, MN",balanced,all_hd,50,8,19.75,0.14319999516010284,0.0,0.0,1701.4,0.068,False
+"Minneapolis Full, MN",balanced,all_hd,50,9,19.75,0.14309999346733093,0.0,0.0,1701.4,0.071,False
+"San Antonio, TX",random,all_gi,10,0,25.48,0.3287000060081482,0.0,37384.6,8662.9,0.909,False
+"San Antonio, TX",random,all_gi,10,1,25.48,0.3287999927997589,0.0,37384.6,8662.9,0.845,False
+"San Antonio, TX",random,all_gi,10,2,25.48,0.3287999927997589,0.0,37384.6,8662.9,0.865,False
+"San Antonio, TX",random,all_gi,10,3,25.48,0.3287000060081482,0.0,37384.6,8662.9,0.858,False
+"San Antonio, TX",random,all_gi,10,4,25.48,0.3287000060081482,0.0,37384.6,8662.9,0.851,False
+"San Antonio, TX",random,all_gi,10,5,25.48,0.3287000060081482,0.0,37384.6,8662.9,0.868,False
+"San Antonio, TX",random,all_gi,10,6,25.48,0.3287999927997589,0.0,37384.6,8662.9,0.859,False
+"San Antonio, TX",random,all_gi,10,7,25.48,0.3287000060081482,0.0,37384.6,8662.9,0.849,False
+"San Antonio, TX",random,all_gi,10,8,25.48,0.3287000060081482,0.0,37384.6,8662.9,0.857,False
+"San Antonio, TX",random,all_gi,10,9,25.48,0.3287000060081482,0.0,37384.6,8662.9,0.846,False
+"San Antonio, TX",random,all_gi,25,0,28.5,0.3646000027656555,0.0,93462.3,6602.6,0.861,False
+"San Antonio, TX",random,all_gi,25,1,28.5,0.3644999861717224,0.0,93462.3,6602.6,0.869,False
+"San Antonio, TX",random,all_gi,25,2,28.5,0.3644999861717224,0.0,93462.3,6602.6,0.863,False
+"San Antonio, TX",random,all_gi,25,3,28.5,0.3644999861717224,0.0,93462.3,6602.6,0.861,False
+"San Antonio, TX",random,all_gi,25,4,28.5,0.3644999861717224,0.0,93462.3,6602.6,0.866,False
+"San Antonio, TX",random,all_gi,25,5,28.5,0.3644999861717224,0.0,93462.3,6602.6,0.883,False
+"San Antonio, TX",random,all_gi,25,6,28.5,0.3644999861717224,0.0,93462.3,6602.6,0.91,False
+"San Antonio, TX",random,all_gi,25,7,28.5,0.3644999861717224,0.0,93462.3,6602.6,0.885,False
+"San Antonio, TX",random,all_gi,25,8,28.5,0.3644999861717224,0.0,93462.3,6602.6,0.852,False
+"San Antonio, TX",random,all_gi,25,9,28.5,0.3644999861717224,0.0,93462.3,6602.6,0.848,False
+"San Antonio, TX",random,all_gi,50,0,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.919,False
+"San Antonio, TX",random,all_gi,50,1,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.866,False
+"San Antonio, TX",random,all_gi,50,2,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.864,False
+"San Antonio, TX",random,all_gi,50,3,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.854,False
+"San Antonio, TX",random,all_gi,50,4,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.908,False
+"San Antonio, TX",random,all_gi,50,5,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.886,False
+"San Antonio, TX",random,all_gi,50,6,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.895,False
+"San Antonio, TX",random,all_gi,50,7,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.874,False
+"San Antonio, TX",random,all_gi,50,8,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.85,False
+"San Antonio, TX",random,all_gi,50,9,33.53,0.42750000953674316,0.0,186924.5,3854.3,0.87,False
+"San Antonio, TX",random,all_ff,10,0,23.63,0.32519999146461487,158.884,65423.0,10094.2,0.913,False
+"San Antonio, TX",random,all_ff,10,1,23.63,0.325300008058548,158.884,65423.0,10094.2,0.892,False
+"San Antonio, TX",random,all_ff,10,2,23.63,0.32519999146461487,158.884,65423.0,10094.2,0.882,False
+"San Antonio, TX",random,all_ff,10,3,23.63,0.32519999146461487,158.884,65423.0,10094.2,0.88,False
+"San Antonio, TX",random,all_ff,10,4,23.63,0.32519999146461487,158.884,65423.0,10094.2,0.837,False
+"San Antonio, TX",random,all_ff,10,5,23.63,0.32519999146461487,158.884,65423.0,10094.2,0.902,False
+"San Antonio, TX",random,all_ff,10,6,23.63,0.32519999146461487,158.884,65423.0,10094.2,0.87,False
+"San Antonio, TX",random,all_ff,10,7,23.63,0.32519999146461487,158.884,65423.0,10094.2,0.866,False
+"San Antonio, TX",random,all_ff,10,8,23.63,0.32519999146461487,158.884,65423.0,10094.2,0.872,False
+"San Antonio, TX",random,all_ff,10,9,23.63,0.32519999146461487,158.884,65423.0,10094.2,0.883,False
+"San Antonio, TX",random,all_ff,25,0,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.872,False
+"San Antonio, TX",random,all_ff,25,1,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.871,False
+"San Antonio, TX",random,all_ff,25,2,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.876,False
+"San Antonio, TX",random,all_ff,25,3,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.873,False
+"San Antonio, TX",random,all_ff,25,4,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.878,False
+"San Antonio, TX",random,all_ff,25,5,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.874,False
+"San Antonio, TX",random,all_ff,25,6,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.876,False
+"San Antonio, TX",random,all_ff,25,7,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.9,False
+"San Antonio, TX",random,all_ff,25,8,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.897,False
+"San Antonio, TX",random,all_ff,25,9,23.88,0.3549000024795532,397.215,163559.0,9892.8,0.898,False
+"San Antonio, TX",random,all_ff,50,0,24.3,0.40709999203681946,794.429,327117.9,9560.2,0.908,False
+"San Antonio, TX",random,all_ff,50,1,24.29,0.40709999203681946,794.429,327117.9,9568.0,0.888,False
+"San Antonio, TX",random,all_ff,50,2,24.29,0.40709999203681946,794.429,327117.9,9568.0,0.884,False
+"San Antonio, TX",random,all_ff,50,3,24.29,0.40709999203681946,794.429,327117.9,9568.0,0.887,False
+"San Antonio, TX",random,all_ff,50,4,24.29,0.40709999203681946,794.429,327117.9,9568.0,0.87,False
+"San Antonio, TX",random,all_ff,50,5,24.29,0.40709999203681946,794.429,327117.9,9568.0,0.866,False
+"San Antonio, TX",random,all_ff,50,6,24.29,0.40720000863075256,794.429,327117.9,9568.0,0.881,False
+"San Antonio, TX",random,all_ff,50,7,24.29,0.40720000863075256,794.429,327117.9,9568.0,0.889,False
+"San Antonio, TX",random,all_ff,50,8,24.3,0.40709999203681946,794.429,327117.9,9560.2,0.929,False
+"San Antonio, TX",random,all_ff,50,9,24.29,0.40720000863075256,794.429,327117.9,9568.0,0.898,False
+"San Antonio, TX",random,all_hd,10,0,23.17,0.3043999969959259,0.0,0.0,10471.4,0.867,False
+"San Antonio, TX",random,all_hd,10,1,23.17,0.3043999969959259,0.0,0.0,10471.4,0.858,False
+"San Antonio, TX",random,all_hd,10,2,23.17,0.3043999969959259,0.0,0.0,10471.4,0.855,False
+"San Antonio, TX",random,all_hd,10,3,23.17,0.3043999969959259,0.0,0.0,10471.4,0.857,False
+"San Antonio, TX",random,all_hd,10,4,23.17,0.3043999969959259,0.0,0.0,10471.4,0.863,False
+"San Antonio, TX",random,all_hd,10,5,23.17,0.3043999969959259,0.0,0.0,10471.4,0.865,False
+"San Antonio, TX",random,all_hd,10,6,23.17,0.3043999969959259,0.0,0.0,10471.4,0.862,False
+"San Antonio, TX",random,all_hd,10,7,23.17,0.3043999969959259,0.0,0.0,10471.4,0.859,False
+"San Antonio, TX",random,all_hd,10,8,23.17,0.3043999969959259,0.0,0.0,10471.4,0.854,False
+"San Antonio, TX",random,all_hd,10,9,23.17,0.3043999969959259,0.0,0.0,10471.4,0.861,False
+"San Antonio, TX",random,all_hd,25,0,22.72,0.3000999987125397,0.0,0.0,10849.0,0.859,False
+"San Antonio, TX",random,all_hd,25,1,22.72,0.3000999987125397,0.0,0.0,10849.0,0.861,False
+"San Antonio, TX",random,all_hd,25,2,22.72,0.3000999987125397,0.0,0.0,10849.0,0.866,False
+"San Antonio, TX",random,all_hd,25,3,22.72,0.3000999987125397,0.0,0.0,10849.0,0.854,False
+"San Antonio, TX",random,all_hd,25,4,22.72,0.3000999987125397,0.0,0.0,10849.0,0.924,False
+"San Antonio, TX",random,all_hd,25,5,22.72,0.3000999987125397,0.0,0.0,10849.0,0.887,False
+"San Antonio, TX",random,all_hd,25,6,22.72,0.3000999987125397,0.0,0.0,10849.0,0.858,False
+"San Antonio, TX",random,all_hd,25,7,22.72,0.3000999987125397,0.0,0.0,10849.0,0.843,False
+"San Antonio, TX",random,all_hd,25,8,22.72,0.3000999987125397,0.0,0.0,10849.0,0.845,False
+"San Antonio, TX",random,all_hd,25,9,22.72,0.3000999987125397,0.0,0.0,10849.0,0.844,False
+"San Antonio, TX",random,all_hd,50,0,21.98,0.29269999265670776,0.0,0.0,11488.7,0.854,False
+"San Antonio, TX",random,all_hd,50,1,21.98,0.29260000586509705,0.0,0.0,11488.7,0.858,False
+"San Antonio, TX",random,all_hd,50,2,21.98,0.29269999265670776,0.0,0.0,11488.7,0.851,False
+"San Antonio, TX",random,all_hd,50,3,21.98,0.29260000586509705,0.0,0.0,11488.7,0.85,False
+"San Antonio, TX",random,all_hd,50,4,21.98,0.29260000586509705,0.0,0.0,11488.7,0.848,False
+"San Antonio, TX",random,all_hd,50,5,21.97,0.29260000586509705,0.0,0.0,11497.5,0.842,False
+"San Antonio, TX",random,all_hd,50,6,21.98,0.29269999265670776,0.0,0.0,11488.7,0.866,False
+"San Antonio, TX",random,all_hd,50,7,21.98,0.29260000586509705,0.0,0.0,11488.7,0.857,False
+"San Antonio, TX",random,all_hd,50,8,21.97,0.29269999265670776,0.0,0.0,11497.5,0.847,False
+"San Antonio, TX",random,all_hd,50,9,21.98,0.29269999265670776,0.0,0.0,11488.7,0.842,False
+"San Antonio, TX",flood-focused,all_gi,10,0,25.51,0.328900009393692,0.0,37384.6,8640.8,0.914,False
+"San Antonio, TX",flood-focused,all_gi,10,1,25.51,0.328900009393692,0.0,37384.6,8640.8,0.899,False
+"San Antonio, TX",flood-focused,all_gi,10,2,25.51,0.328900009393692,0.0,37384.6,8640.8,0.896,False
+"San Antonio, TX",flood-focused,all_gi,10,3,25.51,0.328900009393692,0.0,37384.6,8640.8,0.902,False
+"San Antonio, TX",flood-focused,all_gi,10,4,25.51,0.328900009393692,0.0,37384.6,8640.8,0.907,False
+"San Antonio, TX",flood-focused,all_gi,10,5,25.51,0.328900009393692,0.0,37384.6,8640.8,0.915,False
+"San Antonio, TX",flood-focused,all_gi,10,6,25.51,0.328900009393692,0.0,37384.6,8640.8,0.919,False
+"San Antonio, TX",flood-focused,all_gi,10,7,25.51,0.328900009393692,0.0,37384.6,8640.8,0.913,False
+"San Antonio, TX",flood-focused,all_gi,10,8,25.51,0.328900009393692,0.0,37384.6,8640.8,0.906,False
+"San Antonio, TX",flood-focused,all_gi,10,9,25.51,0.328900009393692,0.0,37384.6,8640.8,0.905,False
+"San Antonio, TX",flood-focused,all_gi,25,0,28.57,0.365200012922287,0.0,93462.3,6558.7,0.95,False
+"San Antonio, TX",flood-focused,all_gi,25,1,28.57,0.365200012922287,0.0,93462.3,6558.7,0.953,False
+"San Antonio, TX",flood-focused,all_gi,25,2,28.57,0.365200012922287,0.0,93462.3,6558.7,0.949,False
+"San Antonio, TX",flood-focused,all_gi,25,3,28.57,0.365200012922287,0.0,93462.3,6558.7,0.949,False
+"San Antonio, TX",flood-focused,all_gi,25,4,28.57,0.365200012922287,0.0,93462.3,6558.7,0.95,False
+"San Antonio, TX",flood-focused,all_gi,25,5,28.57,0.365200012922287,0.0,93462.3,6558.7,0.952,False
+"San Antonio, TX",flood-focused,all_gi,25,6,28.57,0.365200012922287,0.0,93462.3,6558.7,0.95,False
+"San Antonio, TX",flood-focused,all_gi,25,7,28.57,0.365200012922287,0.0,93462.3,6558.7,0.948,False
+"San Antonio, TX",flood-focused,all_gi,25,8,28.57,0.365200012922287,0.0,93462.3,6558.7,0.943,False
+"San Antonio, TX",flood-focused,all_gi,25,9,28.57,0.365200012922287,0.0,93462.3,6558.7,0.944,False
+"San Antonio, TX",flood-focused,all_gi,50,0,33.67,0.4284999966621399,0.0,186924.5,3789.1,1.048,False
+"San Antonio, TX",flood-focused,all_gi,50,1,33.67,0.4284999966621399,0.0,186924.5,3789.1,1.053,False
+"San Antonio, TX",flood-focused,all_gi,50,2,33.66,0.4284999966621399,0.0,186924.5,3793.7,1.042,False
+"San Antonio, TX",flood-focused,all_gi,50,3,33.66,0.4284999966621399,0.0,186924.5,3793.7,1.042,False
+"San Antonio, TX",flood-focused,all_gi,50,4,33.66,0.4284999966621399,0.0,186924.5,3793.7,1.053,False
+"San Antonio, TX",flood-focused,all_gi,50,5,33.67,0.4284999966621399,0.0,186924.5,3789.1,1.06,False
+"San Antonio, TX",flood-focused,all_gi,50,6,33.67,0.4284999966621399,0.0,186924.5,3789.1,1.048,False
+"San Antonio, TX",flood-focused,all_gi,50,7,33.67,0.4284999966621399,0.0,186924.5,3789.1,1.037,False
+"San Antonio, TX",flood-focused,all_gi,50,8,33.66,0.4284999966621399,0.0,186924.5,3793.7,1.047,False
+"San Antonio, TX",flood-focused,all_gi,50,9,33.67,0.4284999966621399,0.0,186924.5,3789.1,1.037,False
+"San Antonio, TX",flood-focused,all_ff,10,0,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.891,False
+"San Antonio, TX",flood-focused,all_ff,10,1,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.905,False
+"San Antonio, TX",flood-focused,all_ff,10,2,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.888,False
+"San Antonio, TX",flood-focused,all_ff,10,3,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.934,False
+"San Antonio, TX",flood-focused,all_ff,10,4,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.919,False
+"San Antonio, TX",flood-focused,all_ff,10,5,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.908,False
+"San Antonio, TX",flood-focused,all_ff,10,6,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.896,False
+"San Antonio, TX",flood-focused,all_ff,10,7,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.895,False
+"San Antonio, TX",flood-focused,all_ff,10,8,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.896,False
+"San Antonio, TX",flood-focused,all_ff,10,9,23.63,0.3253999948501587,158.884,65423.0,10094.2,0.898,False
+"San Antonio, TX",flood-focused,all_ff,25,0,23.87,0.3555000126361847,397.215,163559.0,9900.8,0.942,False
+"San Antonio, TX",flood-focused,all_ff,25,1,23.87,0.3555999994277954,397.215,163559.0,9900.8,0.939,False
+"San Antonio, TX",flood-focused,all_ff,25,2,23.87,0.3555000126361847,397.215,163559.0,9900.8,0.941,False
+"San Antonio, TX",flood-focused,all_ff,25,3,23.87,0.3555000126361847,397.215,163559.0,9900.8,0.946,False
+"San Antonio, TX",flood-focused,all_ff,25,4,23.87,0.3555000126361847,397.215,163559.0,9900.8,0.944,False
+"San Antonio, TX",flood-focused,all_ff,25,5,23.87,0.3555999994277954,397.215,163559.0,9900.8,0.946,False
+"San Antonio, TX",flood-focused,all_ff,25,6,23.87,0.3555999994277954,397.215,163559.0,9900.8,0.945,False
+"San Antonio, TX",flood-focused,all_ff,25,7,23.87,0.3555000126361847,397.215,163559.0,9900.8,0.941,False
+"San Antonio, TX",flood-focused,all_ff,25,8,23.87,0.3555000126361847,397.215,163559.0,9900.8,0.972,False
+"San Antonio, TX",flood-focused,all_ff,25,9,23.87,0.3555999994277954,397.215,163559.0,9900.8,0.949,False
+"San Antonio, TX",flood-focused,all_ff,50,0,24.28,0.4081000089645386,794.429,327117.9,9575.9,1.05,False
+"San Antonio, TX",flood-focused,all_ff,50,1,24.28,0.4081999957561493,794.429,327117.9,9575.9,1.04,False
+"San Antonio, TX",flood-focused,all_ff,50,2,24.28,0.4081000089645386,794.429,327117.9,9575.9,1.038,False
+"San Antonio, TX",flood-focused,all_ff,50,3,24.28,0.4081999957561493,794.429,327117.9,9575.9,1.039,False
+"San Antonio, TX",flood-focused,all_ff,50,4,24.28,0.4081000089645386,794.429,327117.9,9575.9,1.033,False
+"San Antonio, TX",flood-focused,all_ff,50,5,24.28,0.4081999957561493,794.429,327117.9,9575.9,1.034,False
+"San Antonio, TX",flood-focused,all_ff,50,6,24.28,0.4081999957561493,794.429,327117.9,9575.9,1.047,False
+"San Antonio, TX",flood-focused,all_ff,50,7,24.28,0.4081000089645386,794.429,327117.9,9575.9,1.035,False
+"San Antonio, TX",flood-focused,all_ff,50,8,24.28,0.4081000089645386,794.429,327117.9,9575.9,1.051,False
+"San Antonio, TX",flood-focused,all_ff,50,9,24.28,0.4081000089645386,794.429,327117.9,9575.9,1.041,False
+"San Antonio, TX",flood-focused,all_hd,10,0,23.19,0.3046000003814697,0.0,0.0,10454.8,0.887,False
+"San Antonio, TX",flood-focused,all_hd,10,1,23.19,0.3046000003814697,0.0,0.0,10454.8,0.893,False
+"San Antonio, TX",flood-focused,all_hd,10,2,23.19,0.3046000003814697,0.0,0.0,10454.8,0.887,False
+"San Antonio, TX",flood-focused,all_hd,10,3,23.19,0.3046000003814697,0.0,0.0,10454.8,0.886,False
+"San Antonio, TX",flood-focused,all_hd,10,4,23.19,0.3046000003814697,0.0,0.0,10454.8,0.887,False
+"San Antonio, TX",flood-focused,all_hd,10,5,23.19,0.3046000003814697,0.0,0.0,10454.8,0.888,False
+"San Antonio, TX",flood-focused,all_hd,10,6,23.19,0.3046000003814697,0.0,0.0,10454.8,0.887,False
+"San Antonio, TX",flood-focused,all_hd,10,7,23.19,0.3046000003814697,0.0,0.0,10454.8,0.896,False
+"San Antonio, TX",flood-focused,all_hd,10,8,23.19,0.3046000003814697,0.0,0.0,10454.8,0.888,False
+"San Antonio, TX",flood-focused,all_hd,10,9,23.19,0.3046000003814697,0.0,0.0,10454.8,0.889,False
+"San Antonio, TX",flood-focused,all_hd,25,0,22.78,0.30059999227523804,0.0,0.0,10798.2,0.931,False
+"San Antonio, TX",flood-focused,all_hd,25,1,22.78,0.30059999227523804,0.0,0.0,10798.2,0.937,False
+"San Antonio, TX",flood-focused,all_hd,25,2,22.78,0.30059999227523804,0.0,0.0,10798.2,0.937,False
+"San Antonio, TX",flood-focused,all_hd,25,3,22.78,0.30059999227523804,0.0,0.0,10798.2,0.958,False
+"San Antonio, TX",flood-focused,all_hd,25,4,22.78,0.30059999227523804,0.0,0.0,10798.2,0.938,False
+"San Antonio, TX",flood-focused,all_hd,25,5,22.78,0.30059999227523804,0.0,0.0,10798.2,0.943,False
+"San Antonio, TX",flood-focused,all_hd,25,6,22.78,0.30059999227523804,0.0,0.0,10798.2,0.943,False
+"San Antonio, TX",flood-focused,all_hd,25,7,22.78,0.30059999227523804,0.0,0.0,10798.2,0.993,False
+"San Antonio, TX",flood-focused,all_hd,25,8,22.78,0.30059999227523804,0.0,0.0,10798.2,0.951,False
+"San Antonio, TX",flood-focused,all_hd,25,9,22.78,0.30059999227523804,0.0,0.0,10798.2,0.933,False
+"San Antonio, TX",flood-focused,all_hd,50,0,22.09,0.29339998960494995,0.0,0.0,11392.1,1.029,False
+"San Antonio, TX",flood-focused,all_hd,50,1,22.08,0.29350000619888306,0.0,0.0,11400.8,1.029,False
+"San Antonio, TX",flood-focused,all_hd,50,2,22.08,0.29339998960494995,0.0,0.0,11400.8,1.254,False
+"San Antonio, TX",flood-focused,all_hd,50,3,22.08,0.29350000619888306,0.0,0.0,11400.8,1.087,False
+"San Antonio, TX",flood-focused,all_hd,50,4,22.08,0.29339998960494995,0.0,0.0,11400.8,1.041,False
+"San Antonio, TX",flood-focused,all_hd,50,5,22.08,0.29350000619888306,0.0,0.0,11400.8,1.036,False
+"San Antonio, TX",flood-focused,all_hd,50,6,22.08,0.29339998960494995,0.0,0.0,11400.8,1.036,False
+"San Antonio, TX",flood-focused,all_hd,50,7,22.08,0.29339998960494995,0.0,0.0,11400.8,1.082,False
+"San Antonio, TX",flood-focused,all_hd,50,8,22.08,0.29339998960494995,0.0,0.0,11400.8,1.046,False
+"San Antonio, TX",flood-focused,all_hd,50,9,22.08,0.29339998960494995,0.0,0.0,11400.8,17.028,False
+"San Antonio, TX",cooling-focused,all_gi,10,0,25.49,0.32919999957084656,0.0,37384.6,8655.5,1.065,False
+"San Antonio, TX",cooling-focused,all_gi,10,1,25.49,0.32919999957084656,0.0,37384.6,8655.5,1.004,False
+"San Antonio, TX",cooling-focused,all_gi,10,2,25.49,0.32919999957084656,0.0,37384.6,8655.5,1.075,False
+"San Antonio, TX",cooling-focused,all_gi,10,3,25.49,0.32919999957084656,0.0,37384.6,8655.5,1.053,False
+"San Antonio, TX",cooling-focused,all_gi,10,4,25.49,0.32919999957084656,0.0,37384.6,8655.5,0.956,False
+"San Antonio, TX",cooling-focused,all_gi,10,5,25.49,0.32919999957084656,0.0,37384.6,8655.5,0.92,False
+"San Antonio, TX",cooling-focused,all_gi,10,6,25.49,0.32919999957084656,0.0,37384.6,8655.5,0.935,False
+"San Antonio, TX",cooling-focused,all_gi,10,7,25.49,0.32919999957084656,0.0,37384.6,8655.5,0.918,False
+"San Antonio, TX",cooling-focused,all_gi,10,8,25.49,0.32919999957084656,0.0,37384.6,8655.5,0.916,False
+"San Antonio, TX",cooling-focused,all_gi,10,9,25.49,0.32919999957084656,0.0,37384.6,8655.5,0.92,False
+"San Antonio, TX",cooling-focused,all_gi,25,0,28.53,0.36629998683929443,0.0,93462.3,6583.8,0.944,False
+"San Antonio, TX",cooling-focused,all_gi,25,1,28.53,0.36629998683929443,0.0,93462.3,6583.8,0.956,False
+"San Antonio, TX",cooling-focused,all_gi,25,2,28.53,0.36629998683929443,0.0,93462.3,6583.8,1.026,False
+"San Antonio, TX",cooling-focused,all_gi,25,3,28.53,0.36629998683929443,0.0,93462.3,6583.8,0.952,False
+"San Antonio, TX",cooling-focused,all_gi,25,4,28.53,0.36629998683929443,0.0,93462.3,6583.8,0.942,False
+"San Antonio, TX",cooling-focused,all_gi,25,5,28.53,0.36629998683929443,0.0,93462.3,6583.8,0.93,False
+"San Antonio, TX",cooling-focused,all_gi,25,6,28.53,0.36629998683929443,0.0,93462.3,6583.8,0.931,False
+"San Antonio, TX",cooling-focused,all_gi,25,7,28.53,0.36629998683929443,0.0,93462.3,6583.8,0.938,False
+"San Antonio, TX",cooling-focused,all_gi,25,8,28.53,0.36629998683929443,0.0,93462.3,6583.8,0.944,False
+"San Antonio, TX",cooling-focused,all_gi,25,9,28.53,0.36629998683929443,0.0,93462.3,6583.8,0.924,False
+"San Antonio, TX",cooling-focused,all_gi,50,0,33.59,0.4302999973297119,0.0,186924.5,3826.3,1.085,False
+"San Antonio, TX",cooling-focused,all_gi,50,1,33.59,0.4302999973297119,0.0,186924.5,3826.3,1.052,False
+"San Antonio, TX",cooling-focused,all_gi,50,2,33.59,0.4302999973297119,0.0,186924.5,3826.3,1.046,False
+"San Antonio, TX",cooling-focused,all_gi,50,3,33.59,0.4302999973297119,0.0,186924.5,3826.3,1.049,False
+"San Antonio, TX",cooling-focused,all_gi,50,4,33.59,0.4302999973297119,0.0,186924.5,3826.3,1.045,False
+"San Antonio, TX",cooling-focused,all_gi,50,5,33.59,0.430400013923645,0.0,186924.5,3826.3,1.052,False
+"San Antonio, TX",cooling-focused,all_gi,50,6,33.59,0.4302999973297119,0.0,186924.5,3826.3,1.035,False
+"San Antonio, TX",cooling-focused,all_gi,50,7,33.59,0.4302999973297119,0.0,186924.5,3826.3,1.053,False
+"San Antonio, TX",cooling-focused,all_gi,50,8,33.59,0.4302999973297119,0.0,186924.5,3826.3,1.06,False
+"San Antonio, TX",cooling-focused,all_gi,50,9,33.59,0.4302999973297119,0.0,186924.5,3826.3,1.058,False
+"San Antonio, TX",cooling-focused,all_ff,10,0,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.916,False
+"San Antonio, TX",cooling-focused,all_ff,10,1,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.896,False
+"San Antonio, TX",cooling-focused,all_ff,10,2,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.893,False
+"San Antonio, TX",cooling-focused,all_ff,10,3,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.892,False
+"San Antonio, TX",cooling-focused,all_ff,10,4,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.889,False
+"San Antonio, TX",cooling-focused,all_ff,10,5,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.891,False
+"San Antonio, TX",cooling-focused,all_ff,10,6,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.894,False
+"San Antonio, TX",cooling-focused,all_ff,10,7,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.897,False
+"San Antonio, TX",cooling-focused,all_ff,10,8,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.9,False
+"San Antonio, TX",cooling-focused,all_ff,10,9,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.894,False
+"San Antonio, TX",cooling-focused,all_ff,25,0,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.956,False
+"San Antonio, TX",cooling-focused,all_ff,25,1,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.96,False
+"San Antonio, TX",cooling-focused,all_ff,25,2,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.949,False
+"San Antonio, TX",cooling-focused,all_ff,25,3,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.949,False
+"San Antonio, TX",cooling-focused,all_ff,25,4,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.954,False
+"San Antonio, TX",cooling-focused,all_ff,25,5,23.89,0.35659998655319214,397.215,163559.0,9884.8,0.952,False
+"San Antonio, TX",cooling-focused,all_ff,25,6,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.948,False
+"San Antonio, TX",cooling-focused,all_ff,25,7,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.962,False
+"San Antonio, TX",cooling-focused,all_ff,25,8,23.89,0.35659998655319214,397.215,163559.0,9884.8,1.05,False
+"San Antonio, TX",cooling-focused,all_ff,25,9,23.88,0.35659998655319214,397.215,163559.0,9892.8,1.116,False
+"San Antonio, TX",cooling-focused,all_ff,50,0,24.3,0.4099999964237213,794.429,327117.9,9560.2,1.139,False
+"San Antonio, TX",cooling-focused,all_ff,50,1,24.3,0.4099999964237213,794.429,327117.9,9560.2,1.111,False
+"San Antonio, TX",cooling-focused,all_ff,50,2,24.3,0.4099999964237213,794.429,327117.9,9560.2,1.106,False
+"San Antonio, TX",cooling-focused,all_ff,50,3,24.3,0.4099999964237213,794.429,327117.9,9560.2,1.088,False
+"San Antonio, TX",cooling-focused,all_ff,50,4,24.3,0.4099000096321106,794.429,327117.9,9560.2,1.075,False
+"San Antonio, TX",cooling-focused,all_ff,50,5,24.3,0.4099999964237213,794.429,327117.9,9560.2,1.089,False
+"San Antonio, TX",cooling-focused,all_ff,50,6,24.3,0.4099999964237213,794.429,327117.9,9560.2,1.078,False
+"San Antonio, TX",cooling-focused,all_ff,50,7,24.3,0.4099999964237213,794.429,327117.9,9560.2,1.126,False
+"San Antonio, TX",cooling-focused,all_ff,50,8,24.3,0.4099999964237213,794.429,327117.9,9560.2,1.103,False
+"San Antonio, TX",cooling-focused,all_ff,50,9,24.3,0.4099999964237213,794.429,327117.9,9560.2,1.113,False
+"San Antonio, TX",cooling-focused,all_hd,10,0,23.18,0.30480000376701355,0.0,0.0,10463.1,0.96,False
+"San Antonio, TX",cooling-focused,all_hd,10,1,23.18,0.30480000376701355,0.0,0.0,10463.1,0.91,False
+"San Antonio, TX",cooling-focused,all_hd,10,2,23.18,0.30480000376701355,0.0,0.0,10463.1,0.914,False
+"San Antonio, TX",cooling-focused,all_hd,10,3,23.18,0.30480000376701355,0.0,0.0,10463.1,0.914,False
+"San Antonio, TX",cooling-focused,all_hd,10,4,23.18,0.30480000376701355,0.0,0.0,10463.1,0.927,False
+"San Antonio, TX",cooling-focused,all_hd,10,5,23.18,0.30480000376701355,0.0,0.0,10463.1,0.917,False
+"San Antonio, TX",cooling-focused,all_hd,10,6,23.18,0.30480000376701355,0.0,0.0,10463.1,0.922,False
+"San Antonio, TX",cooling-focused,all_hd,10,7,23.18,0.30480000376701355,0.0,0.0,10463.1,0.929,False
+"San Antonio, TX",cooling-focused,all_hd,10,8,23.18,0.30480000376701355,0.0,0.0,10463.1,0.938,False
+"San Antonio, TX",cooling-focused,all_hd,10,9,23.18,0.30480000376701355,0.0,0.0,10463.1,0.923,False
+"San Antonio, TX",cooling-focused,all_hd,25,0,22.75,0.3009999990463257,0.0,0.0,10823.6,0.977,False
+"San Antonio, TX",cooling-focused,all_hd,25,1,22.75,0.3010999858379364,0.0,0.0,10823.6,0.974,False
+"San Antonio, TX",cooling-focused,all_hd,25,2,22.75,0.3010999858379364,0.0,0.0,10823.6,0.963,False
+"San Antonio, TX",cooling-focused,all_hd,25,3,22.75,0.3010999858379364,0.0,0.0,10823.6,0.961,False
+"San Antonio, TX",cooling-focused,all_hd,25,4,22.75,0.3009999990463257,0.0,0.0,10823.6,0.968,False
+"San Antonio, TX",cooling-focused,all_hd,25,5,22.75,0.3010999858379364,0.0,0.0,10823.6,0.988,False
+"San Antonio, TX",cooling-focused,all_hd,25,6,22.75,0.3009999990463257,0.0,0.0,10823.6,1.054,False
+"San Antonio, TX",cooling-focused,all_hd,25,7,22.75,0.3010999858379364,0.0,0.0,10823.6,0.978,False
+"San Antonio, TX",cooling-focused,all_hd,25,8,22.75,0.3010999858379364,0.0,0.0,10823.6,0.952,False
+"San Antonio, TX",cooling-focused,all_hd,25,9,22.75,0.3009999990463257,0.0,0.0,10823.6,0.965,False
+"San Antonio, TX",cooling-focused,all_hd,50,0,22.03,0.29429998993873596,0.0,0.0,11444.7,1.062,False
+"San Antonio, TX",cooling-focused,all_hd,50,1,22.03,0.29429998993873596,0.0,0.0,11444.7,1.111,False
+"San Antonio, TX",cooling-focused,all_hd,50,2,22.03,0.29429998993873596,0.0,0.0,11444.7,1.048,False
+"San Antonio, TX",cooling-focused,all_hd,50,3,22.03,0.29429998993873596,0.0,0.0,11444.7,1.036,False
+"San Antonio, TX",cooling-focused,all_hd,50,4,22.03,0.29429998993873596,0.0,0.0,11444.7,1.07,False
+"San Antonio, TX",cooling-focused,all_hd,50,5,22.03,0.29429998993873596,0.0,0.0,11444.7,1.079,False
+"San Antonio, TX",cooling-focused,all_hd,50,6,22.03,0.29429998993873596,0.0,0.0,11444.7,1.056,False
+"San Antonio, TX",cooling-focused,all_hd,50,7,22.03,0.29429998993873596,0.0,0.0,11444.7,1.121,False
+"San Antonio, TX",cooling-focused,all_hd,50,8,22.03,0.29429998993873596,0.0,0.0,11444.7,1.103,False
+"San Antonio, TX",cooling-focused,all_hd,50,9,22.03,0.29429998993873596,0.0,0.0,11444.7,1.082,False
+"San Antonio, TX",undersupply-focused,all_gi,10,0,25.5,0.3294000029563904,0.0,37384.6,8648.1,0.87,True
+"San Antonio, TX",undersupply-focused,all_gi,10,1,25.5,0.3294000029563904,0.0,37384.6,8648.1,0.86,True
+"San Antonio, TX",undersupply-focused,all_gi,10,2,25.5,0.3294000029563904,0.0,37384.6,8648.1,0.892,True
+"San Antonio, TX",undersupply-focused,all_gi,10,3,25.5,0.3294000029563904,0.0,37384.6,8648.1,0.911,True
+"San Antonio, TX",undersupply-focused,all_gi,10,4,25.5,0.3294000029563904,0.0,37384.6,8648.1,0.878,True
+"San Antonio, TX",undersupply-focused,all_gi,10,5,25.5,0.3294000029563904,0.0,37384.6,8648.1,0.909,True
+"San Antonio, TX",undersupply-focused,all_gi,10,6,25.5,0.3294000029563904,0.0,37384.6,8648.1,0.898,True
+"San Antonio, TX",undersupply-focused,all_gi,10,7,25.5,0.3294000029563904,0.0,37384.6,8648.1,0.885,True
+"San Antonio, TX",undersupply-focused,all_gi,10,8,25.5,0.3294000029563904,0.0,37384.6,8648.1,0.886,True
+"San Antonio, TX",undersupply-focused,all_gi,10,9,25.5,0.3294999897480011,0.0,37384.6,8648.1,0.945,True
+"San Antonio, TX",undersupply-focused,all_gi,25,0,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.89,True
+"San Antonio, TX",undersupply-focused,all_gi,25,1,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.89,True
+"San Antonio, TX",undersupply-focused,all_gi,25,2,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.9,True
+"San Antonio, TX",undersupply-focused,all_gi,25,3,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.886,True
+"San Antonio, TX",undersupply-focused,all_gi,25,4,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.895,True
+"San Antonio, TX",undersupply-focused,all_gi,25,5,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.884,True
+"San Antonio, TX",undersupply-focused,all_gi,25,6,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.892,True
+"San Antonio, TX",undersupply-focused,all_gi,25,7,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.892,True
+"San Antonio, TX",undersupply-focused,all_gi,25,8,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.896,True
+"San Antonio, TX",undersupply-focused,all_gi,25,9,28.52,0.3653999865055084,0.0,93462.3,6590.1,0.901,True
+"San Antonio, TX",undersupply-focused,all_gi,50,0,33.55,0.42820000648498535,0.0,186924.5,3844.9,0.901,True
+"San Antonio, TX",undersupply-focused,all_gi,50,1,33.55,0.42820000648498535,0.0,186924.5,3844.9,0.9,True
+"San Antonio, TX",undersupply-focused,all_gi,50,2,33.55,0.42820000648498535,0.0,186924.5,3844.9,0.899,True
+"San Antonio, TX",undersupply-focused,all_gi,50,3,33.55,0.42820000648498535,0.0,186924.5,3844.9,0.898,True
+"San Antonio, TX",undersupply-focused,all_gi,50,4,33.55,0.42820000648498535,0.0,186924.5,3844.9,0.892,True
+"San Antonio, TX",undersupply-focused,all_gi,50,5,33.55,0.42820000648498535,0.0,186924.5,3844.9,0.898,True
+"San Antonio, TX",undersupply-focused,all_gi,50,6,33.55,0.42820000648498535,0.0,186924.5,3844.9,0.896,True
+"San Antonio, TX",undersupply-focused,all_gi,50,7,33.55,0.42820000648498535,0.0,186924.5,3844.9,0.893,True
+"San Antonio, TX",undersupply-focused,all_gi,50,8,33.55,0.42829999327659607,0.0,186924.5,3844.9,0.89,True
+"San Antonio, TX",undersupply-focused,all_gi,50,9,33.55,0.42820000648498535,0.0,186924.5,3844.9,0.921,True
+"San Antonio, TX",undersupply-focused,all_ff,10,0,23.63,0.32580000162124634,158.884,65423.0,10094.2,0.891,True
+"San Antonio, TX",undersupply-focused,all_ff,10,1,23.63,0.32580000162124634,158.884,65423.0,10094.2,0.884,True
+"San Antonio, TX",undersupply-focused,all_ff,10,2,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.899,True
+"San Antonio, TX",undersupply-focused,all_ff,10,3,23.63,0.32580000162124634,158.884,65423.0,10094.2,0.909,True
+"San Antonio, TX",undersupply-focused,all_ff,10,4,23.63,0.32580000162124634,158.884,65423.0,10094.2,0.879,True
+"San Antonio, TX",undersupply-focused,all_ff,10,5,23.63,0.32580000162124634,158.884,65423.0,10094.2,0.878,True
+"San Antonio, TX",undersupply-focused,all_ff,10,6,23.63,0.32580000162124634,158.884,65423.0,10094.2,0.873,True
+"San Antonio, TX",undersupply-focused,all_ff,10,7,23.63,0.3257000148296356,158.884,65423.0,10094.2,0.873,True
+"San Antonio, TX",undersupply-focused,all_ff,10,8,23.63,0.32580000162124634,158.884,65423.0,10094.2,0.873,True
+"San Antonio, TX",undersupply-focused,all_ff,10,9,23.63,0.32580000162124634,158.884,65423.0,10094.2,0.887,True
+"San Antonio, TX",undersupply-focused,all_ff,25,0,23.88,0.35569998621940613,397.215,163559.0,9892.8,0.923,True
+"San Antonio, TX",undersupply-focused,all_ff,25,1,23.88,0.35569998621940613,397.215,163559.0,9892.8,0.95,True
+"San Antonio, TX",undersupply-focused,all_ff,25,2,23.88,0.35569998621940613,397.215,163559.0,9892.8,0.887,True
+"San Antonio, TX",undersupply-focused,all_ff,25,3,23.88,0.35569998621940613,397.215,163559.0,9892.8,0.883,True
+"San Antonio, TX",undersupply-focused,all_ff,25,4,23.88,0.35569998621940613,397.215,163559.0,9892.8,0.889,True
+"San Antonio, TX",undersupply-focused,all_ff,25,5,23.88,0.35569998621940613,397.215,163559.0,9892.8,0.892,True
+"San Antonio, TX",undersupply-focused,all_ff,25,6,23.88,0.35569998621940613,397.215,163559.0,9892.8,0.879,True
+"San Antonio, TX",undersupply-focused,all_ff,25,7,23.88,0.35569998621940613,397.215,163559.0,9892.8,0.884,True
+"San Antonio, TX",undersupply-focused,all_ff,25,8,23.88,0.35569998621940613,397.215,163559.0,9892.8,0.883,True
+"San Antonio, TX",undersupply-focused,all_ff,25,9,23.88,0.35580000281333923,397.215,163559.0,9892.8,0.869,True
+"San Antonio, TX",undersupply-focused,all_ff,50,0,24.29,0.40790000557899475,794.429,327117.9,9568.0,0.907,True
+"San Antonio, TX",undersupply-focused,all_ff,50,1,24.29,0.40790000557899475,794.429,327117.9,9568.0,0.882,True
+"San Antonio, TX",undersupply-focused,all_ff,50,2,24.29,0.40779998898506165,794.429,327117.9,9568.0,0.891,True
+"San Antonio, TX",undersupply-focused,all_ff,50,3,24.29,0.40790000557899475,794.429,327117.9,9568.0,0.902,True
+"San Antonio, TX",undersupply-focused,all_ff,50,4,24.29,0.40790000557899475,794.429,327117.9,9568.0,0.884,True
+"San Antonio, TX",undersupply-focused,all_ff,50,5,24.29,0.40790000557899475,794.429,327117.9,9568.0,0.89,True
+"San Antonio, TX",undersupply-focused,all_ff,50,6,24.29,0.40790000557899475,794.429,327117.9,9568.0,0.903,True
+"San Antonio, TX",undersupply-focused,all_ff,50,7,24.29,0.40790000557899475,794.429,327117.9,9568.0,0.893,True
+"San Antonio, TX",undersupply-focused,all_ff,50,8,24.29,0.40790000557899475,794.429,327117.9,9568.0,0.905,True
+"San Antonio, TX",undersupply-focused,all_ff,50,9,24.29,0.40790000557899475,794.429,327117.9,9568.0,0.903,True
+"San Antonio, TX",undersupply-focused,all_hd,10,0,23.19,0.304500013589859,0.0,0.0,10454.8,0.887,True
+"San Antonio, TX",undersupply-focused,all_hd,10,1,23.19,0.3046000003814697,0.0,0.0,10454.8,0.883,True
+"San Antonio, TX",undersupply-focused,all_hd,10,2,23.19,0.304500013589859,0.0,0.0,10454.8,0.869,True
+"San Antonio, TX",undersupply-focused,all_hd,10,3,23.19,0.304500013589859,0.0,0.0,10454.8,0.869,True
+"San Antonio, TX",undersupply-focused,all_hd,10,4,23.19,0.304500013589859,0.0,0.0,10454.8,0.868,True
+"San Antonio, TX",undersupply-focused,all_hd,10,5,23.19,0.304500013589859,0.0,0.0,10454.8,0.857,True
+"San Antonio, TX",undersupply-focused,all_hd,10,6,23.19,0.304500013589859,0.0,0.0,10454.8,0.851,True
+"San Antonio, TX",undersupply-focused,all_hd,10,7,23.19,0.304500013589859,0.0,0.0,10454.8,0.855,True
+"San Antonio, TX",undersupply-focused,all_hd,10,8,23.19,0.3046000003814697,0.0,0.0,10454.8,0.856,True
+"San Antonio, TX",undersupply-focused,all_hd,10,9,23.19,0.3046000003814697,0.0,0.0,10454.8,0.854,True
+"San Antonio, TX",undersupply-focused,all_hd,25,0,22.74,0.3003000020980835,0.0,0.0,10832.0,0.882,True
+"San Antonio, TX",undersupply-focused,all_hd,25,1,22.74,0.3003000020980835,0.0,0.0,10832.0,0.867,True
+"San Antonio, TX",undersupply-focused,all_hd,25,2,22.74,0.3003000020980835,0.0,0.0,10832.0,0.859,True
+"San Antonio, TX",undersupply-focused,all_hd,25,3,22.74,0.3003000020980835,0.0,0.0,10832.0,0.86,True
+"San Antonio, TX",undersupply-focused,all_hd,25,4,22.74,0.3003000020980835,0.0,0.0,10832.0,0.879,True
+"San Antonio, TX",undersupply-focused,all_hd,25,5,22.74,0.3003000020980835,0.0,0.0,10832.0,0.879,True
+"San Antonio, TX",undersupply-focused,all_hd,25,6,22.74,0.3003000020980835,0.0,0.0,10832.0,0.93,True
+"San Antonio, TX",undersupply-focused,all_hd,25,7,22.74,0.3003000020980835,0.0,0.0,10832.0,0.944,True
+"San Antonio, TX",undersupply-focused,all_hd,25,8,22.74,0.3003000020980835,0.0,0.0,10832.0,0.898,True
+"San Antonio, TX",undersupply-focused,all_hd,25,9,22.74,0.3003000020980835,0.0,0.0,10832.0,0.944,True
+"San Antonio, TX",undersupply-focused,all_hd,50,0,21.99,0.29280000925064087,0.0,0.0,11479.9,0.91,True
+"San Antonio, TX",undersupply-focused,all_hd,50,1,21.99,0.29280000925064087,0.0,0.0,11479.9,0.888,True
+"San Antonio, TX",undersupply-focused,all_hd,50,2,21.99,0.29280000925064087,0.0,0.0,11479.9,0.878,True
+"San Antonio, TX",undersupply-focused,all_hd,50,3,21.99,0.29280000925064087,0.0,0.0,11479.9,0.889,True
+"San Antonio, TX",undersupply-focused,all_hd,50,4,21.99,0.29280000925064087,0.0,0.0,11479.9,0.887,True
+"San Antonio, TX",undersupply-focused,all_hd,50,5,21.99,0.29280000925064087,0.0,0.0,11479.9,0.939,True
+"San Antonio, TX",undersupply-focused,all_hd,50,6,21.99,0.29280000925064087,0.0,0.0,11479.9,0.934,True
+"San Antonio, TX",undersupply-focused,all_hd,50,7,21.99,0.29280000925064087,0.0,0.0,11479.9,0.88,True
+"San Antonio, TX",undersupply-focused,all_hd,50,8,21.99,0.29280000925064087,0.0,0.0,11479.9,0.885,True
+"San Antonio, TX",undersupply-focused,all_hd,50,9,21.99,0.29280000925064087,0.0,0.0,11479.9,0.875,True
+"San Antonio, TX",balanced,all_gi,10,0,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.918,False
+"San Antonio, TX",balanced,all_gi,10,1,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.915,False
+"San Antonio, TX",balanced,all_gi,10,2,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.915,False
+"San Antonio, TX",balanced,all_gi,10,3,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.912,False
+"San Antonio, TX",balanced,all_gi,10,4,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.914,False
+"San Antonio, TX",balanced,all_gi,10,5,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.916,False
+"San Antonio, TX",balanced,all_gi,10,6,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.914,False
+"San Antonio, TX",balanced,all_gi,10,7,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.997,False
+"San Antonio, TX",balanced,all_gi,10,8,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.935,False
+"San Antonio, TX",balanced,all_gi,10,9,25.51,0.32919999957084656,0.0,37384.6,8640.8,0.923,False
+"San Antonio, TX",balanced,all_gi,25,0,28.56,0.36629998683929443,0.0,93462.3,6565.0,0.995,False
+"San Antonio, TX",balanced,all_gi,25,1,28.56,0.36640000343322754,0.0,93462.3,6565.0,0.988,False
+"San Antonio, TX",balanced,all_gi,25,2,28.56,0.36629998683929443,0.0,93462.3,6565.0,0.987,False
+"San Antonio, TX",balanced,all_gi,25,3,28.56,0.36640000343322754,0.0,93462.3,6565.0,0.984,False
+"San Antonio, TX",balanced,all_gi,25,4,28.56,0.36629998683929443,0.0,93462.3,6565.0,0.973,False
+"San Antonio, TX",balanced,all_gi,25,5,28.56,0.36629998683929443,0.0,93462.3,6565.0,0.971,False
+"San Antonio, TX",balanced,all_gi,25,6,28.56,0.36629998683929443,0.0,93462.3,6565.0,0.967,False
+"San Antonio, TX",balanced,all_gi,25,7,28.56,0.36629998683929443,0.0,93462.3,6565.0,0.981,False
+"San Antonio, TX",balanced,all_gi,25,8,28.56,0.36640000343322754,0.0,93462.3,6565.0,0.977,False
+"San Antonio, TX",balanced,all_gi,25,9,28.56,0.36640000343322754,0.0,93462.3,6565.0,0.988,False
+"San Antonio, TX",balanced,all_gi,50,0,33.63,0.42989999055862427,0.0,186924.5,3807.7,1.084,False
+"San Antonio, TX",balanced,all_gi,50,1,33.63,0.42980000376701355,0.0,186924.5,3807.7,1.085,False
+"San Antonio, TX",balanced,all_gi,50,2,33.63,0.42989999055862427,0.0,186924.5,3807.7,1.083,False
+"San Antonio, TX",balanced,all_gi,50,3,33.63,0.42989999055862427,0.0,186924.5,3807.7,1.082,False
+"San Antonio, TX",balanced,all_gi,50,4,33.63,0.42989999055862427,0.0,186924.5,3807.7,1.081,False
+"San Antonio, TX",balanced,all_gi,50,5,33.63,0.42980000376701355,0.0,186924.5,3807.7,1.093,False
+"San Antonio, TX",balanced,all_gi,50,6,33.63,0.42980000376701355,0.0,186924.5,3807.7,1.072,False
+"San Antonio, TX",balanced,all_gi,50,7,33.63,0.42980000376701355,0.0,186924.5,3807.7,1.075,False
+"San Antonio, TX",balanced,all_gi,50,8,33.63,0.42989999055862427,0.0,186924.5,3807.7,1.076,False
+"San Antonio, TX",balanced,all_gi,50,9,33.63,0.42980000376701355,0.0,186924.5,3807.7,1.07,False
+"San Antonio, TX",balanced,all_ff,10,0,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.933,False
+"San Antonio, TX",balanced,all_ff,10,1,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.947,False
+"San Antonio, TX",balanced,all_ff,10,2,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.921,False
+"San Antonio, TX",balanced,all_ff,10,3,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.919,False
+"San Antonio, TX",balanced,all_ff,10,4,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.917,False
+"San Antonio, TX",balanced,all_ff,10,5,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.988,False
+"San Antonio, TX",balanced,all_ff,10,6,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.92,False
+"San Antonio, TX",balanced,all_ff,10,7,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.916,False
+"San Antonio, TX",balanced,all_ff,10,8,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.914,False
+"San Antonio, TX",balanced,all_ff,10,9,23.63,0.3255999982357025,158.884,65423.0,10094.2,0.914,False
+"San Antonio, TX",balanced,all_ff,25,0,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.971,False
+"San Antonio, TX",balanced,all_ff,25,1,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.969,False
+"San Antonio, TX",balanced,all_ff,25,2,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.98,False
+"San Antonio, TX",balanced,all_ff,25,3,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.977,False
+"San Antonio, TX",balanced,all_ff,25,4,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.979,False
+"San Antonio, TX",balanced,all_ff,25,5,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.972,False
+"San Antonio, TX",balanced,all_ff,25,6,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.963,False
+"San Antonio, TX",balanced,all_ff,25,7,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.97,False
+"San Antonio, TX",balanced,all_ff,25,8,23.88,0.35659998655319214,397.215,163559.0,9892.8,0.962,False
+"San Antonio, TX",balanced,all_ff,25,9,23.88,0.35670000314712524,397.215,163559.0,9892.8,0.973,False
+"San Antonio, TX",balanced,all_ff,50,0,24.29,0.40959998965263367,794.429,327117.9,9568.0,1.077,False
+"San Antonio, TX",balanced,all_ff,50,1,24.29,0.40950000286102295,794.429,327117.9,9568.0,1.071,False
+"San Antonio, TX",balanced,all_ff,50,2,24.29,0.40959998965263367,794.429,327117.9,9568.0,1.079,False
+"San Antonio, TX",balanced,all_ff,50,3,24.29,0.40959998965263367,794.429,327117.9,9568.0,1.083,False
+"San Antonio, TX",balanced,all_ff,50,4,24.29,0.40959998965263367,794.429,327117.9,9568.0,1.072,False
+"San Antonio, TX",balanced,all_ff,50,5,24.29,0.40950000286102295,794.429,327117.9,9568.0,1.077,False
+"San Antonio, TX",balanced,all_ff,50,6,24.29,0.40950000286102295,794.429,327117.9,9568.0,1.076,False
+"San Antonio, TX",balanced,all_ff,50,7,24.29,0.40950000286102295,794.429,327117.9,9568.0,1.077,False
+"San Antonio, TX",balanced,all_ff,50,8,24.29,0.40959998965263367,794.429,327117.9,9568.0,1.07,False
+"San Antonio, TX",balanced,all_ff,50,9,24.29,0.40959998965263367,794.429,327117.9,9568.0,1.068,False
+"San Antonio, TX",balanced,all_hd,10,0,23.19,0.30469998717308044,0.0,0.0,10454.8,0.91,False
+"San Antonio, TX",balanced,all_hd,10,1,23.19,0.30469998717308044,0.0,0.0,10454.8,0.9,False
+"San Antonio, TX",balanced,all_hd,10,2,23.19,0.30469998717308044,0.0,0.0,10454.8,0.908,False
+"San Antonio, TX",balanced,all_hd,10,3,23.19,0.30469998717308044,0.0,0.0,10454.8,0.904,False
+"San Antonio, TX",balanced,all_hd,10,4,23.19,0.30469998717308044,0.0,0.0,10454.8,0.922,False
+"San Antonio, TX",balanced,all_hd,10,5,23.19,0.30469998717308044,0.0,0.0,10454.8,0.903,False
+"San Antonio, TX",balanced,all_hd,10,6,23.19,0.30469998717308044,0.0,0.0,10454.8,0.9,False
+"San Antonio, TX",balanced,all_hd,10,7,23.19,0.30469998717308044,0.0,0.0,10454.8,0.948,False
+"San Antonio, TX",balanced,all_hd,10,8,23.19,0.30469998717308044,0.0,0.0,10454.8,0.922,False
+"San Antonio, TX",balanced,all_hd,10,9,23.19,0.30469998717308044,0.0,0.0,10454.8,0.926,False
+"San Antonio, TX",balanced,all_hd,25,0,22.77,0.30090001225471497,0.0,0.0,10806.6,0.959,False
+"San Antonio, TX",balanced,all_hd,25,1,22.77,0.30090001225471497,0.0,0.0,10806.6,0.963,False
+"San Antonio, TX",balanced,all_hd,25,2,22.77,0.30090001225471497,0.0,0.0,10806.6,0.972,False
+"San Antonio, TX",balanced,all_hd,25,3,22.77,0.30090001225471497,0.0,0.0,10806.6,0.976,False
+"San Antonio, TX",balanced,all_hd,25,4,22.77,0.30090001225471497,0.0,0.0,10806.6,1.026,False
+"San Antonio, TX",balanced,all_hd,25,5,22.77,0.30090001225471497,0.0,0.0,10806.6,0.996,False
+"San Antonio, TX",balanced,all_hd,25,6,22.77,0.30090001225471497,0.0,0.0,10806.6,0.973,False
+"San Antonio, TX",balanced,all_hd,25,7,22.77,0.30090001225471497,0.0,0.0,10806.6,0.975,False
+"San Antonio, TX",balanced,all_hd,25,8,22.77,0.30090001225471497,0.0,0.0,10806.6,0.982,False
+"San Antonio, TX",balanced,all_hd,25,9,22.77,0.30090001225471497,0.0,0.0,10806.6,0.971,False
+"San Antonio, TX",balanced,all_hd,50,0,22.06,0.2939999997615814,0.0,0.0,11418.4,1.086,False
+"San Antonio, TX",balanced,all_hd,50,1,22.06,0.2939999997615814,0.0,0.0,11418.4,1.071,False
+"San Antonio, TX",balanced,all_hd,50,2,22.06,0.2939999997615814,0.0,0.0,11418.4,1.057,False
+"San Antonio, TX",balanced,all_hd,50,3,22.06,0.2939999997615814,0.0,0.0,11418.4,1.066,False
+"San Antonio, TX",balanced,all_hd,50,4,22.06,0.2939000129699707,0.0,0.0,11418.4,1.062,False
+"San Antonio, TX",balanced,all_hd,50,5,22.06,0.2939000129699707,0.0,0.0,11418.4,1.065,False
+"San Antonio, TX",balanced,all_hd,50,6,22.06,0.2939000129699707,0.0,0.0,11418.4,1.057,False
+"San Antonio, TX",balanced,all_hd,50,7,22.06,0.2939000129699707,0.0,0.0,11418.4,1.063,False
+"San Antonio, TX",balanced,all_hd,50,8,22.06,0.2939000129699707,0.0,0.0,11418.4,1.058,False
+"San Antonio, TX",balanced,all_hd,50,9,22.06,0.2939999997615814,0.0,0.0,11418.4,1.057,False
