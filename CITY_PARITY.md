@@ -65,9 +65,9 @@
 
 | Parameter | Prototype | NatCap MN project | Status |
 |---|---|---|---|
-| `urban_nature_demand_per_capita` | **16.7 m²/capita** (SA-project value) | **250 m²/capita** | ⚠️ Diverges (15×). See NATCAP_COLLABORATION.md Q1. |
-| `search_radius` | **800 m** (SA-project value) | **1000 m** | ⚠️ Diverges. |
-| `decay_function` | **dichotomy** (SA-project value) | **exponential** | ⚠️ Diverges (methodology). |
+| `urban_nature_demand_per_capita` | **250 m²/capita** (NatCap MN-project canonical, Brief 22) | **250 m²/capita** | ✅ Aligned 2026-05-24 (Brief 22). |
+| `search_radius` | **1000 m** (NatCap MN-project canonical, Brief 22) | **1000 m** | ✅ Aligned 2026-05-24 (Brief 22). |
+| `decay_function` | **exponential** (NatCap MN-project canonical, Brief 22) — canonical InVEST `pygeoprocessing.kernels.exponential_decay_kernel` form, `max_distance = ceil(radius_px) * 2 + 1`, `expected_distance = radius_px` | **exponential** | ✅ Aligned 2026-05-24 (Brief 22). |
 | `search_radius_mode` | uniform radius | uniform radius | ✅ |
 | `aggregate_by_pop_group` | False | False | ✅ |
 | `population_group_radii_table` | not used | empty | ✅ |
@@ -75,7 +75,7 @@
 | LULC attribute table | `data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv` | `LULC_attribute_table_UNA.csv` | ✅ Verified bit-identical 2026-05-24 (14 rows: lucode, lulc_desc, urban_nature, search_radius_m). Same file from same InVEST UNA sample bundle. |
 | Population raster | Census 2020 blocks, rasterized via `download_census_pop.py` | `total_population_census_2010.tif` | ⚠️ Vintage differs (2020 vs 2010) |
 
-**UNA summary:** Three substantial parameter divergences — demand, radius, decay. Prototype uses SA-project values; NatCap's MN project uses different framing. LULC attribute table itself is verified identical (the parameter divergences are runtime args, not table values). **High-priority open question:** should the prototype switch to MN-project values for MN? See NATCAP_COLLABORATION.md.
+**UNA summary:** All three parameters and the LULC attribute table now match MN-project canonical (Brief 22, 2026-05-24). Population raster vintage is the one remaining ⚠️ (2020 prototype vs 2010 NatCap sample bundle).
 
 ### Carbon
 
@@ -108,12 +108,12 @@
 |---|---|
 | UCM | ✅ Fully aligned on args and biophysical table |
 | UFR | ⚠️ Rainfall depth diverges; CN + damage tables verified identical |
-| UNA | ⚠️ Three parameter divergences (demand, radius, decay) — using SA-project values. Biophysical table itself verified identical. |
+| UNA | ✅ All three parameters + biophysical table aligned with MN-project canonical (Brief 22). Population vintage (2020 vs 2010) is the one remaining minor divergence. |
 | Carbon | ⚠️ Methodology simplification (single rate vs four-pool) |
 | UMH | ✅ Aligned (uniform-national prevalence improvised) |
 | Food Forest | ✅ |
 
-**Overall MN parity:** Mixed. UCM and UMH are tight. UFR has one parameter divergence (rainfall depth) atop verified-identical tables. UNA has three substantial parameter divergences atop a verified-identical biophysical table. Carbon is methodologically simplified. The MN UNA parameter gap is the single biggest divergence for the city.
+**Overall MN parity:** Mostly aligned. UCM, UNA, and UMH are tight (UNA closed by Brief 22). UFR has one parameter divergence (rainfall depth) atop verified-identical tables — the one remaining headline gap. Carbon is methodologically simplified.
 
 ---
 

@@ -47,6 +47,14 @@ CITIES = {
         'pixel_area_acres':     0.2224,
         'food_forest_lbs_acre': 11_500,
         'uhi_max_c':            2.05,   # InVEST UCM args JSON for the MN AOI
+        # NatCap MN UNA project canonical (per Brief 22, source:
+        # data/invest/mn_sample_data_natcap_2026/UrbanNatureAccess_sample_data_MN/
+        # invest_urban_nature_access_args_MN.json — demand=250, radius=1000,
+        # decay=exponential). Different framing than SA's WHO-minimum /
+        # heat-wave scenario; per-city alignment is the NatCap pattern.
+        'una_demand_m2_per_capita': 250,
+        'una_search_radius_m':      1000,
+        'una_decay_function':       'exponential',
         'available':            True,
         'crs':                  'EPSG:26915',
         'precomputed_dir':      'data/precomputed/minneapolis_mn',
@@ -100,6 +108,11 @@ CITIES = {
         'pixel_area_acres':     0.2224,  # NLCD 30 m in EPSG:5070
         'food_forest_lbs_acre': 11_500,
         'uhi_max_c':            2.05,    # same MN AOI climate as downtown
+        # Same MN-project UNA framing as downtown (Brief 22). MN Full is
+        # `available=False` but shares the MN canonical-params choice.
+        'una_demand_m2_per_capita': 250,
+        'una_search_radius_m':      1000,
+        'una_decay_function':       'exponential',
         # Hidden from the UI pending per-building-type data for the expanded
         # area. OSM-derived buildings carry no `type` codes, so the
         # Flood Damage Avoided and Cooling Energy Savings $-metrics degrade
@@ -194,6 +207,13 @@ CITIES = {
         # (The prototype reports pure deltas — `reference_air_temperature`
         # has no analog to mirror.) See DESIGN_NOTES.md "UCM args alignment".
         'uhi_max_c':            11,
+        # SA UNA from NatCap's curated SA dataset README (Brief 22) —
+        # WHO-minimum demand, dichotomy decay. Different framing than MN's
+        # aspirational targets / exponential decay; both are NatCap-canonical
+        # for their respective project frames.
+        'una_demand_m2_per_capita': 16.7,
+        'una_search_radius_m':      800,
+        'una_decay_function':       'dichotomy',
         # Re-enabled now that data/scenarios_dense_sa.csv is committed
         # (Balanced mode reads the precomputed grid instead of recomputing
         # the 25–50 min lookup table) and the High-Resolution lookup compute

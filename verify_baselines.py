@@ -201,8 +201,33 @@ def _rebind_city(app_mod, city_name):
 
     Mirrors what app.py does at lines 1880–1943 + 2084–2088 after
     _load_city_runtime_state returns."""
-    state = app_mod._load_city_runtime_state(city_name)
     city_cfg = app_mod.CITIES[city_name]
+
+    # Per-city UNA params (Brief 22). MUST be set BEFORE _load_city_runtime_state
+    # because the cached state's `baseline_una_supply_percapita_raster` is built
+    # via `_una_convolve` which reads the module-level `_UNA_KERNEL`. If we
+    # rebound after, SA state would carry baseline raster computed under MN's
+    # exponential kernel.
+    app_mod.UNA_DEMAND_M2_PER_CAPITA = float(city_cfg['una_demand_m2_per_capita'])
+    app_mod.UNA_SEARCH_RADIUS_M      = float(city_cfg['una_search_radius_m'])
+    app_mod.UNA_DECAY_FUNCTION       = str(city_cfg['una_decay_function'])
+    radius_px = app_mod.UNA_SEARCH_RADIUS_M / app_mod.PIXEL_SIZE_M
+    if app_mod.UNA_DECAY_FUNCTION == 'dichotomy':
+        apothem = int(np.floor(radius_px))
+        yy, xx = np.mgrid[-apothem:apothem + 1, -apothem:apothem + 1]
+        app_mod._UNA_KERNEL = (np.hypot(yy, xx) <= radius_px).astype(np.float32)
+    elif app_mod.UNA_DECAY_FUNCTION == 'exponential':
+        max_dist = int(np.ceil(radius_px)) * 2 + 1
+        apothem = int(np.ceil(max_dist))
+        yy, xx = np.mgrid[-apothem:apothem + 1, -apothem:apothem + 1]
+        d = np.hypot(yy, xx)
+        app_mod._UNA_KERNEL = np.where(
+            d <= max_dist, np.exp(-d / radius_px), 0.0
+        ).astype(np.float32)
+    else:
+        raise ValueError(f"Unknown UNA decay function {app_mod.UNA_DECAY_FUNCTION!r}")
+
+    state = app_mod._load_city_runtime_state(city_name)
 
     # Direct state-member aliases (lines 1885–1935)
     app_mod.lulc                = state.lulc
@@ -252,6 +277,9 @@ def _rebind_city(app_mod, city_name):
     app_mod.FOOD_FOREST_LBS_ACRE = city_cfg['food_forest_lbs_acre']
     app_mod.UHI_MAX_C            = city_cfg['uhi_max_c']
     app_mod.HM_TO_FAHRENHEIT     = city_cfg['uhi_max_c'] * 1.8
+    # (UNA params + kernel were already rebound above, before
+    # _load_city_runtime_state, to ensure baseline_una_supply_percapita_raster
+    # is built under the correct city's kernel.)
 
     # Derived baselines (lines 1941–1943, 2084–2088)
     app_mod.BASELINE_NATURE_ACCESS_PCT, app_mod.BASELINE_NATURE_QUALITY_SCORE, _ = (

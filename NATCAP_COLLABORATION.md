@@ -30,7 +30,7 @@ These reflect different framings, not drift between similar values. SA's project
 
 **Implication for the prototype's working principle.** "Align with NatCap canonical" works fine — the qualifier is **per-city**. MN-side parameters should match the MN project; SA-side parameters should match the SA project. Brief 14 followed this for SA (adopted `uhi_max=11`); the prototype's MN UCM already matches the MN project.
 
-**The current real issue is MN UNA.** The prototype's MN UNA uses SA-project values (`demand=16.7`, `radius=800`, `decay=dichotomy`) rather than MN-project values (`demand=250`, `radius=1000`, `decay=exponential`). This is the actual misalignment — not "NatCap is inconsistent," but "we're using the wrong city's project parameters for MN." See Gaps and Open questions below.
+**MN UNA misalignment resolved 2026-05-24 (Brief 22).** The prototype's MN UNA was using SA-project values (`demand=16.7`, `radius=800`, `decay=dichotomy`) rather than MN-project values (`demand=250`, `radius=1000`, `decay=exponential`). Brief 22 migrated the three UNA parameters to per-city `city_cfg` entries and implemented the exponential-decay kernel canonically (matching `natcap.invest.urban_nature_access`'s call to `pygeoprocessing.kernels.exponential_decay_kernel` with `max_distance = ceil(search_radius_in_pixels) * 2 + 1`, `expected_distance = search_radius_in_pixels`). MN nature-access metrics dropped substantially (baseline ~43% → 9.5% under the 15× higher demand) — expected magnitude. SA-side UNA unchanged. See Gaps "Closed" subsection.
 
 ---
 
@@ -72,9 +72,9 @@ The prototype's MN UNA and MN UFR parameters happen to match the NatCap **SA pro
 
 | Gap | Prototype | NatCap MN project | Reason / status |
 |---|---|---|---|
-| MN UNA `urban_nature_demand_per_capita` | 16.7 m²/capita (SA-project value) | 250 m²/capita | 15× difference. Reflects different policy framings — SA project tuned to WHO minimum; MN project tuned to higher aspirational target. **Do not fix unilaterally** — confirm with NatCap whether MN-project framing is still active or has been superseded. |
-| MN UNA `search_radius` | 800 m (SA-project value) | 1000 m | Same misalignment pattern as demand. |
-| MN UNA `decay_function` | dichotomy (SA-project value) | exponential | Methodology difference, not just a value. Same misalignment pattern. |
+| ~~MN UNA `urban_nature_demand_per_capita`~~ | ~~16.7 m²/capita (SA-project value)~~ | ~~250 m²/capita~~ | ✅ Resolved 2026-05-24 (Brief 22). Switched to 250 m²/capita per MN-project args.json. |
+| ~~MN UNA `search_radius`~~ | ~~800 m (SA-project value)~~ | ~~1000 m~~ | ✅ Resolved 2026-05-24 (Brief 22). Switched to 1000 m per MN-project args.json. |
+| ~~MN UNA `decay_function`~~ | ~~dichotomy (SA-project value)~~ | ~~exponential~~ | ✅ Resolved 2026-05-24 (Brief 22). Switched to exponential per MN-project args.json; canonical InVEST exponential-decay kernel implemented (`exp(-d / expected_distance)`, max_distance = `ceil(radius_px) * 2 + 1`). |
 | MN UFR `rainfall_depth` | 50.8 mm (2 inches) | 100 mm | Prototype's 2-inch design storm is its own choice, not the SA project's 157 mm either. So this isn't a "wrong city" issue — it's a prototype-specific divergence from both NatCap projects. Worth raising with NatCap which they'd consider appropriate. |
 
 ### Methodology gaps (acknowledged, not fixable)
@@ -107,7 +107,7 @@ Choices made based on Daniel's reading of canonical NatCap output, not explicit 
 | Decision | Date | Rationale | Confirmation path |
 |---|---|---|---|
 | SA UCM aligned to NatCap's heat-wave-day scenario (`uhi_max=11`, `t_ref documented but not used`) | 2026-05-24 (Brief 14) | NatCap's SA README states these values explicitly; aligning per working principle. SA temperature deltas now ~3× larger than before. | NatCap doesn't need to confirm — they've already documented this. |
-| Prototype MN UNA values (`demand=16.7`, `radius=800`, `decay=dichotomy`) **kept as-is despite being SA-project values applied to MN** | 2026-05-24 | The MN-project values (`demand=250`, `radius=1000`, `decay=exponential`) imply a different policy framing. Changing unilaterally would shift every MN nature metric by ~15× on demand alone and could be the wrong direction if NatCap considers the MN-project framing superseded. | **High-priority open question** — see Open questions. |
+| Prototype MN UNA migrated to MN-project canonical values (`demand=250`, `radius=1000`, `decay=exponential`) | 2026-05-24 (Brief 22) | NatCap's MN sample data (March 2026, recent) documents these values explicitly. The per-city framing principle (Brief 14 for SA UCM) applies: align MN with the MN project, not blend with SA-project values. MN nature_access_pct dropped from ~43% to ~9.5% baseline — expected magnitude given 15× demand increase. | NatCap confirmation at the symposium would close this; not blocking. The decision is reversible if NatCap flags the MN-project values as superseded. |
 | Use per-capita supply deficit (no population multiplier) for undersupply-focused placement | 2026-05-23 (Brief 9) | Matches InVEST UNA's `urban_nature_balance_percapita.tif` framing. Aggregate-need form was a homegrown proxy. | Could surface to NatCap with empirical findings — Brief 9 saturation (100% SA, 67% MN) suggests the canonical framing may not be usable as-is for placement on county-scale AOIs. |
 | Rename "equity-focused" → "undersupply-focused" | 2026-05-23 (Brief 9) | InVEST UNA reserves "equity" for demographic-group stratification. | Vocabulary change; no expected NatCap pushback. |
 | Use per-pixel runoff Q from SCS-CN equation for flood-focused, not raw CN | 2026-05-23 (Brief 9) | Q is canonical UFR output. | Routine alignment. |
@@ -124,11 +124,9 @@ Grouped by priority. Things to ask next time there's a chance to.
 
 ### Highest priority — per-city alignment
 
-1. **For MN-side metrics, should the prototype switch from SA-project UNA params (`demand=16.7`, `radius=800`, `decay=dichotomy`) to MN-project canonical (`demand=250`, `radius=1000`, `decay=exponential`)?** Or are both still in active use for different framings, and the prototype should pick one consistent set across both cities? The MN sample data is from March 2026 — recent enough to be current — but we can't tell whether the MN-project framing has been superseded by something closer to the SA project's lower-demand framing. Switching unilaterally to MN-project values would shift every MN nature metric by ~15× on demand alone.
+1. **Same per-city question for UFR `rainfall_depth`.** NatCap MN uses 100 mm; NatCap SA uses 157 mm; prototype uses 50.8 mm for both. The prototype's 2-inch design storm doesn't match either project. Should the prototype switch to per-city rainfall (100 mm MN / 157 mm SA), or is its design-storm choice defensible as a different framing?
 
-2. **Same per-city question for UFR `rainfall_depth`.** NatCap MN uses 100 mm; NatCap SA uses 157 mm; prototype uses 50.8 mm for both. The prototype's 2-inch design storm doesn't match either project. Should the prototype switch to per-city rainfall (100 mm MN / 157 mm SA), or is its design-storm choice defensible as a different framing?
-
-3. **Are the MN sample data values still current, or have they been superseded by the SA-project framing?** The MN UNA bundle is dated March 2026 (3 months ago); the SA README is from later. NatCap may have updated their thinking and not retroactively republished MN. Determines whether Q1 has a clean answer or whether we just pick the framing that fits.
+2. **Are the MN sample data values still current, or have they been superseded by the SA-project framing?** The MN UNA bundle is dated March 2026 (3 months ago); the SA README is from later. NatCap may have updated their thinking and not retroactively republished MN. Brief 22 adopted the MN-project values pending this confirmation; reversible if NatCap flags MN as superseded.
 
 ### High priority — operational
 
@@ -158,6 +156,7 @@ The following were open at session start (2026-05-24) and have been resolved by 
 - ~~NatCap UNA demand for SA~~ → 16.7 m²/capita (per SA README)
 - ~~NatCap UNA search radius for SA~~ → 800 m uniform (per SA README)
 - ~~NatCap UCM `uhi_max` for SA~~ → 11 °C (per SA README, applied in Brief 14)
+- ~~MN UNA: switch from SA-project values to MN-project canonical?~~ → ✅ Done in Brief 22 (demand 16.7→250, radius 800→1000, decay dichotomy→exponential). Reversible if NatCap flags MN-project framing as superseded.
 - ~~"Wallpaper approach" meaning~~ → Uniform tiling of conversions; equivalent to prototype's `random` placement strategy
 - ~~NatCap UCM weights for SA~~ → shade=0.6, albedo=0.2, et=0.2 (per SA README; prototype matches)
 - ~~NatCap UCM `uhi_max` for MN~~ → 2.05 °C (per MN args.json; prototype matches)

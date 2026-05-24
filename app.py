@@ -58,6 +58,7 @@ CHANGE_COLORS = {
 # user-visible ships.
 WHATS_NEW = """
 ### What's new
+- **Minneapolis nature access aligned with NatCap MN-project parameters.**
 - **San Antonio temperature deltas now use NatCap-calibrated UHI parameters.**
 - **Placement strategies aligned with InVEST canonical quantities.**
 - **Canonical InVEST Urban Nature Access implemented for Minneapolis.**
@@ -718,14 +719,20 @@ NATURE_RADIUS_CAP_M = 1000
 
 
 # ── Canonical InVEST Urban Nature Access (UNA) — numpy 2SFCA ─────────────────
-# Re-implements natcap.invest.urban_nature_access (uniform search radius,
-# dichotomy decay) in numpy — the same approach `_compute_hmi_raster` takes for
-# the InVEST UCM. The model runs inside the app's own environment (no
+# Re-implements natcap.invest.urban_nature_access (uniform search radius +
+# configurable decay) in numpy — the same approach `_compute_hmi_raster` takes
+# for the InVEST UCM. The model runs inside the app's own environment (no
 # natcap.invest runtime dependency); the numpy result is validated offline
 # against `natcap.invest.urban_nature_access.execute()`. Parameter rationale is
 # in DESIGN_NOTES.md.
-UNA_DEMAND_M2_PER_CAPITA = 16.7   # per-capita supply standard (NatCap SA study)
-UNA_SEARCH_RADIUS_M      = 800    # uniform search radius, ~10-min walk
+#
+# Per-city parameters (Brief 22): NatCap maintains two project framings — MN
+# project uses `demand=250 / radius=1000m / decay=exponential` (aspirational
+# targets); SA project uses `demand=16.7 / radius=800m / decay=dichotomy`
+# (WHO-minimum, heat-wave). Per-city alignment is the NatCap pattern.
+UNA_DEMAND_M2_PER_CAPITA = float(city_cfg['una_demand_m2_per_capita'])
+UNA_SEARCH_RADIUS_M      = float(city_cfg['una_search_radius_m'])
+UNA_DECAY_FUNCTION       = str(city_cfg['una_decay_function'])
 
 # urban_nature proportion (0-1 of pixel area) per LULC code, from the InVEST
 # UNA biophysical table. Codes absent from the table contribute no nature.
@@ -734,16 +741,40 @@ URBAN_NATURE_PROPORTION = {
     for r in pd.read_csv(UNA_TABLE_PATH).itertuples()
 }
 
-# Dichotomy-decay kernel: a binary disk of radius `search_radius / pixel_size`
-# pixels, built exactly as pygeoprocessing.kernels.dichotomous_kernel does
-# (apothem = floor(radius_px); kernel side = 2·apothem + 1; a pixel is 1 where
-# its euclidean distance from the centre <= radius_px, else 0; un-normalized).
+# 2SFCA convolution kernel. Built per the configured decay function exactly
+# as natcap.invest.urban_nature_access calls pygeoprocessing.kernels:
+#   * dichotomy  — binary disk of radius `search_radius / pixel_size` pixels.
+#                  pygeoprocessing.kernels.dichotomous_kernel(
+#                      max_distance=search_radius_in_pixels, normalize=False)
+#   * exponential — k(d) = exp(-d / expected_distance) for d ≤ max_distance else 0,
+#                  where expected_distance = search_radius_in_pixels and
+#                  max_distance = ceil(search_radius_in_pixels) * 2 + 1
+#                  (matches pygeoprocessing.kernels.exponential_decay_kernel as
+#                  natcap.invest.urban_nature_access calls it).
 _UNA_RADIUS_PX = UNA_SEARCH_RADIUS_M / PIXEL_SIZE_M
-_UNA_APOTHEM   = int(np.floor(_UNA_RADIUS_PX))
-_una_yy, _una_xx = np.mgrid[
-    -_UNA_APOTHEM:_UNA_APOTHEM + 1, -_UNA_APOTHEM:_UNA_APOTHEM + 1]
-_UNA_KERNEL = (np.hypot(_una_yy, _una_xx) <= _UNA_RADIUS_PX).astype(np.float32)
-del _una_yy, _una_xx
+if UNA_DECAY_FUNCTION == 'dichotomy':
+    _UNA_APOTHEM = int(np.floor(_UNA_RADIUS_PX))
+    _una_yy, _una_xx = np.mgrid[
+        -_UNA_APOTHEM:_UNA_APOTHEM + 1, -_UNA_APOTHEM:_UNA_APOTHEM + 1]
+    _UNA_KERNEL = (np.hypot(_una_yy, _una_xx) <= _UNA_RADIUS_PX).astype(np.float32)
+    del _una_yy, _una_xx
+elif UNA_DECAY_FUNCTION == 'exponential':
+    _UNA_MAX_DIST = int(np.ceil(_UNA_RADIUS_PX)) * 2 + 1
+    _UNA_APOTHEM  = int(np.ceil(_UNA_MAX_DIST))
+    _una_yy, _una_xx = np.mgrid[
+        -_UNA_APOTHEM:_UNA_APOTHEM + 1, -_UNA_APOTHEM:_UNA_APOTHEM + 1]
+    _una_d = np.hypot(_una_yy, _una_xx)
+    _UNA_KERNEL = np.where(
+        _una_d <= _UNA_MAX_DIST,
+        np.exp(-_una_d / _UNA_RADIUS_PX),
+        0.0
+    ).astype(np.float32)
+    del _una_yy, _una_xx, _una_d
+else:
+    raise ValueError(
+        f"Unknown UNA decay function {UNA_DECAY_FUNCTION!r}; "
+        f"valid: {{'dichotomy', 'exponential'}}. Check `city_cfg['una_decay_function']`."
+    )
 
 
 def _una_convolve(signal):
@@ -817,8 +848,8 @@ def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster):
 def calculate_nature_access(scenario_lulc, pop_count_raster):
     """Canonical InVEST Urban Nature Access for the given scenario LULC.
 
-    Re-implements `natcap.invest.urban_nature_access` (uniform 800 m search
-    radius, dichotomy decay, 16.7 m²/capita demand — see
+    Re-implements `natcap.invest.urban_nature_access` (uniform search
+    radius + configurable decay, with per-city parameters — see
     DESIGN_NOTES.md) in numpy via two-step floating catchment area
     (2SFCA). The headline metric is `pct_pop_supply_ge_demand`: the share of the
     modelable-extent population whose per-capita nature supply meets the demand
@@ -1341,7 +1372,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 19  # bumped: Brief 14 aligned SA UCM `uhi_max_c` with NatCap canonical (3.5 → 11). SA temperature deltas now ~3× larger; HMI calculation unchanged; only output scaling differs. MN parameters unchanged.
+SCENARIO_SCHEMA_VERSION = 20  # bumped: Brief 22 aligned MN UNA params with NatCap canonical (demand=16.7→250 m²/capita, search_radius=800→1000 m, decay=dichotomy→exponential). Adopted per-city UNA framing — SA keeps its WHO-minimum / dichotomy form, MN adopts aspirational / exponential form. MN nature-access metrics shift meaningfully; SA unchanged.
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -2889,16 +2920,17 @@ hs_na.metric(
     "Nature Access",
     f'{_nature_access:.1f}%',
     help=(
-        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
-        "% of the selected city's modelable-extent population whose per-capita "
-        "nature supply meets the 16.7 m²/capita demand standard, computed via "
-        "canonical InVEST Urban Nature Access (2SFCA methodology). Reports only "
-        "the modelable-extent population — the remainder sits on cooling-LULC "
-        "nodata pixels InVEST cannot model. "
-        "Parameters: 800m uniform search radius, dichotomy decay. See "
-        "DESIGN_NOTES.md for parameter rationale. "
-        "Underlying model: [InVEST Urban Nature Access]"
-        "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
+        f"Confidence: Medium — see 'How this prototype works' for tier definitions. "
+        f"% of the selected city's modelable-extent population whose per-capita "
+        f"nature supply meets the {UNA_DEMAND_M2_PER_CAPITA:g} m²/capita demand standard, "
+        f"computed via canonical InVEST Urban Nature Access (2SFCA methodology). "
+        f"Reports only the modelable-extent population — the remainder sits on "
+        f"cooling-LULC nodata pixels InVEST cannot model. "
+        f"Parameters: {UNA_SEARCH_RADIUS_M:g}m uniform search radius, "
+        f"{UNA_DECAY_FUNCTION} decay (per the active city's NatCap project framing — "
+        f"see DESIGN_NOTES.md). "
+        f"Underlying model: [InVEST Urban Nature Access]"
+        f"(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
     ),
 )
 _confidence_caption(hs_na, "medium")
