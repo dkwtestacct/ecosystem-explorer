@@ -847,6 +847,164 @@ live metric computation (still used for `scenario_lulc`, the NLCD
 view exposed to spatial-map rendering + non-UCM/UNA/Carbon
 consumers).
 
+## SA Carbon four-pool framework adoption (2026-05-25, Brief 30)
+
+Brief 30 swapped SA's Carbon model from the prototype's per-conversion-
+type single-rate annual proxy (`n_pixels × CARBON_SEQ_RATES[target] ×
+acres-per-pixel`) to NatCap's canonical InVEST four-pool stock
+framework via `data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv` (1,984
+rows × 27 cols). Four pools per compound LULC class — above-ground
+biomass, below-ground biomass, soil organic matter, dead organic
+matter — each in tons C/ha. SA Carbon consumers now index the compound
+LULC raster directly via a new `scenario_lulc_carbon` return field;
+none of the three SA biophysical models (UCM, UNA, Carbon) still route
+through the compound→NLCD reduction.
+
+**What the prototype's single-rate proxy was approximating.** A
+landscape-level aggregate of carbon flux per converted hectare,
+lumping the four pools into one annual-equivalent number. It produced
+plausible directional results but conflated stock and flow, didn't
+distinguish above-ground from soil carbon, and applied the same rate
+regardless of baseline (so converting forest → forest gave the same
+nonzero number as converting parking lot → forest, despite the actual
+carbon delta being very different).
+
+**The four-pool stock framework.** Per pixel, total carbon stored =
+`c_above + c_below + c_soil + c_dead` (t C/ha). For a scenario LULC,
+stock delta vs baseline = `sum_pixels((scenario_total - baseline_total) ×
+pixel_area_ha) × (44/12)` to convert tons C → tons CO2. This is a
+one-time stock change when the land use changes, NOT an annual
+sequestration rate. Captures direction (positive when gaining nature,
+negative when losing it), magnitude (proportional to the per-pool
+deltas, not a flat per-acre rate), and per-pixel-baseline sensitivity
+(the actual baseline LULC of converted pixels matters).
+
+**Methodology decision — match NatCap's published SA work.** NatCap's
+2023 "Vibrant Land" report (Guerry et al.) describes their SA Carbon
+methodology in Appendix 2:
+
+> "We analyzed landscape carbon storage using the InVEST Carbon
+> model... We converted carbon storage into monetary value using a
+> $53 Social Cost of Carbon based on US government guidance using a
+> 3% discount rate (Interagency Working Group on Social Cost of
+> Greenhouse Gases, 2021)."
+
+And in the Results section, they report carbon as stock × value
+(citywide full-conversion food-forest scenario: 340,000 t C / $17.6M
+total value; smaller-AOI food forests in proportion). Direct stock ×
+$/t, no amortization, no InVEST NPV valuation.
+
+Brief 30 adopts that framing exactly: four-pool stock × SC-CO2 for the
+dollar metric. **No amortization** to annual flow, **no rename-only
+fix** (the methodology shift is also intended), **no InVEST NPV**
+(Vibrant Land doesn't use it).
+
+**Methodology matches, SC-CO2 vintage differs.** The Vibrant Land
+report uses **IWG 2021's $53/ton CO2 @ 3% discount rate**. The
+prototype's `EPA_SOCIAL_COST_CARBON = $190/ton CO2 @ 2% discount rate`
+is **EPA 2023 final rule** ("Methodology for Estimating the Social
+Cost of Greenhouse Gases", Nov 2023) — same US-government standard
+lineage, a different and more current vintage. The prototype keeps
+$190/t. As a result, SA's dollar carbon value comes out ~3.6× Vibrant
+Land's reported figure on equivalent stock magnitudes — methodology
+aligns, dollar magnitudes don't, because the price/ton differs by
+vintage. NATCAP_COLLABORATION.md flags this as a confirmatory question
+for future NatCap conversations ("are you planning to update Vibrant
+Land's figures to EPA 2023?").
+
+**Field rename: `carbon_tons_co2_yr` → `carbon_tons_co2`** (unified
+across cities; Option D.1 in the brief). The semantics differ per
+city — annual flow for MN, one-time stock for SA — but the return-dict
+key is the same, with the temporal framing surfaced via metric labels.
+Dollar metric: `avoided_carbon_cost_usd` → `carbon_value_usd`. Card
+labels branch on `_CARBON_IS_STOCK = c_above_arr is not None`:
+- MN card: "Carbon Sequestration" + "/yr" suffix; dollar card "Avoided
+  Carbon Cost (per year)".
+- SA card: "Carbon Storage Change" (no /yr); dollar card "Carbon
+  Storage Value" (one-time).
+
+**Conversion-target lucode evidence (DEFAULT_FF=1310, DEFAULT_GI=122,
+DEFAULT_HD=341).** Sanity-checked against the compound carbon table at
+investigation time:
+
+| Lucode | Conversion target | LULC × NLUD × tree-canopy | Total t C/ha |
+|---|---|---|---|
+| 1310 | DEFAULT_FF | Deciduous Forest × Timber × medium canopy (40%) | 190.77 |
+| 122  | DEFAULT_GI | Woody Wetlands × Wetland × medium canopy (40%) | 259.06 |
+| 341  | DEFAULT_HD | Developed High Intensity × Residential × low canopy (15%) | 80.44 |
+
+Ordering HD < FF < GI is the land-cover-plausible direction (wetlands
+have very high soil carbon, forests have high above-ground biomass,
+developed has the least of both). Brief 27's defaults work cleanly
+for Carbon without needing carbon-specific overrides.
+
+**Magnitudes from baseline regeneration.** MN: zero value divergence
+across all 20 baselines — the field is renamed, the value is
+identical (e.g., MN food_forest_random `carbon_tons_co2` = 2052.6,
+exactly as the schema-24 `carbon_tons_co2_yr`). SA: stock framing
+produces values ~30× larger than the prior annual framing, matching
+the category-error correction the brief predicted:
+
+| SA scenario | Pre-Brief-30 (annual) | Post-Brief-30 (stock) | Ratio |
+|---|---|---|---|
+| food_forest_random        |  65,264.9 (t CO2/yr) |  1,936,072 (t CO2 stock) | 29.7× |
+| food_forest_balanced      |  65,264.9 (t CO2/yr) |  2,019,502 (t CO2 stock) | 30.9× |
+| green_infrastructure_balanced |  37,294.3 (t CO2/yr) |  4,375,912 (t CO2 stock) | 117.3× |
+| high_density_random       |       0.0 (t CO2/yr) |   -849,262 (t CO2 stock) | — (sign flip: nature loss) |
+
+Green Infrastructure's higher ratio reflects the woody-wetland's very
+high soil-carbon pool (~197 t C/ha at compound lucode 122) versus the
+low single-rate annual proxy. High-density now shows negative stock
+change — converting baseline (some developed pixels carry meaningful
+tree canopy) to compound HD (lowest canopy) loses carbon. The
+single-rate proxy bottomed at $0 here, hiding the loss.
+
+**Order-of-magnitude check vs Vibrant Land.** Vibrant Land reports
+~340,000 t for a citywide full food-forest conversion. Brief 30's
+prototype reports ~1.9M t for converting 10% of developed pixels in a
+larger AOI (Bexar-area bbox, not SA city proper). The ~5× difference
+is within plausible bounds — different AOI extent, different "full
+conversion" definition. Critically, the stock direction and per-pool
+balance are correct: positive for nature gain, negative for nature
+loss, baseline-zero when no LULC delta.
+
+**Cross-metric temporal-framing comparability.** Cooling, flood, and
+mental-health dollar metrics are annual flows. SA Carbon (post-Brief-
+30) is a one-time stock value. The two appear side-by-side on the
+dashboard; the temporal-framing divergence is **surfaced via metric
+labels rather than hidden via amortization**. This matches the
+Vibrant Land presentation directly — their report juxtaposes annual
+cooling savings ($3.5M/year) with total carbon value ($17.6M) without
+forcing them into a shared frame.
+
+**MN Carbon unchanged.** Brief 30's table swap is SA-only. MN
+continues to use `CARBON_SEQ_RATES` (FF 3.5, GI 2.0, HD 0.0 t
+CO2e/acre/yr) via `_compute_carbon(n_wet, n_for, n_hd)` — the
+per-conversion-type annual flow. The cross-city temporal-framing
+divergence is per the project's "align with NatCap canonical, per
+city" working principle (CLAUDE.md). Replacing MN with a four-pool
+framework would require sourcing NatCap MN data of the same shape, out
+of scope for this brief.
+
+**Vectorized four-pool lookup.** `_compute_carbon_four_pool_pure(scenario,
+baseline, c_above, c_below, c_soil, c_dead)` reads the four arrays
+explicitly so the loader can call it before module aliases are
+rebound; `_compute_carbon_four_pool(scenario, baseline)` is the zero-
+deps wrapper. Single fancy-index per pool + a couple of additions and
+a single sum — much cheaper than 1,984 raster-wide boolean
+comparisons (the dict-iteration pattern that Brief 29 retired for
+UNA). Same shape as Brief 29's `_una_supply_percapita` /
+`_una_supply_percapita_pure` pattern.
+
+**The brief had a factual error about EPA_SOCIAL_COST_CARBON.** The
+brief assumed the prototype already used $53/t (Vibrant Land's IWG
+2021 value). It actually uses $190/t (EPA 2023). User confirmed:
+keep $190 untouched, document the methodology-matches-but-constant-
+differs distinction, anchor stop-and-report on stock quantity rather
+than dollar value. The brief's "Modify EPA_SOCIAL_COST_CARBON ($53/t
+stays)" instruction is preserved in its letter (don't modify) — the
+mistaken premise about the current value is what shifted.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
@@ -855,7 +1013,6 @@ so future sessions know this doc is the right home.
 - UCM cooling parameters (UHI_MAX_C, energy table, HMI vs energy aggregation)
 - NDVI source (synthetic proxy vs satellite-derived AlphaEarth)
 - Population data (Census 2020 block vs ACS block-group)
-- Carbon sequestration methodology
 - Surrogate model architecture and hyperparameters
 - "Wallpaper approach" — to clarify with NatCap (see Placement strategy section)
 - SA data adoption (when access comes through)

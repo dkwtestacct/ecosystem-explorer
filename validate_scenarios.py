@@ -104,7 +104,7 @@ metrics = [
     ("mean_hm",             "Cooling HM", "{:>10.4f}"),
     ("food_mln_lbs",        "Food Mlbs",  "{:>9.3f}"),
     ("runoff_acre_feet",    "Runoff a-f", "{:>10.0f}"),
-    ("carbon_tons_co2_yr",  "Carbon t",   "{:>9.0f}"),
+    ("carbon_tons_co2",  "Carbon t",   "{:>9.0f}"),
     ("nature_access_pct",   "Nature %",   "{:>8.1f}"),
 ]
 
@@ -131,7 +131,7 @@ checks = [
     ("All Food Forest food production > Baseline",
      ff["food_mln_lbs"] > b["food_mln_lbs"]),
     ("All Food Forest carbon > Baseline",
-     ff["carbon_tons_co2_yr"] > b["carbon_tons_co2_yr"]),
+     ff["carbon_tons_co2"] > b["carbon_tons_co2"]),
     # NOTE: After switching to the InVEST UNA biophysical table, the baseline
     # already saturates at ~100% — the Mississippi River (NLCD 11, score 1.0,
     # 5 km radius) plus existing forest patches blanket the entire model area,
@@ -165,7 +165,7 @@ checks = [
 
     # Carbon increases with tree cover
     ("Carbon increases with tree cover (FF > Baseline)",
-     ff["carbon_tons_co2_yr"] > b["carbon_tons_co2_yr"]),
+     ff["carbon_tons_co2"] > b["carbon_tons_co2"]),
 
     # Runoff decreases with GI
     ("Runoff decreases with GI (GI < Baseline)",

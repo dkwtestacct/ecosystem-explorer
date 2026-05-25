@@ -60,7 +60,7 @@ InVEST UMH (added in v3.19.0) computes preventable mental health cases via `PC =
 
 ### Carbon Storage and Sequestration
 
-InVEST Carbon quantifies carbon in four pools per LULC class (above-ground biomass, below-ground biomass, soil organic matter, dead organic matter), maps total storage per pixel, and computes sequestration as the pixel-by-pixel difference between two LULC scenarios. Economic valuation uses a net present value formula with discount rate and carbon price escalation. The app uses a fundamentally different method: a single aggregate sequestration rate per cover class (3.5 tons CO2e/acre/yr for food forest, 2.0 for green infrastructure, 0.0 for high-density) multiplied by converted area. It does not use four pools, does not compute storage snapshots, and does not apply NPV discounting. The Avoided Carbon Cost metric multiplies annual sequestration by EPA's Social Cost of Carbon ($190/ton) — a flat per-ton rate rather than InVEST's time-discounted valuation. The InVEST guide notes that the model "assumes that none of the LULC types in the landscape are gaining or losing carbon over time" and that sequestration follows a nonlinear (not linear) path.
+InVEST Carbon quantifies carbon in four pools per LULC class (above-ground biomass, below-ground biomass, soil organic matter, dead organic matter), maps total storage per pixel, and computes sequestration as the pixel-by-pixel difference between two LULC scenarios. Economic valuation uses a net present value formula with discount rate and carbon price escalation. **San Antonio (Brief 30)**: the app now uses InVEST's canonical four-pool stock framework via NatCap's compound `carbon__nlcd_nlud_tree.csv` (1,984 rows × four pools), aligned with the methodology in NatCap's 2023 Vibrant Land report (Guerry et al.) for the same SA project. SA Carbon is reported as a one-time stock change in t CO2 — `sum_pixels((scenario_total - baseline_total) × pixel_area_ha) × 44/12`. The dollar metric is stock × `EPA_SOCIAL_COST_CARBON ($190/ton CO2e)` — a flat per-ton rate rather than InVEST's time-discounted NPV valuation (matching Vibrant Land, which also doesn't enable NPV). **Minneapolis**: the app retains a single aggregate annual sequestration rate per cover class (3.5 t CO2e/acre/yr food forest, 2.0 green infrastructure, 0.0 high-density) multiplied by converted area — MN doesn't have a NatCap four-pool bundle, so the per-city framing principle applies. The InVEST guide notes that the canonical model "assumes that none of the LULC types in the landscape are gaining or losing carbon over time" — both prototype framings (SA four-pool stock, MN annual proxy) honor this assumption for the LULC classes they cover.
 
 **Reference:** [InVEST Carbon User Guide](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/carbonstorage.html)
 
@@ -241,7 +241,7 @@ The app combines three computational layers to balance realism and responsivenes
    - `scenario_lulc` (for the Map View tab)
    - `food_mln_lbs`, `people_fed`
    - `mean_ndvi`
-   - `carbon_tons_co2_yr`, `avoided_carbon_cost_usd`
+   - `carbon_tons_co2`, `carbon_value_usd` (Brief 30: per-city semantics — annual flow MN, one-time stock SA)
    - `nature_access_pct`, `nature_quality_score`, `people_with_nature_access`
    - `flood_damage_avoided_usd`, `cooling_energy_savings_usd`
    - `total_cost_mln` (recomputed from current cost-slider values)
@@ -728,7 +728,7 @@ A small panel between the tradeoff chart and the **Save this scenario** button t
 | **Best for flood reduction** | Max `flood_reduction` |
 | **Best for cooling** | Max `mean_hm` (HM index) |
 | **Best for food production** | Max `food_mln_lbs` |
-| **Best for carbon** | Max `carbon_tons_co2_yr` |
+| **Best for carbon** | Max `carbon_tons_co2` |
 | **Best balanced** | Max of `flood_reduction/max + mean_hm/max + food_mln_lbs/max` (normalized sum) |
 
 Each row renders as `**Goal:** N% converted — X% GI / Y% FF` plus an **Apply** button (column ratio `[4, 1]`) that writes the scenario's `(pct, gi, ff)` into the pending-slider session keys, snaps to the slider step, and reruns. Apply triggers the same `_show_apply_toast` one-shot used by the optimizer suggestion buttons, so the user gets a "Applied — check the Scenario tab to see updated results." confirmation. Button keys are namespaced as `apply_best_goal_{i}` so they don't collide with the optimizer's `apply_opt_{i}` buttons.

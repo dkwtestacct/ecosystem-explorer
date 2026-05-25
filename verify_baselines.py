@@ -249,6 +249,14 @@ def _rebind_city(app_mod, city_name):
     # — `_una_supply_percapita`'s vectorized lookup reads it as a bare
     # module name.
     app_mod.urban_nature_arr    = state.urban_nature_arr
+    # Brief 30: per-city Carbon four-pool arrays. None for MN, 1,984-sized
+    # for SA. Must rebind when switching cities so
+    # `_compute_carbon_four_pool` (called inside `evaluate_scenario` for SA)
+    # reads the right city's pool data.
+    app_mod.c_above_arr         = state.c_above_arr
+    app_mod.c_below_arr         = state.c_below_arr
+    app_mod.c_soil_arr          = state.c_soil_arr
+    app_mod.c_dead_arr          = state.c_dead_arr
     app_mod.pop_count_raster    = state.pop_count_raster
     app_mod.POPULATION_DATA_AVAILABLE = state.population_data_available
     app_mod.ET_RESIZED          = state.et_resized

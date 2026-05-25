@@ -204,6 +204,19 @@ CITIES = {
         # captures NLUD + tree-canopy variation per pixel that the prior
         # per-NLCD borrowed-from-MN table couldn't represent.
         'una_table_file':       'data/sa/natcap_2024/una__nlcd_nlud_tree.csv',
+        # Brief 30: NatCap's SA-curated compound NLCD×NLUD×tree-canopy Carbon
+        # biophysical table (1,984 rows × 27 cols). Four pools (c_above,
+        # c_below, c_soil, c_dead in tons C/ha) indexed directly by the
+        # compound LULC raster. Switches SA from the per-conversion-type
+        # single-rate annual proxy to the canonical InVEST four-pool stock
+        # framework. SA only — MN keeps the single-rate proxy via
+        # CARBON_SEQ_RATES (no four-pool data available for MN).
+        # Methodology matches NatCap's Vibrant Land (Guerry et al. 2023)
+        # framework; SC-CO2 constant (EPA_SOCIAL_COST_CARBON, $190/t @ 2%,
+        # EPA 2023) is the prototype's choice — more current than Vibrant
+        # Land's IWG 2021 ($53/t @ 3%) but the same US-government standard
+        # lineage. See DESIGN_NOTES.md "SA Carbon four-pool framework adoption".
+        'carbon_table_file':    'data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv',
         # Documentation only (sourced from real SSURGO TX029, CGIAR ET0 v3.1,
         # full InVEST UCM CC pipeline) — the live override at module load
         # recomputes these baselines from the rasters and is authoritative.

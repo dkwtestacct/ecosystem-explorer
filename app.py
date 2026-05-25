@@ -61,6 +61,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "San Antonio carbon now uses NatCap's four-pool storage framework — reported as one-time storage value rather than annual rate.",
     "San Antonio land cover now uses NatCap's San Antonio data.",
     "San Antonio cooling estimates updated to NatCap's calibration.",
     "Flood metrics use per-city design storm depths.",
@@ -336,6 +337,16 @@ class CityState(NamedTuple):
     # `max_una_lucode + 1`; for SA that's 1,984 (compound), for MN ~96
     # (NLCD). Indexed by `scenario_lulc_una` — compound for SA, NLCD for MN.
     urban_nature_arr: np.ndarray
+    # InVEST Carbon four-pool stock per LULC (Brief 30, SA only — None for
+    # MN). Each pool in tons C/ha, sized to `max_carbon_lucode + 1` (1,984
+    # for SA's compound table). Indexed by `scenario_lulc_carbon`, the
+    # carbon-view scenario raster (compound for SA, NLCD for MN). MN uses
+    # the single-rate annual proxy via `CARBON_SEQ_RATES` and so leaves
+    # these four fields at None.
+    c_above_arr: Optional[np.ndarray]
+    c_below_arr: Optional[np.ndarray]
+    c_soil_arr: Optional[np.ndarray]
+    c_dead_arr: Optional[np.ndarray]
     # Population
     pop_count_raster: np.ndarray
     population_data_available: bool
@@ -550,7 +561,8 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
               lulc_file, soil_file, cooling_lulc_file,
               una_table_file,
               compound_lulc_file=None, crosswalk_file=None,
-              default_ff_lucode=None, default_gi_lucode=None, default_hd_lucode=None):
+              default_ff_lucode=None, default_gi_lucode=None, default_hd_lucode=None,
+              carbon_table_file=None):
     bio = pd.read_csv(_resolve_table(data_dir_flood, cn_table_file, "data/flood"))
 
     cooling_bio = pd.read_csv(_resolve_table(data_dir_cooling, cooling_table_file, "data/cooling"))
@@ -567,6 +579,27 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
     urban_nature_arr = np.zeros(max_una_lucode + 1, dtype=np.float32)
     for _, row in una_bio.iterrows():
         urban_nature_arr[int(row['lucode'])] = float(row['urban_nature'])
+
+    # InVEST Carbon four-pool table (Brief 30: SA only). Each pool in tons
+    # C/ha keyed on the compound `lucode` (0-1983 for SA). Four arrays sized
+    # to `max_carbon_lucode + 1` enable a vectorized per-pixel stock lookup:
+    # `(c_above_arr + c_below_arr + c_soil_arr + c_dead_arr)[scenario_lulc_carbon]`.
+    # MN keeps the single-rate annual proxy via `CARBON_SEQ_RATES` — these
+    # four arrays are None for cities without a `carbon_table_file`.
+    c_above_arr = c_below_arr = c_soil_arr = c_dead_arr = None
+    if carbon_table_file is not None:
+        carbon_bio = pd.read_csv(carbon_table_file)
+        max_carbon_lucode = int(carbon_bio['lucode'].max())
+        c_above_arr = np.zeros(max_carbon_lucode + 1, dtype=np.float32)
+        c_below_arr = np.zeros(max_carbon_lucode + 1, dtype=np.float32)
+        c_soil_arr  = np.zeros(max_carbon_lucode + 1, dtype=np.float32)
+        c_dead_arr  = np.zeros(max_carbon_lucode + 1, dtype=np.float32)
+        for _, row in carbon_bio.iterrows():
+            lc = int(row['lucode'])
+            c_above_arr[lc] = float(row['c_above'])
+            c_below_arr[lc] = float(row['c_below'])
+            c_soil_arr[lc]  = float(row['c_soil'])
+            c_dead_arr[lc]  = float(row['c_dead'])
 
     # Compound-LULC path (SA post-Brief 27): load NatCap's compound raster +
     # crosswalk, then derive the NLCD-reduced view that downstream consumers
@@ -659,6 +692,7 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
             cn_table, lucode_idx_arr, hm_arr, max_raster_lucode, max_hm_lucode,
             nlcd_intensity_weights, shade_arr, kc_arr, albedo_arr, green_area_arr,
             urban_nature_arr,
+            c_above_arr, c_below_arr, c_soil_arr, c_dead_arr,
             cooling_lulc_compound, compound_to_nlcd,
             compound_after_ff, compound_after_gi, compound_after_hd)
 
@@ -687,8 +721,10 @@ COST_PER_KWH_USD = 0.13
 
 # EPA Social Cost of Carbon — central estimate, 2 % discount rate, 2030
 # emissions, EPA 2023 final rule "Methodology for Estimating the Social
-# Cost of Greenhouse Gases" (Nov 2023). Multiplied by `carbon_tons_co2_yr`
-# to get an "avoided-damage" dollar value at the federal-guideline rate.
+# Cost of Greenhouse Gases" (Nov 2023). Multiplied by `carbon_tons_co2`
+# to get a carbon-value dollar metric at the federal-guideline rate. SA
+# uses one-time stock value × SC-CO2 (Vibrant Land framing); MN uses
+# annual flow × SC-CO2 (legacy avoided-damage framing). See Brief 30.
 # This is a deterministic linear function of carbon, so it's NOT added to
 # REQUIRED_TARGET_COLUMNS (the surrogate already learns carbon; we
 # multiply by this constant post-hoc).
@@ -1501,6 +1537,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         scenario_lulc = reduce_compound_to_nlcd(scenario_lulc_compound, COMPOUND_TO_NLCD)
         scenario_lulc_ucm = scenario_lulc_compound
         scenario_lulc_una = scenario_lulc_compound
+        scenario_lulc_carbon = scenario_lulc_compound
     else:
         scenario_lulc = cooling_lulc.copy()
         if n_wet > 0:
@@ -1515,6 +1552,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         scenario_lulc_compound = None
         scenario_lulc_ucm = scenario_lulc
         scenario_lulc_una = scenario_lulc
+        scenario_lulc_carbon = scenario_lulc
 
     soil_clamped = np.clip(soil_resized, 1, 4)
     lulc_safe    = np.clip(scenario_lulc, 0, len(lucode_idx_arr) - 1)
@@ -1537,14 +1575,27 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     n_food_pixels = int(((scenario_lulc == CODE_FOOD_FOREST) & (cooling_lulc != CODE_FOOD_FOREST)).sum())
     food_mln_lbs  = round(n_food_pixels * PIXEL_AREA_ACRES * FOOD_FOREST_LBS_ACRE / 1_000_000, 3)
 
-    rate_ff = CARBON_SEQ_RATES[CODE_FOOD_FOREST] if carbon_rate_ff is None else carbon_rate_ff
-    rate_gi = CARBON_SEQ_RATES[CODE_GREEN_INFRA] if carbon_rate_gi is None else carbon_rate_gi
-    carbon_tons_co2_yr = round(
-        n_for * PIXEL_AREA_ACRES * rate_ff
-        + n_wet * PIXEL_AREA_ACRES * rate_gi
-        + n_hd  * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_HIGH_DENSITY], 1
-    )
-    avoided_carbon_cost_usd = round(carbon_tons_co2_yr * EPA_SOCIAL_COST_CARBON, 0)
+    # Brief 30: SA uses NatCap's four-pool stock framework (one-time stock
+    # change in t CO2 from the LULC delta) per the Vibrant Land methodology;
+    # MN keeps the per-conversion-type single-rate annual proxy. The
+    # `carbon_tons_co2` return key is unified across cities — its temporal
+    # framing (annual flow for MN, one-time stock for SA) is documented in
+    # the dashboard card label, the schema log, and DESIGN_NOTES. Carbon-rate
+    # sliders are MN-only by design (no rate per pool for SA — the stock is
+    # the table's data, not a user input).
+    if c_above_arr is not None:
+        carbon_tons_co2 = _compute_carbon_four_pool(
+            scenario_lulc_carbon, cooling_lulc_compound,
+        )
+    else:
+        rate_ff = CARBON_SEQ_RATES[CODE_FOOD_FOREST] if carbon_rate_ff is None else carbon_rate_ff
+        rate_gi = CARBON_SEQ_RATES[CODE_GREEN_INFRA] if carbon_rate_gi is None else carbon_rate_gi
+        carbon_tons_co2 = round(
+            n_for * PIXEL_AREA_ACRES * rate_ff
+            + n_wet * PIXEL_AREA_ACRES * rate_gi
+            + n_hd  * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_HIGH_DENSITY], 1
+        )
+    carbon_value_usd = round(carbon_tons_co2 * EPA_SOCIAL_COST_CARBON, 0)
 
     # Brief 29: `scenario_lulc_una` is the compound view for SA (indexes
     # the compound-keyed `urban_nature_arr`) and the NLCD view for MN.
@@ -1585,8 +1636,11 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'flood_damage_avoided_usd': flood_damage_avoided_usd,
         'cooling_energy_savings_usd': cooling_energy_savings_usd,
         'mean_ndvi':                mean_ndvi,
-        'carbon_tons_co2_yr':       carbon_tons_co2_yr,
-        'avoided_carbon_cost_usd':  avoided_carbon_cost_usd,
+        # Brief 30: unified field name (Option D.1). Semantics differ per
+        # city — annual flow (t CO2e/yr) for MN, one-time stock change
+        # (t CO2) for SA. Temporal framing surfaced via metric labels.
+        'carbon_tons_co2':          carbon_tons_co2,
+        'carbon_value_usd':         carbon_value_usd,
         'nature_access_pct':        nat_pct,
         'people_with_nature_access': nat_people,
         'preventable_mh_cases':     preventable_mh_cases,
@@ -1610,30 +1664,94 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         # this view so per-pixel `urban_nature_arr[...]` lookups land in
         # the right lucode space.
         'scenario_lulc_una':        scenario_lulc_una,
+        # Brief 30: the Carbon-view scenario raster. Compound for SA, NLCD
+        # for MN. Mirrors the `scenario_lulc_ucm` / `_una` pattern. MUST
+        # be stripped in all three CSV/dict consumers (`compute_scenario_grid`,
+        # `compute_lookup_table`, `precompute_scenarios.py`) — see
+        # CLAUDE.md "Interface changes require auditing all consumers".
+        'scenario_lulc_carbon':     scenario_lulc_carbon,
     }
 
 
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 24  # bumped: Brief 29 swaps SA's UNA biophysical table from the prototype's per-NLCD `LULC_attribute_table_UNA.csv` (borrowed from MN's UNA sample bundle) to NatCap's compound NLCD×NLUD×tree-canopy `una__nlcd_nlud_tree.csv` (1,984 rows; `urban_nature` ∈ {0.0, 0.5, 1.0} at 960/48/976 row counts). SA UNA consumers now index the compound raster directly via a new `scenario_lulc_una` return field; only Carbon still routes through compound→NLCD reduction (pending Brief 30). The Python for-loop over `URBAN_NATURE_PROPORTION` dict items is replaced with a vectorized `urban_nature_arr[scenario_lulc_una]` lookup so the 1,984-class table doesn't make `_una_supply_percapita` quadratic. SA UNA metrics shift; MN untouched. Brief 28b was at 22→23.
+SCENARIO_SCHEMA_VERSION = 25  # bumped: Brief 30 swaps SA's Carbon model from the prototype's per-conversion-type single-rate annual proxy to NatCap's InVEST four-pool stock framework via the compound `carbon__nlcd_nlud_tree.csv` (1,984 rows × 27 cols; four pools: c_above/c_below/c_soil/c_dead). SA carbon consumers now index the compound raster directly via a new `scenario_lulc_carbon` return field; the unified `carbon_tons_co2` return key replaces `carbon_tons_co2_yr` — semantics differ per city (annual flow for MN, one-time stock change for SA). Dollar metric renamed `avoided_carbon_cost_usd` → `carbon_value_usd` with city-conditional dashboard label ("Avoided Carbon Cost"/yr for MN, "Carbon Storage Value" for SA). Methodology matches NatCap's Vibrant Land (Guerry et al. 2023); SC-CO2 constant (EPA_SOCIAL_COST_CARBON, $190/t @ 2%, EPA 2023) is the prototype's choice rather than Vibrant Land's IWG 2021 ($53/t @ 3%) — same US-government lineage, different vintage. SA carbon stock numerically ~33× the prior annual proxy (category-error correction, not value shift). MN untouched. Brief 29 was at 23→24.
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
 # into a KeyError deep in fit().
 REQUIRED_TARGET_COLUMNS = [
     'flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet',
-    'carbon_tons_co2_yr', 'nature_access_pct',
+    'carbon_tons_co2', 'nature_access_pct',
     'preventable_mh_cases', 'avoided_mh_cost_usd',
 ]
 
 
 def _compute_carbon(n_wet, n_for, n_hd):
-    """Carbon sequestration at default rates — used at scenario-grid build time."""
+    """Carbon sequestration at default rates — used at scenario-grid build time.
+
+    MN-style annual-flow proxy: per-conversion-type CARBON_SEQ_RATES (3.5 t
+    CO2e/acre/yr for FF, 2.0 for GI, 0 for HD) × converted area. Returns an
+    annual rate. SA uses the four-pool stock framework via
+    `_compute_carbon_four_pool` instead — see Brief 30.
+    """
     return round(
         n_for * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_FOOD_FOREST]
         + n_wet * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_GREEN_INFRA]
         + n_hd  * PIXEL_AREA_ACRES * CARBON_SEQ_RATES[CODE_HIGH_DENSITY], 1
+    )
+
+
+# Pixel area in hectares — used by the four-pool stock formula (which takes
+# t C/ha rates). NLCD 30 m grid: 900 m² = 0.09 ha. Computed alongside
+# PIXEL_AREA_ACRES (0.2224 ac) and PIXEL_AREA_M2 (900 m²).
+PIXEL_AREA_HA = 0.09
+
+
+def _compute_carbon_four_pool_pure(
+    scenario_lulc_carbon, baseline_lulc_carbon,
+    c_above_arr, c_below_arr, c_soil_arr, c_dead_arr,
+):
+    """One-time stock-delta carbon between scenario and baseline LULC.
+
+    Per InVEST canonical four-pool framework and NatCap's Vibrant Land
+    methodology for SA. Sums above/below/soil/dead carbon per pixel under
+    both scenario and baseline LULC, takes the delta, aggregates across
+    all valid pixels, multiplies by pixel area (hectares) and the
+    atomic-mass ratio (44/12) for tons CO2-equivalent.
+
+    Returns total stock change in t CO2 (positive = gained, negative = lost).
+    This is *not* an annual rate — it is the one-time stock change when
+    land use changes (matches Vibrant Land Appendix 2: "we analyzed
+    landscape carbon storage using the InVEST Carbon model").
+
+    Pure variant — takes the four pool arrays explicitly so the loader can
+    call it before the module-level aliases are rebound. Downstream code
+    uses the zero-deps wrapper `_compute_carbon_four_pool` below.
+    """
+    n = len(c_above_arr)
+    valid = (scenario_lulc_carbon >= 0) & (baseline_lulc_carbon >= 0)
+    scen_safe = np.clip(scenario_lulc_carbon, 0, n - 1)
+    base_safe = np.clip(baseline_lulc_carbon, 0, n - 1)
+
+    scen_total = (c_above_arr[scen_safe] + c_below_arr[scen_safe]
+                  + c_soil_arr[scen_safe] + c_dead_arr[scen_safe])
+    base_total = (c_above_arr[base_safe] + c_below_arr[base_safe]
+                  + c_soil_arr[base_safe] + c_dead_arr[base_safe])
+
+    delta_t_C_per_ha = np.where(valid, scen_total - base_total, 0.0)
+    total_t_C = float(delta_t_C_per_ha.sum()) * PIXEL_AREA_HA
+    total_t_CO2 = total_t_C * (44.0 / 12.0)
+    return round(total_t_CO2, 1)
+
+
+def _compute_carbon_four_pool(scenario_lulc_carbon, baseline_lulc_carbon):
+    """Zero-deps wrapper reading the module-level pool-array aliases populated
+    by the post-cache_resource fan-out. Downstream code calls this variant."""
+    return _compute_carbon_four_pool_pure(
+        scenario_lulc_carbon, baseline_lulc_carbon,
+        c_above_arr, c_below_arr, c_soil_arr, c_dead_arr,
     )
 
 
@@ -1656,14 +1774,20 @@ def compute_scenario_grid(_state, city_key, data_dir_flood, data_dir_cooling,
                     # a separate full-AOI compound raster; for MN it's the
                     # same object as `scenario_lulc` and stripping is a no-op.
                     # Brief 29: same logic for `scenario_lulc_una`.
+                    # Brief 30: same logic for `scenario_lulc_carbon`.
                     row = {k: v for k, v in result.items()
                            if k not in ('scenario_lulc', 'scenario_lulc_ucm',
-                                        'scenario_lulc_una')}
+                                        'scenario_lulc_una', 'scenario_lulc_carbon')}
                     # Explicit recomputation guarantees the surrogate-target
                     # columns exist regardless of evaluate_scenario's return.
-                    row['carbon_tons_co2_yr'] = _compute_carbon(
-                        row['n_wet'], row['n_for'], row['n_hd']
-                    )
+                    # Brief 30: MN re-normalises to `_compute_carbon` defaults
+                    # (overriding any session-state rate slider); SA's stock
+                    # value from `evaluate_scenario` is already canonical
+                    # (no rate sliders apply — the four-pool table is the data).
+                    if _state.c_above_arr is None:
+                        row['carbon_tons_co2'] = _compute_carbon(
+                            row['n_wet'], row['n_for'], row['n_hd']
+                        )
                     nature_access_pct, _nature_quality, people_with_nature_access = calculate_nature_access(
                         result['scenario_lulc_una'], _state.pop_count_raster
                     )
@@ -1707,15 +1831,20 @@ def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, sch
             for ff in range(0, 101, 5):
                 if gi + ff <= 100:
                     result = evaluate_scenario(pct, gi, ff, seed=42)
-                    # Brief 28b/29: strip `scenario_lulc_ucm` and
-                    # `scenario_lulc_una` alongside `scenario_lulc` (same
-                    # logic as `compute_scenario_grid` — see comment there).
+                    # Brief 28b/29/30: strip `scenario_lulc_ucm`,
+                    # `scenario_lulc_una`, and `scenario_lulc_carbon`
+                    # alongside `scenario_lulc` (same logic as
+                    # `compute_scenario_grid` — see comment there).
                     entry = {k: v for k, v in result.items()
                              if k not in ('scenario_lulc', 'scenario_lulc_ucm',
-                                          'scenario_lulc_una')}
-                    entry['carbon_tons_co2_yr'] = _compute_carbon(
-                        entry['n_wet'], entry['n_for'], entry['n_hd']
-                    )
+                                          'scenario_lulc_una', 'scenario_lulc_carbon')}
+                    # Brief 30: MN re-normalises to defaults; SA's four-pool
+                    # stock value is already canonical (see
+                    # `compute_scenario_grid` comment).
+                    if _state.c_above_arr is None:
+                        entry['carbon_tons_co2'] = _compute_carbon(
+                            entry['n_wet'], entry['n_for'], entry['n_hd']
+                        )
                     nature_access_pct, _nature_quality, people_with_nature_access = calculate_nature_access(
                         result['scenario_lulc_una'], _state.pop_count_raster
                     )
@@ -1855,6 +1984,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
      l_nlcd_intensity_weights, l_shade_arr, l_kc_arr, l_albedo_arr,
      l_green_area_arr,
      l_urban_nature_arr,
+     l_c_above_arr, l_c_below_arr, l_c_soil_arr, l_c_dead_arr,
      l_cooling_lulc_compound, l_compound_to_nlcd,
      l_compound_after_ff, l_compound_after_gi, l_compound_after_hd) = load_data(
         cfg['data_dir_flood'], cfg['data_dir_cooling'],
@@ -1865,7 +1995,8 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         crosswalk_file=cfg.get('crosswalk_file'),
         default_ff_lucode=cfg.get('default_ff_lucode'),
         default_gi_lucode=cfg.get('default_gi_lucode'),
-        default_hd_lucode=cfg.get('default_hd_lucode'))
+        default_hd_lucode=cfg.get('default_hd_lucode'),
+        carbon_table_file=cfg.get('carbon_table_file'))
 
     # ── Phase 2: Population raster ──────────────────────────────────────────
     pop_file = cfg.get("pop_file")
@@ -2185,6 +2316,8 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         shade_arr=l_shade_arr, kc_arr=l_kc_arr, albedo_arr=l_albedo_arr,
         green_area_arr=l_green_area_arr,
         urban_nature_arr=l_urban_nature_arr,
+        c_above_arr=l_c_above_arr, c_below_arr=l_c_below_arr,
+        c_soil_arr=l_c_soil_arr, c_dead_arr=l_c_dead_arr,
         pop_count_raster=pop_count_raster,
         population_data_available=population_data_available,
         et_resized=et_resized, max_et_ref=max_et_ref,
@@ -2244,6 +2377,13 @@ kc_arr              = _CURRENT_CITY_STATE.kc_arr
 albedo_arr          = _CURRENT_CITY_STATE.albedo_arr
 green_area_arr      = _CURRENT_CITY_STATE.green_area_arr
 urban_nature_arr    = _CURRENT_CITY_STATE.urban_nature_arr
+# Brief 30: InVEST Carbon four-pool arrays. None for cities without a
+# `carbon_table_file` (MN); compound-sized (1,984) for SA. Indexed by the
+# carbon-view scenario raster — compound for SA, NLCD for MN.
+c_above_arr         = _CURRENT_CITY_STATE.c_above_arr
+c_below_arr         = _CURRENT_CITY_STATE.c_below_arr
+c_soil_arr          = _CURRENT_CITY_STATE.c_soil_arr
+c_dead_arr          = _CURRENT_CITY_STATE.c_dead_arr
 # Population
 pop_count_raster          = _CURRENT_CITY_STATE.pop_count_raster
 POPULATION_DATA_AVAILABLE = _CURRENT_CITY_STATE.population_data_available
@@ -2293,6 +2433,15 @@ COMPOUND_TO_NLCD      = _CURRENT_CITY_STATE.compound_to_nlcd
 COMPOUND_AFTER_FF     = _CURRENT_CITY_STATE.compound_after_ff
 COMPOUND_AFTER_GI     = _CURRENT_CITY_STATE.compound_after_gi
 COMPOUND_AFTER_HD     = _CURRENT_CITY_STATE.compound_after_hd
+
+# Brief 30: city-conditional carbon framing flag — True when SA's four-pool
+# stock framework is active (one-time t CO2 stock change per the Vibrant
+# Land methodology); False for MN's per-conversion-type single-rate annual
+# proxy. Drives dashboard card labels, unit suffixes, and delta strings
+# wherever carbon appears. Read in the sidebar, metric cards, comparison
+# table, radar plot, and optimizer panel — so it's defined here (once,
+# right after the alias rebinding) rather than re-derived per call site.
+_CARBON_IS_STOCK = c_above_arr is not None
 
 
 def compute_per_tract_summary(scenario_lulc_ucm):
@@ -2897,10 +3046,21 @@ with st.sidebar.container(border=True):
         step=100,
         help=f"Scenarios must stay below this runoff volume. Baseline is approximately {BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft."
     )
+    # Brief 30: SA framing = stock change (t CO2e); MN framing = annual flow.
+    _opt_carbon_label = (
+        "Carbon storage change ≥ (tons CO2e)" if _CARBON_IS_STOCK
+        else "Carbon sequestration ≥ (tons CO2e/yr)"
+    )
+    _opt_carbon_help = (
+        "Corresponds to the Carbon Storage Change metric card (one-time stock value). "
+        "Baseline is 0."
+        if _CARBON_IS_STOCK else
+        "Corresponds to the Carbon Sequestration metric card. Counts only converted pixels; baseline is 0."
+    )
     min_carbon = st.slider(
-        "Carbon sequestration ≥ (tons CO2e/yr)",
-        0, int(scenario_df['carbon_tons_co2_yr'].max()), 0, 100,
-        help="Corresponds to the Carbon Sequestration metric card. Counts only converted pixels; baseline is 0."
+        _opt_carbon_label,
+        0, int(scenario_df['carbon_tons_co2'].max()), 0, 100,
+        help=_opt_carbon_help,
     )
 
     st.caption(
@@ -3023,8 +3183,8 @@ if lookup_key in lookup_table and placement_strategy == 'random':
     results['food_mln_lbs'] = _fresh['food_mln_lbs']
     results['people_fed']   = _fresh['people_fed']
     results['mean_ndvi']    = _fresh['mean_ndvi']
-    results['carbon_tons_co2_yr'] = _fresh['carbon_tons_co2_yr']
-    results['avoided_carbon_cost_usd'] = _fresh['avoided_carbon_cost_usd']
+    results['carbon_tons_co2']   = _fresh['carbon_tons_co2']
+    results['carbon_value_usd']  = _fresh['carbon_value_usd']
     results['flood_damage_avoided_usd'] = _fresh['flood_damage_avoided_usd']
     results['cooling_energy_savings_usd'] = _fresh['cooling_energy_savings_usd']
     # Recompute cost with current cost sliders (lookup table used default costs)
@@ -3110,16 +3270,26 @@ _runoff_delta_str, _runoff_delta_color = _delta_pill(
 _people_fed = results['people_fed']
 _food_delta_str = f"feeds ~{_people_fed:,} people" if _people_fed > 0 else None
 
-_carbon_value = results['carbon_tons_co2_yr']
+_carbon_value = results['carbon_tons_co2']
+
+# Brief 30: `_CARBON_IS_STOCK` is set once after the city-state aliasing
+# above; here we derive the dependent display strings.
+_carbon_unit_suffix = "t CO2e" if _CARBON_IS_STOCK else "t CO2e/yr"
 
 def _fmt_carbon(tons):
     """Compact carbon display — k notation kicks in at 1,000 t to avoid card truncation."""
-    if tons >= 1000:
-        return f"{tons / 1000:.1f}k t CO2e/yr"
-    return f"{tons:,.0f} t CO2e/yr"
+    if abs(tons) >= 1000:
+        return f"{tons / 1000:.1f}k {_carbon_unit_suffix}"
+    return f"{tons:,.0f} {_carbon_unit_suffix}"
 
 _carbon_value_str = _fmt_carbon(_carbon_value)
-_carbon_delta_str, _carbon_delta_color = _delta_pill(_carbon_value, fmt=",.0f", suffix="t CO2e/yr from conversions", epsilon=1.0)
+_carbon_delta_suffix = (
+    "t CO2e stock change from conversions" if _CARBON_IS_STOCK
+    else "t CO2e/yr from conversions"
+)
+_carbon_delta_str, _carbon_delta_color = _delta_pill(
+    _carbon_value, fmt=",.0f", suffix=_carbon_delta_suffix, epsilon=1.0,
+)
 
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
@@ -3172,12 +3342,21 @@ _ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
 _ndvi_delta_str, _ndvi_delta_color = _delta_pill(_ndvi_delta, fmt=".3f", suffix="vs baseline", epsilon=0.001)
 
 eco4, eco5 = st.columns([2, 1])
-eco4.metric(
-    "Carbon Sequestration",
-    _carbon_value_str,
-    delta=_carbon_delta_str,
-    delta_color=_carbon_delta_color,
-    help=(
+_carbon_card_label = "Carbon Storage Change" if _CARBON_IS_STOCK else "Carbon Sequestration"
+_carbon_card_help = (
+    (
+        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
+        "One-time stock change in landscape carbon storage from the LULC delta, "
+        "computed via the InVEST four-pool framework (above-ground biomass + "
+        "below-ground biomass + soil + dead organic matter), keyed on NatCap's "
+        "compound NLCD×NLUD×tree-canopy biophysical table. This is a stock value "
+        "in t CO2e — not an annual rate. Matches NatCap's Vibrant Land (2023) "
+        "methodology for San Antonio. "
+        "Underlying model: [InVEST Carbon Storage and Sequestration]"
+        "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/carbonstorage.html)."
+    )
+    if _CARBON_IS_STOCK else
+    (
         "Confidence: Prototype — see 'How this prototype works' for tier definitions. "
         "Annual CO2e sequestration from converted pixels only. "
         "Uses provisional regional USDA/IPCC rates: Food Forest 3.5 t CO2e/acre/yr, "
@@ -3186,6 +3365,13 @@ eco4.metric(
         "Loosely related model: [InVEST Carbon Storage and Sequestration]"
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/carbonstorage.html)."
     )
+)
+eco4.metric(
+    _carbon_card_label,
+    _carbon_value_str,
+    delta=_carbon_delta_str,
+    delta_color=_carbon_delta_color,
+    help=_carbon_card_help,
 )
 _confidence_caption(eco4, "prototype")
 eco5.metric(
@@ -3523,27 +3709,53 @@ else:
     econ4.metric("Cooling Energy Savings", "—", help=_help_text)
     _confidence_caption(econ4, "medium")
 
-# Avoided Carbon Cost — deterministic from carbon_tons_co2_yr × EPA SCC.
-# Always available regardless of buildings/ET data, since it's purely a
-# function of the converted-pixel carbon flux.
-_avoided_carbon = results.get('avoided_carbon_cost_usd', 0.0)
-econ5.metric(
-    "Avoided Carbon Cost",
-    f"${_avoided_carbon / 1e6:.2f}M/yr" if abs(_avoided_carbon) >= 1e4 else f"${_avoided_carbon:,.0f}/yr",
-    delta=(
-        f"+${_avoided_carbon / 1e6:.2f}M/yr vs baseline" if _avoided_carbon >= 1e4
-        else "$0/yr vs baseline" if abs(_avoided_carbon) < 1
-        else f"${_avoided_carbon:,.0f}/yr vs baseline"
-    ),
-    delta_color="normal" if _avoided_carbon >= 1 else "off",
-    help=(
+# Brief 30: Carbon dollar metric. For SA = one-time stock value
+# (Vibrant Land framing); for MN = annual avoided-cost flow. Label and
+# value-suffix branch on the same `_CARBON_IS_STOCK` flag as the
+# Carbon-quantity card above.
+_carbon_value_dollars = results.get('carbon_value_usd', 0.0)
+_carbon_dollar_label = "Carbon Storage Value" if _CARBON_IS_STOCK else "Avoided Carbon Cost"
+_dollar_period_suffix = "" if _CARBON_IS_STOCK else "/yr"
+
+def _fmt_carbon_dollars(usd):
+    if abs(usd) >= 1e4:
+        return f"${usd / 1e6:.2f}M{_dollar_period_suffix}"
+    return f"${usd:,.0f}{_dollar_period_suffix}"
+
+if _carbon_value_dollars >= 1e4:
+    _carbon_dollar_delta = f"+${_carbon_value_dollars / 1e6:.2f}M{_dollar_period_suffix} vs baseline"
+elif abs(_carbon_value_dollars) < 1:
+    _carbon_dollar_delta = f"$0{_dollar_period_suffix} vs baseline"
+else:
+    _carbon_dollar_delta = f"${_carbon_value_dollars:,.0f}{_dollar_period_suffix} vs baseline"
+
+_carbon_dollar_help = (
+    (
+        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
+        f"One-time landscape carbon value at EPA Social Cost of Carbon "
+        f"(${EPA_SOCIAL_COST_CARBON}/ton CO2e, EPA 2023 final rule, 2 % discount "
+        "rate, 2030 emissions). Computed as the InVEST four-pool stock change "
+        "(NatCap's Vibrant Land methodology for San Antonio) × SC-CO2. Note "
+        "the temporal framing differs from MN's annual carbon flow — SA matches "
+        "the published NatCap SA methodology; MN matches what the prototype "
+        "currently has."
+    )
+    if _CARBON_IS_STOCK else
+    (
         "Confidence: Medium — see 'How this prototype works' for tier definitions. "
         f"Annual carbon value at EPA Social Cost of Carbon (${EPA_SOCIAL_COST_CARBON}/ton CO2e, "
         "EPA 2023 final rule, 2 % discount rate, 2030 emissions). Represents "
         "the estimated economic damage avoided per ton of CO2e sequestered "
-        "based on federal guidelines. Linear in `carbon_tons_co2_yr` so "
+        "based on federal guidelines. Linear in `carbon_tons_co2` so "
         "scales directly with the carbon-rate sliders in Advanced Settings."
-    ),
+    )
+)
+econ5.metric(
+    _carbon_dollar_label,
+    _fmt_carbon_dollars(_carbon_value_dollars),
+    delta=_carbon_dollar_delta,
+    delta_color="normal" if _carbon_value_dollars >= 1 else "off",
+    help=_carbon_dollar_help,
 )
 _confidence_caption(econ5, "medium")
 
@@ -3594,23 +3806,29 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
 
     _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
     _energy_savings_table = results.get('cooling_energy_savings_usd', 0.0)
-    _avoided_carbon_table = results.get('avoided_carbon_cost_usd', 0.0)
+    _carbon_value_table = results.get('carbon_value_usd', 0.0)
+    _carbon_tons_table = results.get('carbon_tons_co2', 0.0)
+    # Brief 30: SA = stock change (one-time); MN = annual sequestration.
+    _carbon_metric_label = 'Carbon Storage Change' if _CARBON_IS_STOCK else 'Carbon Sequestration'
+    _carbon_dollar_label_table = 'Carbon Storage Value' if _CARBON_IS_STOCK else 'Avoided Carbon Cost'
+    _carbon_unit = 'tons CO2e' if _CARBON_IS_STOCK else 'tons CO2e/yr'
+    _carbon_dollar_period = '' if _CARBON_IS_STOCK else '/yr'
     comparison_data = {
         'Metric': [
             'Flood Risk Reduction', 'Runoff Volume', 'Temperature Change',
-            'Food Production', 'Carbon Sequestration', 'NDVI',
-            'Flood Damage Avoided', 'Cooling Energy Savings', 'Avoided Carbon Cost',
+            'Food Production', _carbon_metric_label, 'NDVI',
+            'Flood Damage Avoided', 'Cooling Energy Savings', _carbon_dollar_label_table,
         ],
         'Baseline': [
             f'{_baseline_flood:.1f}',
             f'{BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft',
             'Reference',
             '0 lbs',
-            '0 tons CO2e/yr',
+            f'0 {_carbon_unit}',
             f'{BASELINE_NDVI:.3f}',
             '$0',
             '$0/yr',
-            '$0/yr',
+            f'$0{_carbon_dollar_period}',
         ],
         'This Scenario': [
             f'{results["flood_reduction"]:.1f}',
@@ -3621,11 +3839,11 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
                 else 'No change'
             ),
             f'{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
-            f'{results["carbon_tons_co2_yr"]:,.0f} tons CO2e/yr',
+            f'{_carbon_tons_table:,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"]:.3f}',
             f'${_flood_damage_avoided / 1e6:.1f}M',
             f'${_energy_savings_table / 1e6:.2f}M/yr',
-            f'${_avoided_carbon_table / 1e6:.2f}M/yr' if abs(_avoided_carbon_table) >= 1e4 else f'${_avoided_carbon_table:,.0f}/yr',
+            f'${_carbon_value_table / 1e6:.2f}M{_carbon_dollar_period}' if abs(_carbon_value_table) >= 1e4 else f'${_carbon_value_table:,.0f}{_carbon_dollar_period}',
         ],
         'Change': [
             f'{_flood_diff:+.1f}',
@@ -3636,11 +3854,11 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             ),
             f'{_cooling_f:+.1f}°F',
             f'+{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
-            f'+{results["carbon_tons_co2_yr"]:,.0f} tons CO2e/yr',
+            f'{_carbon_tons_table:+,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
             f'+${_flood_damage_avoided / 1e6:.1f}M' if _flood_damage_avoided >= 1e4 else '$0',
             f'+${_energy_savings_table / 1e6:.2f}M/yr' if _energy_savings_table >= 1e3 else '$0/yr',
-            f'+${_avoided_carbon_table / 1e6:.2f}M/yr' if _avoided_carbon_table >= 1e4 else f'+${_avoided_carbon_table:,.0f}/yr' if _avoided_carbon_table >= 1 else '$0/yr',
+            f'+${_carbon_value_table / 1e6:.2f}M{_carbon_dollar_period}' if _carbon_value_table >= 1e4 else f'+${_carbon_value_table:,.0f}{_carbon_dollar_period}' if _carbon_value_table >= 1 else f'$0{_carbon_dollar_period}',
         ],
     }
 
@@ -3890,12 +4108,20 @@ with tab1:
 
     with col4:
         fig, ax = plt.subplots(figsize=(5, 5))
-        _max_carbon = max(scenario_df['carbon_tons_co2_yr'].max() * 1.1, 1.0)
+        _max_carbon = max(scenario_df['carbon_tons_co2'].max() * 1.1, 1.0)
+        # Brief 30: SA = one-time stock change (Vibrant Land framework);
+        # MN = annual sequestration rate. Title + Y-label branch on framing.
+        _carbon_title = 'Carbon Storage Change' if _CARBON_IS_STOCK else 'Carbon Sequestration'
+        _carbon_ylabel = (
+            'Carbon stock change (tons CO2e)\n(higher = more carbon stored)'
+            if _CARBON_IS_STOCK
+            else 'Carbon (tons CO2e/year)\n(higher = more sequestration)'
+        )
         ax.bar(['Baseline', 'This Scenario'],
-               [0, results['carbon_tons_co2_yr']],
+               [0, results['carbon_tons_co2']],
                color=['#5b8db8', '#7b4fa6'])
-        ax.set_title('Carbon Sequestration', fontsize=16, fontweight='bold')
-        ax.set_ylabel('Carbon (tons CO2e/year)\n(higher = more sequestration)', fontsize=12)
+        ax.set_title(_carbon_title, fontsize=16, fontweight='bold')
+        ax.set_ylabel(_carbon_ylabel, fontsize=12)
         ax.set_ylim(0, _max_carbon)
         ax.tick_params(labelsize=12)
         plt.tight_layout()
@@ -3955,7 +4181,7 @@ with tab2:
         "Best for flood reduction": lookup_df.loc[lookup_df['flood_reduction'].idxmax()],
         "Best for cooling":         lookup_df.loc[lookup_df['mean_hm'].idxmax()],
         "Best for food production": lookup_df.loc[lookup_df['food_mln_lbs'].idxmax()],
-        "Best for carbon":          lookup_df.loc[lookup_df['carbon_tons_co2_yr'].idxmax()],
+        "Best for carbon":          lookup_df.loc[lookup_df['carbon_tons_co2'].idxmax()],
         "Best balanced":            lookup_df.loc[_balanced_score.idxmax()],
     }
 
@@ -4022,6 +4248,12 @@ with tab2:
         st.subheader("Optimized Scenario Suggestions")
         st.caption("Scroll down to see suggestions and apply them to the sliders.")
         opt = st.session_state.optimized_results
+        # Brief 30: SA optimizer reports stock-change; MN reports annual flow.
+        _opt_carbon_unit = "tons CO2e" if _CARBON_IS_STOCK else "tons CO2e/yr"
+        _opt_carbon_col_label = (
+            "Carbon (tons CO2e stock)" if _CARBON_IS_STOCK
+            else "Carbon (tons CO2e/yr)"
+        )
         if isinstance(opt, dict) and not opt.get('found'):
             st.warning(
                 f"No scenarios found meeting all targets simultaneously.  \n"
@@ -4029,13 +4261,13 @@ with tab2:
                 f"- Flood reduction: up to **{opt['max_flood']}** (your target: {min_flood})  \n"
                 f"- Cooling: up to **{opt['max_cool']:.4f} HMI** (your target: {min_cool:.4f})  \n"
                 f"- Food: up to **{opt['max_food']:.3f}M lbs** (your target: {min_food:.3f})  \n"
-                f"- Carbon: up to **{opt['max_carbon']:,.0f} tons CO2e/yr** (your target: {min_carbon:,})  \n"
+                f"- Carbon: up to **{opt['max_carbon']:,.0f} {_opt_carbon_unit}** (your target: {min_carbon:,})  \n"
                 f"Try lowering the target for whichever metric is furthest from its maximum."
             )
         else:
             st.caption(
                 f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
-                f"food ≥ {min_food:.3f}M lbs, carbon ≥ {min_carbon:,} tons CO2e/yr "
+                f"food ≥ {min_food:.3f}M lbs, carbon ≥ {min_carbon:,} {_opt_carbon_unit} "
                 "— ranked by balanced score. "
                 "Numbers are surrogate model predictions with 10th–90th percentile uncertainty bands."
             )
@@ -4043,7 +4275,7 @@ with tab2:
             # Display table with uncertainty columns
             display_cols = ['scenario_name', 'pct_converted', 'green_infrastructure_pct',
                             'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs',
-                            'carbon_tons_co2_yr']
+                            'carbon_tons_co2']
             # Add uncertainty columns if present
             unc_cols = [c for c in ['flood_lower', 'flood_upper', 'hm_lower', 'hm_upper',
                                     'food_lower', 'food_upper',
@@ -4056,7 +4288,7 @@ with tab2:
                 'flood_reduction':          'Flood Index',
                 'mean_hm':                  'Cooling HM',
                 'food_mln_lbs':             'Food (M lbs)',
-                'carbon_tons_co2_yr':       'Carbon (tons CO2e/yr)',
+                'carbon_tons_co2':          _opt_carbon_col_label,
             }
 
             st.markdown("#### Candidate scenarios")

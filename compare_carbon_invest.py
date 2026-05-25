@@ -342,9 +342,9 @@ def main():
         food_forest_pct=100,
     )
 
-    app_carbon = results['carbon_tons_co2_yr']
+    app_carbon = results['carbon_tons_co2']
     scenario_lulc = results['scenario_lulc']
-    print(f"   App carbon_tons_co2_yr = {app_carbon}")
+    print(f"   App carbon_tons_co2 = {app_carbon}")
 
     # Count converted pixels for sanity check
     baseline_lulc = state.cooling_lulc
@@ -401,7 +401,7 @@ def main():
 
         # ── Step 5: Compare ──────────────────────────────────────────────
         print("\n7. Comparison:")
-        print(f"   App carbon_tons_co2_yr:     {app_carbon:.1f} tons CO2e/yr")
+        print(f"   App carbon_tons_co2:     {app_carbon:.1f} tons CO2e/yr")
         print(f"   InVEST (CO2e equivalent):   {invest_co2e:.1f} tons CO2e")
         abs_diff = abs(app_carbon - invest_co2e)
         pct_diff = abs_diff / app_carbon * 100 if app_carbon else float('inf')

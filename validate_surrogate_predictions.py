@@ -31,7 +31,7 @@ OUT_CSV = "comparisons/surrogate_validation.csv"
 # The 6 Random-Forest target columns, in train_surrogate's output order.
 TARGETS = [
     "flood_reduction", "mean_hm", "food_mln_lbs",
-    "runoff_acre_feet", "carbon_tons_co2_yr", "nature_access_pct",
+    "runoff_acre_feet", "carbon_tons_co2", "nature_access_pct",
 ]
 
 # 5 scenarios spanning pct_converted 5-50 (the slider's full range) and a

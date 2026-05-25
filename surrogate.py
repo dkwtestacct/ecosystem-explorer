@@ -46,7 +46,7 @@ def train_surrogate(scenario_df, n_estimators=100):
     # surrogate cannot see any of that. Treat surrogate predictions of
     # nature_access_pct as an indicative trend, not a precise spatial estimate.
     y = scenario_df[['flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet',
-                      'carbon_tons_co2_yr', 'nature_access_pct']]
+                      'carbon_tons_co2', 'nature_access_pct']]
     model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
     model.fit(X, y)
     return model
@@ -58,7 +58,7 @@ def predict_with_uncertainty(model, X):
     X should be shape (n_samples, n_features).
     Returns: mean (n,6), lower (n,6), upper (n,6)
     Columns: [flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet,
-              carbon_tons_co2_yr, nature_access_pct]
+              carbon_tons_co2, nature_access_pct]
     """
     tree_preds = np.array([tree.predict(X) for tree in model.estimators_])
     # tree_preds shape: (n_trees, n_samples, n_outputs)
@@ -172,7 +172,7 @@ def optimize_scenario(surrogate, min_flood, min_cool, min_food, max_runoff,
         'food_mln_lbs':             mean_preds[meets, 2].round(3),
         'food_lower':               lower_preds[meets, 2].round(3),
         'food_upper':               upper_preds[meets, 2].round(3),
-        'carbon_tons_co2_yr':       mean_preds[meets, 4].round(1),
+        'carbon_tons_co2':       mean_preds[meets, 4].round(1),
         'carbon_lower':             lower_preds[meets, 4].round(1),
         'carbon_upper':             upper_preds[meets, 4].round(1),
     })

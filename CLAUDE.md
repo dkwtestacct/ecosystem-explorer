@@ -49,6 +49,7 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | Historical per-NLCD Köppen-BSh-tuned UCM table | **Retired 2026-05-24 (Brief 28b).** Kept on disk for reference. The live SA UCM path now loads NatCap's compound table at `data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv`; the per-class rationale sidecar `data/sa/cooling/biophysical_table_sources.md` documents the historical Köppen tuning and remains useful context for what was replaced. |
 | `data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv` | NatCap compound NLCD×NLUD×tree-canopy UCM biophysical table (1,984 rows × 27 cols, keyed on compound `lucode` 0–1983). Provides per-pixel `shade`, `kc`, `albedo`, `green_area`, `building_intensity` indexed directly by the compound LULC raster. Adopted as SA's live UCM table 2026-05-24 (Brief 28b); referenced via the SA `cooling_table_file = '../natcap_2024/ucm__nlcd_nlud_tree.csv'` config (relative to `data_dir_cooling`). | done (Brief 28b) |
 | `data/sa/natcap_2024/una__nlcd_nlud_tree.csv` | NatCap compound NLCD×NLUD×tree-canopy UNA biophysical table (1,984 rows × 21 cols, keyed on compound `lucode` 0–1983). Provides per-pixel `urban_nature` ∈ {0.0, 0.5, 1.0} (960 / 48 / 976 rows) indexed directly by the compound LULC raster via the per-city `urban_nature_arr` numpy lookup. `search_radius_m` column is all zeros — the radius is an args-level scalar from `city_cfg['una_search_radius_m']`, not the per-row table value. Adopted as SA's live UNA table 2026-05-24 (Brief 29); referenced via the SA `una_table_file = 'data/sa/natcap_2024/una__nlcd_nlud_tree.csv'` config. Retires the borrowed-from-MN per-NLCD `LULC_attribute_table_UNA.csv` for SA. | done (Brief 29) |
+| `data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv` | NatCap compound NLCD×NLUD×tree-canopy Carbon biophysical table (1,984 rows × 27 cols, keyed on compound `lucode` 0–1983). Provides per-pixel four-pool carbon storage — `c_above`, `c_below`, `c_soil`, `c_dead` (tons C/ha) — indexed directly by the compound LULC raster via per-city `c_above_arr`/`c_below_arr`/`c_soil_arr`/`c_dead_arr` numpy arrays. Three additional columns (`c_embedded_storage`, `c_embedded_emissions`, `c_annual_emissions`) describe urban-accounting flows that the prototype doesn't currently use. Adopted as SA's live Carbon table 2026-05-25 (Brief 30); referenced via the SA `carbon_table_file = 'data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv'` config. Pool stats: `c_above` max 105.68, `c_below` max 8.00, `c_soil` max 259.00, `c_dead` max 14.40. Retires SA's prior single-rate annual proxy via `CARBON_SEQ_RATES` (MN continues to use that proxy — no NatCap MN four-pool bundle available). | done (Brief 30) |
 | `data/sa/flood/soil_group_sa.tif` | SSURGO hydrologic soil group rasterized to LULC grid | done (TX029, 49 % D-class clay-rich Vertisols) |
 | `data/sa/cooling/et_annual_sa.tif` | Reference ET raster (CGIAR Global-AI/ET0 v3.1, 1,580–1,716 mm/yr) | done |
 | `data/sa/population/sa_pop_2020.tif` | Census 2020 block totals rasterized to LULC grid | done (1.91 M in raster) |
@@ -142,7 +143,7 @@ separate cache entries via the path parameters.
 | `HM_TO_FAHRENHEIT` | per-city | Derived as `UHI_MAX_C × 1.8`. MN: 3.69 °F/CC; SA: 6.30 °F/CC. Rebound every rerun alongside `UHI_MAX_C`. |
 | `GREEN_AREA_COOLING_DISTANCE_M` | 450 | InVEST UCM `green_area_cooling_distance` (d_cool), from InVEST args JSON. Drives the exponential-decay kernel for `CC_park` in the canonical HMI. `_HMI_DECAY_PX = 450/30 = 15` at 30 m NLCD resolution. |
 | `COST_PER_KWH_USD` | 0.13 | US average residential electricity price (EIA 2024). Used to convert avoided-AC-kWh into $. |
-| `EPA_SOCIAL_COST_CARBON` | 190 | $/ton CO2e — EPA 2023 final rule "Methodology for Estimating the Social Cost of Greenhouse Gases", central estimate at 2 % discount rate for 2030 emissions. Multiplied by `carbon_tons_co2_yr` to produce the Avoided Carbon Cost dollar metric. |
+| `EPA_SOCIAL_COST_CARBON` | 190 | $/ton CO2e — EPA 2023 final rule "Methodology for Estimating the Social Cost of Greenhouse Gases", central estimate at 2 % discount rate for 2030 emissions. Multiplied by `carbon_tons_co2` to produce the dashboard carbon dollar metric. **Per-city semantics**: for MN this is an annual avoided-cost flow (`carbon_tons_co2` is an annual rate); for SA this is a one-time stock value (`carbon_tons_co2` is a one-time stock change per the InVEST four-pool framework adopted in Brief 30). The prototype's $190/t @ 2% is intentionally more current than NatCap's Vibrant Land report (Guerry et al. 2023), which cited IWG 2021's $53/t @ 3% — same US-government standard lineage, different vintage. Methodology aligns with Vibrant Land; SC-CO2 vintage is the prototype's choice. |
 | `PIXEL_AREA_M2` | 900 | NLCD 30 × 30 m pixel area in m². Used for cooling energy savings (consumption rate is kWh/(m²·°C)/yr from `energy_consumption.csv`). |
 | `NATURE_RADIUS_CAP_M` | 1000 | Upper cap applied to every `search_radius_m` in the InVEST UNA table. Without this cap, water/forest classes (5 km radius) saturate the AOI to 100 % nature access. Caps at ~12-min walking distance, matches the table's own value for "Developed, Open Space" (urban parks). |
 | `RR_0_1_NDVI_DEPRESSION` | 0.96 | InVEST UMH relative risk per 0.1 NDVI increase, depression. Source: Liu et al. 2023 meta-analysis. |
@@ -266,7 +267,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   unioning with buildings, **~65 % of developed pixels (NLCD 21–24) remain convertible**
   (33,357 of 51,430). Rasterization is unbuffered line-to-pixel via `rasterio.features.rasterize`
   with `dtype="uint8"`; output is binary 0/1.
-- **`SCENARIO_SCHEMA_VERSION = 22`** — bump on every change that shifts `evaluate_scenario`
+- **`SCENARIO_SCHEMA_VERSION = 25`** — bump on every change that shifts `evaluate_scenario`
   outputs so cached lookup tables get regenerated. Recent bumps: 7→8 (UCM rework: ET fix,
   Gaussian convolution, canonical energy formula); 8→9 (ET nodata sentinel masked);
   9→10 (full Geofabrik OSM road network, 62 % AOI); 10→11 (Option B road filter, ~29 % AOI);
@@ -322,7 +323,27 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   cardinality. `urban_nature_arr` joins `shade_arr`/`kc_arr`/`albedo_arr`/
   `green_area_arr` on `CityState`. Three CSV strip sites updated:
   `compute_scenario_grid`, `compute_lookup_table`, `precompute_scenarios.py`.
-  See DESIGN_NOTES.md "SA UNA compound biophysical table adoption").**
+  See DESIGN_NOTES.md "SA UNA compound biophysical table adoption");
+  **24→25 (Brief 30 SA Carbon four-pool stock framework — `carbon__nlcd_nlud_tree.csv`
+  (1,984 rows × 27 cols; four pools `c_above`/`c_below`/`c_soil`/`c_dead` in t C/ha)
+  replaces SA's per-conversion-type `CARBON_SEQ_RATES` annual-flow proxy. SA Carbon
+  consumers index `cooling_lulc_compound` directly via a new `scenario_lulc_carbon`
+  field; the `_compute_carbon_four_pool` wrapper computes one-time t CO2 stock change
+  from the LULC delta per the InVEST four-pool framework, matching NatCap's Vibrant
+  Land (Guerry et al. 2023) methodology. **Field rename**: `carbon_tons_co2_yr` →
+  `carbon_tons_co2` (unified key; semantics differ per city — annual flow MN,
+  one-time stock SA). **Dollar metric reframe**: `avoided_carbon_cost_usd` →
+  `carbon_value_usd` with city-conditional dashboard label ("Avoided Carbon Cost"/yr
+  for MN, "Carbon Storage Value" one-time for SA). `EPA_SOCIAL_COST_CARBON=$190/t`
+  (EPA 2023, 2% discount) is kept untouched; methodology matches Vibrant Land but the
+  SC-CO2 vintage differs from theirs (IWG 2021, $53/t @ 3%) — same US-government
+  lineage, different vintage, intentional. SA Carbon stock numerically ~30× the
+  prior annual proxy (category-error correction, not a value shift); MN baselines
+  unchanged (zero value divergence across 20 baselines). Three CSV strip sites
+  updated (same as Brief 29): `compute_scenario_grid`, `compute_lookup_table`,
+  `precompute_scenarios.py`. `c_above_arr` / `c_below_arr` / `c_soil_arr` /
+  `c_dead_arr` join the existing per-city arrays on `CityState`. See DESIGN_NOTES.md
+  "SA Carbon four-pool framework adoption").**
 - **City runtime state (`CityState` + `_load_city_runtime_state`).** All heavy
   per-city allocations — rasters from `load_data`, the population raster, the
   resized ET raster, building/road/tract rasterisations, the static nature-
@@ -513,8 +534,10 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   restored 2026-05-22, while the Nature Quality Score card stays removed — see WHATS_NEW),
   💵 Economic (5 cards in two rows: row 1 has Food Production + Est. Implementation Cost
   in 2 columns; row 2 has Flood Damage Avoided + Cooling Energy Savings + Avoided Carbon
-  Cost in 3 columns — the EPA Social Cost of Carbon dollar metric is `carbon_tons_co2_yr ×
-  EPA_SOCIAL_COST_CARBON`, deterministic so not in the surrogate),
+  Cost in 3 columns — the EPA Social Cost of Carbon dollar metric is `carbon_tons_co2 ×
+  EPA_SOCIAL_COST_CARBON` via the `carbon_value_usd` field, deterministic so not in the
+  surrogate; SA card reads "Carbon Storage Value" one-time vs MN's "Avoided Carbon Cost"/yr
+  per the per-city framing — see Brief 30),
   📊 Cost Effectiveness (3 sub-ratios under their own header). Each group is separated by
   `st.divider()`. **13 metric cards total**. Keep this grouping when adding new metrics — place
   new cards in the section that matches their category rather than appending to a flat list.
@@ -523,20 +546,37 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   satellite imagery. `BASELINE_NDVI` is computed once at startup from the unmodified
   `cooling_lulc` raster; scenario `mean_ndvi` is computed inside `evaluate_scenario` and
   flows through the lookup table and any cached scenario results.
-- **Carbon sequestration counts converted pixels only** — `CARBON_SEQ_RATES` maps the three
+- **Carbon — per-city methodology.** For SA (Brief 30), Carbon uses the **InVEST
+  four-pool stock framework** via `_compute_carbon_four_pool(scenario_lulc_carbon,
+  baseline_lulc_carbon)` indexing NatCap's `carbon__nlcd_nlud_tree.csv` (1,984 rows ×
+  four pools). The return is a one-time stock change in t CO2 (positive = carbon
+  gained, negative = lost), NOT an annual rate. For MN, Carbon uses the
+  single-rate annual proxy via `_compute_carbon(n_wet, n_for, n_hd)` and
+  `CARBON_SEQ_RATES`. The unified return-dict key `carbon_tons_co2` carries either
+  framing — the city-conditional `_CARBON_IS_STOCK` flag (set once after the
+  module alias rebinding) drives dashboard card labels, optimizer slider unit
+  suffixes, and comparison-table formatting. The `EPA_SOCIAL_COST_CARBON` constant
+  multiplies the unified `carbon_tons_co2` value to produce `carbon_value_usd`
+  (one-time stock value for SA, annual avoided cost for MN). See DESIGN_NOTES.md
+  "SA Carbon four-pool framework adoption" for the magnitude evidence and the
+  methodology-matches-but-SC-CO2-vintage-differs rationale.
+- **Carbon sequestration (MN only) counts converted pixels** — `CARBON_SEQ_RATES` maps the three
   conversion target codes (`CODE_FOOD_FOREST`, `CODE_GREEN_INFRA`, `CODE_HIGH_DENSITY`) to
   provisional regional USDA/IPCC rates in tons CO2e/acre/yr (3.5, 2.0, 0.0). Inside
-  `evaluate_scenario`, `carbon_tons_co2_yr` is computed inline from `n_for`, `n_wet`, `n_hd`
+  `evaluate_scenario`, `carbon_tons_co2` is computed inline from `n_for`, `n_wet`, `n_hd`
   and pixel area — there is no per-cell raster pass and no startup baseline (baseline = 0,
   same convention as `food_mln_lbs`). The value flows through the lookup table and cached
-  scenario results. Treat as directional only — not locally calibrated.
-- **Carbon rates are user-overridable** — the sidebar `⚙️ Advanced Settings` expander
+  scenario results. Treat as directional only — not locally calibrated. SA does **not**
+  use this path — see "Carbon — per-city methodology" above.
+- **Carbon rates are user-overridable (MN only)** — the sidebar `⚙️ Advanced Settings` expander
   exposes `carbon_rate_ff` and `carbon_rate_gi` sliders backed by `st.session_state`. Both
   main-panel `evaluate_scenario` calls (the lookup-refresh `_fresh` and the non-random-strategy
   branch) pass these values through; `evaluate_scenario` falls back to `CARBON_SEQ_RATES`
   defaults when the kwargs are `None`. The precomputed lookup table is built with defaults,
-  but `carbon_tons_co2_yr` is recomputed live in the lookup-refresh path so slider changes
-  always take effect.
+  but `carbon_tons_co2` is recomputed live in the lookup-refresh path so slider changes
+  always take effect. For SA the sliders have no effect — the four-pool stock framework
+  reads the canonical biophysical table values, no per-pool override is exposed (the
+  table is the data, not a user input).
 - **InVEST Urban Mental Health Model (v3.19.0)** — `calculate_mental_health_impact(scenario_lulc,
   baseline_ne_raster, pop_count)` returns `(preventable_mh_cases, avoided_mh_cost_usd)`. Per-pixel
   formula: NE = `gaussian_filter(NDVI_proxy, sigma=10 px)` (10 px = 300 m at 30 m NLCD per
@@ -552,7 +592,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   "Official InVEST alignment — UMH" for parity status and divergences (uniform BIR vs
   per-admin, Gaussian kernel vs uniform buffer, synthetic vs satellite NDVI).
 - **The surrogate predicts six outputs** — `train_surrogate` fits the Random Forest on
-  `[flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet, carbon_tons_co2_yr,
+  `[flood_reduction, mean_hm, food_mln_lbs, runoff_acre_feet, carbon_tons_co2,
   nature_access_pct]`, so `predict_with_uncertainty` returns `(n, 6)` arrays. The two
   InVEST UMH metrics (`preventable_mh_cases`, `avoided_mh_cost_usd`) are **not** RF
   targets — they are computed deterministically inside `evaluate_scenario` from the
@@ -564,7 +604,8 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   `optimize_scenario` adds a `min_carbon` constraint (`mean_preds[:, 4] >= min_carbon`)
   alongside the existing flood, cooling, food, and runoff filters. The carbon column flows
   into the candidate DataFrame (with `carbon_lower` / `carbon_upper` uncertainty bands) and
-  the optimizer results display, which renames it to "Carbon (tons CO2e/yr)". Note: the
+  the optimizer results display, which renames it to "Carbon (tons CO2e/yr)" for MN
+  or "Carbon (tons CO2e stock)" for SA (city-conditional via `_CARBON_IS_STOCK`). Note: the
   carbon surrogate is trained at the **default** rates baked into `scenario_df`; user
   overrides via Advanced Settings do not retrain the surrogate, so optimizer carbon
   predictions reflect default rates even when sliders are adjusted. Nature access is the

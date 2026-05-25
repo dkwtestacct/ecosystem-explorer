@@ -20,7 +20,7 @@ Three layers of measurement, written to CSV under analysis/placement_diagnostic/
   Layer 3+4 (metric outcomes):
     For each (city, strategy, scenario, pct, seed) run
     evaluate_scenario and record flood_reduction, mean_hm,
-    food_mln_lbs, carbon_tons_co2_yr, runoff_acre_feet.
+    food_mln_lbs, carbon_tons_co2, runoff_acre_feet.
     Scenarios: all-GI, all-FF, all-HD. pcts: 10, 25, 50.
     1,350 evaluate_scenario calls in total.
 
@@ -222,7 +222,7 @@ def run_worker(city_key: str) -> None:
     # ── Layer 3: metric outcomes via evaluate_scenario ───────────────────
     layer3_fields = ["city", "strategy", "scenario", "pct", "seed",
                      "flood_reduction", "mean_hm", "food_mln_lbs",
-                     "carbon_tons_co2_yr", "runoff_acre_feet",
+                     "carbon_tons_co2", "runoff_acre_feet",
                      "elapsed_s", "saturated"]
     _ensure_csv(LAYER3_CSV, layer3_fields)
     layer3_done = _existing_tuples(LAYER3_CSV, ["city", "strategy", "scenario", "pct", "seed"])
@@ -267,7 +267,7 @@ def run_worker(city_key: str) -> None:
                         "flood_reduction": res["flood_reduction"],
                         "mean_hm": res["mean_hm"],
                         "food_mln_lbs": res["food_mln_lbs"],
-                        "carbon_tons_co2_yr": res["carbon_tons_co2_yr"],
+                        "carbon_tons_co2": res["carbon_tons_co2"],
                         "runoff_acre_feet": res["runoff_acre_feet"],
                         "elapsed_s": round(elapsed, 3),
                         "saturated": saturated,

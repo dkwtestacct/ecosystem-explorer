@@ -173,10 +173,11 @@
 
 | Parameter | Prototype | NatCap SA project | Status |
 |---|---|---|---|
-| Methodology | Single per-NLCD-class rate | Four-pool (above/below/soil/dead) per compound lucode | ⚠️ Methodology divergence |
-| Rate source | USDA NRCS / IPCC | `carbon__nlcd_nlud_tree.csv` (1,984 rows × 27 cols): keys (`lucode, code, nlcd, LULC_name, nlud_simple, tree_canopy_cover`) + ag/maintenance signals + four canonical pools (`c_above` max 106, `c_below` max 8, `c_soil` max 259, `c_dead` max 14 — all tons C/ha) + three unused urban-accounting columns (`c_embedded_storage`, `c_embedded_emissions`, `c_annual_emissions`) | ❌ Not adopted; integration queued. See "SA Compound LULC Framework" below. |
+| Methodology | InVEST four-pool stock framework (above/below/soil/dead) × compound-LULC delta × 44/12 → one-time t CO2 stock change. Matches NatCap's Vibrant Land (Guerry et al. 2023) methodology. | Four-pool (above/below/soil/dead) per compound lucode | ✅ Aligned (Brief 30) |
+| Rate source | `data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv` (1,984 rows × 27 cols) — four pools indexed directly by `cooling_lulc_compound` via per-city `c_above_arr`/`c_below_arr`/`c_soil_arr`/`c_dead_arr` | `carbon__nlcd_nlud_tree.csv` (1,984 rows × 27 cols) | ✅ Adopted (Brief 30) |
+| SC-CO2 | `EPA_SOCIAL_COST_CARBON = $190/t CO2` (EPA 2023 final rule, 2% discount). Stock × SC-CO2 → `carbon_value_usd` (one-time, NOT annual). | Vibrant Land cited IWG 2021 ($53/t @ 3% discount); methodology matches, SC-CO2 vintage differs | ⚠️ Methodology aligned; SC-CO2 vintage is the prototype's choice (more current); ~3.6× the Vibrant Land dollar figures on equivalent stock |
 
-**Carbon summary:** Methodology divergence + table format divergence. Adopting NatCap's four-pool framework is a real upgrade queued for integration.
+**Carbon summary:** SA Carbon now uses NatCap's four-pool stock framework per the Vibrant Land methodology. The temporal framing diverges from MN (one-time stock vs annual flow); this is intentional — SA matches its NatCap project precedent; MN matches what the prototype currently has (no NatCap MN four-pool bundle exists in the shared Drive). SC-CO2 constant differs from Vibrant Land's vintage but uses the same US-government standard lineage; methodology alignment is the load-bearing question.
 
 ### UMH (Urban Mental Health)
 
@@ -255,12 +256,12 @@ NatCap's SA data uses a compound LULC framework that overlays three signals: NLC
 | UCM | ✅ Fully aligned post-Brief 28b — args (Brief 14), LULC raster (Brief 27), biophysical table (Brief 28b) all on NatCap-canonical SA inputs |
 | UFR | ⚠️ Methodology divergence (live vs pre-computed scenarios); rainfall depth aligned with SA-project canonical (Brief 23) |
 | UNA | ✅ Fully aligned post-Brief 29 — args (Brief 22), biophysical table + LULC (Brief 29) all on NatCap-canonical SA inputs. Population + AOI source differences remain. |
-| Carbon | ⚠️ Methodology simplification (single rate vs four-pool); biophysical table integration queued (Brief 30) |
+| Carbon | ✅ Aligned (Brief 30) — InVEST four-pool stock framework via `carbon__nlcd_nlud_tree.csv`, indexed by compound LULC. Reports one-time stock change (not annual flow); SC-CO2 constant uses EPA 2023 ($190/t) vs Vibrant Land's IWG 2021 ($53/t) — methodology aligned, vintage differs |
 | UMH | ✅ |
 | NDR | ❌ Not implemented |
 | Food Forest | ⚠️ Single benchmark vs per-crop CoSA |
 
-**Overall SA parity:** UCM (Brief 28b) and UNA (Brief 29) now consume the NatCap compound LULC + compound-keyed biophysical tables directly. Only Carbon still routes through the NLCD reduction layer (queued for Brief 30). NDR remains unimplemented. Population + AOI source divergences are minor relative to the methodology-level alignment achieved by the SA NatCap data integration workstream (Briefs 27 → 30 per SA_INTEGRATION_PLAN.md).
+**Overall SA parity:** All three SA biophysical models (UCM Brief 28b, UNA Brief 29, Carbon Brief 30) now consume the NatCap compound LULC + compound-keyed biophysical tables directly. The compound→NLCD reduction routing is no longer used for any live metric — only for spatial-map rendering. NDR remains unimplemented; Brief 31 (optional AOI switch) is the only outstanding integration item. Population + AOI source divergences are minor relative to the methodology-level alignment achieved by the SA NatCap data integration workstream (Briefs 27 → 30 per SA_INTEGRATION_PLAN.md).
 
 ---
 

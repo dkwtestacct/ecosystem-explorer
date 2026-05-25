@@ -204,20 +204,25 @@ _t_loop = time.time()
 for i, (pct, gi, ff) in enumerate(combos, start=1):
     result = app.evaluate_scenario(pct, gi, ff, seed=42)
     # Strip all full-AOI scenario rasters — `scenario_lulc` (always),
-    # `scenario_lulc_ucm` (Brief 28b, UCM compound view for SA), and
-    # `scenario_lulc_una` (Brief 29, UNA compound view for SA). For MN
-    # both views are the same object as `scenario_lulc` so stripping is
-    # a no-op. Without this guard pandas serialises numpy arrays as
+    # `scenario_lulc_ucm` (Brief 28b, UCM compound view for SA),
+    # `scenario_lulc_una` (Brief 29, UNA compound view for SA), and
+    # `scenario_lulc_carbon` (Brief 30, Carbon compound view for SA). For
+    # MN all views are the same object as `scenario_lulc` so stripping
+    # is a no-op. Without this guard pandas serialises numpy arrays as
     # truncated string reprs into one cell per row, producing garbage
     # data and ~7-line CSV rows from the embedded newlines.
     row = {k: v for k, v in result.items()
            if k not in ("scenario_lulc", "scenario_lulc_ucm",
-                        "scenario_lulc_una")}
-    # Mirror the explicit recomputation in app.compute_scenario_grid so the
-    # CSV schema lines up with what train_surrogate expects.
-    row["carbon_tons_co2_yr"] = app._compute_carbon(
-        row["n_wet"], row["n_for"], row["n_hd"]
-    )
+                        "scenario_lulc_una", "scenario_lulc_carbon")}
+    # Brief 30: MN re-normalises to default annual-rate proxy via
+    # `_compute_carbon`; SA's four-pool stock value from
+    # `evaluate_scenario` is already canonical (no rate sliders apply —
+    # the table is the data). Mirrors `app.compute_scenario_grid`'s
+    # post-Brief-30 logic.
+    if app.c_above_arr is None:
+        row["carbon_tons_co2"] = app._compute_carbon(
+            row["n_wet"], row["n_for"], row["n_hd"]
+        )
     # Brief 29: pass the UNA view (compound for SA, NLCD for MN).
     nature_pct, _nature_quality, nature_people = app.calculate_nature_access(
         result["scenario_lulc_una"], app.pop_count_raster
@@ -249,14 +254,14 @@ print("\nFirst 5 rows (key columns):")
 preview_cols = [c for c in [
     "pct_converted", "green_infrastructure_pct", "food_forest_pct",
     "flood_reduction", "mean_hm", "food_mln_lbs", "runoff_acre_feet",
-    "carbon_tons_co2_yr", "nature_access_pct", "mean_ndvi",
+    "carbon_tons_co2", "nature_access_pct", "mean_ndvi",
 ] if c in df.columns]
 print(df[preview_cols].head(5).to_string(index=False))
 
 print("\nMin/max per output column:")
 output_cols = [c for c in [
     "flood_reduction", "mean_hm", "food_mln_lbs", "runoff_acre_feet",
-    "carbon_tons_co2_yr", "nature_access_pct", "mean_ndvi",
+    "carbon_tons_co2", "nature_access_pct", "mean_ndvi",
 ] if c in df.columns]
 header = f"  {'column':<25} {'min':>12} {'max':>12}"
 print(header)

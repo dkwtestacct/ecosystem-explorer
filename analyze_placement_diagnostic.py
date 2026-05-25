@@ -106,7 +106,7 @@ if len(sat3):
 
 ok3 = L3[L3["saturated"] == False].copy()  # noqa: E712
 metrics = ["flood_reduction", "mean_hm", "food_mln_lbs",
-           "carbon_tons_co2_yr", "runoff_acre_feet"]
+           "carbon_tons_co2", "runoff_acre_feet"]
 
 for m in metrics:
     hdr(f"Layer 3 — {m}")
@@ -152,7 +152,7 @@ roll = pd.concat(roll_rows, ignore_index=True)
 roll = roll.pivot(index=["city", "strategy"], columns="metric", values="delta").reset_index()
 md_table(roll, fmt={
     "flood_reduction": "{:.3g}", "mean_hm": "{:.4g}",
-    "food_mln_lbs": "{:.4g}", "carbon_tons_co2_yr": "{:.4g}",
+    "food_mln_lbs": "{:.4g}", "carbon_tons_co2": "{:.4g}",
     "runoff_acre_feet": "{:.4g}",
 })
 

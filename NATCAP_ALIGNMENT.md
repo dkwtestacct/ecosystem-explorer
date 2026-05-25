@@ -27,8 +27,8 @@ InVEST alignment" section.
 | Nature Quality Score | **Removed from the dashboard 2026-05-21.** Earlier population-weighted mean of the 0-1 proxy access score; the proxy itself was retired when canonical 2SFCA was implemented. Quality Score had no canonical InVEST analog. | Urban Nature Access (SUP_DEMadm_cap) | N/A | — |
 | Preventable MH Cases | `(1 − RR) × BIR × pop`; NE via Gaussian-smoothed synthetic NDVI | Urban Mental Health v3.19.0 (same formula) | Implemented | Medium |
 | Avoided MH Costs | Preventable cases × per-case cost-of-illness | Urban Mental Health (cost module) | Implemented | Medium |
-| Carbon Sequestration | Single aggregate rate per cover class × converted area | Carbon Storage and Sequestration (4-pool storage snapshot) | Proxy | Prototype |
-| Avoided Carbon Cost | Sequestration × EPA Social Cost of Carbon ($190/ton) | Carbon (has its own NPV valuation with discount rate) | Inspired-by | Medium |
+| Carbon Sequestration / Storage Change | **San Antonio**: InVEST four-pool stock framework (above-ground + below-ground + soil + dead) × compound LULC delta × 44/12, per NatCap's Vibrant Land (Guerry et al. 2023) methodology — one-time stock change in t CO2. **Minneapolis**: single aggregate annual rate per cover class × converted area (proxy). | Carbon Storage and Sequestration (4-pool storage snapshot) | SA: Implemented (Brief 30); MN: Proxy | SA: Medium / MN: Prototype |
+| Carbon Storage Value (SA) / Avoided Carbon Cost (MN) | Carbon × `EPA_SOCIAL_COST_CARBON = $190/t` (EPA 2023 final rule, 2 % discount). Methodology matches Vibrant Land's stock × SC-CO2 framing; SC-CO2 vintage differs (Vibrant Land cited IWG 2021 $53/t @ 3 %). | Carbon (has its own NPV valuation with discount rate) | Inspired-by | Medium |
 | Food Production | Food-forest yield benchmark × area (11,500 lbs/acre MN, 8,500 SA per NatCap SA Urban Agriculture report) | Crop Production (climate-binned staple-crop yields) | N/A | Prototype |
 | NDVI | Synthetic per-NLCD-class proxy lookup | (not a standalone InVEST model) | N/A | Prototype |
 
@@ -49,7 +49,7 @@ recommended equivalents.
 | Data type | Current source | NatCap recommendation | Status |
 |---|---|---|---|
 | LULC (Minneapolis) | `data/cooling/land_use_2021.tif` — byte-identical to InVEST UNA sample LULC (`LULC_NLCD_2021.tif`) | InVEST UNA sample data | ✅ Aligned |
-| LULC (San Antonio) | NatCap compound NLCD×NLUD×tree-canopy LULC (`data/sa/flood/land_use_compound_sa.tif`); reprojected EPSG:3857 → EPSG:5070 with nearest-neighbor, clipped to prototype's 1984×1713 grid. UCM (Brief 28b) and UNA (Brief 29) now index the compound raster directly via their compound-keyed biophysical tables; only Carbon still routes through the NLCD crosswalk reduction pending Brief 30 | NatCap-shipped `lulc_overlay_3857.tif` + `lulc_crosswalk.csv` (`data/sa/natcap_2024/`) | ✅ Adopted 2026-05-24 (Brief 27); per-model compound consumption progressing per SA_INTEGRATION_PLAN.md |
+| LULC (San Antonio) | NatCap compound NLCD×NLUD×tree-canopy LULC (`data/sa/flood/land_use_compound_sa.tif`); reprojected EPSG:3857 → EPSG:5070 with nearest-neighbor, clipped to prototype's 1984×1713 grid. UCM (Brief 28b), UNA (Brief 29), and Carbon (Brief 30) all index the compound raster directly via their compound-keyed biophysical tables; the NLCD crosswalk reduction is now used only for the spatial-map / non-UCM/UNA/Carbon consumers | NatCap-shipped `lulc_overlay_3857.tif` + `lulc_crosswalk.csv` (`data/sa/natcap_2024/`) | ✅ Adopted 2026-05-24 (Brief 27); all SA biophysical models now compound-keyed per Briefs 28b/29/30 |
 | Population (Minneapolis) | US Census 2020 block-level (P1_001N, Hennepin County) | Standard NLCD-grid rasterization | ✅ Aligned |
 | Population (San Antonio) | US Census 2020 block-level (P1_001N, Bexar County) | Standard NLCD-grid rasterization | ✅ Aligned |
 | UNA biophysical table | MN: InVEST sample `LULC_attribute_table_UNA.csv` (NLCD-keyed). SA: NatCap compound NLCD×NLUD×tree-canopy table (`data/sa/natcap_2024/una__nlcd_nlud_tree.csv`, 1,984 rows; `urban_nature` ∈ {0.0, 0.5, 1.0} at 960/48/976 row counts; indexed by the compound LULC raster) | NatCap-published canonical table | ✅ Aligned (MN + SA, 2026-05-24 Brief 29 — SA borrowed-from-MN per-NLCD table retired; SA UNA consumes compound view directly) |
@@ -87,7 +87,8 @@ parameter.
 | UCM `UHI_MAX_C` | MN: 2.05 °C (InVEST UCM args JSON); SA: 11 °C (NatCap canonical, heat-wave-day scenario per `data/sa/natcap_2024/README_San_Antonio_InVEST_model_inputs.docx`) | MN: InVEST args JSON value; SA: NatCap-published README | ✅ Aligned (MN + SA, 2026-05-24 Brief 14) |
 | UMH RR per 0.1 NDVI | 0.96 (depression) / 0.97 (anxiety), from Liu et al. 2023 | InVEST UMH effect sizes (same source family) | ✅ Aligned |
 | UMH baseline prevalence | 0.21 / 0.19, uniform national (CDC 2023) | InVEST UMH takes per-administrative-unit BIR from a vector input | ⚠️ Improvised — uniform national rates, not per-admin |
-| Carbon sequestration rate | Single per-class rate | InVEST Carbon 4-pool model (more detailed) | ⚠️ Simplified |
+| Carbon sequestration rate | MN: single per-class annual rate (proxy). SA: InVEST four-pool stock (above-ground / below-ground / soil / dead) via NatCap compound table, Brief 30 | InVEST Carbon 4-pool model | ✅ Aligned (SA, Brief 30); ⚠️ Simplified (MN) |
+| Carbon biophysical table | SA: NatCap compound NLCD×NLUD×tree-canopy table (`data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv`, 1,984 rows × 27 cols, four pools keyed on compound `lucode`) | NatCap-published canonical table | ✅ Aligned (SA, Brief 30) |
 | NDVI source | Synthetic proxy from NLCD lookup | Satellite-derived (e.g., AlphaEarth) recommended | ⚠️ Improvised |
 
 ## 4. Spatial Fidelity
