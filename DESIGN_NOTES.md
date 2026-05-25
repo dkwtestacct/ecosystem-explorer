@@ -1072,6 +1072,121 @@ untouched. All 40 baselines pass without regen.
 schema change). Brief 31 doesn't change `evaluate_scenario`'s return
 dict — it only swaps a config pointer + adjusts a dashboard caption.
 
+## SA flood damage table — decision pending
+
+The prototype renders `avoided_flood_damage_usd` as $0 for every SA
+scenario because SA's per-NLCD-class damage value table is empty (or
+absent), while MN's is populated. The metric exists in the schema
+and the calculation pipeline runs; it multiplies through zero.
+Known issue since Brief 22. SA's `city_cfg['damage_table_file'] =
+None` (`config.py:197`); MN points at the InVEST UFR sample
+`Damage_loss_table_MN.csv` with per-NLCD-class values for Roads /
+Commercial / Residential / Industrial.
+
+NatCap's own SA README "leaves blank" on this (per CITY_PARITY.md
+row 152). They explicitly didn't curate per-NLCD-class damage
+values for SA — the only piece of the SA NatCap data integration
+workstream (Briefs 27-30) where they didn't provide curated inputs.
+
+**Why this matters.** A user comparing MN to SA on the dashboard
+sees MN's Flood Damage Avoided as a real dollar number and SA's as
+$0. The natural reading is "SA flood interventions have no economic
+value," which is wrong — interventions reduce runoff (Q in
+acre-feet) just like MN's, but the *damage-cost* layer to convert
+runoff reduction to dollars is missing. The $0 rendering is
+misleading in a way that affects user judgment about SA scenarios.
+Worth resolving even though NatCap left the data blank.
+
+**Four resolution paths under consideration:**
+
+### Path A. Source SA-specific damage values independently
+
+Pull from FEMA flood damage data (NFHL, Hazus depth-damage curves),
+USACE economic studies, insurance industry per-property damage
+estimates, or peer-reviewed flood-risk literature with SA-specific
+calibration. Produces an SA-tuned damage table that matches the
+rest of the SA workstream's data fidelity.
+
+**Pros.** Most rigorous. SA-specific. Matches the Brief 27-30
+standard of using NatCap-aligned or peer-reviewed sources.
+
+**Cons.** Makes parameter choices NatCap didn't endorse.
+Potentially diverges from any future NatCap SA work. Significant
+effort — weeks of data-sourcing work, not a single brief.
+
+### Path B. Borrow MN's damage table for SA, label as placeholder
+
+Copy MN's per-NLCD damage values into an SA-keyed table. Update
+CITY_PARITY.md to note borrowed status. Add dashboard tooltip
+explaining the placeholder.
+
+**Pros.** Lowest-effort technical change. SA dashboard stops
+showing $0. Single commit.
+
+**Cons.** Re-introduces the per-NLCD-borrowed-from-MN pattern that
+Brief 29 just retired for UNA. Numerically suspect — MN's per-NLCD
+damage values may not generalize to SA: different urban form,
+floodplain hydrology, property values, precipitation regime (MN's
+100 mm storm vs SA's 157 mm storm per Brief 23 already makes runoff
+non-comparable; property values + structure types also differ).
+Likely substantial over- or under-estimate. Numerically arbitrary;
+methodologically uncomfortable.
+
+### Path C. Embrace the $0; explain on the dashboard
+
+Modify the dashboard card to detect "no damage table configured"
+and render explanatory text ("Per-NLCD damage values not available
+for this city — runoff reduction shown separately on the Flood
+card.") instead of `$0`. Keep the underlying field at $0 for
+surrogate-training compatibility; suppress its rendering as a
+dollar value.
+
+**Pros.** Most epistemically honest. Aligns with NatCap's own
+"leaves blank" stance. Defensible against any audience: "we don't
+invent values when the canonical source leaves it blank."
+
+**Cons.** Reduces dashboard utility — users can't compare cities
+on this metric. Surfaces the limitation rather than masking it,
+but some users may read $0/blank as the metric being broken rather
+than as honest data absence.
+
+### Path D. Hybrid — per-acre-foot proxy decoupled from NLCD class
+
+Replace per-NLCD damage values with a per-acre-foot-of-avoided-runoff
+damage constant sourced from flood-risk literature (e.g., FEMA
+Hazus general per-AF damage estimates, typically ~$2k-$50k per
+acre-foot depending on land use). Calculation becomes
+`avoided_flood_damage_usd = avoided_runoff_acre_feet * per_AF_damage`.
+Both cities use the same per-AF constant; the dollar value scales
+with the city's actual runoff reduction.
+
+**Pros.** Gives SA a dollar number without inventing per-NLCD
+values. Grounded in published flood-risk literature. Decouples
+dollar value from NLCD class taxonomy — could simplify the model.
+May actually be a *methodology upgrade*, not just a workaround.
+
+**Cons.** Different framing from MN's current per-NLCD approach.
+Need to decide whether MN also migrates to this framing
+(consistency) or stays per-NLCD (per-city methodology, similar to
+Brief 30's stock-vs-flow Carbon framing divergence). The per-AF
+damage constant has substantial uncertainty (the $2k-$50k range
+above is realistic). Constant choice may itself need NatCap
+sign-off.
+
+**Status: pending decision.** None of these paths has been chosen
+yet. Each requires the user's judgment about methodology alignment
+vs. dashboard utility tradeoffs. When a path is chosen, a follow-up
+brief will implement it.
+
+**Related conversations to check before choosing:**
+
+- Any prior email/text/meeting discussion with Gretchen / Yingjie /
+  other NatCap collaborators about SA flood damage methodology
+- The shared NatCap Google doc, if it covers methodology decisions
+- The symposium audience consideration (end of June 2026) — SA
+  showing $0 in front of NatCap collaborators may or may not be a
+  problem worth resolving by then
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

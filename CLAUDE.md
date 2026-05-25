@@ -340,15 +340,12 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   brought peak memory under the ceiling — see `HISTORY.md`
   "Streamlit Cloud memory-fit workstream" for the full stack.
 - **Stratified Impervious Siting (placement-step control).** Currently the stochastic placement step samples uniformly from the building/road-filtered NLCD 21–24 pool, treating all impervious-intensity classes as equivalent for siting. Proposal: expose impervious-intensity stratification to users via sidebar control, allowing them to direct placement toward NLCD 21 (≥20% impervious, open-space dominant), NLCD 22/23 (low-medium intensity), or NLCD 24 (≥80% impervious, high-intensity mitigation / depaving). Use `_distance_transform_edt` against `BUILDINGS_RASTER` for optional micro-siting refinement (e.g. "open lot" vs "private yard" via 15m/30m distance thresholds). Frame strictly as impervious-intensity stratification, not policy/ownership tiering — NLCD classes correlate with but do not equal ownership. Open questions for scoping session: (a) mutually-exclusive radio buttons vs multi-select vs per-tier weight sliders; (b) whether to dynamically clamp slider max based on selected tier's available acreage; (c) whether stratified placement empirically resolves the Nature Access saturation issue noted in REFERENCE.md (validate before claiming). Source: Gemini-3 proposal, iterated through 3 versions on Claude critique; v3 is the version to scope from.
-- **SA flood damage table sourcing — pending.** `CITIES['San Antonio, TX']
-  ['damage_table_file']` is `None`, so `compute_flood_damage_avoided` returns
-  $0 for SA even now that OSM building polygons carry InVEST type codes.
-  Reusing `Damage_loss_table_MN.csv` was rejected — the MN per-m² damage
-  values are calibrated to MN's InVEST sample buildings (specific size /
-  construction profile), and applying them to 345k SA OSM polygons would
-  produce a misleading number on a different building stock. Sourcing a
-  SA-specific damage table is its own (small) followup commit. Until then,
-  the Flood Damage Avoided card honestly renders "—" / $0 for SA.
+- **SA flood damage table — decision pending.** SA's `damage_table_file
+  = None` → `compute_flood_damage_avoided` returns $0 for every SA
+  scenario. NatCap left this blank in their SA README; four resolution
+  paths (source SA-specific values / borrow MN / embrace $0 / hybrid
+  per-AF proxy) under consideration. See DESIGN_NOTES.md "SA flood
+  damage table — decision pending".
 - **Heat Vulnerability Index — still pending.** The `equity_weights`
   raster is a proxy (NLCD intensity-coded), not a real CDC/ATSDR HVI by
   census tract. Replacing it is the next data-quality upgrade.
