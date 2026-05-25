@@ -338,16 +338,22 @@ San Antonio's baseline HMI is **54 % higher than Minneapolis downtown** — a pl
 
 ---
 
-### Carbon Sequestration
+### Carbon Sequestration (Minneapolis) / Carbon Storage Change (San Antonio)
+
+> **Note (Brief 30, 2026-05-25):** Carbon now uses **per-city methodology**.
+> San Antonio uses NatCap's canonical InVEST four-pool stock framework
+> (one-time stock value); Minneapolis retains the per-conversion-type
+> single-rate annual proxy. The card label, value-unit suffix, and delta
+> string branch on the per-city `_CARBON_IS_STOCK` flag.
 
 | Field | Detail |
 |-------|--------|
-| **Represents** | Annual CO2e sequestration from newly converted pixels only, in tons CO2e/year. Counts food forest and green infrastructure conversions; high-density conversions contribute zero. Higher = more carbon drawn down. |
-| **Formula** | Converted-pixel counts × pixel area × per-cover rate. **Technical detail:** `n_for × 0.222 ac × 3.5 + n_wet × 0.222 ac × 2.0 + n_hd × 0.222 ac × 0.0`, where `n_for`, `n_wet`, `n_hd` are the counts of newly added food forest, green infrastructure, and high-density pixels respectively. |
-| **Data source** | Provisional regional rates in `CARBON_SEQ_RATES` (`app.py`): Food Forest (41) = 3.5 tons CO2e/acre/yr, Green Infrastructure (90) = 2.0 tons CO2e/acre/yr, High Density (24) = 0.0 tons CO2e/acre/yr. Rates derived from USDA/IPCC temperate North America benchmarks. |
-| **Delta** | Baseline is **0** because only newly converted pixels are counted (consistent with the food production approach). The delta sub-label restates the value as `+N t CO2e/yr from conversions`; the "from conversions" suffix makes the zero-baseline construction explicit on the card itself. The pill is suppressed at zero (e.g. all-HD scenarios where no eligible pixels are converted). |
-| **Caveats** | Directional only — provisional regional rates not locally calibrated for Minneapolis; actual sequestration varies significantly by site conditions, vegetation age, soil, and management. Refine with locally calibrated values when available. |
-| **User overrides** | The sidebar `⚙️ Advanced Settings` expander exposes sliders for the Food Forest rate (0.5–18.0, default 3.5) and Green Infrastructure rate (0.5–5.0, default 2.0). Slider values flow into `evaluate_scenario` via `carbon_rate_ff` / `carbon_rate_gi` kwargs and override the `CARBON_SEQ_RATES` defaults for the live scenario. |
+| **Represents** | **MN**: annual CO2e sequestration from newly converted pixels only (tons CO2e/year). Counts food forest and green infrastructure conversions; high-density conversions contribute zero. **SA**: one-time stock change in landscape carbon storage from the LULC delta (tons CO2e), computed via the InVEST four-pool framework — above-ground biomass + below-ground biomass + soil organic matter + dead organic matter. Positive when scenario adds carbon vs baseline; negative when it removes carbon (e.g., converting baseline pixels with meaningful tree canopy to high-density). |
+| **Formula** | **MN**: `n_for × 0.2224 ac × 3.5 + n_wet × 0.2224 ac × 2.0 + n_hd × 0.2224 ac × 0.0` via `_compute_carbon(n_wet, n_for, n_hd)`. **SA**: `sum_pixels((scen_total - base_total) × pixel_area_ha) × (44/12)` where `scen_total` and `base_total` are per-pixel sums across the four pools, indexed by the compound LULC raster, via `_compute_carbon_four_pool(scenario_lulc_carbon, cooling_lulc_compound)`. Returns t CO2 stock change — not an annual rate. |
+| **Data source** | **MN**: `CARBON_SEQ_RATES` in `app.py` — Food Forest (41) = 3.5 t CO2e/acre/yr, Green Infrastructure (90) = 2.0, High Density (24) = 0.0; USDA/IPCC temperate North America benchmarks. **SA**: NatCap compound `carbon__nlcd_nlud_tree.csv` (1,984 rows × 27 cols) — four pools `c_above`/`c_below`/`c_soil`/`c_dead` in tons C/ha, indexed by `cooling_lulc_compound` via per-city `c_above_arr`/`c_below_arr`/`c_soil_arr`/`c_dead_arr`. Matches the methodology in NatCap's 2023 Vibrant Land report (Guerry et al.). |
+| **Delta** | Baseline is **0** for both cities (no LULC delta = no stock change at baseline for SA, same construction as `food_mln_lbs` for MN). The delta sub-label for MN reads `+N t CO2e/yr from conversions`; for SA reads `+N t CO2e stock change from conversions`. The pill is suppressed at zero. |
+| **Caveats** | **SA**: parameters derived from NatCap's compound biophysical table, indexed at per-NLCD × NLUD × tree-canopy resolution — substantial methodological upgrade over the previous proxy. Order-of-magnitude check vs Vibrant Land's 340,000 t citywide reference: prototype values for 10 %-developed-conversion scenarios fall within plausible bounds (different AOI extent + "full conversion" definition). **MN**: directional only — provisional regional rates not locally calibrated. **Both**: the InVEST guide notes that the canonical Carbon model "assumes that none of the LULC types in the landscape are gaining or losing carbon over time" and that sequestration follows a nonlinear path — neither prototype framing models within-LULC-class change. |
+| **User overrides** | The sidebar `⚙️ Advanced Settings` carbon-rate sliders (FF 0.5–18.0 default 3.5, GI 0.5–5.0 default 2.0) take effect **only for MN**. SA reads the four-pool stock from the NatCap biophysical table directly; no per-pool override is exposed (the table is the data, not a user input). |
 
 ---
 
