@@ -4148,9 +4148,20 @@ with tab2:
     if TRACTS_DATA_AVAILABLE:
         st.divider()
         st.markdown("#### Neighborhood breakdown")
+        # Brief 31: SA uses ACS block-group polygons (NatCap-canonical, matches
+        # Vibrant Land Figure 10 framing); MN uses Census tracts. The
+        # aggregation code is polygon-name-agnostic — only the user-facing
+        # caption changes per city.
+        _polygon_unit_plural = (
+            "Census block groups" if selected_city.startswith("San Antonio")
+            else "Census tracts"
+        )
+        _polygon_unit_singular = (
+            "block group" if selected_city.startswith("San Antonio") else "tract"
+        )
         st.caption(
-            "Top 5 most-improved Census tracts under this scenario, ranked by "
-            "temperature change (°F cooler). Population-weighted within each tract."
+            f"Top 5 most-improved {_polygon_unit_plural} under this scenario, ranked by "
+            f"temperature change (°F cooler). Population-weighted within each {_polygon_unit_singular}."
         )
         _tracts_summary = compute_per_tract_summary(results['scenario_lulc_ucm'])
         if not _tracts_summary.empty:
@@ -4162,7 +4173,7 @@ with tab2:
             )
             st.dataframe(_top5, width='stretch', hide_index=True)
         else:
-            st.caption("No tract-level data could be computed for this scenario.")
+            st.caption(f"No {_polygon_unit_singular}-level data could be computed for this scenario.")
 
     st.divider()
     st.markdown("#### Best scenarios by goal")

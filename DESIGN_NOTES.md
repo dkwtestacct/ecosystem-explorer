@@ -1005,6 +1005,73 @@ than dollar value. The brief's "Modify EPA_SOCIAL_COST_CARBON ($53/t
 stays)" instruction is preserved in its letter (don't modify) — the
 mistaken premise about the current value is what shifted.
 
+## SA AOI switch to ACS block-group polygons (2026-05-25, Brief 31)
+
+Brief 31 swapped SA's `tracts_file` config pointer from
+`data/sa/tracts_bexar.shp` (375 Bexar County TIGER 2020 tracts) to
+NatCap's `data/sa/natcap_2024/acs_block_groups_3857.gpkg` (1,124 ACS
+block-group polygons covering the City of San Antonio). Final brief
+in the SA NatCap data integration workstream per
+SA_INTEGRATION_PLAN.md.
+
+**Shape determination (per the brief's investigate-first
+classification).** Shape B (mild form) — unit-of-aggregation change.
+The AOI polygon file is consumed *only* by
+`compute_per_tract_summary`'s Neighborhood breakdown table (a top-5
+most-cooled polygons display in tab2). It is rasterized once at load
+time into `tract_id_raster` for spatial-grouping purposes and never
+read from `evaluate_scenario`. **No biophysical metric depends on the
+polygon file.** Switching the file changes the row count of the
+breakdown table (375 → 1,124 aggregation units) and the dashboard
+caption ("Census tracts" → "Census block groups" for SA), but no
+metric value shifts.
+
+**The LULC raster's valid-pixel mask defines the actual modelable
+extent** for every model (UCM/UNA/Carbon/UFR/UMH). The tracts/block-
+group polygons are a separate axis: they slice the modelable extent
+into aggregation units for reporting, but they don't bound the
+biophysical computation. This is why the brief's "doesn't change
+global metrics" framing is correct — and why no baseline regen was
+needed.
+
+**Why block groups parallel NatCap's framing.** Vibrant Land (Guerry
+et al. 2023) reports equity analysis at block-group resolution in
+Figure 5 (SNAP recipients / poverty / people of color by tract) and
+Figure 10 (correlation between SNAP usage and temperature). NatCap's
+provision of `acs_block_groups_3857.gpkg` alongside their compound
+LULC + biophysical tables signals that block-group resolution is the
+intended SA reporting unit. The prototype's Bexar County tracts were
+TIGER 2020 polygons (375), broader than ACS block groups (1,124) and
+extending across the full county rather than tightening to the City
+of San Antonio extent.
+
+**Implementation details.** Single config-pointer change in
+`CITIES['San Antonio, TX']['tracts_file']`. The existing rasterization
++ aggregation code in `_load_city_runtime_state` and
+`compute_per_tract_summary` generalizes cleanly — both functions
+iterate a generic polygon DataFrame and don't care whether each row
+is a tract or block group. The dashboard caption at tab2 was made
+city-conditional via `selected_city.startswith("San Antonio")` so
+the SA framing reads "Top 5 most-improved Census block groups" while
+MN continues to read "Census tracts". The `compute_per_tract_summary`
+function name and the `tract_id_raster` / `TRACTS_DATA_AVAILABLE`
+state fields were intentionally left unrenamed — the aggregation
+code is polygon-name-agnostic, and renaming would have been refactor
+scope-creep (the brief explicitly scoped this away).
+
+**The retained `tracts_bexar.shp` file remains on disk** for
+reference. Future analyses comparing block-group vs tract aggregation
+can re-point the config or load both for side-by-side comparison.
+
+**MN unchanged.** Brief 31's pointer swap is SA-only. MN
+(`tracts_file`: `admin_boundaries_census_tracts.shp`, InVEST UFR
+sample) and MN Full (`tracts_hennepin.shp`, TIGER 2020) are
+untouched. All 40 baselines pass without regen.
+
+**Schema version not bumped** (24 → 25 in Brief 30 was the last
+schema change). Brief 31 doesn't change `evaluate_scenario`'s return
+dict — it only swaps a config pointer + adjusts a dashboard caption.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

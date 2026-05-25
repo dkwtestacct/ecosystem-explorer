@@ -98,7 +98,7 @@ Tracks the prototype's spatial representation vs NatCap recommendations.
 | Aspect | Current state | NatCap recommendation | Status |
 |---|---|---|---|
 | AOI extent (MN) | Downtown + near-neighborhoods, ~123 km², ~154k residents (InVEST UFR sample AOI) | NatCap's MN study extent | ✅ Aligned (uses NatCap-provided AOI) |
-| AOI extent (SA) | Bexar County bbox, ~1,907k residents | NatCap's SA Urban Agriculture study extent | ⏸️ Pending verification |
+| AOI extent (SA) | NatCap ACS block-group polygons (`data/sa/natcap_2024/acs_block_groups_3857.gpkg`, 1,124 polygons covering the City of San Antonio); the LULC raster's valid-pixel mask defines the actual modelable extent for every biophysical model — the AOI polygons feed only per-block-group reporting (compute_per_tract_summary's Neighborhood breakdown table). | NatCap's SA Urban Agriculture study extent (block-group polygons used in Vibrant Land Figure 10 equity analysis) | ✅ Aligned (Brief 31, 2026-05-25) |
 | Placement constraints | Three-layer non-convertible mask: buildings + roads excluded via the rasterized mask; existing nature never a candidate (pool is developed NLCD 21–24 only). Random or strategy-weighted selection within the remaining pool. | 3-layer mask: buildings + roads + existing nature | ✅ Aligned |
 | Building footprint coverage | Placement mask uses comprehensive OSM footprints city-wide for every city; the typed $-metrics use the InVEST UFR sample for MN (downtown core, where its per-building type codes are valid) | Comprehensive OSM building footprints | ✅ Aligned |
 | Road network coverage | OSM road network rasterized into the non-convertible mask, all cities | OSM road network | ✅ Aligned |

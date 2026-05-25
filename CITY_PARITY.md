@@ -165,9 +165,9 @@
 | `aggregate_by_pop_group` | False | False | ✅ |
 | LULC attribute table | NatCap compound NLCD×NLUD×tree-canopy table `una__nlcd_nlud_tree.csv` (1,984 rows × 21 cols); columns: keys (`lucode, code, nlcd, lulc_desc, nlud_simple, nlud_simple_class, tree_canopy_cover`) + ag/maintenance signals + `urban_nature` (categorical 0/0.5/1.0: 976 / 960 / 48 rows respectively) + `search_radius_m` (all zeros — the radius is an args-level scalar set at runtime, not in the table). Loaded via the SA `una_table_file` config; the UNA 2SFCA pipeline indexes the compound LULC raster (`cooling_lulc_compound`) directly through the per-city `urban_nature_arr` numpy lookup. | Same file | ✅ Aligned 2026-05-24 (Brief 29 — borrowed-from-MN per-NLCD `LULC_attribute_table_UNA.csv` retired for SA; SA UNA consumes compound view directly). |
 | Population raster | TIGER 2020 block totals, rasterized | `population_per_pixel_2020_3857.tif` (19 MB, higher resolution) | ⚠️ Different sources |
-| AOI | Bexar County bbox | `acs_block_group.gpkg` | ⚠️ Different — NatCap uses census block-group polygons |
+| AOI | `data/sa/natcap_2024/acs_block_groups_3857.gpkg` (NatCap ACS block-group polygons, 1,124 polygons covering the City of San Antonio); feeds only per-block-group reporting in `compute_per_tract_summary`, not the modelable extent (LULC raster's valid-pixel mask defines that) | `acs_block_groups_3857.gpkg` | ✅ Aligned (Brief 31, 2026-05-25); replaces the prior Bexar County tracts shapefile. Brief 31 confirmed no biophysical metric depends on the polygon file. |
 
-**UNA summary:** Fully aligned on args (Brief 22), biophysical table + LULC (Brief 29). Population and AOI sources still differ. The Brief 29 table swap shifted SA baseline `nature_access_pct` from 89.7 → 94.2 (+5.0%) — the compound table credits per-pixel NLUD + tree-canopy variation on developed land (urban_nature ∈ {0.0, 0.5, 1.0} rather than the per-NLCD borrowed-from-MN bucketing), with the new ~1,024 nonzero compound lucodes recognising urban-nature contributions the prior table missed.
+**UNA summary:** Fully aligned on args (Brief 22), biophysical table + LULC (Brief 29), and AOI (Brief 31). Only the population source still diverges (TIGER 2020 blocks vs. NatCap's population_per_pixel raster per Brief 24's inventory). The Brief 29 table swap shifted SA baseline `nature_access_pct` from 89.7 → 94.2 (+5.0%) — the compound table credits per-pixel NLUD + tree-canopy variation on developed land (urban_nature ∈ {0.0, 0.5, 1.0} rather than the per-NLCD borrowed-from-MN bucketing), with the new ~1,024 nonzero compound lucodes recognising urban-nature contributions the prior table missed.
 
 ### Carbon
 
@@ -255,13 +255,13 @@ NatCap's SA data uses a compound LULC framework that overlays three signals: NLC
 |---|---|
 | UCM | ✅ Fully aligned post-Brief 28b — args (Brief 14), LULC raster (Brief 27), biophysical table (Brief 28b) all on NatCap-canonical SA inputs |
 | UFR | ⚠️ Methodology divergence (live vs pre-computed scenarios); rainfall depth aligned with SA-project canonical (Brief 23) |
-| UNA | ✅ Fully aligned post-Brief 29 — args (Brief 22), biophysical table + LULC (Brief 29) all on NatCap-canonical SA inputs. Population + AOI source differences remain. |
+| UNA | ✅ Fully aligned post-Brief 31 — args (Brief 22), biophysical table + LULC (Brief 29), and AOI (Brief 31) all on NatCap-canonical SA inputs. Only the population source still diverges (TIGER vs. NatCap population_per_pixel raster). |
 | Carbon | ✅ Aligned (Brief 30) — InVEST four-pool stock framework via `carbon__nlcd_nlud_tree.csv`, indexed by compound LULC. Reports one-time stock change (not annual flow); SC-CO2 constant uses EPA 2023 ($190/t) vs Vibrant Land's IWG 2021 ($53/t) — methodology aligned, vintage differs |
 | UMH | ✅ |
 | NDR | ❌ Not implemented |
 | Food Forest | ⚠️ Single benchmark vs per-crop CoSA |
 
-**Overall SA parity:** All three SA biophysical models (UCM Brief 28b, UNA Brief 29, Carbon Brief 30) now consume the NatCap compound LULC + compound-keyed biophysical tables directly. The compound→NLCD reduction routing is no longer used for any live metric — only for spatial-map rendering. NDR remains unimplemented; Brief 31 (optional AOI switch) is the only outstanding integration item. Population + AOI source divergences are minor relative to the methodology-level alignment achieved by the SA NatCap data integration workstream (Briefs 27 → 30 per SA_INTEGRATION_PLAN.md).
+**Overall SA parity:** All three SA biophysical models (UCM Brief 28b, UNA Brief 29, Carbon Brief 30) consume the NatCap compound LULC + compound-keyed biophysical tables directly; the AOI (Brief 31) now uses NatCap's ACS block-group polygons; the SA NatCap data integration workstream (Briefs 27 → 31 per SA_INTEGRATION_PLAN.md) is complete. NDR remains unimplemented. Only the population source still diverges (TIGER 2020 blocks vs. NatCap's population_per_pixel raster); per-tract reporting now uses the finer-grained block-group polygons paralleling NatCap's Vibrant Land Figure 10 framing.
 
 ---
 

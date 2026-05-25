@@ -197,7 +197,16 @@ CITIES = {
         'damage_table_file':    None,   # SA project deliverables — TODO
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
         'et_file':              'data/sa/cooling/et_annual_sa.tif',
-        'tracts_file':          'data/sa/tracts_bexar.shp',
+        # Brief 31: switched from `data/sa/tracts_bexar.shp` (TIGER 2020 Bexar
+        # County tracts, 375 polygons) to NatCap's ACS block-group polygons
+        # (1,124 polygons covering the City of San Antonio at finer
+        # granularity). The block-group polygons match the framing NatCap uses
+        # for equity analysis in Vibrant Land (Guerry et al. 2023, Figures 5
+        # + 10). The polygon file feeds only `compute_per_tract_summary`'s
+        # "Neighborhood breakdown" table — no biophysical metric depends on
+        # it. The retained `tracts_bexar.shp` file remains on disk for
+        # reference. EPSG:3857 → reprojected to city CRS at load time.
+        'tracts_file':          'data/sa/natcap_2024/acs_block_groups_3857.gpkg',
         # Brief 29: NatCap's SA-curated compound NLCD×NLUD×tree-canopy UNA
         # biophysical table (1,984 rows; urban_nature ∈ {0.0, 0.5, 1.0}).
         # Indexed directly by the compound LULC raster (no NLCD reduction);
