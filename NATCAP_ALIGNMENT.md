@@ -104,6 +104,43 @@ Tracks the prototype's spatial representation vs NatCap recommendations.
 | Road network coverage | OSM road network rasterized into the non-convertible mask, all cities | OSM road network | ✅ Aligned |
 | LULC resolution | 30 m / pixel (NLCD standard) | 30 m / pixel | ✅ Aligned |
 
+## Research-direction synthesis
+
+NatCap collaborator notes (see `data/sa/natcap_2024/Ecosystem_Explorer_-_Meeting_Note.docx`)
+point toward three broad directions:
+
+1. **Multi-model integration** — bring multiple urban InVEST models into a single
+   decision-support context, not one model in isolation.
+2. **Spatially realistic scenario generation** — encode where interventions
+   can plausibly happen, not just how much area changes.
+3. **Optimization and cost-effectiveness** — surface tradeoffs and efficient
+   scenarios, not just per-scenario metrics.
+
+How the current prototype addresses each — see the per-direction status
+table below for granular tracking:
+
+- **Multi-model integration.** Five InVEST urban models are live (UCM, UFR,
+  UNA, UMH, Carbon) for both cities. NDR is pending — blocked on SA DEM +
+  watersheds from NatCap. See "Official InVEST alignment" in `REFERENCE.md`.
+- **Spatially realistic scenario generation.** Roads, buildings, and existing
+  nature are unioned into a non-convertible placement mask. For San Antonio
+  the prototype additionally preserves each pixel's (NLUD, tree-canopy)
+  context through conversion using NatCap's compound crosswalk. See
+  `REFERENCE.md` "Land-use alignment".
+- **Optimization and cost-effectiveness.** A Random Forest surrogate trained
+  on a precomputed scenario grid drives Pareto search in "Find Best Scenario".
+  Cost-effectiveness ratios (dollars per unit benefit) are reported alongside
+  biophysical metrics in the dashboard's Cost Effectiveness card group. See
+  `REFERENCE.md` "Division of labor" for the architectural split.
+
+**Main pending work** (also tracked per-row in the Research Direction Status
+table below): NDR for SA (pending NatCap DEM + watersheds), per-crop CoSA
+yields (pending NatCap data), MN Carbon four-pool bundle (pending NatCap
+data), AlphaEarth NDVI replacement (feasibility researched, integration
+deferred), land-ownership constraints (not pursued), ROOT comparison
+(mentioned in NatCap docs, not currently pursued), and more formal
+land-use-change simulators (PLUS, CLUE, LCM) considered and deferred.
+
 ## 5. Research Direction Status
 
 Tracks the directions NatCap has identified for future work and the
