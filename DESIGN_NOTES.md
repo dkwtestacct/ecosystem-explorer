@@ -1236,6 +1236,78 @@ changes don't block re-rendering the card in dollar terms — point
 `damage_table_file` at a curated CSV and the existing MN-branch
 code path activates.
 
+## Lookup-overlay safety contract
+
+The slider branch in `app.py` (the `if lookup_key in lookup_table
+and placement_strategy == 'random':` block) loads a row from the
+lookup table, then overwrites a specific subset of fields with
+freshly-computed values via `_fresh = evaluate_scenario(...)`. This
+pattern raised a correctness concern during Brief A pre-share
+review: if a method changes for a field that lives in the lookup
+row but isn't on the overwrite list, the user would see a mix of
+stale lookup values and fresh values for the rest.
+
+**Resolution: the pattern is safe-because-schema-versioned.**
+
+`compute_lookup_table` is `@st.cache_data`-decorated with
+`schema_version=SCENARIO_SCHEMA_VERSION` as a cache-key parameter:
+
+```python
+@st.cache_data
+def compute_lookup_table(_state, city_key, data_dir_flood,
+                         data_dir_cooling,
+                         schema_version=SCENARIO_SCHEMA_VERSION):
+    ...
+```
+
+When `SCENARIO_SCHEMA_VERSION` is bumped (the standard discipline
+for any change to `evaluate_scenario`'s return-dict shape or
+semantics — see CLAUDE.md), all cached lookup entries are
+automatically invalidated. The lookup table is rebuilt from
+scratch using the current `evaluate_scenario`. Every field loaded
+from a lookup row is therefore guaranteed to be schema-current.
+
+**What the overwrites are actually for:**
+
+The defensive overwrites in the slider branch fall into two
+categories, neither of which is staleness protection:
+
+1. **Per-rerun state dependencies.** `cost_gi`/`cost_ff`/`cost_hd`,
+   `carbon_rate_ff`/`carbon_rate_gi` come from sliders the user
+   adjusts between reruns. The lookup table was built with default
+   slider values, so cost-derived fields (`total_cost_mln`,
+   `flood_damage_avoided_usd`, `cooling_energy_savings_usd`,
+   `carbon_tons_co2`, `carbon_value_usd`) must be recomputed live.
+2. **Stripped fields.** `scenario_lulc` and `scenario_lulc_ucm` are
+   intentionally stripped from lookup entries (rasters are too big
+   to cache per slider position; see `compute_lookup_table` body),
+   so they must be loaded from `_fresh`. Downstream consumers like
+   `compute_per_tract_summary` need the raster.
+
+`food_mln_lbs`/`people_fed`/`mean_ndvi` are also overwritten. The
+historical reason was that the lookup table predated an
+`n_food_pixels` fix; under the schema-version contract that
+defense is now redundant but kept for stability — food is cheap to
+recompute and the consistency principle ("same scenario, same
+recomputed value") has its own value.
+
+**Contract for future devs:**
+
+- Do NOT add new defensive overwrites for surrogate-target fields
+  (`flood_reduction`, `mean_hm`, `runoff_acre_feet`,
+  `nature_access_pct`) or for other fields that are pure functions
+  of `(pct, gi, ff, seed)`. Bump `SCENARIO_SCHEMA_VERSION` instead.
+- DO add overwrites for fields that depend on per-rerun state
+  (sliders, user toggles) — those aren't a function of the lookup
+  key alone.
+- The slider branch's leading comment (`app.py` around the
+  `lookup_key = ...` line) summarizes this contract. Keep it in
+  sync if the overwrite list changes.
+
+The lookup table is only built in High Resolution mode, which is
+itself gated behind an opt-in checkbox (Brief C). So the surface
+area where this contract matters is narrow by design.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

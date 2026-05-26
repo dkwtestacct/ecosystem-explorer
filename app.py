@@ -137,6 +137,12 @@ if st.session_state.get('_prev_city_key') != selected_city:
     for _k in ('slider_pct_converted', 'slider_gi_pct', 'slider_ff_pct'):
         st.session_state.pop(_k, None)
     st.session_state.active_example_scenario = None
+    # Brief A.2: also reset cross-city optimizer state. Without these, an MN
+    # optimizer result visibly persists into the SA dashboard view (the
+    # post-optimize success banner stays up, and the Optimized Scenario
+    # Suggestions section keeps rendering MN's results table).
+    st.session_state.optimized_results = None
+    st.session_state.just_optimized = False
     st.session_state._prev_city_key = selected_city
 
 # ── City-derived constants ────────────────────────────────────────────────────
@@ -2604,9 +2610,40 @@ BASELINE_NDVI = compute_mean_ndvi(cooling_lulc)
 # ── Surrogate model ────────────────────────────────────────────────────────────
 # Training, prediction, Pareto, and optimizer logic live in surrogate.py.
 # The @st.cache_resource wrapper stays here so surrogate.py is Streamlit-agnostic.
+def _scenario_signature(df):
+    """Lightweight signature for cache invalidation. Captures row count,
+    column set, and per-column numeric sums to detect content changes
+    without hashing the full dataframe."""
+    cols = [
+        'pct_converted',
+        'green_infrastructure_pct',
+        'food_forest_pct',
+        'flood_reduction',
+        'mean_hm',
+        'food_mln_lbs',
+        'runoff_acre_feet',
+        'carbon_tons_co2',
+        'nature_access_pct',
+    ]
+    cols = [c for c in cols if c in df.columns]
+    if not cols:
+        return (len(df), ())
+    sums = df[cols].fillna(0).sum().to_numpy()
+    return (
+        len(df),
+        tuple(cols),
+        tuple(np.round(sums, 4).tolist()),
+    )
+
+
 @st.cache_resource
 def _cached_train_surrogate(_scenario_df, data_dir_flood, data_dir_cooling,
+                            scenario_signature,
                             mode_key="fast", n_estimators=100):
+    # Brief A.1: scenario_signature is the cache-key-visible representation of
+    # _scenario_df's contents. Without it, the leading-underscore _scenario_df
+    # is skipped by Streamlit's hasher, so a regenerated dense CSV (same city,
+    # same mode) would silently return a stale surrogate trained on old data.
     # mode_key + n_estimators participate in the cache key so changing the
     # Model quality mode radio in the sidebar automatically retrains on the
     # new training set without needing a manual cache clear.
@@ -2615,6 +2652,7 @@ def _cached_train_surrogate(_scenario_df, data_dir_flood, data_dir_cooling,
 
 surrogate = _cached_train_surrogate(
     scenario_df, DATA_DIR_FLOOD, DATA_DIR_COOLING,
+    _scenario_signature(scenario_df),
     mode_key=ACTIVE_MODEL_QUALITY, n_estimators=N_ESTIMATORS,
 )
 
@@ -3219,6 +3257,19 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
     st.caption(f"Active: {len(scenario_df):,} training scenarios.")
 
 # ── Main panel ─────────────────────────────────────────────────────────────────
+# Lookup-overlay safety contract (Brief A.4):
+#   compute_lookup_table is @st.cache_data-decorated with
+#   `schema_version=SCENARIO_SCHEMA_VERSION` as a cache-key parameter, so any
+#   bump to SCENARIO_SCHEMA_VERSION invalidates every cached entry. That means
+#   the fields LOADED from the lookup row (flood_reduction, mean_hm,
+#   runoff_acre_feet, nature_access_pct, n_wet/n_for/n_hd, MH fields, etc.)
+#   are guaranteed schema-current — no defensive overwrite needed for them.
+#   The overwrites below (scenario_lulc, food, NDVI, carbon, dollar metrics,
+#   total_cost) are for fields that legitimately depend on per-rerun state
+#   (cost sliders, carbon-rate sliders, fresh rasters), NOT for staleness
+#   protection. Future devs: do NOT add new defensive overwrites for
+#   surrogate-target fields — bump SCENARIO_SCHEMA_VERSION instead. Full
+#   contract in DESIGN_NOTES.md "Lookup-overlay safety contract".
 lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
 if lookup_key in lookup_table and placement_strategy == 'random':
     # Lookup table was computed with random placement — only use it in random mode
@@ -3234,7 +3285,10 @@ if lookup_key in lookup_table and placement_strategy == 'random':
     # consumers (compute_per_tract_summary) can re-run the HMI helpers on the
     # right lucode-space view (compound for SA, NLCD for MN).
     results['scenario_lulc_ucm'] = _fresh['scenario_lulc_ucm']
-    # Food values are recomputed live — lookup table may predate the n_food_pixels fix
+    # Food values are recomputed live. The historical reason was that the
+    # lookup table predated an n_food_pixels fix; that defense is now
+    # redundant under the schema-version contract above, but kept for
+    # stability — food is also cheap to recompute.
     results['food_mln_lbs'] = _fresh['food_mln_lbs']
     results['people_fed']   = _fresh['people_fed']
     results['mean_ndvi']    = _fresh['mean_ndvi']
@@ -4231,12 +4285,22 @@ with tab2:
     # made the optimization banner vanish prematurely. The dismiss-X button
     # on the banner is now the only way to clear the flag, plus running a
     # new optimization (which sets it back to True or False).
+
+    # Brief A.3: filter saved scenarios to the active city. The .get("city",
+    # selected_city) default is backward-compatible — in-memory saves from
+    # before A.3 lacked the `city` key; treat them as belonging to the
+    # current city rather than orphaning them.
+    _saved_for_city = [
+        s for s in st.session_state.saved_scenarios
+        if s.get("city", selected_city) == selected_city
+    ]
+
     st.subheader("Tradeoff Space")
     st.caption("Each point is a scenario. Better outcomes are toward the top-right — more cooling and greater flood-risk reduction. Bubble size shows food production for saved and optimized scenarios.")
     st.plotly_chart(plot_tradeoff(
         results, scenario_df,
         lookup_table=lookup_table,
-        saved=st.session_state.saved_scenarios,
+        saved=_saved_for_city,
         optimized=st.session_state.optimized_results
     ), width='stretch')
 
@@ -4335,6 +4399,9 @@ with tab2:
             saved["display_name"] = scenario_name_input
             saved["placement_strategy"] = placement_strategy
             saved["heat_priority"] = use_heat_priority  # backward compat for older saves
+            # Brief A.3: tag the city this scenario was saved in. Display sites
+            # filter by active city so MN saves don't show up in SA's view.
+            saved["city"] = selected_city
             saved["cost_gi"] = cost_gi
             saved["cost_ff"] = cost_ff
             saved["cost_hd"] = cost_hd
@@ -4446,15 +4513,15 @@ with tab2:
 
             st.divider()
 
-    if st.session_state.saved_scenarios:
+    if _saved_for_city:
         st.divider()
         st.caption(
             "The Pareto frontier shows the most efficient tradeoff scenarios — ones where you "
             "cannot improve flood reduction, cooling, or food production without making at least "
             "one of the others worse."
         )
-        with st.expander(f"Saved Scenarios ({len(st.session_state.saved_scenarios)})", expanded=False):
-            df_saved = pd.DataFrame(st.session_state.saved_scenarios)
+        with st.expander(f"Saved Scenarios ({len(_saved_for_city)})", expanded=False):
+            df_saved = pd.DataFrame(_saved_for_city)
             # Older saves predate display_name; backfill from scenario_name so the
             # column is always present and never NaN in the table or hover labels.
             if 'display_name' not in df_saved.columns:
