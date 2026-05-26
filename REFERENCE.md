@@ -74,9 +74,14 @@ system.
   default target lucode: `DEFAULT_FF_LUCODE = 1310` (Deciduous Forest ×
   Timber × medium canopy), `DEFAULT_GI_LUCODE = 122` (Woody Wetlands ×
   Wetland × medium canopy), `DEFAULT_HD_LUCODE = 341` (Developed High
-  Intensity × Residential × low canopy). Brief B (forthcoming)
-  instruments the fraction of converted pixels that fall to defaults so
-  this can be measured rather than assumed.
+  Intensity × Residential × low canopy).
+- **Fallback instrumentation (Brief B).** `evaluate_scenario`'s result
+  dict carries three per-target counts — `ff_fellback_pixels`,
+  `gi_fellback_pixels`, `hd_fellback_pixels` — that record how many of
+  this scenario's converted pixels resolved via the documented default
+  vs. found a matching crosswalk row. Surfaced in the SA dashboard's
+  "Conversion fidelity" panel inside the Assumptions and limitations
+  expander. For MN these counts are always 0 (no compound conversion).
 
 ### Closing
 

@@ -61,6 +61,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "San Antonio scenarios now show a conversion-fidelity panel reporting how often each conversion used the default target lucode vs. found a matching context-preserving compound row.",
     "San Antonio carbon now uses NatCap's four-pool storage framework — reported as one-time storage value rather than annual rate.",
     "San Antonio land cover now uses NatCap's San Antonio data.",
     "San Antonio cooling estimates updated to NatCap's calibration.",
@@ -411,6 +412,15 @@ class CityState(NamedTuple):
     compound_after_ff: Optional[np.ndarray]
     compound_after_gi: Optional[np.ndarray]
     compound_after_hd: Optional[np.ndarray]
+    # Brief B: parallel boolean arrays indexed by source compound lucode.
+    # True = the source pixel's (NLUD, tree-canopy) had no matching row
+    # in the crosswalk for the target NLCD; conversion fell back to
+    # DEFAULT_<target>_LUCODE. Per-scenario fallback counts feed the
+    # `*_fellback_pixels` result-dict keys and the SA dashboard's
+    # "Conversion fidelity" panel.
+    compound_after_ff_was_default: Optional[np.ndarray]
+    compound_after_gi_was_default: Optional[np.ndarray]
+    compound_after_hd_was_default: Optional[np.ndarray]
 
 
 # Module-level escape-hatch handle to the active city runtime state. Populated
@@ -519,9 +529,17 @@ def load_lulc_crosswalk(crosswalk_path, default_ff, default_gi, default_hd):
     # the target NLCD — preferring is_realistic_to_create=yes when multiple
     # rows match. Pixels whose (NLUD, tree) tuple has no row for the target
     # NLCD fall back to DEFAULT_<target>_LUCODE.
+    #
+    # Brief B: alongside each `compound_after_*` array, build a parallel
+    # boolean `was_default_*` array indexed by source compound lucode.
+    # True = this source pixel's (NLUD, tree-canopy) had no matching row
+    # in the crosswalk for the target NLCD and the conversion fell back
+    # to the configured DEFAULT_<target>_LUCODE. Used by conversion sites
+    # in evaluate_scenario to count per-scenario fallback fractions.
     df['_create_ok'] = df['is_realistic_to_create'].astype(str).str.lower() == 'yes'
     targets = [(41, default_ff), (90, default_gi), (24, default_hd)]
     compound_after = {}
+    was_default = {}
     for target_nlcd, fallback in targets:
         # First-match per (NLUD, tree) → target compound lucode, preferring
         # create_ok=yes rows, then ascending lucode as a deterministic
@@ -540,16 +558,26 @@ def load_lulc_crosswalk(crosswalk_path, default_ff, default_gi, default_hd):
                 target_rows['lucode'].astype(int))
         )
         out = np.full(max_lucode + 1, fallback, dtype=np.int16)
+        # was_default starts True for every index — only real source
+        # lucodes whose (NLUD, tree) matched the crosswalk get flipped to
+        # False below. Indices outside the actual lucode space stay True;
+        # the conversion-site indexing only ever touches real source
+        # lucodes (from the LULC raster) so those padding True values
+        # never get counted.
+        was_default_arr = np.ones(max_lucode + 1, dtype=bool)
         src_keys = list(zip(df['nlud_simple'].astype(int),
                             df['tree'].astype(int)))
         src_lucodes = df['lucode'].astype(int).values
         for i, key in enumerate(src_keys):
             if key in key_to_lucode:
                 out[src_lucodes[i]] = key_to_lucode[key]
+                was_default_arr[src_lucodes[i]] = False
         compound_after[target_nlcd] = out
+        was_default[target_nlcd] = was_default_arr
 
     return (df, compound_to_nlcd,
-            compound_after[41], compound_after[90], compound_after[24])
+            compound_after[41], compound_after[90], compound_after[24],
+            was_default[41], was_default[90], was_default[24])
 
 
 def reduce_compound_to_nlcd(compound_raster, compound_to_nlcd):
@@ -618,6 +646,9 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
     cooling_lulc_compound = None
     compound_to_nlcd = None
     compound_after_ff = compound_after_gi = compound_after_hd = None
+    compound_after_ff_was_default = None
+    compound_after_gi_was_default = None
+    compound_after_hd_was_default = None
     if compound_lulc_file is not None and crosswalk_file is not None:
         with rasterio.open(f'{data_dir_flood}/{compound_lulc_file}') as src:
             cooling_lulc_compound = src.read(1).astype(np.int16)
@@ -625,12 +656,15 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
         # '../natcap_2024/lulc_crosswalk.csv'), matching the existing
         # cooling_lulc_file convention.
         cw_path = f'{data_dir_flood}/{crosswalk_file}'
-        _xwalk_df, compound_to_nlcd, compound_after_ff, compound_after_gi, compound_after_hd = (
-            load_lulc_crosswalk(cw_path,
-                                int(default_ff_lucode),
-                                int(default_gi_lucode),
-                                int(default_hd_lucode))
-        )
+        (_xwalk_df, compound_to_nlcd,
+         compound_after_ff, compound_after_gi, compound_after_hd,
+         compound_after_ff_was_default,
+         compound_after_gi_was_default,
+         compound_after_hd_was_default) = load_lulc_crosswalk(
+             cw_path,
+             int(default_ff_lucode),
+             int(default_gi_lucode),
+             int(default_hd_lucode))
         reduced = reduce_compound_to_nlcd(cooling_lulc_compound, compound_to_nlcd)
         # The reduced NLCD view replaces both `lulc` (flood) and
         # `cooling_lulc` since SA's prior config has them pointing at the
@@ -704,7 +738,10 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
             urban_nature_arr,
             c_above_arr, c_below_arr, c_soil_arr, c_dead_arr,
             cooling_lulc_compound, compound_to_nlcd,
-            compound_after_ff, compound_after_gi, compound_after_hd)
+            compound_after_ff, compound_after_gi, compound_after_hd,
+            compound_after_ff_was_default,
+            compound_after_gi_was_default,
+            compound_after_hd_was_default)
 
 
 # ── Population raster loader (for Nature Access metric) ──────────────────────
@@ -1530,20 +1567,32 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     # operate on the NLCD reduction; for SA that's derived from the converted
     # compound raster via `reduce_compound_to_nlcd`. For MN, both views are
     # the same NLCD raster.
+    # Brief B: per-target counts of conversions whose source pixel's
+    # (NLUD, tree-canopy) tuple had no matching crosswalk row and fell
+    # back to DEFAULT_<target>_LUCODE. Stay at 0 for MN (no compound
+    # conversion path) so the result-dict schema is consistent across
+    # cities. Surfaced in the SA dashboard's Conversion fidelity panel
+    # and in `evaluate_scenario`'s return dict as `*_fellback_pixels`.
+    ff_fellback_pixels = 0
+    gi_fellback_pixels = 0
+    hd_fellback_pixels = 0
     if cooling_lulc_compound is not None:
         scenario_lulc_compound = cooling_lulc_compound.copy()
         if n_wet > 0:
             p = pixels_to_convert[:n_wet]
             src = scenario_lulc_compound[p[:, 0], p[:, 1]]
             scenario_lulc_compound[p[:, 0], p[:, 1]] = COMPOUND_AFTER_GI[src]
+            gi_fellback_pixels = int(COMPOUND_AFTER_GI_WAS_DEFAULT[src].sum())
         if n_for > 0:
             p = pixels_to_convert[n_wet:n_wet + n_for]
             src = scenario_lulc_compound[p[:, 0], p[:, 1]]
             scenario_lulc_compound[p[:, 0], p[:, 1]] = COMPOUND_AFTER_FF[src]
+            ff_fellback_pixels = int(COMPOUND_AFTER_FF_WAS_DEFAULT[src].sum())
         if n_hd > 0:
             p = pixels_to_convert[n_wet + n_for:]
             src = scenario_lulc_compound[p[:, 0], p[:, 1]]
             scenario_lulc_compound[p[:, 0], p[:, 1]] = COMPOUND_AFTER_HD[src]
+            hd_fellback_pixels = int(COMPOUND_AFTER_HD_WAS_DEFAULT[src].sum())
         scenario_lulc = reduce_compound_to_nlcd(scenario_lulc_compound, COMPOUND_TO_NLCD)
         scenario_lulc_ucm = scenario_lulc_compound
         scenario_lulc_una = scenario_lulc_compound
@@ -1658,6 +1707,16 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'food_mln_lbs':             food_mln_lbs,
         'people_fed':               food_to_people_fed(food_mln_lbs),
         'total_cost_mln':           total_cost_mln,
+        # Brief B: per-target fallback-pixel counts (compound-conversion
+        # diagnostic). 0 for MN (no compound conversion path); for SA, the
+        # subset of `n_for` / `n_wet` / `n_hd` whose source pixel's (NLUD,
+        # tree-canopy) had no matching crosswalk row for the target NLCD
+        # and fell back to DEFAULT_<target>_LUCODE. Dashboard derives the
+        # fallback fraction (`*_fellback_pixels / n_*`). Not a surrogate
+        # target — pure metadata about the conversion.
+        'ff_fellback_pixels':       ff_fellback_pixels,
+        'gi_fellback_pixels':       gi_fellback_pixels,
+        'hd_fellback_pixels':       hd_fellback_pixels,
         'scenario_name':            f"{pct_converted}% converted — GI {green_infrastructure_pct}% / FF {food_forest_pct}%",
         'scenario_lulc':            scenario_lulc,
         # Brief 28b: the UCM-view scenario raster. Compound (0–1983 lucodes)
@@ -1686,7 +1745,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 25  # bumped: Brief 30 swaps SA's Carbon model from the prototype's per-conversion-type single-rate annual proxy to NatCap's InVEST four-pool stock framework via the compound `carbon__nlcd_nlud_tree.csv` (1,984 rows × 27 cols; four pools: c_above/c_below/c_soil/c_dead). SA carbon consumers now index the compound raster directly via a new `scenario_lulc_carbon` return field; the unified `carbon_tons_co2` return key replaces `carbon_tons_co2_yr` — semantics differ per city (annual flow for MN, one-time stock change for SA). Dollar metric renamed `avoided_carbon_cost_usd` → `carbon_value_usd` with city-conditional dashboard label ("Avoided Carbon Cost"/yr for MN, "Carbon Storage Value" for SA). Methodology matches NatCap's Vibrant Land (Guerry et al. 2023); SC-CO2 constant (EPA_SOCIAL_COST_CARBON, $190/t @ 2%, EPA 2023) is the prototype's choice rather than Vibrant Land's IWG 2021 ($53/t @ 3%) — same US-government lineage, different vintage. SA carbon stock numerically ~33× the prior annual proxy (category-error correction, not value shift). MN untouched. Brief 29 was at 23→24.
+SCENARIO_SCHEMA_VERSION = 26  # bumped: Brief B adds three per-target fallback-pixel diagnostic keys to `evaluate_scenario`'s return dict — `ff_fellback_pixels`, `gi_fellback_pixels`, `hd_fellback_pixels`. For SA these count converted pixels whose source (NLUD, tree-canopy) tuple had no matching crosswalk row and fell back to DEFAULT_<target>_LUCODE (1310 / 122 / 341). For MN they're always 0 (no compound conversion path). Not surrogate targets — pure metadata about the conversion, surfaced in the SA dashboard's Conversion fidelity panel. Brief 30 was at 25.
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -2005,7 +2064,10 @@ def _load_city_runtime_state(city_key: str) -> CityState:
      l_urban_nature_arr,
      l_c_above_arr, l_c_below_arr, l_c_soil_arr, l_c_dead_arr,
      l_cooling_lulc_compound, l_compound_to_nlcd,
-     l_compound_after_ff, l_compound_after_gi, l_compound_after_hd) = load_data(
+     l_compound_after_ff, l_compound_after_gi, l_compound_after_hd,
+     l_compound_after_ff_was_default,
+     l_compound_after_gi_was_default,
+     l_compound_after_hd_was_default) = load_data(
         cfg['data_dir_flood'], cfg['data_dir_cooling'],
         cfg['cn_table_file'], cfg['cooling_table_file'],
         cfg['lulc_file'], cfg['soil_file'], cfg['cooling_lulc_file'],
@@ -2366,6 +2428,9 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         compound_after_ff=l_compound_after_ff,
         compound_after_gi=l_compound_after_gi,
         compound_after_hd=l_compound_after_hd,
+        compound_after_ff_was_default=l_compound_after_ff_was_default,
+        compound_after_gi_was_default=l_compound_after_gi_was_default,
+        compound_after_hd_was_default=l_compound_after_hd_was_default,
     )
 
 
@@ -2452,6 +2517,17 @@ COMPOUND_TO_NLCD      = _CURRENT_CITY_STATE.compound_to_nlcd
 COMPOUND_AFTER_FF     = _CURRENT_CITY_STATE.compound_after_ff
 COMPOUND_AFTER_GI     = _CURRENT_CITY_STATE.compound_after_gi
 COMPOUND_AFTER_HD     = _CURRENT_CITY_STATE.compound_after_hd
+# Brief B: parallel boolean arrays (same indexing as COMPOUND_AFTER_*).
+# Consumed by evaluate_scenario's conversion sites to count per-scenario
+# fallback fractions. None for cities without a crosswalk (MN).
+COMPOUND_AFTER_FF_WAS_DEFAULT = _CURRENT_CITY_STATE.compound_after_ff_was_default
+COMPOUND_AFTER_GI_WAS_DEFAULT = _CURRENT_CITY_STATE.compound_after_gi_was_default
+COMPOUND_AFTER_HD_WAS_DEFAULT = _CURRENT_CITY_STATE.compound_after_hd_was_default
+# Brief B: dashboard gate — co-extensive with `_CARBON_IS_STOCK` for
+# current cities (only SA has compound conversion + four-pool carbon)
+# but semantically more precise. Used to hide MN-irrelevant UI like the
+# Conversion fidelity panel.
+_COMPOUND_CONVERSION_ACTIVE = COMPOUND_AFTER_FF is not None
 
 # Brief 30: city-conditional carbon framing flag — True when SA's four-pool
 # stock framework is active (one-time t CO2 stock change per the Vibrant
@@ -4045,6 +4121,43 @@ with st.expander("Assumptions and limitations"):
             "compound-keyed biophysical tables directly (Briefs 28b, 29, 30). "
             "See `SA_INTEGRATION_PLAN.md` for the brief sequence."
         )
+    # Brief B: Conversion fidelity panel — SA-only. Shows what fraction
+    # of this scenario's converted pixels resolved via the documented
+    # default-lucode fallback (because the source pixel's (NLUD, tree-
+    # canopy) tuple had no matching row in NatCap's crosswalk for the
+    # target NLCD). Surfaces a methodology question that would otherwise
+    # be invisible. Hidden for MN (no compound conversion).
+    if _COMPOUND_CONVERSION_ACTIVE:
+        _ff_n = int(results.get('n_for', 0))
+        _gi_n = int(results.get('n_wet', 0))
+        _hd_n = int(results.get('n_hd', 0))
+        _ff_fb = int(results.get('ff_fellback_pixels', 0))
+        _gi_fb = int(results.get('gi_fellback_pixels', 0))
+        _hd_fb = int(results.get('hd_fellback_pixels', 0))
+        _conv_lines = ["**Conversion fidelity (SA)**", ""]
+        for label, n_total, n_fb in [
+            ("Green infrastructure", _gi_n, _gi_fb),
+            ("Food forest",          _ff_n, _ff_fb),
+            ("High density",         _hd_n, _hd_fb),
+        ]:
+            if n_total == 0:
+                _conv_lines.append(f"- **{label}:** no conversions in this scenario.")
+            else:
+                _pct = 100.0 * n_fb / n_total
+                _conv_lines.append(
+                    f"- **{label}:** {n_fb:,} of {n_total:,} converted pixels "
+                    f"({_pct:.1f} %) used the default target lucode because the "
+                    f"source pixel's (NLUD, tree-canopy) context had no matching "
+                    f"row in NatCap's crosswalk."
+                )
+        _conv_lines.append("")
+        _conv_lines.append(
+            "Default target lucodes: FF = 1310 (Deciduous Forest × Timber × "
+            "medium canopy), GI = 122 (Woody Wetlands × Wetland × medium canopy), "
+            "HD = 341 (Developed High Intensity × Residential × low canopy). "
+            "See REFERENCE.md \"Land-use alignment\" for the conversion mechanism."
+        )
+        st.markdown("\n".join(_conv_lines))
     _assumption_tabs = st.tabs([
         "Flood & Runoff", "Temperature", "Food", "Carbon",
         "Mental Health", "Costs",

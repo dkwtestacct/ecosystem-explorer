@@ -1308,6 +1308,86 @@ The lookup table is only built in High Resolution mode, which is
 itself gated behind an opt-in checkbox (Brief C). So the surface
 area where this contract matters is narrow by design.
 
+## SA conversion-fallback instrumentation (Brief B)
+
+The SA compound conversion path (`evaluate_scenario`'s
+`if cooling_lulc_compound is not None:` branch, ~app.py:1535) tries
+to preserve each converted pixel's (NLUD, tree-canopy) tuple by
+looking up a matching compound lucode in NatCap's crosswalk
+(`load_lulc_crosswalk`, ~app.py:509). When no matching row exists,
+the conversion falls back to documented defaults — `DEFAULT_FF_LUCODE
+= 1310`, `DEFAULT_GI_LUCODE = 122`, `DEFAULT_HD_LUCODE = 341`.
+
+**Why instrument:** before Brief B there was no visibility into how
+often the fallback fires. That matters because the methodology
+question "is the default principled?" is academic if <5 % of
+converted pixels fall to defaults, and substantive if >30 % do.
+The instrumentation lets the numbers themselves answer the question
+rather than leaving it to assumption.
+
+**How instrumented:**
+
+1. `load_lulc_crosswalk` now builds three parallel boolean arrays
+   (`compound_after_ff_was_default`, `_gi_`, `_hd_`) alongside the
+   existing `compound_after_*` lucode arrays. Same shape, same
+   indexing (by source compound lucode). `True` = the source
+   pixel's (NLUD, tree-canopy) had no matching row in the crosswalk
+   for the target NLCD; conversion fell back to the configured
+   `DEFAULT_<target>_LUCODE`.
+
+2. At conversion time inside `evaluate_scenario`, each per-target
+   conversion site (`if n_for > 0:` etc.) counts
+   `int(COMPOUND_AFTER_*_WAS_DEFAULT[src].sum())` over the source
+   compound lucodes of the actually-converted pixels.
+
+3. Three new scalar keys in `evaluate_scenario`'s return dict —
+   `ff_fellback_pixels`, `gi_fellback_pixels`, `hd_fellback_pixels`
+   — surface the per-scenario counts. Always emitted (0 for MN, no
+   compound conversion path) so the schema stays consistent across
+   cities.
+
+4. Dashboard surfaces a "Conversion fidelity (SA)" panel inside the
+   Assumptions and limitations expander showing
+   `fellback_pixels / n_converted` as a percentage per target,
+   gated on `_COMPOUND_CONVERSION_ACTIVE = COMPOUND_AFTER_FF is not
+   None`. Hidden for MN.
+
+**Why flat scalar keys rather than a nested `conversion_diagnostics`
+dict:** `verify_baselines.py:_snapshot_from_results` handles
+ints/floats/numpy scalars but `dict` falls through to a
+`WARN: skipping field` branch. Flat scalars also serialize trivially
+to CSV without flattening logic at write time. The dashboard panel
+computes the per-target fraction at display time — no precomputed
+fraction key needed.
+
+**Why not a surrogate target:** the diagnostic is pure metadata
+about the conversion mechanism, not an outcome metric the surrogate
+should predict. `REQUIRED_TARGET_COLUMNS` is unchanged. The
+`_scenario_signature` cache key (Brief A.1) also doesn't include
+the new columns — they don't affect surrogate cache invalidation.
+
+**Schema bump:** `SCENARIO_SCHEMA_VERSION` 25 → 26. Per-city dense
+CSVs regenerated (SA / MN / Mpls Full). 40/40 baselines regenerated
+via `verify_baselines.py --update`.
+
+**Empirical finding (2026-05-26).** Across all 15 SA baseline
+scenarios (5 placement strategies × 3 conversion types), and across
+all 550+ scenarios in the regenerated SA dense CSV, the fellback
+fraction is **0.000 / 0.000 / 0.000** (min / median / max) for every
+target. NatCap's compound crosswalk has comprehensive coverage of
+every (NLUD × tree-canopy) tuple actually present in SA's
+developed-land pool, for all three conversion targets (NLCD 41 / 90
+/ 24). The default-lucode fallback rule never fires in practice; the
+preserve-context rule does 100 % of the work. The "is the default
+principled?" methodology question is therefore academic — the
+defaults' choice doesn't affect any current scenario output.
+
+The instrumentation is still the right move: it makes the answer
+explicit and falsifiable, so any future change to NatCap's crosswalk
+or to the SA LULC raster that breaks the coverage assumption would
+surface immediately in the dashboard panel rather than silently
+shifting outcome values via the default lucodes.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

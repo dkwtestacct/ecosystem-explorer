@@ -290,6 +290,12 @@ def _rebind_city(app_mod, city_name):
     app_mod.COMPOUND_AFTER_FF     = state.compound_after_ff
     app_mod.COMPOUND_AFTER_GI     = state.compound_after_gi
     app_mod.COMPOUND_AFTER_HD     = state.compound_after_hd
+    # Brief B: per-target was-default boolean arrays parallel to
+    # COMPOUND_AFTER_*. Required for the per-scenario fellback-pixel
+    # counts in evaluate_scenario's conversion sites.
+    app_mod.COMPOUND_AFTER_FF_WAS_DEFAULT = state.compound_after_ff_was_default
+    app_mod.COMPOUND_AFTER_GI_WAS_DEFAULT = state.compound_after_gi_was_default
+    app_mod.COMPOUND_AFTER_HD_WAS_DEFAULT = state.compound_after_hd_was_default
     app_mod._CURRENT_CITY_STATE = state
 
     # City-config scalars (lines 2054–2070 area)
