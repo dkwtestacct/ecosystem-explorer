@@ -75,6 +75,23 @@ system.
   Timber × medium canopy), `DEFAULT_GI_LUCODE = 122` (Woody Wetlands ×
   Wetland × medium canopy), `DEFAULT_HD_LUCODE = 341` (Developed High
   Intensity × Residential × low canopy).
+- **Why fallback is correct, not degenerate.** The fallback fires when
+  a source pixel's (NLUD, tree-canopy) tuple has no matching compound
+  row for the target NLCD in the crosswalk. This is most common for
+  cross-NLUD conversions — e.g., converting an Industrial pixel to
+  Green Infrastructure (NLCD 90). The crosswalk has no "Industrial ×
+  Wetland × no-trees" row because no industrial wetlands currently
+  exist in San Antonio. The prototype's response is to use a neutral
+  default (`DEFAULT_GI_LUCODE = 122`, Woody Wetlands × Wetland ×
+  medium canopy) rather than preserving the source's "Industrial"
+  NLUD context. This is defensible: a site being converted from
+  Industrial to Wetland is a *transformation*, not a
+  context-preservation case — preserving "Industrial NLUD" on a pixel
+  that is now a wetland would be semantically wrong. The default
+  lucode is a real, well-characterized row in the biophysical tables
+  (UCM, UNA, Carbon all have valid values for lucode 122). The next
+  bullet reports the empirical fraction of converted pixels that hit
+  this fallback path across actual SA scenarios.
 - **Fallback instrumentation (Brief B).** `evaluate_scenario`'s result
   dict carries three per-target counts — `ff_fellback_pixels`,
   `gi_fellback_pixels`, `hd_fellback_pixels` — that record how many of

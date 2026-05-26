@@ -39,6 +39,16 @@ Each layer exists for a different reason. Together they let users explore conver
 
 ---
 
+## CRS handling
+
+Every raster the prototype reads at runtime is in its city's canonical equal-area CRS — EPSG:26915 (NAD83 / UTM 15N) for Minneapolis, EPSG:5070 (NAD83 / Conus Albers Equal-Area) for San Antonio. Both are equal-area or near-equal-area at the relevant latitudes (UTM ground-area distortion at MN is ~0.05 %, well within rounding), so `PIXEL_AREA_ACRES = 0.2224` is correct for the 30 × 30 m runtime pixels.
+
+**Source data in other CRSs is reprojected at preparation time, not at runtime.** NatCap's San Antonio compound LULC delivery is in EPSG:3857 (Web Mercator), which heavily distorts area at non-equatorial latitudes and is unsuitable for area-based math. Brief 27 reprojected the source compound LULC (`data/sa/natcap_2024/lulc_overlay_3857.tif`) to the live EPSG:5070 raster (`data/sa/flood/land_use_compound_sa.tif`) using nearest-neighbor resampling at 30 m before it ever enters the runtime pipeline. The 3857 source files are preserved on disk for provenance (see `DATA_INVENTORY.md` Section 2) but are not read by `app.py`.
+
+The Streamlit map rendering uses EPSG:3857 internally (because tile servers and Folium expect it), but this is a one-way display conversion applied after all area math has happened in equal-area space. No area-dependent metric is computed in 3857.
+
+---
+
 ## Layer 1 — Raster simulations
 
 **What it does.** For a given scenario (specified by city, percent converted, mix of cover types, and placement strategy), compute the actual InVEST biophysical metrics per pixel. The function entry point is `evaluate_scenario()` in `app.py`.
@@ -94,6 +104,19 @@ Each layer exists for a different reason. Together they let users explore conver
 **Why not ROOT?** NatCap's [ROOT](https://natcap.github.io/ROOT/index.html) does linear-programming-based optimization for ecosystem services and is a real alternative. The prototype's surrogate is a different (simpler, ML-based) approach. See NATCAP_COLLABORATION.md for context — ROOT is acknowledged but not pursued.
 
 **For deeper reading:** `surrogate.py` for the random-forest training and Pareto-filtering logic.
+
+---
+
+## Why numpy reimplementation, not canonical `natcap.invest`
+
+The prototype implements InVEST urban-model logic in numpy rather than calling `natcap.invest.urban_cooling_model.execute(args)` and similar. Two reasons:
+
+- **Latency.** Canonical InVEST is built on `taskgraph`, a desktop pipeline framework that reads inputs from disk, executes in a worker process, and writes outputs back to disk. For Bexar County extent at 30 m (~3.4 M pixels), a single `execute()` call takes minutes. Streamlit's rerun-on-interaction model would make every slider move re-trigger the pipeline — incompatible with the prototype's three-layer caching architecture, which serves slider responses in milliseconds.
+- **No `execute_from_arrays()` API.** The canonical API takes file paths in its args dict. There is no in-memory variant. Working around this would require writing temporary `.tif` files on every slider move.
+
+**Validation, not replacement.** The prototype's numpy implementations are validated against canonical `natcap.invest` runs in `compare_*_invest.py` scripts (`compare_ucm_invest.py`, `compare_una_invest.py`, `compare_carbon_invest.py`). `NATCAP_ALIGNMENT.md` tracks the per-model validation diffs — e.g., UNA matches canonical at MAE 0.0234 m²/person, Pearson r = 1.000000. The prototype's runtime is fast; its correctness is anchored to canonical InVEST through these offline validation runs.
+
+If you wanted publishable canonical InVEST results for a specific scenario, you would run `natcap.invest` offline against that scenario's LULC raster and use those outputs directly. That is the offline-validation path, not the interactive-prototype path.
 
 ---
 
