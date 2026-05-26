@@ -148,3 +148,13 @@ stack of changes:
 Together these brought peak memory under Streamlit Cloud's 1 GB
 ceiling. SA is the default test bed for any future memory-sensitive
 change — if SA fits, MN/Mpls-Full fit by definition (smaller grids).
+
+**Follow-up 2026-05-26: `max_entries=1` on `_load_city_runtime_state`.**
+The original workstream brought the single-city steady state under the
+ceiling but didn't address the dual-city case — `@st.cache_resource`
+with no `max_entries` cap would keep both cities' ~1.5 GB transient
+pipelines cached simultaneously after a city switch, risking OOM on
+rapid switching. `max_entries=1` forces eviction of the previously-
+cached city on switch. Trade-off: every city switch becomes a cold
+load (~minute wait) rather than an instant cache hit; reliability
+preferred over speed for the second-switch case.

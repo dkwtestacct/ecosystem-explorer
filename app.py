@@ -1984,7 +1984,17 @@ def _osm_to_invest_type(tag_value) -> int:
 # This is the single architectural fix for the 1011 keepalive OOM: every
 # Streamlit widget interaction would previously re-execute the module-level
 # allocations; now they happen at most once per session per city.
-@st.cache_resource(show_spinner="Loading city data — first interaction may take a minute…")
+#
+# max_entries=1 forces eviction of the previously-cached city on switch.
+# Without this cap, both cities' ~1.5 GB transient pipelines can be cached
+# simultaneously, risking OOM on Streamlit Cloud's ~1 GB ceiling during
+# rapid city-switching. Trade-off: every city switch becomes a cold load
+# (~minute wait) rather than an instant cache hit. We prefer reliability
+# over speed for the second-switch case.
+@st.cache_resource(
+    max_entries=1,
+    show_spinner="Loading city data — first interaction may take a minute…",
+)
 def _load_city_runtime_state(city_key: str) -> CityState:
     cfg = CITIES[city_key]
 

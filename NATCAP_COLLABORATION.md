@@ -142,6 +142,8 @@ Grouped by priority. Things to ask next time there's a chance to.
 
 6. **Is the per-capita-only undersupply formulation right for placement weighting?** Brief 9's saturation finding (100% on SA, 67% on MN) shows that strict per-capita deficit concentrates too aggressively to be usable at moderate pct values. Canonical framing for *reporting* (`urban_nature_balance_percapita`) may differ from canonical for *placement*. Worth asking the UNA team.
 
+11. **InVEST UNA edge handling at AOI boundary.** `_una_convolve` matches InVEST UNA's `convolve_2d(ignore_nodata_and_edges=False)` — edges are zero-padded, not edge-corrected. UCM does edge-correct (`_convolve_edge_corrected` matches `convolve_2d(ignore_nodata_and_edges=True)`); two convolutions, two policies, each matching its model's canonical InVEST behavior. The user-visible consequence: residents near the AOI boundary have under-counted nature access because off-AOI green space is treated as absent. Particularly relevant for SA's post-Brief-31 ACS-block-groups extent (City of San Antonio limits), where Mission Reach, Government Canyon, and other regional green space sit just outside the AOI and don't contribute to nature access for residents living near the city boundary. Did Vibrant Land accept this edge bias, or do you buffer the AOI for analysis and clip results for display? If buffering, what radius?
+
 ### Medium priority
 
 7. **For mixed-allocation scenarios (gi=50/ff=50/hd=0), does anyone in the NatCap ecosystem measure placement-strategy effects?** Diagnostic only measured single-cover.
