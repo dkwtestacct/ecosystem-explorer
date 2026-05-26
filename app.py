@@ -2521,26 +2521,39 @@ SURROGATE_TREES = {
     "High resolution": 300,
 }
 _requested_model_quality = st.session_state.get("model_quality", MODEL_QUALITY_OPTIONS[0])
-N_ESTIMATORS = SURROGATE_TREES[_requested_model_quality]
+# Brief C: High Resolution mode is an opt-in gate. The expensive
+# compute_lookup_table call below would otherwise fire on the first
+# rerun after a radio click, before the user can see any warning
+# (the radio widget itself is rendered ~600 lines below this point,
+# inside Advanced Settings). So we downgrade to Balanced for the
+# actual compute until the user explicitly checks a confirmation box.
+# The radio still shows the user's selection; the checkbox is consent
+# to the 25-50 minute build.
+_hi_res_confirmed = st.session_state.get("hi_res_confirmed", False)
+_effective_model_quality = _requested_model_quality
+if _requested_model_quality == "High resolution" and not _hi_res_confirmed:
+    _effective_model_quality = "Balanced"
+N_ESTIMATORS = SURROGATE_TREES[_effective_model_quality]
 
 with st.spinner("Loading data and pre-computing scenarios..."):
     # The lookup table is the most expensive thing the app ever computes —
     # 2,541 scenarios × per-pixel rasters can take 25–50 minutes for SA
     # (3.4 M pixels). On Streamlit Cloud free tier (1 GB RAM, ~5 min
     # health-check window) that's fatal. So we now build it ONLY when the
-    # user explicitly picks High Resolution mode. Fast prototype (default)
-    # and Balanced both skip it entirely.
+    # user explicitly picks High Resolution mode AND confirms via the
+    # opt-in checkbox in Advanced Settings. Fast prototype (default) and
+    # Balanced both skip it entirely.
     #
     # The slider-response path (`if lookup_key in lookup_table` further
     # down) gracefully falls through to a fresh evaluate_scenario call when
     # the table is empty — slightly slower per-slider but functional. The
     # "Best scenarios by goal" section also falls back to scenario_df when
     # lookup_table is empty.
-    if _requested_model_quality == "High resolution":
+    if _effective_model_quality == "High resolution":
         lookup_table = compute_lookup_table(_CURRENT_CITY_STATE, selected_city, DATA_DIR_FLOOD, DATA_DIR_COOLING)
         scenario_df = pd.DataFrame(list(lookup_table.values()))
         ACTIVE_MODEL_QUALITY = "high"
-    elif _requested_model_quality == "Balanced":
+    elif _effective_model_quality == "Balanced":
         lookup_table = {}
         _dense_configured = city_cfg.get("dense_scenarios_file")
         if _dense_configured and os.path.exists(_dense_configured):
@@ -3126,23 +3139,36 @@ with st.sidebar.expander("Implementation Costs ($/acre)", expanded=False):
 st.sidebar.divider()
 
 with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
-    st.slider(
-        "Food Forest carbon rate (tons CO2e/acre/yr)",
-        0.5, 18.0, 3.5, 0.5,
-        key="carbon_rate_ff",
-        help="Provisional range 1.76–18.2 (USDA NRCS 2022). Default 3.5 is conservative for a mature system."
-    )
-    st.slider(
-        "Green Infrastructure carbon rate (tons CO2e/acre/yr)",
-        0.5, 5.0, 2.0, 0.5,
-        key="carbon_rate_gi",
-        help="Provisional range for woody wetlands. Default 2.0 tons CO2e/acre/yr."
-    )
-    st.caption(
-        "These are provisional regional estimates. Adjust to reflect locally calibrated "
-        "values or sensitivity test assumptions. See Methodology & Data Sources for "
-        "sources and caveats."
-    )
+    # Brief C.1: carbon-rate sliders apply only to MN's per-conversion-type
+    # annual proxy (`CARBON_SEQ_RATES`). SA's Carbon uses NatCap's
+    # four-pool stock table directly — no per-pool override is exposed.
+    # Hide the sliders for SA and seed session_state with the MN defaults
+    # so downstream `st.session_state.carbon_rate_*` reads still work.
+    if not _CARBON_IS_STOCK:
+        st.slider(
+            "Food Forest carbon rate (tons CO2e/acre/yr)",
+            0.5, 18.0, 3.5, 0.5,
+            key="carbon_rate_ff",
+            help="Provisional range 1.76–18.2 (USDA NRCS 2022). Default 3.5 is conservative for a mature system."
+        )
+        st.slider(
+            "Green Infrastructure carbon rate (tons CO2e/acre/yr)",
+            0.5, 5.0, 2.0, 0.5,
+            key="carbon_rate_gi",
+            help="Provisional range for woody wetlands. Default 2.0 tons CO2e/acre/yr."
+        )
+        st.caption(
+            "These are provisional regional estimates. Adjust to reflect locally calibrated "
+            "values or sensitivity test assumptions. See Methodology & Data Sources for "
+            "sources and caveats."
+        )
+    else:
+        st.session_state.setdefault("carbon_rate_ff", 3.5)
+        st.session_state.setdefault("carbon_rate_gi", 2.0)
+        st.caption(
+            "Carbon for this city uses NatCap's four-pool carbon storage table. "
+            "Annual sequestration-rate sliders are hidden because they don't apply."
+        )
 
     st.divider()
 
@@ -3162,6 +3188,25 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
         "Balanced: ~500 scenarios — better coverage, moderate startup time.  \n"
         "High resolution: trains on the full 2,541-entry lookup table — slower startup, better optimizer coverage."
     )
+    # Brief C.2: High Resolution mode is gated behind an explicit opt-in
+    # checkbox. The compute_lookup_table build takes 25–50 minutes on SA
+    # and is fatal on Streamlit Cloud's 1 GB tier. Until confirmed, the
+    # app silently runs in Balanced mode (the `_effective_model_quality`
+    # downgrade earlier in the script). The radio still shows the user's
+    # selection so intent is preserved; the checkbox is consent to the
+    # expensive build.
+    if _requested_model_quality == "High resolution":
+        st.warning(
+            "High resolution rebuilds a 2,541-entry lookup table that takes "
+            "25–50 minutes on San Antonio and is not recommended on Streamlit "
+            "Cloud (1 GB worker tier). Use Balanced unless you're running locally."
+        )
+        st.checkbox(
+            "Yes, build the high-resolution lookup table (~25–50 min)",
+            key="hi_res_confirmed",
+        )
+        if not _hi_res_confirmed:
+            st.caption("Running in Balanced mode until you confirm.")
     st.caption(f"Active: {len(scenario_df):,} training scenarios.")
 
 # ── Main panel ─────────────────────────────────────────────────────────────────
