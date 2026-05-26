@@ -195,11 +195,12 @@ def _cooling_biophysical_source(city_key: str) -> str:
 # ── City-aware header ──────────────────────────────────────────────────────────
 st.title("🌿 Urban Ecosystem Tradeoff Explorer")
 
-# In-app changelog for returning visitors — expanded by default so it's seen on
-# reload; collapsible once read. Sits between the title and the city subheader.
-# Wrapped in a bordered container for card-like visual separation.
+# In-app changelog for returning visitors — collapsed by default so the
+# dashboard (sliders + metric cards) is the first view, not a changelog.
+# Sits between the title and the city subheader. Wrapped in a bordered
+# container for card-like visual separation.
 with st.container(border=True):
-    with st.expander("What's new", expanded=True):
+    with st.expander("What's new", expanded=False):
         st.markdown(WHATS_NEW)
 
 st.subheader(selected_city)
