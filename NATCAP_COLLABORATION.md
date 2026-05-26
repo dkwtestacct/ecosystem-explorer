@@ -134,7 +134,9 @@ Grouped by priority. Things to ask next time there's a chance to.
 
 ### High priority — operational
 
-4. **Per-crop SA food forest yield?** Currently using 8,500 lbs/acre placeholder for hot semi-arid. NatCap's SA Urban Agriculture project should have per-crop numbers.
+4. **Data ask: per-crop CoSA + MN Carbon four-pool bundle.** Two pieces of the same kind of ask (data NatCap may or may not have), nice-to-haves rather than blocking.
+   - **#4a — Per-crop SA food forest yield.** Currently using 8,500 lbs/acre placeholder for hot semi-arid. NatCap's SA Urban Agriculture project should have per-crop numbers. Modest fidelity upgrade for SA.
+   - **#4b — MN Carbon four-pool bundle.** Would bring MN to parity with SA's post-Brief-30 framing (stock-based four-pool methodology). Currently MN uses the single-rate annual proxy because no NatCap MN four-pool data is available.
 
 5. **For SA NDR integration: are watershed and DEM files in the shared Drive folder somewhere?** The README references `sa_dem_3m_proj.tif` and `San_Antonio_TX_buffer_mod.shp` with `E:/GIS/` paths suggesting they're on a NatCap internal machine, not shared. Need to obtain to implement NDR.
 
@@ -151,6 +153,10 @@ Grouped by priority. Things to ask next time there's a chance to.
 9. **What's the right way to validate a placement strategy from NatCap's perspective?** The three-layer diagnostic (variance / selectivity / outcome delta) might not be how they think about it.
 
 10. **Building damage rates per-city?** SA has no per-building type codes; downstream metrics degrade to $0. Also a NatCap gap, not just a prototype gap.
+
+### To share (finding, not a question)
+
+- **Per-NLCD biophysical tuning systematically biases against existing canopy on developed land.** Brief 28b's UCM swap (per-NLCD → compound) shifted SA `baseline_hm` from 0.2866 → 0.3937 (+37 %) and dropped `cooling_energy_savings_usd` 77–86 % across SA scenarios. The compound table credits per-pixel tree-canopy variation the per-NLCD framework couldn't represent. Same direction holds for UNA (+5 % baseline `nature_access_pct`, Brief 29). Potentially useful signal for any other prototype team migrating per-NLCD → compound. Worth flagging at the symposium even if NatCap doesn't have a specific response.
 
 ### Closed questions
 
