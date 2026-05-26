@@ -167,6 +167,15 @@ The following were open at session start (2026-05-24) and have been resolved by 
 - ~~NatCap UCM `uhi_max` for MN~~ → 2.05 °C (per MN args.json; prototype matches)
 - ~~NatCap UCM blending and cooling distances for MN+SA~~ → 600 m / 450 m (consistent across both, prototype matches)
 
+### Resolve in-house
+
+Items we should answer ourselves rather than ask NatCap — listed here for follow-through tracking.
+
+- **A. EPSG:5070 reprojection of compound LULC raster** — methodologically standard for CONUS area-based metrics; no NatCap confirmation needed. Rationale in `DESIGN_NOTES.md` "SA compound LULC integration — foundational decisions".
+- **B. SC-CO2 vintage divergence (EPA 2023 $190/t vs. Vibrant Land's IWG 2021 $53/t)** — EPA 2023 final rule is the more current US-government standard; decision already made. Documented in `DESIGN_NOTES.md` "SA Carbon four-pool framework adoption". May surface at symposium as FYI, not as a question.
+- **C. Conversion-mapping rule for `COMPOUND_AFTER_*` arrays (preserve NLUD + tree-canopy when changing NLCD)** — already empirically validated by Brief 30's investigate-first (HD < FF < GI four-pool carbon ordering is land-cover-plausible). No NatCap blessing needed.
+- **D. `code` column encoding (is `lucode` truly the only intended join key?)** — trivially verifiable with `grep`; `lucode` is the only join key consumed by `load_data` routines, implicitly confirmed by Briefs 28b/29/30 each successfully loading their compound biophysical tables. `[CONFIRM]` marker can be removed without risk.
+
 ---
 
 ## Data NatCap has shared
