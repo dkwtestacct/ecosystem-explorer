@@ -32,6 +32,62 @@ Two implications worth noting:
 
 ---
 
+## Land-use alignment
+
+Per-city detail on the baseline LULC raster, the land-use code system,
+and how scenario conversions produce valid target lucodes within each
+system.
+
+### Minneapolis
+
+- **Baseline LULC:** NLCD 2021 (`data/cooling/land_use_2021.tif`,
+  byte-identical to the InVEST UNA sample LULC).
+- **Code system:** NLCD lucodes.
+- **Biophysical tables:** NLCD-keyed (UCM, UNA, CN biophysical, Carbon
+  per-class annual rates).
+- **Scenario conversions:** Direct NLCD mapping. Food forest → NLCD 41
+  (deciduous forest proxy). Green infrastructure → NLCD 90 (woody
+  wetlands proxy). High density → NLCD 24 (developed, high intensity).
+  No fallback logic needed — all targets are valid NLCD lucodes.
+
+### San Antonio
+
+- **Baseline LULC:** NatCap compound NLCD × NLUD × tree-canopy framework
+  (`data/sa/flood/land_use_compound_sa.tif`, adopted Brief 27). Source
+  is NatCap's 2024 NASA Urban project compound LULC, reprojected
+  EPSG:3857 → EPSG:5070 + nearest-neighbor resampled to 30 m.
+- **Code system:** Compound lucodes — Cartesian product of 16 NLCD codes
+  × 31 NLUD classes × 4 tree-canopy levels = 1,984 distinct lucodes.
+  Joined to NLCD/NLUD/tree-canopy attributes via `lulc_crosswalk.csv`.
+- **Biophysical tables:** Compound-keyed for UCM (Brief 28b), UNA (Brief 29),
+  and Carbon (Brief 30). CN biophysical for flood is still NLCD-keyed
+  and reduces compound → NLCD via the crosswalk.
+- **Scenario conversions:** Preserve each pixel's NLUD and tree-canopy
+  context where possible; change only the NLCD component. A pixel of
+  "Developed Med Intensity × Commercial × low canopy" being converted to
+  Food Forest looks up "NLCD 41 × Commercial × low canopy" in the
+  crosswalk and gets the matching compound lucode if one exists.
+  Crosswalk lookups prefer rows tagged `is_realistic_to_create=yes`
+  in the NatCap-provided crosswalk.
+- **Fallback:** If no matching compound lucode exists for a given
+  (NLUD, tree-canopy) tuple, the conversion falls back to a documented
+  default target lucode: `DEFAULT_FF_LUCODE = 1310` (Deciduous Forest ×
+  Timber × medium canopy), `DEFAULT_GI_LUCODE = 122` (Woody Wetlands ×
+  Wetland × medium canopy), `DEFAULT_HD_LUCODE = 341` (Developed High
+  Intensity × Residential × low canopy). Brief B (forthcoming)
+  instruments the fraction of converted pixels that fall to defaults so
+  this can be measured rather than assumed.
+
+### Closing
+
+InVEST models are placement-agnostic — they evaluate user-provided LULC
+rasters. Ecosystem Explorer's placement strategies and conversion
+mechanism produce those rasters; InVEST does not prescribe either.
+Per-city land-use fidelity therefore reflects per-city data availability
+rather than any methodology choice imposed by InVEST.
+
+---
+
 ## Official InVEST alignment
 
 The app builds on several InVEST urban models from the Natural Capital Project (InVEST 3.19.0), with varying degrees of fidelity to the official implementations. This section is the canonical answer to "how close is this to InVEST?"
