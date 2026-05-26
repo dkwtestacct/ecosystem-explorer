@@ -404,7 +404,8 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
 - **Three Model Quality modes (Fast prototype / Balanced / High resolution)** — selected via
   the Advanced Settings radio (`st.session_state['model_quality']`). The mode determines:
   (1) `scenario_df` source — Fast prototype uses `compute_scenario_grid(step_pct=10,
-  step_alloc=25)` (~90), Balanced prefers `data/scenarios_dense.csv` else
+  step_alloc=25)` (~90), Balanced prefers the active city's `dense_scenarios_file`
+  (e.g. `data/scenarios_dense_mpls.csv` / `_sa.csv`) else
   `compute_scenario_grid(step_pct=5, step_alloc=10)` (~726), High resolution reuses the
   2,541-entry lookup table as training data (free — those rows are already computed for
   instant slider response); (2) `n_estimators` via `SURROGATE_TREES = {"Fast prototype":

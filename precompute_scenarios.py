@@ -2,7 +2,8 @@
 precompute_scenarios.py — one-shot offline build of a dense surrogate-training
 grid for the carbon and nature-access metrics.
 
-Writes data/scenarios_dense.csv with one row per (pct_converted, gi_pct, ff_pct)
+Writes the configured city's `dense_scenarios_file` (e.g.
+data/scenarios_dense_mpls.csv) with one row per (pct_converted, gi_pct, ff_pct)
 combination, evaluated at finer steps than app.py's default in-app grid:
 
   pct_converted: range(0, 51, 5)    -> 11 values
@@ -38,7 +39,7 @@ _parser = argparse.ArgumentParser(description=__doc__)
 _parser.add_argument("--city", default=os.environ.get("PRECOMPUTE_CITY", "Minneapolis, MN"),
                      help="CITIES key to select (default: 'Minneapolis, MN').")
 _parser.add_argument("--output", default=None,
-                     help="CSV output path (default: data/scenarios_dense.csv).")
+                     help="CSV output path (default: the city's `dense_scenarios_file` from CITIES).")
 _args = _parser.parse_args()
 CITY_KEY = _args.city
 
@@ -193,7 +194,11 @@ print(f"  ff:  {FF_RANGE}")
 print(f"In-app sparse grid (for comparison): {len(app.scenario_df):,} scenarios")
 print(f"Density factor: {len(combos) / len(app.scenario_df):.1f}x\n")
 
-_DEFAULT_OUT = "data/scenarios_dense.csv"
+# Default output derived from the city's `dense_scenarios_file` config so
+# the regen lands where Balanced/High Resolution actually reads from. Each
+# configured city has this key set; if a future city omits it, fail loudly
+# (KeyError) here rather than silently writing to a path nothing reads.
+_DEFAULT_OUT = app.CITIES[CITY_KEY]['dense_scenarios_file']
 OUT_PATH = Path(_args.output or _DEFAULT_OUT)
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 print(f"\nCity:    {CITY_KEY}")

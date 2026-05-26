@@ -63,7 +63,7 @@ Each layer exists for a different reason. Together they let users explore conver
 
 ## Layer 2 — Lookup table
 
-**What it does.** Pre-computes Layer 1 across the full slider space (city × scenario × pct × placement strategy) and stores the results in `data/scenarios_dense.csv`. At runtime the UI looks up the user's current slider position and returns the answer instantly.
+**What it does.** Pre-computes Layer 1 across the full slider space (city × scenario × pct × placement strategy) and stores the results in the active city's `data/scenarios_dense_<city>.csv` (per `dense_scenarios_file` in the CITIES config). At runtime the UI looks up the user's current slider position and returns the answer instantly.
 
 **Generation.** `precompute_scenarios.py` enumerates the grid (typically 4 scenarios × ~10 pct values × 5 placement strategies × 3 cities ≈ 600 rows) and runs `evaluate_scenario()` for each. Takes ~15 minutes for a full regenerate.
 
@@ -83,7 +83,7 @@ Each layer exists for a different reason. Together they let users explore conver
 
 **Used by.** The Find Best Scenario tab. The user specifies what they're optimizing for (e.g., "minimize flood risk subject to cooling ≥ X"), and the surrogate evaluates thousands of candidate scenarios in seconds, finding Pareto-efficient frontiers. Layer 1 is too slow for this; Layer 2 doesn't cover the continuous input space.
 
-**Training.** Surrogate is trained at app startup via `train_surrogate()`, cached with `@st.cache_resource` so it persists across reruns. Training data comes from `data/scenarios_dense.csv` (the same Layer 2 lookup table); training itself takes a few seconds.
+**Training.** Surrogate is trained at app startup via `train_surrogate()`, cached with `@st.cache_resource` so it persists across reruns. Training data comes from the active city's `data/scenarios_dense_<city>.csv` (the same Layer 2 lookup table); training itself takes a few seconds.
 
 **Optimization.** Once trained, the optimizer samples candidate scenarios (typically thousands), uses the surrogate to predict each one's metrics, filters by user-specified constraints, and returns the best Pareto-efficient candidates.
 

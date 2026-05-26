@@ -1876,7 +1876,6 @@ def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, sch
     return table
 
 
-DENSE_SCENARIOS_PATH = city_cfg.get("dense_scenarios_file") or "data/scenarios_dense.csv"
 # Read the model-quality selection from session_state. The radio that writes
 # here lives in the Advanced Settings expander further down — Streamlit reruns
 # top-to-bottom on every interaction, so on the next rerun this read picks up
