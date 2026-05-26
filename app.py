@@ -142,7 +142,8 @@ if st.session_state.get('_prev_city_key') != selected_city:
 # ── City-derived constants ────────────────────────────────────────────────────
 # Values that depend on the active city's climate / project parameters.
 #   uhi_max_c — InVEST UCM urban heat-island anomaly (°C). MN: 2.05 from the
-#     InVEST args JSON for the MN AOI; SA: 3.5 estimate for Köppen BSh.
+#     InVEST args JSON for the MN AOI; SA: 11 from NatCap SA README canonical
+#     (Brief 14 migration; replaced the prior 3.5 °C estimate).
 #   food_forest_lbs_acre — annual yield benchmark for the food-forest land
 #     cover. MN: 11,500 (NatCap MN benchmark); SA: 8,500 placeholder pending
 #     project-report numbers for the pecan/fig/mulberry/nopal mix.
@@ -179,8 +180,8 @@ _COOLING_BIOPHYSICAL_SOURCE_TEXT = {
     "San Antonio, TX": (
         "Biophysical table is NatCap's compound NLCD×NLUD×tree-canopy "
         "lookup (`ucm__nlcd_nlud_tree.csv`, 1,984 rows), keyed on the "
-        "compound LULC raster. UCM consumes it directly; UNA and Carbon "
-        "biophysical tables are still queued for upcoming releases."
+        "compound LULC raster. San Antonio UNA and Carbon also use "
+        "NatCap compound-keyed biophysical tables."
     ),
 }
 
@@ -440,8 +441,10 @@ with st.expander("How this prototype works", expanded=False):
         "Flood reduction is derived from curve number, cooling from a heat "
         "mitigation index, and food production from a food-forest yield "
         "benchmark — use these as comparative indicators.  \n"
-        "Cooling °F is approximate (±2°F). Runoff uses a 2-inch design storm. "
-        "Cost is order-of-magnitude — adjust $/acre sliders in sidebar."
+        f"Cooling °F is approximate (±2°F). Runoff uses a city-specific design "
+        f"storm ({DESIGN_STORM_MM:.0f} mm / {DESIGN_STORM_INCHES:.2f} inches for "
+        f"{selected_city}; NatCap per-city canonical). Cost is order-of-magnitude — "
+        f"adjust $/acre sliders in sidebar."
     )
     st.markdown(
         "**Confidence tiers** — each metric card displays one of three badges "
@@ -3082,10 +3085,16 @@ with st.sidebar.container(border=True):
         "scenarios — to search 10,000 candidate strategies in seconds. Results are approximate; "
         "verify promising scenarios using the main sliders."
     )
-    st.sidebar.caption(
-        "Slider results use a precomputed lookup table for instant response. "
-        "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
-    )
+    if lookup_table:
+        st.sidebar.caption(
+            "Slider results use a precomputed lookup table for faster response. "
+            "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
+        )
+    else:
+        st.sidebar.caption(
+            "Slider results are computed live in the current model-quality mode. "
+            "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
+        )
 
     if st.button("Optimize"):
         with st.spinner("Searching for most efficient tradeoff scenarios..."):
@@ -3969,11 +3978,9 @@ with st.expander("Assumptions and limitations"):
         st.info(
             "**SA Land Cover:** Using NatCap's compound NLCD×NLUD×tree-canopy "
             "LULC framework (1,984 compound lucodes; foundational adoption "
-            "landed Brief 27). UCM now consumes the compound-keyed "
-            "biophysical table directly; UNA and Carbon biophysical tables "
-            "are still queued for upcoming releases (those models continue "
-            "to read the NLCD-reduced view for now). See "
-            "`SA_INTEGRATION_PLAN.md` for the brief sequence."
+            "landed Brief 27). UCM, UNA, and Carbon all consume the "
+            "compound-keyed biophysical tables directly (Briefs 28b, 29, 30). "
+            "See `SA_INTEGRATION_PLAN.md` for the brief sequence."
         )
     _assumption_tabs = st.tabs([
         "Flood & Runoff", "Temperature", "Food", "Carbon",
@@ -3984,9 +3991,11 @@ with st.expander("Assumptions and limitations"):
             "- **Method:** USDA SCS Curve Number method, computed at 30 m raster "
             "resolution from per-pixel CN values × soil hydrologic group lookup. "
             "Reported as `100 − mean_CN` so higher = better.\n"
-            "- **Design storm:** 2-inch rainfall — a common minor design storm "
-            "in temperate North American cities. Larger storms scale runoff "
-            "non-linearly; results don't extrapolate to extreme events.\n"
+            f"- **Design storm:** {DESIGN_STORM_INCHES:.2f}-inch / "
+            f"{DESIGN_STORM_MM:.0f}-mm rainfall — the NatCap per-city canonical "
+            f"value for {selected_city} (MN: 100 mm / 3.94\", SA: 157 mm / 6.18\"; "
+            f"migrated to per-city in Brief 23). Larger storms scale runoff "
+            f"non-linearly; results don't extrapolate to extreme events.\n"
             "- **Green Infrastructure** is modeled as woody wetlands (NLCD 90). "
             "The broader GI category (rain gardens, bioswales, permeable pavement, "
             "green roofs, urban tree canopy) is not modeled — each would have "
@@ -4504,11 +4513,11 @@ with tab3:
         )
 
     overlay_opacity = st.slider(
-        "Heat vulnerability overlay opacity",
+        "Development-intensity heat proxy opacity",
         0.0, 0.5, 0.2, 0.05,
         help=(
-            "Transparency of the heat vulnerability overlay on the map. "
-            "Currently uses developed-land intensity as a proxy for "
+            "Transparency of the development-intensity heat-proxy overlay on the "
+            "map. Currently uses developed-land intensity as a proxy for "
             "heat-vulnerable areas — NLCD 23 (high-intensity) weighted 1.0, "
             "NLCD 22 (medium) 0.6, NLCD 21 (low) 0.3. This is a placeholder "
             "for a future CDC/ATSDR Heat Vulnerability Index by census tract. "
