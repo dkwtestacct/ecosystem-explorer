@@ -610,6 +610,22 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   the brief, one (`precompute_scenarios.py`) was missed and surfaced as a 15-min
   regeneration's worth of garbage CSV data. The lesson: when changing an
   interface, grep for every caller before writing the scope boundary.
+  - **Per-city serialized artifacts are independent consumers — list them
+    one-by-one.** Brief 30's `carbon_tons_co2_yr` → `carbon_tons_co2` rename
+    regenerated `data/scenarios_dense_sa.csv` (commit `3648ae9`) but not
+    `data/scenarios_dense_mpls.csv`. The mismatch went undetected for weeks
+    because Fast prototype mode (the default) uses live `compute_scenario_grid`
+    and never reads the CSV — only Balanced and High Resolution modes do.
+    Surfaced today (2026-05-26) by Brief A.4 verify driving "High resolution"
+    on MN: Brief C.2's gate downgraded to Balanced, Balanced read the stale
+    MN CSV, the surrogate trainer crashed with `KeyError:
+    "['carbon_tons_co2'] not in index"`. Fixed by `b45a423`. The rule that
+    falls out: when a schema bump affects column names or required columns,
+    every `data/scenarios_dense_<city>.csv` must be regenerated separately
+    (one per city), and the regen step must be enumerated per-city in the
+    brief's scope boundary — not folded into a single "regenerate the
+    dense CSV" line that may only happen for whichever city the author is
+    actively testing.
 - **Verify referenced constants before relying on them for alignment arguments.**
   When a brief references specific numerical constants from external sources
   (NatCap publications, EPA documents, NLCD specs, InVEST sample data) to
