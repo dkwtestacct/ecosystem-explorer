@@ -95,7 +95,7 @@ The prototype's MN UNA and MN UFR parameters happen to match the NatCap **SA pro
 | Gap | Reason | Status |
 |---|---|---|
 | SA NDR model not implemented | Outside original prototype scope | Open — see Active asks |
-| SA Cooling Energy Savings and Flood Damage Avoided degrade to $0 — no per-building damage rates | NatCap also leaves the damage loss table blank in their SA setup (per the README). The data gap is real, not a prototype shortcoming | Decision pending — four resolution paths documented in `DESIGN_NOTES.md` "SA flood damage table — decision pending". Worth raising at next NatCap conversation. |
+| SA Cooling Energy Savings and Flood Damage Avoided degrade to $0 — no per-building damage rates | NatCap also leaves the damage loss table blank in their SA setup (per the README). The data gap is real, not a prototype shortcoming | **Resolved (Brief 33, Path C)** for Flood Damage: SA dashboard now renders "Flood Retention" as percent volume reduction, matching NatCap's Vibrant Land (Guerry et al. 2023) reporting (they used InVEST UFRM for SA but explicitly did not enable damage valuation). Cooling Energy Savings still uses the OSM building footprint; remains a partial-coverage caveat surfaced on the card when `BUILDINGS_TYPE_COVERAGE < 0.95`. See `DESIGN_NOTES.md` "SA flood damage table — resolved (Path C, Brief 33)". Reversible if future NatCap conversation surfaces SA-specific damage values (Path A). |
 | SA UCM weights (shade=0.6, albedo=0.2, et=0.2) verified to match | NatCap README specifies; prototype matches | ✅ Closed |
 | SA UCM `air_blending_distance=600`, `maximum_cooling_distance=450` verified to match | NatCap README specifies; prototype matches | ✅ Closed |
 

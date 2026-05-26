@@ -3580,18 +3580,39 @@ if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_
         ),
     )
     _confidence_caption(econ3, "medium")
+elif BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
+    # Typed buildings but no damage table (SA today). Brief 33 / Path C:
+    # match NatCap's Vibrant Land (Guerry et al. 2023) methodology —
+    # they used InVEST UFRM for SA but explicitly did not enable
+    # `infrastructure_damage_loss_table_path`, reporting flood mitigation
+    # as percent volume reduction instead. The card label, value, and
+    # help text shift accordingly; the underlying
+    # `avoided_flood_damage_usd` field stays at $0 (surrogate-training
+    # compatibility, no schema change).
+    econ3.metric(
+        "Flood Retention",
+        f"{results['flood_reduction']:.1f}%",
+        delta=(
+            f"+{results['flood_reduction']:.1f}% vs baseline"
+            if results['flood_reduction'] > 0 else "no reduction"
+        ),
+        delta_color="normal" if results['flood_reduction'] > 0 else "off",
+        help=(
+            "Confidence: Medium — see 'How this prototype works' for tier definitions. "
+            "Percent reduction in flood volume during the city's design storm "
+            f"({DESIGN_STORM_INCHES:.1f} inches over 24 hours), computed via the "
+            "SCS Curve Number method. "
+            "NatCap's Vibrant Land report (Guerry et al. 2023) used InVEST UFRM "
+            "for San Antonio but explicitly did not enable damage valuation; "
+            "they reported flood mitigation as percent volume reduction. The "
+            "prototype matches this methodology for SA. "
+            "Underlying model: [InVEST Urban Flood Risk Mitigation]"
+            "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
+        ),
+    )
+    _confidence_caption(econ3, "medium")
 else:
-    if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
-        # Has typed buildings but no damage table (SA today). Be honest
-        # about the specific gap rather than implying buildings are
-        # missing.
-        _help_text = (
-            "Damage rates per building type not available for this city "
-            "(no $/m² damage table sourced yet). The per-pixel building "
-            "mask and InVEST type codes are loaded — adding a city-specific "
-            "damage-loss CSV would light this card up."
-        )
-    elif BUILDINGS_DATA_AVAILABLE and not BUILDINGS_HAVE_TYPES:
+    if BUILDINGS_DATA_AVAILABLE and not BUILDINGS_HAVE_TYPES:
         _help_text = (
             "Building-type data not available for this extent — requires "
             "per-building type codes (1=commercial, 2=residential, "
@@ -3813,11 +3834,30 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     _carbon_dollar_label_table = 'Carbon Storage Value' if _CARBON_IS_STOCK else 'Avoided Carbon Cost'
     _carbon_unit = 'tons CO2e' if _CARBON_IS_STOCK else 'tons CO2e/yr'
     _carbon_dollar_period = '' if _CARBON_IS_STOCK else '/yr'
+    # Brief 33: per-city flood-damage rendering. Cities with a damage table
+    # (MN) show monetized damage avoided; cities without (SA — matches
+    # Vibrant Land methodology) show percent volume reduction.
+    _flood_damage_monetized = (
+        BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_USD > 0
+    )
+    if _flood_damage_monetized:
+        _flood_label_table = 'Flood Damage Avoided'
+        _flood_baseline_table = '$0'
+        _flood_scenario_table = f'${_flood_damage_avoided / 1e6:.1f}M'
+        _flood_change_table = (
+            f'+${_flood_damage_avoided / 1e6:.1f}M'
+            if _flood_damage_avoided >= 1e4 else '$0'
+        )
+    else:
+        _flood_label_table = 'Flood Retention'
+        _flood_baseline_table = '0%'
+        _flood_scenario_table = f'{results["flood_reduction"]:.1f}%'
+        _flood_change_table = f'+{results["flood_reduction"]:.1f}%'
     comparison_data = {
         'Metric': [
             'Flood Risk Reduction', 'Runoff Volume', 'Temperature Change',
             'Food Production', _carbon_metric_label, 'NDVI',
-            'Flood Damage Avoided', 'Cooling Energy Savings', _carbon_dollar_label_table,
+            _flood_label_table, 'Cooling Energy Savings', _carbon_dollar_label_table,
         ],
         'Baseline': [
             f'{_baseline_flood:.1f}',
@@ -3826,7 +3866,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             '0 lbs',
             f'0 {_carbon_unit}',
             f'{BASELINE_NDVI:.3f}',
-            '$0',
+            _flood_baseline_table,
             '$0/yr',
             f'$0{_carbon_dollar_period}',
         ],
@@ -3841,7 +3881,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'{_carbon_tons_table:,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"]:.3f}',
-            f'${_flood_damage_avoided / 1e6:.1f}M',
+            _flood_scenario_table,
             f'${_energy_savings_table / 1e6:.2f}M/yr',
             f'${_carbon_value_table / 1e6:.2f}M{_carbon_dollar_period}' if abs(_carbon_value_table) >= 1e4 else f'${_carbon_value_table:,.0f}{_carbon_dollar_period}',
         ],
@@ -3856,7 +3896,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'+{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'{_carbon_tons_table:+,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
-            f'+${_flood_damage_avoided / 1e6:.1f}M' if _flood_damage_avoided >= 1e4 else '$0',
+            _flood_change_table,
             f'+${_energy_savings_table / 1e6:.2f}M/yr' if _energy_savings_table >= 1e3 else '$0/yr',
             f'+${_carbon_value_table / 1e6:.2f}M{_carbon_dollar_period}' if _carbon_value_table >= 1e4 else f'+${_carbon_value_table:,.0f}{_carbon_dollar_period}' if _carbon_value_table >= 1 else f'$0{_carbon_dollar_period}',
         ],

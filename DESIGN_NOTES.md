@@ -1072,11 +1072,11 @@ untouched. All 40 baselines pass without regen.
 schema change). Brief 31 doesn't change `evaluate_scenario`'s return
 dict — it only swaps a config pointer + adjusts a dashboard caption.
 
-## SA flood damage table — decision pending
+## SA flood damage table — resolved (Path C, Brief 33)
 
-The prototype renders `avoided_flood_damage_usd` as $0 for every SA
-scenario because SA's per-NLCD-class damage value table is empty (or
-absent), while MN's is populated. The metric exists in the schema
+The prototype's `avoided_flood_damage_usd` field remains $0 for every
+SA scenario because SA's per-NLCD-class damage value table is empty
+(or absent), while MN's is populated. The metric exists in the schema
 and the calculation pipeline runs; it multiplies through zero.
 Known issue since Brief 22. SA's `city_cfg['damage_table_file'] =
 None` (`config.py:197`); MN points at the InVEST UFR sample
@@ -1088,14 +1088,16 @@ row 152). They explicitly didn't curate per-NLCD-class damage
 values for SA — the only piece of the SA NatCap data integration
 workstream (Briefs 27-30) where they didn't provide curated inputs.
 
-**Why this matters.** A user comparing MN to SA on the dashboard
-sees MN's Flood Damage Avoided as a real dollar number and SA's as
-$0. The natural reading is "SA flood interventions have no economic
-value," which is wrong — interventions reduce runoff (Q in
-acre-feet) just like MN's, but the *damage-cost* layer to convert
-runoff reduction to dollars is missing. The $0 rendering is
-misleading in a way that affects user judgment about SA scenarios.
-Worth resolving even though NatCap left the data blank.
+**Why this matters.** Prior to Brief 33, the SA dashboard's Flood
+Damage Avoided card rendered "—" (em-dash) with help text saying the
+damage table was "not sourced yet" and "would light this card up" if
+added. The comparison table rendered "$0" / "+$0" in the Flood Damage
+Avoided row. Both implied the absence was a data-sourcing gap to fill,
+when in fact NatCap *deliberately* didn't monetize SA flood damage —
+they reported flood mitigation as percent volume reduction instead,
+matching InVEST UFRM's own caveat that the model doesn't produce
+inundation maps and therefore can't confirm built-infrastructure
+exposure.
 
 **Four resolution paths under consideration:**
 
@@ -1186,6 +1188,53 @@ brief will implement it.
 - The symposium audience consideration (end of June 2026) — SA
   showing $0 in front of NatCap collaborators may or may not be a
   problem worth resolving by then
+
+### Resolution (Brief 33): Path C chosen
+
+Research into NatCap's Vibrant Land report (Guerry et al. 2023)
+confirmed they used InVEST UFRM for SA but explicitly did *not*
+enable `infrastructure_damage_loss_table_path`. They reported flood
+mitigation as **percent reduction in flood volume** (e.g., "2.7%
+reduction in flood volume on-site in a 100-year storm"), not as a
+monetized dollar figure. This is a deliberate methodology choice
+rooted in InVEST's own caveat that the model doesn't produce
+inundation maps and therefore can't confirm built-infrastructure
+exposure.
+
+**Path C implementation (Brief 33).** Presentation-layer change
+only — no model, schema, or baseline changes:
+
+1. **Main card.** The SA-specific branch (typed buildings present,
+   no damage table) now renders as `"Flood Retention"` with the
+   value `f"{flood_reduction:.1f}%"` and help text citing the
+   Vibrant Land precedent. The previous "—" with "would light this
+   card up" framing is gone. MN's branch (damage table present)
+   continues to render `"Flood Damage Avoided"` in dollars,
+   unchanged.
+
+2. **Comparison table.** The Flood Damage Avoided row is now
+   city-conditional. MN renders dollars (Baseline `$0`, Scenario
+   `$X.XM`, Change `+$X.XM`). SA renders volume reduction
+   (Baseline `0%`, Scenario `X.X%`, Change `+X.X%`). Row label
+   shifts to `"Flood Retention"` for SA.
+
+3. **Underlying field unchanged.** `avoided_flood_damage_usd` still
+   returns $0 for SA and the real dollar value for MN. Surrogate
+   training, lookup table schema, CSVs, and the 40/40 baseline
+   regression are all unaffected (no `SCENARIO_SCHEMA_VERSION`
+   bump, no baseline regen).
+
+4. **Per-city methodology pattern.** Same shape as Brief 30's
+   per-city Carbon framing (annual flow MN vs. one-time stock SA)
+   and Brief 22-23's per-city UNA/rainfall framings: each city
+   gets the framing NatCap canonical material uses for *that* city,
+   not a forced cross-city unification.
+
+**Reversibility.** If a future NatCap conversation surfaces that
+they want SA-specific damage values (Path A), Brief 33's minimal
+changes don't block re-rendering the card in dollar terms — point
+`damage_table_file` at a curated CSV and the existing MN-branch
+code path activates.
 
 ## Topics not yet documented
 

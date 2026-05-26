@@ -74,10 +74,13 @@ coverage — untyped polygons such as `building=yes`, NaN, `roof`, and
 `storage_tank` are left at 0 and excluded from per-type lookups). This
 **lights up the Cooling Energy Savings card** for SA as a conservative lower
 bound. The Cooling Energy Savings tooltip surfaces the coverage caveat
-whenever `BUILDINGS_TYPE_COVERAGE < 0.95`. **Flood Damage Avoided still
-renders $0 for SA** because `damage_table_file` is `None` — reusing MN's
-damage table would produce a wrong-but-numeric figure on a different
-building stock (see "Pending — SA flood damage table sourcing").
+whenever `BUILDINGS_TYPE_COVERAGE < 0.95`. **Flood Damage Avoided for SA
+now renders as "Flood Retention" (% volume reduction)** rather than a
+dollar figure — `damage_table_file` is `None` because NatCap's Vibrant
+Land report (Guerry et al. 2023) used InVEST UFRM for SA but explicitly
+did not enable damage valuation. The prototype matches this methodology
+(Brief 33, Path C). MN keeps the dollar-based "Flood Damage Avoided"
+metric (InVEST UFRM sample data includes the damage table).
 
 **Canonical CRS for San Antonio: EPSG:5070** (NAD83 / Conus Albers, NLCD's
 native equal-area CRS). Differs from Minneapolis (EPSG:26915 / UTM 15N) —
@@ -340,12 +343,13 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   brought peak memory under the ceiling — see `HISTORY.md`
   "Streamlit Cloud memory-fit workstream" for the full stack.
 - **Stratified Impervious Siting (placement-step control).** Currently the stochastic placement step samples uniformly from the building/road-filtered NLCD 21–24 pool, treating all impervious-intensity classes as equivalent for siting. Proposal: expose impervious-intensity stratification to users via sidebar control, allowing them to direct placement toward NLCD 21 (≥20% impervious, open-space dominant), NLCD 22/23 (low-medium intensity), or NLCD 24 (≥80% impervious, high-intensity mitigation / depaving). Use `_distance_transform_edt` against `BUILDINGS_RASTER` for optional micro-siting refinement (e.g. "open lot" vs "private yard" via 15m/30m distance thresholds). Frame strictly as impervious-intensity stratification, not policy/ownership tiering — NLCD classes correlate with but do not equal ownership. Open questions for scoping session: (a) mutually-exclusive radio buttons vs multi-select vs per-tier weight sliders; (b) whether to dynamically clamp slider max based on selected tier's available acreage; (c) whether stratified placement empirically resolves the Nature Access saturation issue noted in REFERENCE.md (validate before claiming). Source: Gemini-3 proposal, iterated through 3 versions on Claude critique; v3 is the version to scope from.
-- **SA flood damage table — decision pending.** SA's `damage_table_file
-  = None` → `compute_flood_damage_avoided` returns $0 for every SA
-  scenario. NatCap left this blank in their SA README; four resolution
-  paths (source SA-specific values / borrow MN / embrace $0 / hybrid
-  per-AF proxy) under consideration. See DESIGN_NOTES.md "SA flood
-  damage table — decision pending".
+- **SA flood damage — resolved (Brief 33, Path C).** Dashboard renders
+  "Flood Retention" (% volume reduction) for SA instead of monetized
+  damage, matching NatCap's Vibrant Land (Guerry et al. 2023) reporting.
+  Underlying `avoided_flood_damage_usd` field still returns $0 for SA
+  (no schema change). See `DESIGN_NOTES.md` "SA flood damage table —
+  resolved (Path C, Brief 33)". Reversible if NatCap surfaces a
+  preference for SA-specific damage values (Path A).
 - **Heat Vulnerability Index — still pending.** The `equity_weights`
   raster is a proxy (NLCD intensity-coded), not a real CDC/ATSDR HVI by
   census tract. Replacing it is the next data-quality upgrade.
