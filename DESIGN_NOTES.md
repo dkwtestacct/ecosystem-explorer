@@ -1388,6 +1388,64 @@ or to the SA LULC raster that breaks the coverage assumption would
 surface immediately in the dashboard panel rather than silently
 shifting outcome values via the default lucodes.
 
+## NatCap ROOT as reference point
+
+NatCap's **ROOT** (Restoration Opportunities Optimization Tool) is a
+linear-programming-based multi-objective optimization tool for spatial
+decision-making. It maximizes weighted sums of objectives
+(`max Σ wᵢ Vᵢₛₐ xₛₐ`) over spatial decision units (SDUs), producing
+true Pareto frontiers (production possibility frontiers) and agreement
+maps showing which SDUs are robustly selected across weight
+configurations.
+
+**What ROOT does that the prototype doesn't:**
+
+- True LP-based Pareto optimization at the SDU level — guarantees
+  mathematically optimal solutions on the feasibility frontier, not
+  heuristic approximations.
+- Agreement maps across weight configurations — visualizes which
+  spatial decisions are robust to objective weighting choices.
+- Cost-as-factor optimization — costs can enter the optimization as
+  constraints or factors, not just as post-hoc ratios.
+- Operates on rasterized factor layers without requiring a precomputed
+  scenario grid.
+
+**Why the prototype uses a surrogate-based optimizer instead:**
+
+ROOT is a desktop optimization tool designed for analyst workflows —
+runs take minutes to hours, results are produced for offline analysis.
+The prototype is an interactive dashboard where slider responses need
+to be millisecond-fast. A Random Forest surrogate over the four
+scenario sliders, trained on a precomputed scenario grid, enables
+interactive scenario exploration at the cost of giving up true Pareto
+optimization. The surrogate approximates the relationship between
+scenario parameters and outcomes; ROOT computes the exact optimum
+given the LP formulation.
+
+**"Not pursued" means different tool, not wrong tool.** ROOT is the
+right tool for analyst-driven offline optimization with strong
+guarantees. The prototype's surrogate is the right tool for
+interactive sandbox exploration. Adopting ROOT would mean
+re-architecting the prototype around a different user model — not a
+correctness fix to the current architecture.
+
+**Where ROOT shows up in the docs:**
+
+- `REFERENCE.md` Balanced placement strategy (~line 255) — pointer to
+  ROOT for true multi-objective optimization
+- `REFERENCE.md` Cost Effectiveness section (~line 549) — pointer to
+  ROOT for cost-as-factor optimization
+- `REFERENCE.md` Smart Scenario Search (~line 665) — explicit
+  Relationship-to-ROOT paragraph
+- `NATCAP_ALIGNMENT.md` Research-direction synthesis (~line 140) —
+  ROOT listed under "Main pending work" with framing as not currently
+  pursued
+- `NATCAP_ALIGNMENT.md` Section 5 Research Direction Status
+  (~line 161) — ROOT row with status 🔵 Not pursued
+- `NATCAP_ALIGNMENT.md` Section 6 Vocabulary (~lines 177–179) — three
+  rows where prototype features point to ROOT (Cost Effectiveness,
+  Balanced placement, Smart Scenario Search)
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
