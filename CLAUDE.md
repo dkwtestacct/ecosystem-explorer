@@ -610,3 +610,30 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   the brief, one (`precompute_scenarios.py`) was missed and surfaced as a 15-min
   regeneration's worth of garbage CSV data. The lesson: when changing an
   interface, grep for every caller before writing the scope boundary.
+- **Verify referenced constants before relying on them for alignment arguments.**
+  When a brief references specific numerical constants from external sources
+  (NatCap publications, EPA documents, NLCD specs, InVEST sample data) to
+  justify methodology choices or set order-of-magnitude reference points,
+  verify the prototype's *current* value of that constant before treating it
+  as a shared assumption. The same standard can have multiple vintages
+  (e.g., IWG 2021 SC-CO2 at $53/t @ 3 % vs. EPA 2023 at $190/t @ 2 %); assuming
+  alignment without verification produces silent drift between brief intent
+  and code reality. Brief 30 v2 learned this when its citywide-carbon sanity
+  check (340,000 t × $53 ≈ $17.6M) didn't apply at the prototype's actual
+  `EPA_SOCIAL_COST_CARBON = 190`. CC caught it in investigate-first; the
+  resolution kept the more current EPA 2023 value and reframed the alignment
+  as methodology-only (see next bullet).
+- **"Methodology matches; constant differs" is a legitimate alignment pattern.**
+  When aligning with a NatCap publication that uses older parameter values
+  from a standard reference document, the prototype can align on *methodology*
+  while keeping the *more current vintage* of the underlying parameter. The
+  alignment narrative is "we use the same approach NatCap published in
+  <report>, with parameter values from the most current authoritative source."
+  Brief 30 used this pattern: SA Carbon now uses the Vibrant Land four-pool
+  stock methodology with the prototype's EPA 2023 SC-CO2 (rather than Vibrant
+  Land's IWG 2021 value). This is not a compromise — it's a documented
+  decision. Without this pattern, a future session might either blindly
+  downgrade a constant to match an older publication, or treat the constant
+  divergence as methodology misalignment when it isn't. Document both the
+  methodology alignment and the constant divergence in `DESIGN_NOTES.md` and
+  `NATCAP_COLLABORATION.md` when this pattern applies.
