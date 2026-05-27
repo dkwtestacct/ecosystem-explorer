@@ -47,6 +47,8 @@ Every raster the prototype reads at runtime is in its city's canonical equal-are
 
 The Streamlit map rendering uses EPSG:3857 internally (because tile servers and Folium expect it), but this is a one-way display conversion applied after all area math has happened in equal-area space. No area-dependent metric is computed in 3857.
 
+**Runtime assertion.** Every `rasterio.open(...)` site in `app.py` calls `_assert_raster_crs(src, expected_crs, file_path)` after opening; the helper raises `ValueError` with a clear file-naming message if the raster's CRS doesn't match the city's canonical CRS. Defense-in-depth against future data-integration mistakes — a 3857 raster (or any non-equal-area CRS) accidentally introduced would crash loudly with the offending path named, rather than silently producing wrong area math.
+
 ---
 
 ## Layer 1 — Raster simulations

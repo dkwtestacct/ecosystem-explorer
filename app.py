@@ -594,10 +594,38 @@ def reduce_compound_to_nlcd(compound_raster, compound_to_nlcd):
                     compound_to_nlcd[safe]).astype(np.int16)
 
 
+def _assert_raster_crs(src, expected_crs, file_path):
+    """Assert that a loaded raster's CRS matches the city's canonical CRS.
+
+    Raises ValueError with a clear message naming the offending file if
+    the CRS doesn't match. Defense-in-depth against future data-
+    integration mistakes — the prototype's area math assumes equal-area
+    projections (EPSG:26915 for MN, EPSG:5070 for SA) and would silently
+    produce wrong numbers if a 3857 raster (or any non-equal-area CRS)
+    were introduced. See ARCHITECTURE.md "CRS handling" for the
+    rationale. Comparison via `rasterio.crs.CRS.from_user_input` handles
+    both EPSG-code and WKT-string representations consistently."""
+    if src.crs is None:
+        raise ValueError(
+            f"Raster {file_path} has no CRS metadata. Expected {expected_crs}. "
+            f"All rasters must declare their CRS explicitly."
+        )
+    expected = rasterio.crs.CRS.from_user_input(expected_crs)
+    if src.crs != expected:
+        raise ValueError(
+            f"Raster {file_path} has CRS {src.crs}, expected {expected_crs}. "
+            f"All rasters must be in the city's canonical equal-area CRS for "
+            f"PIXEL_AREA_ACRES math to be correct. If this raster genuinely "
+            f"belongs in a different CRS, reproject it at preparation time "
+            f"(not runtime) — see ARCHITECTURE.md 'CRS handling'."
+        )
+
+
 @st.cache_data
 def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_file,
               lulc_file, soil_file, cooling_lulc_file,
               una_table_file,
+              expected_crs,
               compound_lulc_file=None, crosswalk_file=None,
               default_ff_lucode=None, default_gi_lucode=None, default_hd_lucode=None,
               carbon_table_file=None):
@@ -650,7 +678,9 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
     compound_after_gi_was_default = None
     compound_after_hd_was_default = None
     if compound_lulc_file is not None and crosswalk_file is not None:
-        with rasterio.open(f'{data_dir_flood}/{compound_lulc_file}') as src:
+        _compound_path = f'{data_dir_flood}/{compound_lulc_file}'
+        with rasterio.open(_compound_path) as src:
+            _assert_raster_crs(src, expected_crs, _compound_path)
             cooling_lulc_compound = src.read(1).astype(np.int16)
         # crosswalk_file is given relative to data_dir_flood (e.g.
         # '../natcap_2024/lulc_crosswalk.csv'), matching the existing
@@ -672,12 +702,18 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
         lulc = reduced.copy()
         cooling_lulc = reduced
     else:
-        with rasterio.open(f'{data_dir_flood}/{lulc_file}') as src:
+        _lulc_path = f'{data_dir_flood}/{lulc_file}'
+        with rasterio.open(_lulc_path) as src:
+            _assert_raster_crs(src, expected_crs, _lulc_path)
             lulc = src.read(1)
-        with rasterio.open(f'{data_dir_cooling}/{cooling_lulc_file}') as src:
+        _cooling_path = f'{data_dir_cooling}/{cooling_lulc_file}'
+        with rasterio.open(_cooling_path) as src:
+            _assert_raster_crs(src, expected_crs, _cooling_path)
             cooling_lulc = src.read(1)
 
-    with rasterio.open(f'{data_dir_flood}/{soil_file}') as src:
+    _soil_path = f'{data_dir_flood}/{soil_file}'
+    with rasterio.open(_soil_path) as src:
+        _assert_raster_crs(src, expected_crs, _soil_path)
         soil = src.read(1)
 
     developed_pixels = np.argwhere(np.isin(cooling_lulc, DEVELOPED_CODES))
@@ -749,9 +785,10 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
 # download_census_pop.py from US Census 2020 block-level totals, rasterized to
 # the NLCD grid. The loader falls back to a uniform placeholder if the file is
 # missing so the app still launches before the pipeline has run.
-def load_population_data(pop_path, target_shape):
+def load_population_data(pop_path, target_shape, expected_crs):
     """Load a population-count raster, resampled to target_shape with bilinear."""
     with rasterio.open(pop_path) as src:
+        _assert_raster_crs(src, expected_crs, pop_path)
         data = src.read(
             1, out_shape=target_shape,
             resampling=rasterio.enums.Resampling.bilinear,
@@ -2072,6 +2109,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         cfg['cn_table_file'], cfg['cooling_table_file'],
         cfg['lulc_file'], cfg['soil_file'], cfg['cooling_lulc_file'],
         cfg['una_table_file'],
+        cfg['crs'],
         compound_lulc_file=cfg.get('compound_lulc_file'),
         crosswalk_file=cfg.get('crosswalk_file'),
         default_ff_lucode=cfg.get('default_ff_lucode'),
@@ -2084,7 +2122,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     try:
         if pop_file is None:
             raise FileNotFoundError("pop_file not configured")
-        pop_count_raster = load_population_data(pop_file, l_cooling_lulc.shape)
+        pop_count_raster = load_population_data(pop_file, l_cooling_lulc.shape, cfg['crs'])
         population_data_available = True
     except (FileNotFoundError, rasterio.errors.RasterioIOError, TypeError):
         pop_count_raster = np.ones(l_cooling_lulc.shape, dtype=np.float32)
@@ -2096,6 +2134,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         if et_file is None:
             raise FileNotFoundError("et_file not configured")
         with rasterio.open(et_file) as et_src:
+            _assert_raster_crs(et_src, cfg['crs'], et_file)
             et_raw = et_src.read(1).astype(np.float32)
             et_nodata = et_src.nodata
         if et_nodata is not None:
@@ -2133,7 +2172,9 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     # also part of the retired access-score raster pipeline.) ───────────────
 
     # ── Phase 7: Rasterization template ─────────────────────────────────────
-    with rasterio.open(f"{cfg['data_dir_cooling']}/{cfg['cooling_lulc_file']}") as ref:
+    _ref_path = f"{cfg['data_dir_cooling']}/{cfg['cooling_lulc_file']}"
+    with rasterio.open(_ref_path) as ref:
+        _assert_raster_crs(ref, cfg['crs'], _ref_path)
         ref_shape     = (ref.height, ref.width)
         ref_transform = ref.transform
 
