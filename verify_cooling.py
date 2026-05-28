@@ -190,7 +190,7 @@ def run_one(m, name, pct, gi, ff):
     return {
         "name":           name,
         "mean_hm":        r["mean_hm"],
-        "cooling_f":      r["cooling_f"],
+        "temp_change_f":  r["temp_change_f"],
         "energy_savings": r["cooling_energy_savings_usd"],
         "flood_reduction": r["flood_reduction"],
     }
@@ -204,12 +204,13 @@ def report(m, label):
     print(f"  ENERGY_TABLE_AVAILABLE = {m.ENERGY_TABLE_AVAILABLE}, "
           f"BUILDINGS_DATA_AVAILABLE = {m.BUILDINGS_DATA_AVAILABLE}, "
           f"ET_DATA_AVAILABLE = {m.ET_DATA_AVAILABLE}")
-    print(f"\n  {'Scenario':<40s} {'mean_CC':>9s} {'ΔCC':>8s} {'cooling_f':>10s} {'$ savings/yr':>15s} {'flood_red':>10s}")
+    # temp_change_f uses the ΔT convention: positive = warmer, negative = cooler.
+    print(f"\n  {'Scenario':<40s} {'mean_CC':>9s} {'ΔCC':>8s} {'tempΔ_f':>10s} {'$ savings/yr':>15s} {'flood_red':>10s}")
     print(f"  {'-'*40} {'-'*9} {'-'*8} {'-'*10} {'-'*15} {'-'*10}")
     for name, pct, gi, ff in SCENARIOS:
         s = run_one(m, name, pct, gi, ff)
         d_cc = s["mean_hm"] - m.BASELINE_HM
-        print(f"  {s['name']:<40s} {s['mean_hm']:>9.4f} {d_cc:>+8.4f} {s['cooling_f']:>+10.2f} ${s['energy_savings']:>13,.0f} {s['flood_reduction']:>10.2f}")
+        print(f"  {s['name']:<40s} {s['mean_hm']:>9.4f} {d_cc:>+8.4f} {s['temp_change_f']:>+10.2f} ${s['energy_savings']:>13,.0f} {s['flood_reduction']:>10.2f}")
 
 
 if __name__ == "__main__":

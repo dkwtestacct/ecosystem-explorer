@@ -567,7 +567,7 @@ All three ratios show **N/A** when the denominator is zero or negative (no impro
 | Field | Detail |
 |-------|--------|
 | **Represents** | Implementation dollars spent per degree Fahrenheit of cooling vs baseline. |
-| **Formula** | `total_cost_$ ÷ cooling_f`, where `cooling_f` is the °F delta (positive = cooler). |
+| **Formula** | `total_cost_$ ÷ (−temp_change_f)`, where `temp_change_f` is the °F temperature change under the ΔT convention (positive = warmer, negative = cooler), so cooling is `−temp_change_f`. Defined only when the scenario cools (`temp_change_f < 0`). |
 | **Caveats** | N/A if the scenario is warmer than baseline. Inherits the ±2 °F uncertainty of the HM-to-temperature calibration. |
 
 ---

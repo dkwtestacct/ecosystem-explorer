@@ -3,7 +3,6 @@
   "carbon_tons_co2": 2052.6,
   "carbon_value_usd": 389994.0,
   "cooling_energy_savings_usd": 348.0,
-  "cooling_f": 0.1,
   "ff_fellback_pixels": 0,
   "flood_damage_avoided_usd": 633381.0,
   "flood_reduction": 24.61,
@@ -30,5 +29,6 @@
   "scenario_lulc_ucm__md5": "ea40bec5b830562f153c433d39e2b179",
   "scenario_lulc_una__md5": "ea40bec5b830562f153c433d39e2b179",
   "scenario_name": "10% converted \u2014 GI 0% / FF 100%",
+  "temp_change_f": -0.1,
   "total_cost_mln": 5.86
 }

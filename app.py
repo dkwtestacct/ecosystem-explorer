@@ -1412,11 +1412,20 @@ def cn_to_runoff_acre_feet(mean_cn, total_developed_acres):
     return round(Q_feet * total_developed_acres, 1)
 
 
-def hm_to_fahrenheit_cooling(mean_hm):
-    """Translate HM index delta vs baseline into approximate °F cooling."""
+def hm_to_temp_change_f(mean_hm):
+    """Translate an HM-index delta vs baseline into an approximate °F
+    temperature change: ΔT = T_after − T_before.
+
+    Sign convention: positive = WARMER, negative = cooler. A higher Heat
+    Mitigation Index means more cooling (a lower air temperature), so the
+    index delta is negated before scaling to °F. This matches the universal
+    physical ΔT convention and avoids the "negative cooling" oxymoron — the
+    display layer (`_fmt_temp_change`) translates the sign back into
+    "X°F cooler" / "X°F warmer" so users never see a bare signed number.
+    """
     # read from state to avoid silent-staleness if city switches
     delta_hm = mean_hm - _CURRENT_CITY_STATE.baseline_hm
-    return round(delta_hm * HM_TO_FAHRENHEIT, 1)
+    return round(-delta_hm * HM_TO_FAHRENHEIT, 1)
 
 
 def food_to_people_fed(food_mln_lbs):
@@ -1444,8 +1453,11 @@ def compute_cost_effectiveness(results, baseline_runoff_acft):
     runoff_prevented = baseline_runoff_acft - results['runoff_acre_feet']
     cost_per_acft = round(cost / runoff_prevented) if runoff_prevented > 0 else None
 
-    cooling_f = results['cooling_f']
-    cost_per_degf = round(cost / cooling_f) if cooling_f > 0 else None
+    # Cost per °F of cooling. Under the ΔT convention cooling is a NEGATIVE
+    # temp_change_f (positive = warmer), so the ratio is only defined when the
+    # scenario actually cools; divide cost by the cooling magnitude.
+    temp_change_f = results['temp_change_f']
+    cost_per_degf = round(cost / -temp_change_f) if temp_change_f < 0 else None
 
     people_fed = results['people_fed']
     cost_per_1k_people = round(cost / (people_fed / 1000)) if people_fed > 0 else None
@@ -1812,7 +1824,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'flood_reduction':          round(100 - mean_cn, 2),
         'runoff_acre_feet':         runoff_acft,
         'mean_hm':                  mean_hm,
-        'cooling_f':                hm_to_fahrenheit_cooling(mean_hm),
+        'temp_change_f':            hm_to_temp_change_f(mean_hm),
         'flood_damage_avoided_usd': flood_damage_avoided_usd,
         'cooling_energy_savings_usd': cooling_energy_savings_usd,
         'mean_ndvi':                mean_ndvi,
@@ -2674,8 +2686,14 @@ _CARBON_IS_STOCK = c_above_arr is not None
 
 
 def compute_per_tract_summary(scenario_lulc_ucm):
-    """DataFrame with one row per tract: baseline + scenario temperature (°F)
-    vs the global baseline, plus the difference (improvement).
+    """One row per tract: baseline and scenario temperature vs the city-wide
+    average (°F), plus the scenario's own temperature change.
+
+    Sign convention (ΔT = T_after − T_before): positive = WARMER, negative =
+    cooler. The `vs city avg` columns give each polygon's mean temperature
+    relative to the city-wide baseline mean (positive = warmer than average).
+    `_change_f` is the scenario's effect (positive = warmer) used for sorting
+    and color coding; the display layer renders it as natural-language text.
 
     Brief 28b: takes the UCM-view scenario raster (compound for SA, NLCD for
     MN). The caller has both views in `results`; pick
@@ -2695,21 +2713,24 @@ def compute_per_tract_summary(scenario_lulc_ucm):
         pop_in_tract = pop_count_raster[mask].sum()
         if pop_in_tract <= 0:
             continue
-        # Temperature offset vs city baseline HM, in °F (positive = cooler)
+        # Temperature vs the city-wide baseline mean, in °F, under the
+        # ΔT = T_after − T_before convention (positive = WARMER than the city
+        # average, negative = cooler). Higher HM = more cooling = cooler, so
+        # the HM offset is negated.
         valid_hm = mask & ~np.isnan(_BASELINE_HM_RASTER) & ~np.isnan(hm_s_raster)
         if not valid_hm.any():
             continue
         b_hm = _BASELINE_HM_RASTER[valid_hm].mean()
         s_hm = hm_s_raster[valid_hm].mean()
         # read from state to avoid silent-staleness if city switches
-        b_temp_f = (b_hm - _CURRENT_CITY_STATE.baseline_hm) * HM_TO_FAHRENHEIT
-        s_temp_f = (s_hm - _CURRENT_CITY_STATE.baseline_hm) * HM_TO_FAHRENHEIT
+        b_anom_f = (_CURRENT_CITY_STATE.baseline_hm - b_hm) * HM_TO_FAHRENHEIT
+        s_anom_f = (_CURRENT_CITY_STATE.baseline_hm - s_hm) * HM_TO_FAHRENHEIT
         rows.append({
-            "GEOID":               str(TRACTS.iloc[i].get("GEOID10", i)),
-            "Population":          int(pop_in_tract),
-            "Baseline Temp (°F)":  round(b_temp_f, 2),
-            "Scenario Temp (°F)":  round(s_temp_f, 2),
-            "Temp Δ (°F cooler)":  round(s_temp_f - b_temp_f, 2),
+            "GEOID":                      str(TRACTS.iloc[i].get("GEOID10", i)),
+            "Population":                 int(pop_in_tract),
+            "Baseline vs city avg (°F)":  round(b_anom_f, 2),
+            "Scenario vs city avg (°F)":  round(s_anom_f, 2),
+            "_change_f":                  round(s_anom_f - b_anom_f, 2),
         })
     return pd.DataFrame(rows)
 
@@ -3581,6 +3602,15 @@ def _fmt_people(n):
         return f"~{n // 1_000}K people"
     return f"~{n} people"
 
+def _fmt_temp_change(dt, *, threshold=0.1):
+    """Natural-language temperature change from a signed ΔT (positive = warmer,
+    negative = cooler). Display layer for the internal `temp_change_f`
+    convention — keeps the sign out of the user's view (see
+    `hm_to_temp_change_f`)."""
+    if abs(dt) < threshold:
+        return "No change"
+    return f"{abs(dt):.1f}°F warmer" if dt > 0 else f"{abs(dt):.1f}°F cooler"
+
 def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", epsilon=0.05):
     """Consistent delta string + color for st.metric cards.
 
@@ -3624,12 +3654,8 @@ def _confidence_caption(col, tier):
 # read from state to avoid silent-staleness if city switches
 _flood_delta = results['flood_reduction'] - (100 - _CURRENT_CITY_STATE.baseline_cn)
 _flood_delta_str, _flood_delta_color = _delta_pill(_flood_delta, fmt=".1f", epsilon=0.1)
-_cooling_f = results['cooling_f']
-_cooling_label = (
-    "No change" if abs(_cooling_f) < 0.1
-    else f"{_cooling_f:.1f}°F cooler" if _cooling_f > 0
-    else f"{abs(_cooling_f):.1f}°F warmer"
-)
+_temp_change_f = results['temp_change_f']
+_temp_change_label = _fmt_temp_change(_temp_change_f)
 _hm_delta = results['mean_hm'] - _CURRENT_CITY_STATE.baseline_hm
 _runoff_prevented = BASELINE_RUNOFF_ACRE_FEET - results['runoff_acre_feet']
 _runoff_delta_str, _runoff_delta_color = _delta_pill(
@@ -3707,10 +3733,10 @@ eco1.metric(
 _confidence_caption(eco1, "high")
 eco2.metric(
     "Temperature Change",
-    _cooling_label,
+    _temp_change_label,
     delta=None,
     delta_color="off",
-    help=f"Confidence: High — see 'How this prototype works' for tier definitions. Approximate temperature change vs baseline. Positive = cooler, negative = warmer. Derived from mean Heat Mitigation Index (HMI) under the InVEST UCM (calibration factor {HM_TO_FAHRENHEIT:.2f}°F/HMI unit, UHI_max = {UHI_MAX_C:.2f}°C; ±2°F accuracy). HMI is the canonical InVEST UCM output, validated at MAE = 0.0000 against `natcap.invest.urban_cooling_model.execute()`. Underlying model: [InVEST Urban Cooling Model](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_cooling_model.html)."
+    help=f"Confidence: High — see 'How this prototype works' for tier definitions. Approximate temperature change vs baseline, shown as °F cooler or warmer. Derived from mean Heat Mitigation Index (HMI) under the InVEST UCM (calibration factor {HM_TO_FAHRENHEIT:.2f}°F/HMI unit, UHI_max = {UHI_MAX_C:.2f}°C; ±2°F accuracy). HMI is the canonical InVEST UCM output, validated at MAE = 0.0000 against `natcap.invest.urban_cooling_model.execute()`. Underlying model: [InVEST Urban Cooling Model](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_cooling_model.html)."
 )
 _confidence_caption(eco2, "high")
 eco3.metric(
@@ -4221,7 +4247,7 @@ ceff2.metric(
     "Cost / Citywide °F Cooling",
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
-    delta_color="off" if _cooling_f <= 0 else "normal",
+    delta_color="off" if _temp_change_f >= 0 else "normal",
     help="Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by degrees F of city-average cooling vs baseline (the °F is a citywide mean, not a per-person or per-site value). N/A if no cooling improvement. InVEST UCM canonical units are °C — to translate, this is approximately (Cost / °F) × 1.8 per °C."
 )
 _confidence_caption(ceff2, "medium")
@@ -4293,11 +4319,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
         'This Scenario': [
             f'{results["flood_reduction"]:.1f}',
             f'{results["runoff_acre_feet"]:,.0f} ac-ft',
-            (
-                f'{_cooling_f:.1f}°F cooler' if _cooling_f > 0
-                else f'{abs(_cooling_f):.1f}°F warmer' if _cooling_f < 0
-                else 'No change'
-            ),
+            _temp_change_label,
             f'{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'{_carbon_tons_table:,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"]:.3f}',
@@ -4312,7 +4334,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
                 else f'{abs(_runoff_diff):,.0f} ac-ft prevented' if _runoff_diff < 0
                 else '0 ac-ft'
             ),
-            f'{_cooling_f:+.1f}°F',
+            _temp_change_label,
             f'+{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'{_carbon_tons_table:+,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
@@ -4668,17 +4690,36 @@ with tab2:
         )
         st.caption(
             f"Top 5 most-improved {_polygon_unit_plural} under this scenario, ranked by "
-            f"temperature change (°F cooler). Population-weighted within each {_polygon_unit_singular}."
+            f"cooling. The 'vs city avg' columns show each {_polygon_unit_singular}'s "
+            f"temperature relative to the city-wide average (positive = warmer); the "
+            f"Temperature change column shows the scenario's effect. Population-weighted "
+            f"within each {_polygon_unit_singular}."
         )
         _tracts_summary = compute_per_tract_summary(results['scenario_lulc_ucm'])
         if not _tracts_summary.empty:
+            # Most cooling first: _change_f is negative for cooling under the
+            # ΔT convention (positive = warmer), so sort ascending.
             _top5 = (
                 _tracts_summary
-                .sort_values("Temp Δ (°F cooler)", ascending=False)
+                .sort_values("_change_f", ascending=True)
                 .head(5)
                 .reset_index(drop=True)
             )
-            st.dataframe(_top5, width='stretch', hide_index=True)
+            # Display layer: render the signed ΔT as natural language (no bare
+            # signed numbers for the user) and color the change column —
+            # cooler = green, warmer = red.
+            _top5["Temperature change"] = _top5["_change_f"].apply(_fmt_temp_change)
+            _top5 = _top5.drop(columns=["_change_f"])
+
+            def _color_temp_change(val):
+                if isinstance(val, str) and "cooler" in val:
+                    return "color: #1a7f37; font-weight: 600"   # green
+                if isinstance(val, str) and "warmer" in val:
+                    return "color: #cf222e; font-weight: 600"   # red
+                return ""
+
+            _styled = _top5.style.map(_color_temp_change, subset=["Temperature change"])
+            st.dataframe(_styled, width='stretch', hide_index=True)
         else:
             st.caption(f"No {_polygon_unit_singular}-level data could be computed for this scenario.")
 
@@ -4886,7 +4927,7 @@ with tab2:
                 'food_forest_pct',
                 'placement_strategy',
                 'flood_reduction',
-                'cooling_f',
+                'temp_change_f',
                 'runoff_acre_feet',
                 'mean_hm',
                 'food_mln_lbs',

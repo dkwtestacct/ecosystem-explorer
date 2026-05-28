@@ -1531,6 +1531,68 @@ unaffected.
   "would a returning user notice" bar, and the in-app changelog was just
   trimmed to three lean SA entries.
 
+## Brief 4 — `cooling_f` → `temp_change_f` sign-convention refactor
+
+**What changed.** The cooling metric was renamed `cooling_f` →
+`temp_change_f` and its sign was flipped to the universal physical ΔT
+convention: **`temp_change_f = T_after − T_before`, positive = WARMER,
+negative = cooler** (`= −old cooling_f`). The producer is
+`hm_to_temp_change_f(mean_hm)` (was `hm_to_fahrenheit_cooling`), which
+negates the HM-index delta before scaling to °F (higher HM = more cooling
+= lower temperature).
+
+**Why.** The old convention (`positive = cooler`) created a "negative
+cooling" oxymoron — most visibly in the neighborhood breakdown, where
+deviations from the city average rendered as negative "temperatures" that
+read like sub-zero absolute values. Two conventions also coexisted
+(the main card's `cooling_f` and the breakdown's inline per-tract temps
+both said "positive = cooler," but the framing confused users). Adopting
+one physical ΔT convention everywhere removes the ambiguity. Users never
+see the signed number: the display layer (`_fmt_temp_change`) always
+renders natural language — "X°F cooler" / "X°F warmer" / "No change".
+
+**Audit findings (the reason this was safe):**
+
+- **The optimizer is untouched.** `surrogate.py` searches and ranks on
+  `mean_hm` (the Heat Mitigation Index, higher = more cooling), never on
+  `cooling_f`. The optimizer's cooling-target slider `min_cool_f` (°F) is
+  converted to `mean_hm` units before the surrogate sees it. So the rename
+  + sign flip changes no objective or constraint, and `mean_hm` was left
+  exactly as-is. The feared "maximize → minimize" inversion does not apply.
+- **Per-tract breakdown flipped to match.** `compute_per_tract_summary`
+  computed its own per-tract temps with the old "positive = cooler"
+  formula (independently of `cooling_f`). It was flipped to the new
+  convention so the whole app speaks one language. Its columns were
+  renamed to the `vs city avg` framing (each polygon's mean temperature
+  relative to the city-wide baseline, positive = warmer); the change
+  column renders as natural-language text and is color-coded (cooler =
+  green, warmer = red) via a pandas Styler. The dormant map tract overlay
+  (`plot_spatial_map(tract_value=…)`) is not wired into the live render,
+  so it needed no change.
+- **`cost_per_degf` (the "Cost / Citywide °F Cooling" card).** Now divides
+  cost by `−temp_change_f` and is defined only when the scenario cools
+  (`temp_change_f < 0`). The user-facing label stays as Brief 2 set it —
+  it's correct regardless of the internal sign.
+
+**Serialized artifacts regenerated.** Every consumer that captured the
+field was updated: all 40 baseline snapshots (`verify_baselines.py
+--update`) and both dense CSVs (`scenarios_dense_mpls.csv`,
+`scenarios_dense_sa.csv`, regenerated sequentially). The read-only
+baseline diff before regen confirmed the change was isolated — exactly
+`cooling_f` removed + `temp_change_f` added (sign-flipped) per baseline,
+no leakage into any other metric. `verify_cooling.py` was updated to read
+the new key. No `SCENARIO_SCHEMA_VERSION` bump (field set unchanged in
+count; the surrogate targets are untouched).
+
+**Known-stale artifact: `data/scenarios_dense_mpls_full.csv`.** The hidden
+"Minneapolis Full, MN" city (`available=False`) still carries the old
+`cooling_f` column in its dense CSV. It was intentionally NOT regenerated:
+the city isn't loaded live, `verify_baselines.py` only snapshots available
+cities (so Mpls Full has no baselines either), the surrogate never reads
+`cooling_f`, and `precompute_scenarios.py` can't cleanly target a hidden
+city (its stub selectbox is fed only available cities). Regenerate this CSV
+when Mpls Full is activated, alongside its baselines.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
