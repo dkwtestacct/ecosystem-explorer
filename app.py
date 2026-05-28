@@ -2956,7 +2956,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
         alpha_f = overlay_alpha * np.clip(heat_overlay_ds, 0.0, 1.0)
         overlay_rgba[..., 3] = (alpha_f * 255).astype(np.uint8)
         ax.imshow(overlay_rgba)
-        legend_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Heat vulnerability'))
+        legend_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Development-intensity heat proxy'))
 
     # Optional tract-level improvement overlay. tract_value is a per-pixel
     # float raster (NaN outside any tract); colormap is RdYlGn so positive
@@ -3149,7 +3149,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 
     fig.update_layout(
         title='',
-        xaxis_title='Flood Risk Reduction (higher = better)',
+        xaxis_title='Flood Retention (higher = better)',
         yaxis_title='Heat Mitigation Index (higher = better)',
         xaxis=dict(range=[0, 100]),
         yaxis=dict(range=[0, 0.6]),
@@ -3307,7 +3307,7 @@ with st.sidebar.container(border=True):
     min_flood  = st.slider(
         "Flood reduction ≥",
         0, _flood_slider_max, _flood_default, 5,
-        help=f"Corresponds to the Flood Risk Reduction metric card. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f}. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.",
+        help=f"Corresponds to the Flood Retention metric card. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f}. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.",
     )
     # read from state to avoid silent-staleness if city switches
     _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
@@ -3583,15 +3583,20 @@ def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", epsilon=0.05):
     return f"-{abs(value_delta):{fmt}} {suffix}", "normal"
 
 _CONFIDENCE_BADGES = {
-    "high":      "High confidence",
-    "medium":    "Medium confidence",
-    "prototype": "Prototype",
+    "high":             "High confidence",
+    "medium":           "Medium confidence",
+    "prototype":        "Prototype",
+    # Methodology-specific descriptor (not a confidence tier) for SA carbon,
+    # which uses NatCap's four-pool stock framework (Brief 30) rather than
+    # the MN single-rate proxy. Brief 2.
+    "natcap_four_pool": "Four-pool stock (NatCap framework)",
 }
 
 def _confidence_caption(col, tier):
-    """Render the confidence badge under a metric card.
-    tier ∈ {'high', 'medium', 'prototype'} — see 'How this prototype works'
-    expander for tier definitions."""
+    """Render the badge under a metric card.
+    tier ∈ {'high', 'medium', 'prototype'} for confidence tiers, or a
+    methodology descriptor key like 'natcap_four_pool' — see 'How this
+    prototype works' expander for tier definitions."""
     col.caption(_CONFIDENCE_BADGES[tier])
 
 # read from state to avoid silent-staleness if city switches
@@ -3625,14 +3630,35 @@ def _fmt_carbon(tons):
         return f"{tons / 1000:.1f}k {_carbon_unit_suffix}"
     return f"{tons:,.0f} {_carbon_unit_suffix}"
 
-_carbon_value_str = _fmt_carbon(_carbon_value)
-_carbon_delta_suffix = (
-    "t CO2e stock change from conversions" if _CARBON_IS_STOCK
-    else "t CO2e/yr from conversions"
-)
-_carbon_delta_str, _carbon_delta_color = _delta_pill(
-    _carbon_value, fmt=",.0f", suffix=_carbon_delta_suffix, epsilon=1.0,
-)
+# Brief 2 (Approach Y): the SA four-pool stock card is bespoke, mirroring
+# Brief 1's signed-card pattern — flip to a "Loss" label with a positive
+# magnitude and a red ↑ delta when conversions reduce stored carbon. MN's
+# annual sequestration flow is always ≥ 0, so it keeps the shared `_delta_pill`
+# path and the "Carbon Sequestration" label. Lifting only the SA branch out of
+# `_delta_pill` leaves the other three callers (flood, runoff, NDVI) untouched.
+_CARBON_PILL_EPSILON = 1.0
+if _CARBON_IS_STOCK:
+    if _carbon_value < -_CARBON_PILL_EPSILON:
+        _carbon_card_label = "Carbon Storage Loss"
+        _carbon_value_str = _fmt_carbon(abs(_carbon_value))
+        _carbon_delta_str = f"+{abs(_carbon_value):,.0f} t CO2e lost from conversions"
+        _carbon_delta_color = "inverse"
+    elif _carbon_value > _CARBON_PILL_EPSILON:
+        _carbon_card_label = "Carbon Storage Change"
+        _carbon_value_str = _fmt_carbon(_carbon_value)
+        _carbon_delta_str = f"+{_carbon_value:,.0f} t CO2e stock change from conversions"
+        _carbon_delta_color = "normal"
+    else:
+        _carbon_card_label = "Carbon Storage Change"
+        _carbon_value_str = _fmt_carbon(_carbon_value)
+        _carbon_delta_str = None
+        _carbon_delta_color = "off"
+else:
+    _carbon_card_label = "Carbon Sequestration"
+    _carbon_value_str = _fmt_carbon(_carbon_value)
+    _carbon_delta_str, _carbon_delta_color = _delta_pill(
+        _carbon_value, fmt=",.0f", suffix="t CO2e/yr from conversions", epsilon=1.0,
+    )
 
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
@@ -3640,7 +3666,7 @@ if placement_strategy != 'random':
 st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
 eco1.metric(
-    "Flood Risk Reduction",
+    "Flood Retention",
     f"{results['flood_reduction']:.1f}",
     delta=_flood_delta_str,
     delta_color=_flood_delta_color,
@@ -3685,7 +3711,8 @@ _ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
 _ndvi_delta_str, _ndvi_delta_color = _delta_pill(_ndvi_delta, fmt=".3f", suffix="vs baseline", epsilon=0.001)
 
 eco4, eco5 = st.columns([2, 1])
-_carbon_card_label = "Carbon Storage Change" if _CARBON_IS_STOCK else "Carbon Sequestration"
+# `_carbon_card_label` is set above alongside the value/delta (Brief 2,
+# Approach Y) so the SA loss-flip label survives.
 _carbon_card_help = (
     (
         "Confidence: Medium — see 'How this prototype works' for tier definitions. "
@@ -3716,7 +3743,7 @@ eco4.metric(
     delta_color=_carbon_delta_color,
     help=_carbon_card_help,
 )
-_confidence_caption(eco4, "prototype")
+_confidence_caption(eco4, "natcap_four_pool" if _CARBON_IS_STOCK else "prototype")
 eco5.metric(
     "NDVI",
     f"{results['mean_ndvi']:.3f}",
@@ -4162,18 +4189,18 @@ st.caption(
 )
 ceff1, ceff2, ceff3 = st.columns(3)
 ceff1.metric(
-    "Cost / Acre-Foot Prevented",
+    "Cost / Acre-Foot Runoff Prevented",
     _fmt_ce(ce['cost_per_acft']),
     delta=None,
     help=f"Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by runoff reduction vs baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario increases runoff or has no cost."
 )
 _confidence_caption(ceff1, "medium")
 ceff2.metric(
-    "Cost / °F Cooling",
+    "Cost / Citywide °F Cooling",
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
     delta_color="off" if _cooling_f <= 0 else "normal",
-    help="Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by degrees F of cooling vs baseline. N/A if no cooling improvement. InVEST UCM canonical units are °C — to translate, this is approximately (Cost / °F) × 1.8 per °C."
+    help="Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by degrees F of city-average cooling vs baseline (the °F is a citywide mean, not a per-person or per-site value). N/A if no cooling improvement. InVEST UCM canonical units are °C — to translate, this is approximately (Cost / °F) × 1.8 per °C."
 )
 _confidence_caption(ceff2, "medium")
 ceff3.metric(
@@ -4226,7 +4253,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
         _flood_change_table = f'+{results["flood_reduction"]:.1f}%'
     comparison_data = {
         'Metric': [
-            'Flood Risk Reduction', 'Runoff Volume', 'Temperature Change',
+            'Flood Retention', 'Runoff Volume', 'Temperature Change',
             'Food Production', _carbon_metric_label, 'NDVI',
             _flood_label_table, 'Cooling Energy Savings', _carbon_dollar_label_table,
         ],
@@ -4897,7 +4924,7 @@ with tab3:
     ))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
-        "White = outside city boundary. Orange wash = heat vulnerability proxy "
+        "White = outside city boundary. Orange wash = development-intensity heat proxy "
         "(darker orange = higher NLCD development intensity: 23 > 22 > 21), "
         "opacity controlled by the slider above."
     )

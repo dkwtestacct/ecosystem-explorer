@@ -457,7 +457,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   — don't extend to other metric cards without an actual user signal that
   the comparability gap matters elsewhere.
 - **Metric cards are grouped into four labeled sections** — 🌿 Ecological (5 cards in two
-  rows: row 1 has Flood Risk Reduction, Temperature Change, and Runoff Volume in 3 columns;
+  rows: row 1 has Flood Retention, Temperature Change, and Runoff Volume in 3 columns;
   row 2 has Carbon Sequestration and NDVI in 2 columns),
   👥 Human & Social (3 cards: Nature Access, Preventable MH Cases, Avoided MH Costs — the
   InVEST Urban Mental Health v3.19.0 outputs replaced the earlier weighted-composite

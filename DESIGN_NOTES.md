@@ -1468,17 +1468,68 @@ negatives while the MH cards used red `"inverse"`. (MN's carbon is
 always ≥ 0, so its loss labels are defensive and don't surface in
 practice; SA's four-pool stock model is the one that can go negative.)
 
-**Deferred to Brief 2 — the Carbon Storage Change *quantity* card**
-(`app.py`, the Ecological-section carbon card showing tonnes of CO2e via
-`results['carbon_tons_co2']`). It renders raw signed values through the
-shared `_delta_pill` helper, which is used uniformly by four cards
-(Flood Risk Reduction, Runoff, NDVI, Carbon Storage Change). Applying
-the label-flip there would mean either adding sign logic to
-`_delta_pill` (breaking its uniformity across the four callers) or
-extracting the quantity card into its own bespoke renderer — both larger
-than Brief 1's scope. Brief 2 is already revising the SA-vs-MN carbon
-methodology labels, so the quantity card's label-flip lands there
-alongside that work without duplicating effort.
+**Landed in Brief 2 — the Carbon Storage Change *quantity* card.** The
+Ecological-section carbon card (showing tonnes of CO2e via
+`results['carbon_tons_co2']`) previously rendered raw signed values
+through the shared `_delta_pill` helper. Brief 2 took **Approach Y**:
+the SA four-pool stock branch is now bespoke (flips to "Carbon Storage
+Loss" with a positive magnitude and a red ↑ delta — `delta_color="inverse"`
+— when conversions reduce stored carbon), mirroring Brief 1's signed
+dollar/MH cards. MN's annual-sequestration flow is always ≥ 0, so it
+keeps the `_delta_pill` path and the "Carbon Sequestration" label. After
+this, `_delta_pill` serves exactly three always-positive cards (Flood
+Retention, Runoff, NDVI), so its uniformity is preserved without growing
+a polarity parameter (Approach X was rejected for that reason).
+
+## Brief 2 — naming and labels for correctness
+
+Display-only label cleanup; no metric computation changed, baselines
+unaffected.
+
+- **"Flood Risk Reduction" → "Flood Retention"** on the lead Ecological
+  card, the tradeoff-plot x-axis, the optimizer-slider help, and the
+  Baseline-vs-Scenario comparison table. `flood_reduction = 100 − mean_CN`
+  (`app.py`) is computed identically for both cities and is a retention
+  index, not a damage-curve risk metric — so the rename applies to MN and
+  SA alike (the lead-card label is not city-conditional). **Known
+  consequence:** SA now shows the same `flood_reduction` value under the
+  "Flood Retention" name in two places — the Ecological card (index 0–100)
+  and the Economic card (Brief 33's % volume reduction) — plus two rows in
+  the comparison table. Harmonizing the *name* was the brief's explicit
+  ask; de-duplicating or differentiating the two cards is a possible
+  follow-up, out of Brief 2's scope.
+- **SA carbon confidence badge.** The carbon *quantity* card's badge
+  (`_confidence_caption`) was hard-coded "Prototype" for both cities,
+  which undercut SA's NatCap four-pool framework (Brief 30). It's now
+  city-conditional: SA → `"Four-pool stock (NatCap framework)"` (a new
+  `_CONFIDENCE_BADGES` key — a methodology descriptor, not a confidence
+  tier); MN keeps "Prototype" (the single-rate proxy is genuinely
+  lower-confidence). The SA card's help-text leading line still reads
+  "Confidence: Medium" — left as-is; it's an accurate confidence level
+  and complements the methodology badge rather than contradicting it.
+  The carbon *dollar* card (econ5) already used "medium" and was left
+  untouched.
+- **Cost-effectiveness labels.** "Cost / °F Cooling" → "Cost / Citywide °F
+  Cooling" (the °F is a city-average, which made the raw ratio look
+  absurdly large); "Cost / Acre-Foot Prevented" → "Cost / Acre-Foot Runoff
+  Prevented". "Cost / 1,000 People Fed" left unchanged (adding "/yr" to a
+  people-count read worse than it clarified).
+- **Map legend/caption ↔ slider sync.** The map legend patch and the map
+  caption said "Heat vulnerability" / "heat vulnerability proxy" while the
+  slider said "Development-intensity heat proxy opacity". All now read
+  "Development-intensity heat proxy" — accurate to the underlying data,
+  which is the `equity_weights`-derived NLCD-intensity proxy (23 > 22 > 21),
+  not a real CDC/ATSDR HVI. The placement-exclusion note (buildings + roads
+  excluded via OSM) already lives in the map's "Assumptions and limitations"
+  expander, so nothing was added there.
+- **Doc scope.** REFERENCE.md, NATCAP_ALIGNMENT.md, and SUMMARY.md still
+  use "Flood Risk Reduction" as a section/row name; renaming them cascades
+  through many internal cross-refs and was left for a dedicated doc-sweep.
+  `app.py`'s methodology note still points to "REFERENCE.md's Flood Risk
+  Reduction section" because that heading is unchanged. No WHATS_NEW entry
+  was added — these are clarity/consistency tweaks that don't clear the
+  "would a returning user notice" bar, and the in-app changelog was just
+  trimmed to three lean SA entries.
 
 ## Topics not yet documented
 
