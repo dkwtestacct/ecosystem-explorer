@@ -144,6 +144,70 @@ Grouped by priority. Things to ask next time there's a chance to.
 
 11. **InVEST UNA edge handling at AOI boundary.** `_una_convolve` matches InVEST UNA's `convolve_2d(ignore_nodata_and_edges=False)` — edges are zero-padded, not edge-corrected. UCM does edge-correct (`_convolve_edge_corrected` matches `convolve_2d(ignore_nodata_and_edges=True)`); two convolutions, two policies, each matching its model's canonical InVEST behavior. The user-visible consequence: residents near the AOI boundary have under-counted nature access because off-AOI green space is treated as absent. Particularly relevant for SA's post-Brief-31 ACS-block-groups extent (City of San Antonio limits), where Mission Reach, Government Canyon, and other regional green space sit just outside the AOI and don't contribute to nature access for residents living near the city boundary. Did Vibrant Land accept this edge bias, or do you buffer the AOI for analysis and clip results for display? If buffering, what radius?
 
+### Question 12 — SA flood Curve Number table: systematic anomaly vs NRCS TR-55
+
+#### Finding
+
+After integrating NatCap's SA-specific flood biophysical table (`biophys_floodmitig_sa.csv`) into the prototype's flood CN lookup, baseline regen showed unexpected behavior: Green Infrastructure scenarios (which convert pixels to NLCD 90 / Woody Wetlands) slightly *increase* modeled runoff rather than decrease it.
+
+Investigation revealed the underlying cause: NatCap's SA biophysical table uses CN values that diverge systematically and substantially from standard NRCS TR-55 reference values, most sharply for wetlands but also for several developed and open-vegetation classes.
+
+#### Per-class comparison (tier 1 / "no canopy" baseline, HSG A)
+
+| NLCD | Class | NatCap CN_A | NRCS TR-55 CN_A | Δ |
+|---|---|---|---|---|
+| 11 | Open Water | 100 | 100 | 0 |
+| 21 | Developed Open Space | 49 | 49 | 0 |
+| 22 | Developed Low Intensity | 77 | 51 | **+26** |
+| 23 | Developed Med Intensity | 89 | 61 | **+28** |
+| 24 | Developed High Intensity | 98 | 89 | +9 |
+| 31 | Barren | 77 | 77 | 0 |
+| 41 | Deciduous Forest | 32 | 36 | −4 |
+| 42 | Evergreen Forest | 39 | 36 | +3 |
+| 43 | Mixed Forest | 46 | 36 | +10 |
+| 52 | Shrub/Scrub | 49 | 35 | +14 |
+| 71 | Grassland | 64 | 39 | **+25** |
+| 81 | Pasture | 44 | 49 | −5 |
+| 82 | Cultivated Crops | 68 | 67 | +2 |
+| 90 | Woody Wetlands | 88 | 30 | **+58** |
+| 95 | Emergent Herbaceous Wetlands | 89 | 30 | **+59** |
+
+NRCS reference: TR-55, Second Edition (1986); WikiWatershed/tr-55 canonical Python implementation.
+
+#### What's anomalous and what isn't
+
+- **Anomalous (large positive Δ):** wetlands (+58/+59), low/med-developed (+26/+28), grassland (+25), shrub/scrub (+14)
+- **NRCS-consistent (Δ ≈ 0):** water, developed-open, developed-high, barren, forests, pasture, cultivated crops
+
+The table is **internally coherent** under a "wet OR impervious → high runoff" logic — water (100), wetlands (88-92), developed-high (98), and developed-med (89) all rank as high-runoff surfaces; forests, pasture, and developed-open as low-runoff. This is *a* defensible hydrologic framework (treating saturated wetland soils similarly to impervious surfaces), but it's **not NRCS TR-55**, and it directly contradicts the InVEST UFR documentation's stated intent that "the ranking between different land uses is generally well captured" with natural infrastructure ranking as lower-runoff.
+
+#### Mechanical consequence in the prototype
+
+Under the new table, the prototype's Green Infrastructure scenarios — which convert developed pixels to NLCD 90 (Woody Wetlands) — slightly increase modeled runoff for SA (e.g., +43% in some scenarios). The MN-placeholder it replaced had wetlands at CN=1 (unphysically low), which is also wrong but in the opposite direction.
+
+#### What we couldn't verify locally
+
+- **NatCap's own SA UFR run outputs** — not present in the `InVEST Results/` staging tree (only UCM, UNA, Carbon were delivered). Without these we can't see whether NatCap's published SA flood scenario comparisons exhibit the same GI-increases-runoff behavior.
+- **Documentation of the CN framework choice** — the `Notes on NASA Urban parameterization QA.docx` contains zero flood/CN/runoff content. The README points to `Ben NDR and Flood Mar_2023.pptx` for flood methodology; that pptx was not in the delivery.
+
+#### Question for NatCap
+
+> The biophysical table assigns CN values that diverge systematically from NRCS TR-55 standard practice: woody/herbaceous wetlands at CN 88-92 vs NRCS 30; developed-low/med at +26/+28 vs NRCS; grassland at +25 vs NRCS. These values rank wetlands and grass as high-runoff surfaces, comparable to developed-medium-intensity — which inverts the standard "natural infrastructure mitigates flooding" framing that the InVEST UFR documentation describes.
+>
+> Could you share the rationale for this CN framework choice — is it a SA-specific regional calibration (high antecedent moisture, clay-rich soils, design-storm-saturation framework), or a different methodology altogether? The `Ben NDR and Flood Mar_2023.pptx` referenced in the README isn't in the shared folders; if it documents this, sharing it would close the question entirely.
+
+#### Related sub-question on the canopy-tier mapping
+
+The CN table uses a NLCD × tree-canopy 3-tier encoding (e.g., 211/212/213 for Developed Open × low/med/high canopy), but the LULC crosswalk has 4 canopy classes (None=0, Low=1, Medium=2, High=3). The prototype currently maps via `tier = max(tree, 1)` — None+Low → tier 1, Medium → tier 2, High → tier 3 (the conservative wet-side choice). This is a separate question from the per-class CN framework: is `max(tree, 1)` the intended mapping? The wetland anomaly is bigger, but this also deserves confirmation.
+
+#### Status
+
+Integration code is implemented but **not committed live** — `config.py` continues to point at the MN placeholder. The dormant code path is preserved (`reduce_compound_to_nlcd_tree`, `COMPOUND_TO_NLCD_TREE`, plumbing) and the staged biophysical CSV is at `data/sa/flood/biophys_floodmitig_sa_STAGED_pending_natcap.csv`. When NatCap clarifies, the commit can land in one of three ways:
+
+- **A.** NatCap confirms the framework choice → commit as-implemented, with documentation citing the SA-specific rationale
+- **B.** NatCap reveals it's a data issue → wait for corrected table, then commit
+- **C.** NatCap can't immediately resolve → commit with the integration but override specific anomalous values to NRCS standard, documented as a prototype choice
+
 ### Medium priority
 
 7. **For mixed-allocation scenarios (gi=50/ff=50/hd=0), does anyone in the NatCap ecosystem measure placement-strategy effects?** Diagnostic only measured single-cover.

@@ -287,6 +287,7 @@ def _rebind_city(app_mod, city_name):
     # `compound_lulc_file` in CITIES — that's the intended cross-city default.
     app_mod.cooling_lulc_compound = state.cooling_lulc_compound
     app_mod.COMPOUND_TO_NLCD      = state.compound_to_nlcd
+    app_mod.COMPOUND_TO_NLCD_TREE = state.compound_to_nlcd_tree
     app_mod.COMPOUND_AFTER_FF     = state.compound_after_ff
     app_mod.COMPOUND_AFTER_GI     = state.compound_after_gi
     app_mod.COMPOUND_AFTER_HD     = state.compound_after_hd

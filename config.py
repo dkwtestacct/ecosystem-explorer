@@ -152,6 +152,22 @@ CITIES = {
     'San Antonio, TX': {
         'data_dir_flood':       'data/sa/flood',
         'data_dir_cooling':     'data/sa/cooling',
+        # SA flood CN integration deferred 2026-05-28 pending NatCap response.
+        # The staged biophys_floodmitig_sa.csv (now renamed
+        # biophys_floodmitig_sa_STAGED_pending_natcap.csv) is loadable and the
+        # new NLCD×tree-canopy lookup path (reduce_compound_to_nlcd_tree in
+        # app.py) is fully implemented but NOT currently called — the SA flood
+        # CN lookup was reverted to the 2-digit NLCD path. NatCap's table
+        # diverges systematically from NRCS TR-55 (most strikingly wetlands at
+        # CN ~88-92 vs NRCS 30, with smaller anomalies for developed-low/med,
+        # grassland, and shrub/scrub — see NATCAP_COLLABORATION.md question 12).
+        # Adopting it as-is would invert the prototype's "GI mitigates flooding"
+        # narrative for SA in ways we can't justify with NatCap's delivered docs
+        # (the `Ben NDR and Flood Mar_2023.pptx` referenced in the README isn't
+        # in the share). Until NatCap clarifies, this points at the
+        # MN-placeholder table (also known-wrong, but in a familiar way). A
+        # follow-up brief re-enables the new path (config one-liner + revert
+        # the two reverted lookup sites).
         'cn_table_file':        'UFR_biophysical_table_SA.csv',
         # Brief 28b: switched from the Köppen-BSh-tuned per-NLCD prototype
         # table to NatCap's compound NLCD×NLUD×tree-canopy UCM table (1,984

@@ -409,6 +409,10 @@ class CityState(NamedTuple):
     # fallback). Briefs 28–30 will consume them inside evaluate_scenario.
     cooling_lulc_compound: Optional[np.ndarray]
     compound_to_nlcd: Optional[np.ndarray]
+    # compound → NLCD×tree-canopy (3-digit `nlcd*10+tier`) lookup for the SA
+    # flood CN path; None for cities without a compound LULC. See
+    # `load_lulc_crosswalk` for the tier = max(tree, 1) mapping rationale.
+    compound_to_nlcd_tree: Optional[np.ndarray]
     compound_after_ff: Optional[np.ndarray]
     compound_after_gi: Optional[np.ndarray]
     compound_after_hd: Optional[np.ndarray]
@@ -515,6 +519,16 @@ def _resolve_table(data_dir, filename, *fallback_dirs):
 #       time for the reduction; Brief 28+ will consume the compound_after_*
 #       arrays inside evaluate_scenario when per-model tables go compound-
 #       keyed. See SA_INTEGRATION_PLAN.md Decision 2 and DESIGN_NOTES.md.
+# NLCD classes the SA flood CN table (biophys_floodmitig_sa.csv) represents
+# with a single, non-tiered 2-digit code rather than three canopy tiers. Per
+# NatCap's QA canopy rules, water/ice are "None canopy only" and forests are
+# "never None" — each therefore has a single canopy state, so the CN table
+# carries one row (11, 12, 41, 42, 43) instead of a 1/2/3 tier triplet.
+# `compound_to_nlcd_tree` emits the bare 2-digit code for these classes so the
+# CN lookup resolves (emitting e.g. 411 would miss the table → CN 0).
+_CN_FLOOD_SINGLE_CODE_NLCD = (11, 12, 41, 42, 43)
+
+
 @st.cache_data
 def load_lulc_crosswalk(crosswalk_path, default_ff, default_gi, default_hd):
     df = pd.read_csv(crosswalk_path)
@@ -522,6 +536,53 @@ def load_lulc_crosswalk(crosswalk_path, default_ff, default_gi, default_hd):
 
     compound_to_nlcd = np.full(max_lucode + 1, -1, dtype=np.int16)
     compound_to_nlcd[df['lucode'].astype(int).values] = df['nlcd'].astype(int).values
+
+    # Build compound → NLCD×tree-canopy lookup for the SA flood CN path.
+    # Encoding: nlcd_tree = nlcd * 10 + tier, where tier ∈ {1, 2, 3} maps from
+    # the crosswalk's `tree` column (4 classes: None=0 / Low=1 / Medium=2 / High=3).
+    #
+    # Mapping choice: tier = max(tree, 1)
+    #   tree=0 (None,    0% canopy) → tier 1
+    #   tree=1 (Low,    15% canopy) → tier 1
+    #   tree=2 (Medium, 40% canopy) → tier 2
+    #   tree=3 (High,   66% canopy) → tier 3
+    #
+    # Why max(tree, 1):
+    # The NatCap-provided CN table (biophys_floodmitig_sa.csv) has 3 tiers per
+    # NLCD class, where tier 1 reproduces the TR-55 baseline CN (no canopy
+    # benefit) and tier 3 is the maximum canopy-modulated reduction (e.g.,
+    # Developed High Intensity tier 1 = 98, tier 3 = 77.4). The crosswalk has
+    # 4 canopy classes. With one more class than tiers, the choice is whether
+    # to collapse None+Low together or Medium+High together.
+    #
+    # Collapsing None+Low → tier 1 is the conservative choice (wet-side error):
+    # 15% canopy is a marginal interception signal, and treating it as baseline
+    # means we underclaim flood mitigation rather than overclaim it. The CN
+    # reductions in the data support this — tier 1 values match the unmodified
+    # TR-55 baseline, suggesting tier 1 was intended for "no meaningful canopy."
+    #
+    # Authoritative source caveat: the NatCap data delivery does not document
+    # the tier↔canopy-class mapping explicitly. The SA README points to
+    # `Ben NDR and Flood Mar_2023.pptx` for flood methodology, but that file is
+    # not in the shared folders. The mapping above is a defensible methodology
+    # choice pending NatCap clarification (logged as a question for the next
+    # NatCap conversation; see NATCAP_COLLABORATION.md).
+    #
+    # Two notes on edge cases (not action items here):
+    # - Barren (31): the QA notes say "Barren is only allowed None canopy," yet
+    #   the CN file gives Barren 3 tiers (311/312/313). With max(tree, 1),
+    #   nearly all Barren pixels → tier 1 anyway. Consistent with the QA intent.
+    # - SA scenario codes 997/998/999 (Food Forest / Gardens) appear in the CN
+    #   file but are never produced by the prototype's conversion path (which
+    #   produces standard NLCD 41/90/24). Not currently reachable; noted for
+    #   the record.
+    nlcd_vals = df['nlcd'].astype(int).values
+    tier_vals = np.maximum(df['tree'].astype(int).values, 1)
+    nlcd_tree_vals = nlcd_vals * 10 + tier_vals
+    single_mask = np.isin(nlcd_vals, _CN_FLOOD_SINGLE_CODE_NLCD)
+    nlcd_tree_vals[single_mask] = nlcd_vals[single_mask]
+    compound_to_nlcd_tree = np.full(max_lucode + 1, -1, dtype=np.int16)
+    compound_to_nlcd_tree[df['lucode'].astype(int).values] = nlcd_tree_vals
 
     # Per-source-pixel "convert to target" lookups. Build once for each
     # conversion target by grouping crosswalk rows on (nlud_simple, tree)
@@ -575,7 +636,7 @@ def load_lulc_crosswalk(crosswalk_path, default_ff, default_gi, default_hd):
         compound_after[target_nlcd] = out
         was_default[target_nlcd] = was_default_arr
 
-    return (df, compound_to_nlcd,
+    return (df, compound_to_nlcd, compound_to_nlcd_tree,
             compound_after[41], compound_after[90], compound_after[24],
             was_default[41], was_default[90], was_default[24])
 
@@ -592,6 +653,21 @@ def reduce_compound_to_nlcd(compound_raster, compound_to_nlcd):
                     compound_raster, 0)
     return np.where(compound_raster == -1, NODATA,
                     compound_to_nlcd[safe]).astype(np.int16)
+
+
+def reduce_compound_to_nlcd_tree(compound_raster, compound_to_nlcd_tree):
+    """Map a compound LULC raster to its per-NLCD×tree-canopy reduction.
+
+    Direct analogue of `reduce_compound_to_nlcd`, but the lookup yields the
+    3-digit `nlcd*10 + tier` code (or bare 2-digit code for the single-canopy
+    classes 11/12/41/42/43) used by SA's flood CN table. Compound nodata (-1)
+    is rewritten to `NODATA` (-128) so downstream masks continue to work.
+    Returned dtype is int16. Vectorized — no per-pixel loop."""
+    max_lc = compound_to_nlcd_tree.shape[0] - 1
+    safe = np.where((compound_raster >= 0) & (compound_raster <= max_lc),
+                    compound_raster, 0)
+    return np.where(compound_raster == -1, NODATA,
+                    compound_to_nlcd_tree[safe]).astype(np.int16)
 
 
 def _assert_raster_crs(src, expected_crs, file_path):
@@ -673,6 +749,7 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
     # go compound-keyed (Briefs 28–30) the reduced view drives every metric.
     cooling_lulc_compound = None
     compound_to_nlcd = None
+    compound_to_nlcd_tree = None
     compound_after_ff = compound_after_gi = compound_after_hd = None
     compound_after_ff_was_default = None
     compound_after_gi_was_default = None
@@ -686,7 +763,7 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
         # '../natcap_2024/lulc_crosswalk.csv'), matching the existing
         # cooling_lulc_file convention.
         cw_path = f'{data_dir_flood}/{crosswalk_file}'
-        (_xwalk_df, compound_to_nlcd,
+        (_xwalk_df, compound_to_nlcd, compound_to_nlcd_tree,
          compound_after_ff, compound_after_gi, compound_after_hd,
          compound_after_ff_was_default,
          compound_after_gi_was_default,
@@ -773,7 +850,7 @@ def load_data(data_dir_flood, data_dir_cooling, cn_table_file, cooling_table_fil
             nlcd_intensity_weights, shade_arr, kc_arr, albedo_arr, green_area_arr,
             urban_nature_arr,
             c_above_arr, c_below_arr, c_soil_arr, c_dead_arr,
-            cooling_lulc_compound, compound_to_nlcd,
+            cooling_lulc_compound, compound_to_nlcd, compound_to_nlcd_tree,
             compound_after_ff, compound_after_gi, compound_after_hd,
             compound_after_ff_was_default,
             compound_after_gi_was_default,
@@ -2100,7 +2177,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
      l_green_area_arr,
      l_urban_nature_arr,
      l_c_above_arr, l_c_below_arr, l_c_soil_arr, l_c_dead_arr,
-     l_cooling_lulc_compound, l_compound_to_nlcd,
+     l_cooling_lulc_compound, l_compound_to_nlcd, l_compound_to_nlcd_tree,
      l_compound_after_ff, l_compound_after_gi, l_compound_after_hd,
      l_compound_after_ff_was_default,
      l_compound_after_gi_was_default,
@@ -2466,6 +2543,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         baseline_hm=baseline_hm, baseline_cn=baseline_cn,
         cooling_lulc_compound=l_cooling_lulc_compound,
         compound_to_nlcd=l_compound_to_nlcd,
+        compound_to_nlcd_tree=l_compound_to_nlcd_tree,
         compound_after_ff=l_compound_after_ff,
         compound_after_gi=l_compound_after_gi,
         compound_after_hd=l_compound_after_hd,
@@ -2555,6 +2633,7 @@ _BUILDINGS_DISTANCE_RASTER              = _CURRENT_CITY_STATE.buildings_distance
 # `COMPOUND_AFTER_*` arrays when per-model tables go compound-keyed.
 cooling_lulc_compound = _CURRENT_CITY_STATE.cooling_lulc_compound
 COMPOUND_TO_NLCD      = _CURRENT_CITY_STATE.compound_to_nlcd
+COMPOUND_TO_NLCD_TREE = _CURRENT_CITY_STATE.compound_to_nlcd_tree
 COMPOUND_AFTER_FF     = _CURRENT_CITY_STATE.compound_after_ff
 COMPOUND_AFTER_GI     = _CURRENT_CITY_STATE.compound_after_gi
 COMPOUND_AFTER_HD     = _CURRENT_CITY_STATE.compound_after_hd

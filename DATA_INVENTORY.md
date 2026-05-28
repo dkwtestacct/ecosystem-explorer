@@ -57,7 +57,8 @@ data/
 │   │   ├── land_use_2021_sa.tif
 │   │   ├── lulc_nlcd_2021_sa.tif
 │   │   ├── soil_group_sa.tif
-│   │   ├── UFR_biophysical_table_SA.csv
+│   │   ├── UFR_biophysical_table_SA.csv         (LIVE flood CN table — MN placeholder, known compromise)
+│   │   ├── biophys_floodmitig_sa_STAGED_pending_natcap.csv  (NatCap SA table, staged; integration deferred)
 │   │   ├── ssurgo_bexar_hsg.{shp,...}           (raw SSURGO polygons, .gitignored)
 │   │   └── ssurgo_hydgrp_bexar.csv              (raw SSURGO HSG attributes, .gitignored)
 │   ├── natcap_2024/             (NatCap-curated SA dataset received 2026-05-23 — see §2/§9)
@@ -97,7 +98,7 @@ Minneapolis downtown is the only city where flood and cooling use *different* LU
 | Role | Path | CRS | Dimensions | Source |
 |---|---|---|---|---|
 | Compound LULC (live canonical, compound-keyed) | `data/sa/flood/land_use_compound_sa.tif` | EPSG:5070 | 1713 × 1984 | NatCap `lulc_overlay_3857.tif` reprojected EPSG:3857 → EPSG:5070 with nearest-neighbor at 30 m (Brief 27). 800 unique compound lucodes of 1,984 possible. The live SA pipeline reads this raster; UCM/UNA/Carbon biophysical tables join directly on its compound lucode. |
-| NLCD-only LULC (fallback / NLCD-keyed paths) | `data/sa/flood/land_use_2021_sa.tif` | EPSG:5070 | 1713 × 1984, uint8 | NLCD 2021 via MRLC WCS, fetched by `download_sa_data.py`. Retained as fallback; CN biophysical table (`UFR_biophysical_table_SA.csv`) is NLCD-keyed and reduces compound → NLCD via `lulc_crosswalk.csv`. |
+| NLCD-only LULC (fallback / NLCD-keyed paths) | `data/sa/flood/land_use_2021_sa.tif` | EPSG:5070 | 1713 × 1984, uint8 | NLCD 2021 via MRLC WCS, fetched by `download_sa_data.py`. Retained as fallback; the live flood CN table (`UFR_biophysical_table_SA.csv`, an MN placeholder) is NLCD-keyed and the compound raster reduces to 2-digit NLCD via `reduce_compound_to_nlcd`. NatCap's NLCD×tree-canopy table + the `reduce_compound_to_nlcd_tree` path are staged but deferred (see NATCAP_COLLABORATION.md q12). |
 
 Both LULC rasters live in `data/sa/flood/` on the same 1713 × 1984 EPSG:5070 grid. `lulc_file` config entry points to the NLCD-only raster; `compound_lulc_file` points to the compound raster (`config.py:271`). A second copy `data/sa/flood/lulc_nlcd_2021_sa.tif` also exists in the same folder (provenance unclear; sibling of the canonical NLCD file).
 
@@ -346,7 +347,7 @@ Per-city tables, NOT in `config.py` — declared via `CITIES[city]['cn_table_fil
 | City | Path | Source |
 |---|---|---|
 | MN downtown | `data/flood/UFR_biophysical_table_MN.csv` | InVEST UFR sample, MN |
-| SA | `data/sa/flood/UFR_biophysical_table_SA.csv` | InVEST UFR sample extended for SA; NLCD code 82 (Cultivated Crops) added because ~6.8% of the SA bbox is cropland |
+| SA | `data/sa/flood/UFR_biophysical_table_SA.csv` (live) | Minneapolis-placeholder CN values (MN table applied to SA pixels; known compromise). NatCap's real SA table is staged at `biophys_floodmitig_sa_STAGED_pending_natcap.csv` (NLCD×tree-canopy keyed); integration code is wired in app.py but config-inactive, pending NatCap clarification of systematic CN divergences from NRCS TR-55 (see NATCAP_COLLABORATION.md question 12). |
 
 The NatCap dataset does **not** include a Curve Number table. CN values for the compound lucode space would need to be derived (likely by mapping compound lucode → underlying NLCD → existing CN table).
 
