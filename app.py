@@ -4437,7 +4437,7 @@ with st.expander("Assumptions and limitations"):
             "- **Relationship to InVEST UFR's runoff retention index.** The "
             "app reports `100 − mean_CN`, monotone with but not identical to "
             "InVEST UFR's canonical `rnf_rt_idx = mean(1 − Q/P)`. See "
-            "REFERENCE.md's Flood Risk Reduction section for the relationship."
+            "REFERENCE.md's Flood Retention section for the relationship."
         )
     with _assumption_tabs[1]:
         _temp_calibration = (

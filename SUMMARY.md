@@ -36,7 +36,7 @@ The Scenario tab is organized as **Ecological (5) · Human & Social (4) · Econo
 
 | Metric | Unit | Confidence label |
 |--------|------|-----------|
-| Flood Risk Reduction | index 0–100 (`100 − mean_CN`) | Raster-based calculation |
+| Flood Retention | index 0–100 (`100 − mean_CN`) | Raster-based calculation |
 | Temperature Change | °F vs unmodified baseline | Raster-based calculation |
 | Runoff Volume | acre-feet per 2-inch design storm | Raster-based calculation |
 | Carbon Sequestration | t CO2e/yr from converted pixels (k notation above 1,000) | Provisional assumption |
@@ -67,7 +67,7 @@ A **Cost Effectiveness** sub-section under Economic exposes three ratios: $/ac-f
 
 ## How the metrics are computed
 
-- **Flood Risk Reduction & Runoff Volume** — USDA SCS Curve Number method per pixel (NLCD land cover × SSURGO soil hydrologic group, sourced via the USDA Soil Data Access REST API for Minneapolis Full; InVEST sample for downtown). Aggregated to a city-wide mean CN, converted to runoff depth via $S = 1000/CN - 10$ and $R = (P - 0.2S)^2 / (P + 0.8S)$ for a 2-inch design storm, then scaled by total developed acreage. `BASELINE_CN` is recomputed dynamically at module load to match the live `evaluate_scenario` lookup, so deltas at `pct_converted=0` are exactly zero.
+- **Flood Retention & Runoff Volume** — USDA SCS Curve Number method per pixel (NLCD land cover × SSURGO soil hydrologic group, sourced via the USDA Soil Data Access REST API for Minneapolis Full; InVEST sample for downtown). Aggregated to a city-wide mean CN, converted to runoff depth via $S = 1000/CN - 10$ and $R = (P - 0.2S)^2 / (P + 0.8S)$ for a 2-inch design storm, then scaled by total developed acreage. `BASELINE_CN` is recomputed dynamically at module load to match the live `evaluate_scenario` lookup, so deltas at `pct_converted=0` are exactly zero.
 - **Temperature Change & Heat Mitigation Index (HMI)** — Full **InVEST Urban Cooling Model**: per-pixel `CC = 0.6·shade + 0.2·albedo + 0.2·ETI` where `ETI = Kc · ET_annual / ET_max`, then canonical **`HMI = max(CC_local, CC_park)`** where `CC_park` is the exponentially distance-weighted average of CC from green areas ≥2 ha within `d_cool = 450 m` (per InVEST UCM eq. 118: `e^(-d/d_cool)`). The card reports `mean(HMI)` — validated against `natcap.invest.urban_cooling_model.execute()` at MAE = 0.0000. Delta to °F via `UHI_MAX_C × 1.8 = 3.69 °F per HMI unit` (Minneapolis `uhi_max=2.05 °C` from the InVEST args JSON). Deltas below 0.1 °F display as "No change".
 - **Cooling Energy Savings** — Canonical InVEST UCM energy-valuation formula, per pixel: `ΔT_°C = ΔCC × UHI_MAX_C` clamped non-negative; `kWh = consumption_rate × ΔT_°C × pixel_area_m²`; `$ = kWh × 0.13` (US average residential 2024). The `consumption` column is documented as `kWh/(m²·°C)` so the per-degree response is already encoded — no separate fractional sensitivity factor. Sums over building pixels. **Returns $0 for Minneapolis Full** because OSM polygons lack the per-type codes the formula requires (Option A — see limitations).
 - **Carbon Sequestration** — Counts only newly converted pixels × per-cover rates from `CARBON_SEQ_RATES` (default 3.5 / 2.0 / 0.0 t CO2e/acre/yr for FF / GI / HD). Rates are user-overridable in Advanced Settings.

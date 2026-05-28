@@ -122,7 +122,7 @@ metric's implementation status.
 
 ### Urban Flood Risk Mitigation (UFR)
 
-InVEST UFR computes per-pixel runoff retention via the SCS Curve Number method (`Q = (P − 0.2S)² / (P + 0.8S)`), produces retention-index and retention-volume rasters, and aggregates a per-watershed service indicator (`Σ(building_area × damage_rate) × Σ(retention_m³)`) that the docs explicitly call "only an indicator of service, not an actual measure of damage or savings." The app implements the CN-based runoff calculation faithfully (Flood Risk Reduction and Runoff Volume are **Implemented**). The Flood Damage Avoided metric simplifies the damage model: instead of InVEST's per-watershed `serv_blt` indicator, the app computes `total_potential_damage × runoff_reduction_fraction` — a proportional scaling that tracks direction well but doesn't route runoff through individual buildings. The InVEST guide flags that the CN method "introduces high uncertainties" and that "the model does not produce inundation maps."
+InVEST UFR computes per-pixel runoff retention via the SCS Curve Number method (`Q = (P − 0.2S)² / (P + 0.8S)`), produces retention-index and retention-volume rasters, and aggregates a per-watershed service indicator (`Σ(building_area × damage_rate) × Σ(retention_m³)`) that the docs explicitly call "only an indicator of service, not an actual measure of damage or savings." The app implements the CN-based runoff calculation faithfully (Flood Retention and Runoff Volume are **Implemented**). The Flood Damage Avoided metric simplifies the damage model: instead of InVEST's per-watershed `serv_blt` indicator, the app computes `total_potential_damage × runoff_reduction_fraction` — a proportional scaling that tracks direction well but doesn't route runoff through individual buildings. The InVEST guide flags that the CN method "introduces high uncertainties" and that "the model does not produce inundation maps."
 
 **Reference:** [InVEST UFR User Guide](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)
 
@@ -355,17 +355,17 @@ The app combines three computational layers to balance realism and responsivenes
 
 ## Metric Cards
 
-The Scenario tab surfaces **13 outcome metric cards across three primary categories** — **🌿 Ecological** (5 cards: Flood Risk Reduction, Temperature Change, Runoff Volume, Carbon Sequestration, NDVI), **👥 Human & Social** (3 cards: Nature Access, Preventable MH Cases, Avoided MH Costs), and **💵 Economic** (5 cards in two rows: row 1 — Food Production, Est. Implementation Cost; row 2 — Flood Damage Avoided, Cooling Energy Savings, Avoided Carbon Cost). A separate **📊 Cost Effectiveness** sub-section under Economic surfaces three sub-ratios (`Cost / Acre-Foot Prevented`, `Cost / °F Cooling`, `Cost / 1,000 People Fed`) since they share a common interpretation rule (lower cost per unit of benefit is better).
+The Scenario tab surfaces **13 outcome metric cards across three primary categories** — **🌿 Ecological** (5 cards: Flood Retention, Temperature Change, Runoff Volume, Carbon Sequestration, NDVI), **👥 Human & Social** (3 cards: Nature Access, Preventable MH Cases, Avoided MH Costs), and **💵 Economic** (5 cards in two rows: row 1 — Food Production, Est. Implementation Cost; row 2 — Flood Damage Avoided, Cooling Energy Savings, Avoided Carbon Cost). A separate **📊 Cost Effectiveness** sub-section under Economic surfaces three sub-ratios (`Cost / Acre-Foot Prevented`, `Cost / °F Cooling`, `Cost / 1,000 People Fed`) since they share a common interpretation rule (lower cost per unit of benefit is better).
 
-**Confidence badges.** Each metric card displays one of three badges as an inline caption under its value: **High confidence** (3 cards: Flood Risk Reduction, Temperature Change, Runoff Volume), **Medium confidence** (9 cards: Preventable MH Cases, Avoided MH Costs, Est. Implementation Cost, Flood Damage Avoided, Cooling Energy Savings, Avoided Carbon Cost, and the three Cost Effectiveness ratios), and **Prototype** (3 cards: Carbon Sequestration, NDVI, Food Production). The badges are rendered visibly under each metric value via `st.caption`; the full tier definitions live in the "How this prototype works" expander. Tooltips reference the badge tier in their leading line, then continue with metric-specific detail.
+**Confidence badges.** Each metric card displays one of three badges as an inline caption under its value: **High confidence** (3 cards: Flood Retention, Temperature Change, Runoff Volume), **Medium confidence** (9 cards: Preventable MH Cases, Avoided MH Costs, Est. Implementation Cost, Flood Damage Avoided, Cooling Energy Savings, Avoided Carbon Cost, and the three Cost Effectiveness ratios), and **Prototype** (3 cards: Carbon Sequestration, NDVI, Food Production). The badges are rendered visibly under each metric value via `st.caption`; the full tier definitions live in the "How this prototype works" expander. Tooltips reference the badge tier in their leading line, then continue with metric-specific detail.
 
 ---
 
 ## 🌿 Ecological (two rows)
 
-The Ecological section is laid out in two rows: a 3-column row with **Flood Risk Reduction**, **Temperature Change**, and **Runoff Volume**, followed by a 2-column row with **Carbon Sequestration** and **NDVI**.
+The Ecological section is laid out in two rows: a 3-column row with **Flood Retention**, **Temperature Change**, and **Runoff Volume**, followed by a 2-column row with **Carbon Sequestration** and **NDVI**.
 
-### Flood Risk Reduction
+### Flood Retention
 
 | Field | Detail |
 |-------|--------|
@@ -429,7 +429,7 @@ San Antonio's baseline HMI is **54 % higher than Minneapolis downtown** — a pl
 |-------|--------|
 | **Represents** | Total stormwater runoff volume generated under this scenario for a 2-inch design storm, across all developed land. Lower values indicate greater runoff reduction relative to baseline. |
 | **Formula** | Calculated using the standard USDA-SCS method, which converts the Curve Number and 2-inch rainfall depth into a runoff depth, then scales by total developed acreage. **Technical detail:** `S = (1000/CN) − 10`, `Ia = 0.2S`, `Q_in = (P−Ia)²/(P−Ia+S)`, then `(Q_in/12) × total_developed_acres` in acre-feet. `P = 2.0 inches`. |
-| **Data source** | Derived from `mean_CN` (see Flood Risk Reduction) and total developed acreage (`n_developed_pixels × 0.222 acres`). |
+| **Data source** | Derived from `mean_CN` (see Flood Retention) and total developed acreage (`n_developed_pixels × 0.222 acres`). |
 | **Caveats** | A 2-inch storm represents a common minor design event; results for larger storms will differ. The card's delta sub-label is a signed `±N ac-ft vs baseline` pill — green ↑ when the scenario reduces runoff, red ↓ when it increases. Direction and valence are carried by the sign and Streamlit's arrow rendering rather than by directional copy (see the `_delta_pill` docstring for the helper contract). |
 
 ---
@@ -666,7 +666,7 @@ Order matches the sidebar slider order (GI / FF / HD) and the intro bullet list.
 
 | Control | Detail |
 |---------|--------|
-| **Min flood reduction** | Slider 0–90, step 5. Minimum acceptable Flood Risk Reduction index. |
+| **Min flood reduction** | Slider 0–90, step 5. Minimum acceptable Flood Retention index. |
 | **Min cooling (°F vs baseline)** | Slider −1.0 to ~3.0 °F, step 0.1, default 0.1 °F. Minimum acceptable temperature improvement vs baseline. Converted to HMI units internally via `BASELINE_HM + min_cool_f / HM_TO_FAHRENHEIT` (= `… / 3.69`) before being passed to the surrogate. |
 | **Min food production (M lbs)** | Slider 0.0–MAX_FOOD, step 0.01. Minimum acceptable food production. |
 | **Min carbon sequestration (tons CO2e/yr)** | Slider 0 to maximum achievable, default 0, step 100. Minimum acceptable annual carbon sequestration from converted pixels. Only counts newly converted pixels, not pre-existing land cover. Inherits uncertainty from provisional sequestration rates — adjust rates in Advanced Settings before using this as a hard constraint. |
@@ -738,7 +738,7 @@ Built with Plotly. X and Y axes show the two primary ecological metrics; bubble 
 
 | Element | Detail |
 |---------|--------|
-| **X-axis: Flood Risk Reduction** | `100 − mean_CN`. Range fixed 0–100. Higher = better. |
+| **X-axis: Flood Retention** | `100 − mean_CN`. Range fixed 0–100. Higher = better. |
 | **Y-axis: Heat Mitigation Index** | Mean HM across all pixels. Range fixed 0–1.1. Higher = better (more cooling potential). Note: this is the raw HM value, not the °F delta shown in the metric card. |
 
 ---
@@ -845,7 +845,7 @@ Below the Cost Effectiveness section on the Scenario tab, a `📊 Baseline vs Sc
 
 | Column | Contents |
 |--------|----------|
-| **Metric** | Flood Risk Reduction, Runoff Volume, Temperature Change, Food Production, Carbon Sequestration, Nature Access, NDVI |
+| **Metric** | Flood Retention, Runoff Volume, Temperature Change, Food Production, Carbon Sequestration, Nature Access, NDVI |
 | **Baseline** | Pre-conversion reference values (e.g. `24.3` for flood, `383 ac-ft` for runoff, `Reference` for temperature, `0 lbs` for food/carbon since baseline counts only converted pixels) |
 | **This Scenario** | Live values from the active scenario, formatted per-metric (e.g. `1.2°F cooler` / `0.3°F warmer` / `No change` for temperature, `+N lbs/yr` for food, `N% of residents` for nature access) |
 | **Change** | Color-coded: green for improvements, red for regressions (with runoff treated as inverse — a positive `+N ac-ft` is red because more runoff is worse), gray for neutral or unchanged |

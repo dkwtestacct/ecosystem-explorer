@@ -1522,14 +1522,16 @@ unaffected.
   not a real CDC/ATSDR HVI. The placement-exclusion note (buildings + roads
   excluded via OSM) already lives in the map's "Assumptions and limitations"
   expander, so nothing was added there.
-- **Doc scope.** REFERENCE.md, NATCAP_ALIGNMENT.md, and SUMMARY.md still
-  use "Flood Risk Reduction" as a section/row name; renaming them cascades
-  through many internal cross-refs and was left for a dedicated doc-sweep.
-  `app.py`'s methodology note still points to "REFERENCE.md's Flood Risk
-  Reduction section" because that heading is unchanged. No WHATS_NEW entry
-  was added — these are clarity/consistency tweaks that don't clear the
-  "would a returning user notice" bar, and the in-app changelog was just
-  trimmed to three lean SA entries.
+- **Doc scope.** REFERENCE.md, NATCAP_ALIGNMENT.md, SUMMARY.md, and
+  `app.py`'s methodology-tab pointer originally kept the old "Flood Risk
+  Reduction" wording, deferred because the rename cascades through internal
+  cross-references. **Resolved by the Brief 6 doc-sweep**, which renamed
+  them all to "Flood Retention" (the REFERENCE.md heading plus every prose,
+  table, and cross-reference mention; no `#flood-risk-reduction` anchor
+  links existed, so nothing broke). No WHATS_NEW entry was added — these
+  are clarity/consistency tweaks that don't clear the "would a returning
+  user notice" bar, and the in-app changelog was just trimmed to three
+  lean SA entries.
 
 ## Brief 4 — `cooling_f` → `temp_change_f` sign-convention refactor
 

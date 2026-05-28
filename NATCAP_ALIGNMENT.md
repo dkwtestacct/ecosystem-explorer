@@ -18,7 +18,7 @@ InVEST alignment" section.
 
 | App metric | Current implementation | InVEST analogue | Parity | Confidence |
 |---|---|---|---|---|
-| Flood Risk Reduction | CN-based area-weighted index (`100 − mean_CN`) | Urban Flood Risk Mitigation (retention index) | Implemented | High |
+| Flood Retention | CN-based area-weighted index (`100 − mean_CN`) | Urban Flood Risk Mitigation (retention index) | Implemented | High |
 | Runoff Volume | SCS CN per-pixel runoff × developed acreage, per-city design storm (MN: 100 mm / 3.94"; SA: 157 mm / 6.18" per NatCap projects, Brief 23) | Urban Flood Risk Mitigation (Q_mm, flood_vol) | Implemented | High |
 | Flood Damage Avoided | `total_potential_damage × runoff_reduction_fraction` | Urban Flood Risk Mitigation (serv_blt indicator) | Approximate | Medium |
 | Temperature Change | Canonical HMI = `max(CC_local, CC_park)`, `ΔHMI × UHI_MAX_C × 1.8` | Urban Cooling (HMI → T_air → anomaly) | Implemented | High |
@@ -169,7 +169,7 @@ Tracks how the prototype's user-facing vocabulary (metric card names, tooltips, 
 | Temperature Change card underlying quantity | Heat Mitigation Index (HMI) | `hm.tif`, `mean(HMI)` | ✅ Aligned (renamed from "Cooling Capacity / CC" 2026-05-23) |
 | Tradeoff plot Y axis | Heat Mitigation Index | `hm` | ✅ Aligned (renamed 2026-05-23) |
 | Temperature assumption tab kernel description | exponential decay at d_cool, eq. 118 | exponential decay | ✅ Aligned (corrected from "Gaussian" 2026-05-23) |
-| Flood Risk Reduction card | App's `100 − mean_CN` index, with explicit pointer to InVEST UFR `rnf_rt_idx = mean(1 − Q/P)` | `rnf_rt_idx` | ⚠️ Documented divergence — the app's index is monotone but not identical to UFR's canonical retention index. |
+| Flood Retention card | App's `100 − mean_CN` index, with explicit pointer to InVEST UFR `rnf_rt_idx = mean(1 − Q/P)` | `rnf_rt_idx` | ⚠️ Documented divergence — the app's index is monotone but not identical to UFR's canonical retention index. |
 | Flood Damage Avoided card | App's dollar-scaled formula, with explicit pointer to InVEST UFR `serv_blt` indicator caveats | `serv_blt` (indicator only, currency·m³ units) | ⚠️ Documented divergence — the app produces dollars; InVEST itself treats `serv_blt` as an indicator only. |
 | Nature Access card | `pct_pop_supply_ge_demand`, canonical UNA 2SFCA | `Pund_adm` / `Povr_adm` framing | ✅ Aligned (uses canonical UNA quantity) |
 | Preventable MH Cases card | InVEST UMH formula | `preventable_cases.tif` | ✅ Aligned |
