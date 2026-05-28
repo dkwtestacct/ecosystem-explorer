@@ -62,15 +62,8 @@ CHANGE_COLORS = {
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
     "San Antonio flood estimates now use NatCap's San Antonio Curve Numbers instead of Minneapolis values. Under SA's design-storm conditions, Green Infrastructure scenarios show minimal flood mitigation — GI's primary benefits in SA are heat, nature access, and carbon. (NatCap, 2023.)",
-    "San Antonio scenarios now show a conversion-fidelity panel reporting how often each conversion used the default target lucode vs. found a matching context-preserving compound row.",
-    "San Antonio carbon now uses NatCap's four-pool storage framework — reported as one-time storage value rather than annual rate.",
     "San Antonio land cover now uses NatCap's San Antonio data.",
-    "San Antonio cooling estimates updated to NatCap's calibration.",
-    "Flood metrics use per-city design storm depths.",
-    "San Antonio temperature estimates updated to NatCap's calibration.",
-    "Minneapolis nature access updated to NatCap's calibration.",
-    "Placement strategy picker in the sidebar.",
-    "Interactive Input Influence chart on the Tradeoff Analysis tab.",
+    "San Antonio carbon now uses NatCap's four-pool storage framework — reported as one-time storage value rather than annual rate.",
 ]
 
 UNDERWAY_ENTRIES = []

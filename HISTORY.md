@@ -158,3 +158,20 @@ rapid switching. `max_entries=1` forces eviction of the previously-
 cached city on switch. Trade-off: every city switch becomes a cold
 load (~minute wait) rather than an instant cache hit; reliability
 preferred over speed for the second-switch case.
+
+---
+
+## WHATS_NEW entries pruned 2026-05-29
+
+Entries removed from `WHATS_NEW_ENTRIES` (app.py) during the changelog
+trim, preserved verbatim here. The in-app "What's new" list was reduced
+to three San Antonio entries (flood Curve Numbers, land cover, carbon
+four-pool framework).
+
+- San Antonio scenarios now show a conversion-fidelity panel reporting how often each conversion used the default target lucode vs. found a matching context-preserving compound row.
+- San Antonio cooling estimates updated to NatCap's calibration.
+- Flood metrics use per-city design storm depths.
+- San Antonio temperature estimates updated to NatCap's calibration.
+- Minneapolis nature access updated to NatCap's calibration.
+- Placement strategy picker in the sidebar.
+- Interactive Input Influence chart on the Tradeoff Analysis tab.
