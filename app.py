@@ -3036,28 +3036,38 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         'Baseline': dict(size=16, color='steelblue', opacity=1.0,
                          line=dict(color='black', width=2)),
     }
+    # Shorter on-plot / legend display labels (the config keys carry the NLCD
+    # code, which overlaps on dense plots). Keyed by the config name so the
+    # TEXT_POSITIONS / MARKER_OVERRIDES lookups above still resolve.
+    SHORT_REF_LABELS = {
+        'Baseline':                   'Baseline',
+        'All Food Forest (NLCD 41)':  'All food forest',
+        'All Green Infra (NLCD 90)':  'All green infra',
+        'All High Density (NLCD 24)': 'All high density',
+    }
 
     for name, ref in REF_SCENARIOS.items():
         text_pos = TEXT_POSITIONS.get(name, 'top right')
         m_override = MARKER_OVERRIDES.get(name, {})
+        display = SHORT_REF_LABELS.get(name, name)
         fig.add_trace(go.Scatter(
             x=[ref['flood']], y=[ref['cooling']],
             mode='markers+text' if text_pos else 'markers',
             marker=dict(
-                size=m_override.get('size', 10),
+                size=m_override.get('size', 13),
                 color=m_override.get('color', ref['color']),
                 opacity=m_override.get('opacity', 0.6),
                 line=m_override.get('line', dict(color='white', width=1)),
             ),
-            text=[name] if text_pos else None,
+            text=[display] if text_pos else None,
             textposition=text_pos if text_pos else None,
             textfont=dict(size=9),
             hovertemplate=(
-                f"<b>{name}</b> (reference benchmark)<br>"
+                f"<b>{display}</b> (reference benchmark)<br>"
                 f"Flood reduction: {ref['flood']} | Cooling CC: {ref['cooling']:.4f}"
                 "<extra></extra>"
             ),
-            name=name,
+            name=display,
         ))
 
     if saved is not None and len(saved) > 0:
@@ -3150,15 +3160,27 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     fig.update_layout(
         title='',
         xaxis_title='Flood Retention (higher = better)',
-        yaxis_title='Heat Mitigation Index (higher = better)',
+        yaxis_title='Cooling / Heat Mitigation Index (higher = better)',
         xaxis=dict(range=[0, 100]),
         yaxis=dict(range=[0, 0.6]),
-        height=520,
-        margin=dict(l=60, r=200, t=30, b=60),
+        height=600,
+        margin=dict(l=60, r=200, t=55, b=60),
+        # Legend stays vertical-outside-right rather than flipping to
+        # horizontal-below: with the feasible-space hull, four reference
+        # benchmarks, the current scenario, and the conditional saved /
+        # frontier / optimized traces it can carry 6-9 items — too many to
+        # read in a horizontal strip. It already sits in the reserved right
+        # margin, not over the data.
         legend=dict(orientation='v', x=1.02, y=1, xanchor='left', yanchor='top',
                     tracegroupgap=4, font=dict(size=11), itemsizing='constant',
                     bordercolor='rgba(0,0,0,0.1)', borderwidth=1),
         hovermode='closest',
+    )
+    fig.add_annotation(
+        text="Current scenario shown as the purple star",
+        xref='paper', yref='paper', x=0, y=1.06,
+        xanchor='left', yanchor='bottom',
+        showarrow=False, font=dict(size=11, color='gray'),
     )
     return fig
 
