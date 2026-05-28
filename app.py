@@ -61,6 +61,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "San Antonio flood estimates now use NatCap's San Antonio Curve Numbers instead of Minneapolis values. Under SA's design-storm conditions, Green Infrastructure scenarios show minimal flood mitigation — GI's primary benefits in SA are heat, nature access, and carbon. (NatCap, 2023.)",
     "San Antonio scenarios now show a conversion-fidelity panel reporting how often each conversion used the default target lucode vs. found a matching context-preserving compound row.",
     "San Antonio carbon now uses NatCap's four-pool storage framework — reported as one-time storage value rather than annual rate.",
     "San Antonio land cover now uses NatCap's San Antonio data.",
@@ -1728,7 +1729,17 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         scenario_lulc_carbon = scenario_lulc
 
     soil_clamped = np.clip(soil_resized, 1, 4)
-    lulc_safe    = np.clip(scenario_lulc, 0, len(lucode_idx_arr) - 1)
+    # CN lookup key: SA's flood CN table is keyed by NLCD × tree-canopy 3-digit
+    # codes (NatCap NLCD×tree-canopy compound framework, see Ben NDR and Flood
+    # Mar_2023.pptx). Reduce the compound raster to that space.
+    # MN's table is plain 2-digit NLCD, so use scenario_lulc directly. Only
+    # this CN lookup uses the tree-reduced view; every other SA metric continues
+    # to use scenario_lulc / the compound views as before.
+    if scenario_lulc_compound is not None:
+        cn_lookup_lulc = reduce_compound_to_nlcd_tree(scenario_lulc_compound, COMPOUND_TO_NLCD_TREE)
+    else:
+        cn_lookup_lulc = scenario_lulc
+    lulc_safe    = np.clip(cn_lookup_lulc, 0, len(lucode_idx_arr) - 1)
     lulc_idx     = lucode_idx_arr[lulc_safe]
     cn_scenario  = cn_table[lulc_idx, soil_clamped]
     mean_cn      = float(cn_scenario[cn_scenario > 0].mean().round(2))
@@ -2496,7 +2507,14 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         float(valid_base_cc.mean().round(4))
         if valid_base_cc.size > 0 else float(cfg['baseline_hm'] or 0.0)
     )
-    baseline_lulc_safe = np.clip(l_cooling_lulc, 0, len(l_lucode_idx_arr) - 1)
+    # Baseline CN must use the same lookup key as evaluate_scenario: SA's CN
+    # table is NLCD × tree-canopy keyed (NatCap framework), so reduce the
+    # compound baseline LULC to that space; MN uses plain 2-digit NLCD.
+    if l_cooling_lulc_compound is not None:
+        baseline_cn_lulc = reduce_compound_to_nlcd_tree(l_cooling_lulc_compound, l_compound_to_nlcd_tree)
+    else:
+        baseline_cn_lulc = l_cooling_lulc
+    baseline_lulc_safe = np.clip(baseline_cn_lulc, 0, len(l_lucode_idx_arr) - 1)
     baseline_lulc_idx  = l_lucode_idx_arr[baseline_lulc_safe]
     baseline_soil      = np.clip(l_soil_resized, 1, 4)
     baseline_cn_grid   = l_cn_table[baseline_lulc_idx, baseline_soil]

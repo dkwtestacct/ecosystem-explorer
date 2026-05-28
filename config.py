@@ -152,23 +152,25 @@ CITIES = {
     'San Antonio, TX': {
         'data_dir_flood':       'data/sa/flood',
         'data_dir_cooling':     'data/sa/cooling',
-        # SA flood CN integration deferred 2026-05-28 pending NatCap response.
-        # The staged biophys_floodmitig_sa.csv (now renamed
-        # biophys_floodmitig_sa_STAGED_pending_natcap.csv) is loadable and the
-        # new NLCD×tree-canopy lookup path (reduce_compound_to_nlcd_tree in
-        # app.py) is fully implemented but NOT currently called — the SA flood
-        # CN lookup was reverted to the 2-digit NLCD path. NatCap's table
-        # diverges systematically from NRCS TR-55 (most strikingly wetlands at
-        # CN ~88-92 vs NRCS 30, with smaller anomalies for developed-low/med,
-        # grassland, and shrub/scrub — see NATCAP_COLLABORATION.md question 12).
-        # Adopting it as-is would invert the prototype's "GI mitigates flooding"
-        # narrative for SA in ways we can't justify with NatCap's delivered docs
-        # (the `Ben NDR and Flood Mar_2023.pptx` referenced in the README isn't
-        # in the share). Until NatCap clarifies, this points at the
-        # MN-placeholder table (also known-wrong, but in a familiar way). A
-        # follow-up brief re-enables the new path (config one-liner + revert
-        # the two reverted lookup sites).
-        'cn_table_file':        'UFR_biophysical_table_SA.csv',
+        # NatCap's SA-specific flood CN table, keyed by NLCD × tree-canopy
+        # 3-tier codes (e.g. 211/212/213 = Developed Open × low/med/high
+        # canopy). Looked up via reduce_compound_to_nlcd_tree on the compound
+        # raster (SA flood path in evaluate_scenario); the tier = max(tree, 1)
+        # canopy mapping is documented in app.py's load_lulc_crosswalk.
+        #
+        # CN framework rationale (per Ben NDR and Flood Mar_2023.pptx, slide 7):
+        # Under SA's design storm (24-hour, 100-year, NOAA Atlas-14 adjusted
+        # to 6.98 in.), rainfall rates greatly exceed soil infiltration
+        # capacity on the city's clay-rich D-soils. NatCap's CN values reflect
+        # this saturation framework — even wetlands and forests generate
+        # substantial runoff. NatCap's own conclusion: "From a flooding
+        # standpoint, there is essentially no difference between garden, food
+        # forest, park, or vacant vegetated space." Adopting this framework
+        # faithfully means the prototype's GI scenarios show minimal-to-slightly-
+        # positive flood impact for SA, matching NatCap's published behavior.
+        # GI's primary SA benefits are heat, nature access, and carbon — not flood.
+        # Full methodology record: NATCAP_COLLABORATION.md question 12.
+        'cn_table_file':        'biophys_floodmitig_sa.csv',
         # Brief 28b: switched from the Köppen-BSh-tuned per-NLCD prototype
         # table to NatCap's compound NLCD×NLUD×tree-canopy UCM table (1,984
         # rows). Keyed on the compound `lucode` 0–1983 — UCM consumers index

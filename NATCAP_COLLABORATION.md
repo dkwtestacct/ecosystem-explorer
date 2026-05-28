@@ -196,17 +196,42 @@ Under the new table, the prototype's Green Infrastructure scenarios — which co
 >
 > Could you share the rationale for this CN framework choice — is it a SA-specific regional calibration (high antecedent moisture, clay-rich soils, design-storm-saturation framework), or a different methodology altogether? The `Ben NDR and Flood Mar_2023.pptx` referenced in the README isn't in the shared folders; if it documents this, sharing it would close the question entirely.
 
-#### Related sub-question on the canopy-tier mapping
+#### Status — RESOLVED 2026-05-29 via `Ben NDR and Flood Mar_2023.pptx`
 
-The CN table uses a NLCD × tree-canopy 3-tier encoding (e.g., 211/212/213 for Developed Open × low/med/high canopy), but the LULC crosswalk has 4 canopy classes (None=0, Low=1, Medium=2, High=3). The prototype currently maps via `tier = max(tree, 1)` — None+Low → tier 1, Medium → tier 2, High → tier 3 (the conservative wet-side choice). This is a separate question from the per-class CN framework: is `max(tree, 1)` the intended mapping? The wetland anomaly is bigger, but this also deserves confirmation.
+The pptx referenced in the README was located after the deferral commit
+(`27d7be3`). Slide 7 explicitly addresses the flood-mitigation finding:
 
-#### Status
+> "From a flooding standpoint, there is essentially no difference between
+> garden, food forest, park, or vacant vegetated space. During large
+> storms, rainfall rates greatly exceed infiltration capacity of soils
+> and interception by trees, so topography and blue-gray infrastructure
+> (e.g., pipe size, reservoir placement) tend to be very important.
+> Urban ag scenarios investigated here are likely mostly swapping one
+> greenspace for another, without changes to underlying soil or water
+> storage capacity."
 
-Integration code is implemented but **not committed live** — `config.py` continues to point at the MN placeholder. The dormant code path is preserved (`reduce_compound_to_nlcd_tree`, `COMPOUND_TO_NLCD_TREE`, plumbing) and the staged biophysical CSV is at `data/sa/flood/biophys_floodmitig_sa_STAGED_pending_natcap.csv`. When NatCap clarifies, the commit can land in one of three ways:
+NatCap's CN values for SA reflect a **design-storm-saturation framework**:
+under the 24-hour 100-year storm (6.98" adjusted for SA), soil infiltration
+capacity is exceeded across most vegetated surfaces on SA's clay-rich
+D-soils, so even wetlands and forests rank as runoff-generating. Wetland
+CN of 88-92 is internally consistent with this framework.
 
-- **A.** NatCap confirms the framework choice → commit as-implemented, with documentation citing the SA-specific rationale
-- **B.** NatCap reveals it's a data issue → wait for corrected table, then commit
-- **C.** NatCap can't immediately resolve → commit with the integration but override specific anomalous values to NRCS standard, documented as a prototype choice
+NatCap's own modeled food-forest scenarios show +0.1% to +1.1% increase
+in flood volume vs baseline — matching the prototype's behavior when
+wired to the staged biophysical table. The integration was correct;
+deferral was the conservative move while uncertainty existed, but the
+uncertainty is now resolved.
+
+Re-activated 2026-05-29 (the follow-up commit reverses the deferral in
+`27d7be3`).
+
+#### Outstanding sub-question
+
+The pptx does not explicitly document the 4-class crosswalk canopy axis
+→ 3-tier CN encoding mapping. The prototype's `tier = max(tree, 1)`
+(None+Low → tier 1, Medium → tier 2, High → tier 3) remains the
+conservative wet-side choice; this is a small open methodology question
+added to the running NatCap-questions list for a future ask.
 
 ### Medium priority
 

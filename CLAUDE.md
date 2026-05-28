@@ -44,9 +44,9 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | `data/sa/flood/lulc_nlcd_2021_sa.tif` | Raw NLCD 2021 clipped to SA bbox via MRLC WCS (EPSG:5070, 30 m, 1984×1713 px) | done |
 | `data/sa/flood/land_use_2021_sa.tif` | Prior canonical SA NLCD-only LULC raster (same CRS/grid). Kept as fallback/reference; the live SA pipeline now reads `land_use_compound_sa.tif` (Brief 27) and reduces to NLCD via the crosswalk. | done; superseded by compound LULC |
 | `data/sa/flood/land_use_compound_sa.tif` | NatCap compound NLCD×NLUD×tree-canopy LULC reprojected from `data/sa/natcap_2024/lulc_overlay_3857.tif` to EPSG:5070 + nearest-neighbor resampled at 30 m (1984×1713). 800 unique compound lucodes in raster (of 1,984 possible per crosswalk). 1.06 % nodata at clipped extent edges. Brief 27 foundational adoption. | done (Brief 27) |
-| `data/sa/natcap_2024/lulc_crosswalk.csv` | NatCap LULC crosswalk: each `lucode` (0–1983) maps to its constituent NLCD/NLUD/tree-canopy bins plus `is_realistic_to_create` flag. Loaded by `load_lulc_crosswalk()`; used to build the `COMPOUND_TO_NLCD` reduction lookup, the `COMPOUND_TO_NLCD_TREE` NLCD×tree-canopy reduction (built but **dormant** — SA flood CN path deferred), and the three `COMPOUND_AFTER_*` per-target lookups. | done (Brief 27) |
-| `data/sa/flood/UFR_biophysical_table_SA.csv` | **Live SA flood CN table** — but a Minneapolis placeholder (MN CN values applied to SA pixels; known compromise). NLCD-keyed, 2-digit. | live (placeholder) |
-| `data/sa/flood/biophys_floodmitig_sa_STAGED_pending_natcap.csv` | NatCap's SA-specific CN table, keyed by NLCD×tree-canopy 3-tier codes (211/212/213 = Developed Open × low/med/high canopy). **Staged but not wired** — the `reduce_compound_to_nlcd_tree` lookup path is implemented in app.py but not called; activation deferred pending NatCap clarification of systematic CN divergences from NRCS TR-55 (wetlands +58/+59, developed-low/med +26/+28, grassland +25). See NATCAP_COLLABORATION.md question 12. | staged (deferred) |
+| `data/sa/natcap_2024/lulc_crosswalk.csv` | NatCap LULC crosswalk: each `lucode` (0–1983) maps to its constituent NLCD/NLUD/tree-canopy bins plus `is_realistic_to_create` flag. Loaded by `load_lulc_crosswalk()`; used to build the `COMPOUND_TO_NLCD` reduction lookup, the `COMPOUND_TO_NLCD_TREE` NLCD×tree-canopy reduction (SA flood CN path), and the three `COMPOUND_AFTER_*` per-target lookups. | done (Brief 27) |
+| `data/sa/flood/biophys_floodmitig_sa.csv` | **Live SA flood CN table.** NatCap's San-Antonio-specific Curve Numbers, keyed by NLCD×tree-canopy 3-tier codes (e.g. 211/212/213 = Developed Open × low/med/high canopy; tier reduces CN as canopy rises). Single 2-digit codes for water/ice (11/12) and forests (41/42/43); plus SA scenario codes 997/998/999 (unreachable by current conversion path). 53 rows. Looked up via `reduce_compound_to_nlcd_tree(COMPOUND_TO_NLCD_TREE)` in `evaluate_scenario`'s SA branch; canopy mapping `tier = max(tree, 1)`. Design-storm-saturation framework — see NATCAP_COLLABORATION.md question 12. | done (2026-05-29) |
+| `data/sa/flood/UFR_biophysical_table_SA.csv` | **Superseded** Minneapolis-placeholder CN table (NLCD-keyed, MN values). No longer wired (replaced by `biophys_floodmitig_sa.csv`); kept on disk for reference and still read by the one-time `download_sa_data.py` QA diagnostic. | superseded |
 | `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | Retired (Brief 28b). Kept on disk for reference; the per-class rationale sidecar `data/sa/cooling/biophysical_table_sources.md` documents the historical Köppen-BSh tuning. The live SA UCM path uses the compound table below. | retired |
 | `data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv` | NatCap compound NLCD×NLUD×tree-canopy UCM biophysical table (1,984 rows × 27 cols, keyed on compound `lucode` 0–1983). Provides per-pixel `shade`, `kc`, `albedo`, `green_area`, `building_intensity` indexed directly by the compound LULC raster. Referenced via SA's `cooling_table_file` config. | done (Brief 28b) |
 | `data/sa/natcap_2024/una__nlcd_nlud_tree.csv` | NatCap compound NLCD×NLUD×tree-canopy UNA biophysical table (1,984 rows × 21 cols, keyed on compound `lucode` 0–1983). Provides per-pixel `urban_nature` ∈ {0.0, 0.5, 1.0} indexed directly by the compound LULC raster via the per-city `urban_nature_arr` numpy lookup. `search_radius_m` column is all zeros — the radius is an args-level scalar from `city_cfg['una_search_radius_m']`, not the per-row table value. Referenced via SA's `una_table_file` config. | done (Brief 29) |
@@ -351,22 +351,18 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   (no schema change). See `DESIGN_NOTES.md` "SA flood damage table —
   resolved (Path C, Brief 33)". Reversible if NatCap surfaces a
   preference for SA-specific damage values (Path A).
-- **SA flood biophysical — staged but not wired (2026-05-28).** The
-  prototype's SA flood model continues to use `UFR_biophysical_table_SA.csv`,
-  which is a copy of the Minneapolis CN table (known wrong — MN values
-  applied to SA pixels). NatCap's SA-specific table is staged at
-  `data/sa/flood/biophys_floodmitig_sa_STAGED_pending_natcap.csv` and the new
-  NLCD×tree-canopy CN lookup path (`reduce_compound_to_nlcd_tree`,
-  `COMPOUND_TO_NLCD_TREE`, `_CN_FLOOD_SINGLE_CODE_NLCD`) is implemented but
-  **not currently called** (`config.py` `cn_table_file` points at the
-  placeholder; both CN-lookup call sites use the 2-digit NLCD path).
-  Activation is deferred pending NatCap clarification on systematic
-  divergences from NRCS TR-55 (wetlands +58/+59, developed-low/med +26/+28,
-  grassland +25, shrub/scrub +14) — adopting as-is would invert the
-  prototype's "GI mitigates flooding" narrative for SA. Full finding logged
-  as `NATCAP_COLLABORATION.md` question 12. When NatCap responds, a small
-  follow-up brief re-enables the path (config one-liner + re-apply the two
-  reverted lookup sites).
+- **SA flood biophysical — integrated 2026-05-29.** The SA flood model
+  uses NatCap's NLCD × tree-canopy 3-tier CN table
+  (`biophys_floodmitig_sa.csv`). The previous MN-placeholder table is no
+  longer wired but kept on disk for reference (still read by
+  `download_sa_data.py:121` as a one-time QA diagnostic). Methodology
+  documented in `NATCAP_COLLABORATION.md` question 12: NatCap's CN
+  values reflect a design-storm-saturation framework where soil
+  infiltration capacity is exceeded under the 24-hour 100-year storm;
+  under this framework, GI scenarios produce minimal flood-volume
+  effect for SA. NatCap's own modeling confirms this ("essentially no
+  difference between garden, food forest, park, or vacant vegetated
+  space" — Ben NDR and Flood Mar_2023.pptx, slide 7).
 - **Heat Vulnerability Index — still pending.** The `equity_weights`
   raster is a proxy (NLCD intensity-coded), not a real CDC/ATSDR HVI by
   census tract. Replacing it is the next data-quality upgrade.
