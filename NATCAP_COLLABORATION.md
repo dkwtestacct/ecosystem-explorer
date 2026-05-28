@@ -136,7 +136,7 @@ Grouped by priority. Things to ask next time there's a chance to.
 
 4. **Data ask: per-crop CoSA + MN Carbon four-pool bundle.** Two pieces of the same kind of ask (data NatCap may or may not have), nice-to-haves rather than blocking.
    - **#4a — Per-crop SA food forest yield.** Currently using 8,500 lbs/acre placeholder for hot semi-arid. NatCap's SA Urban Agriculture project should have per-crop numbers. Modest fidelity upgrade for SA.
-   - **#4b — MN Carbon four-pool bundle.** Would bring MN to parity with SA's post-Brief-30 framing (stock-based four-pool methodology). Currently MN uses the single-rate annual proxy because no NatCap MN four-pool data is available.
+   - **#4b — MN Carbon four-pool bundle.** Would bring MN to parity with SA's post-Brief-30 framing (stock-based four-pool methodology). Currently MN uses the single-rate annual proxy because no NatCap MN four-pool data is available. **Methodology now clear** (per `Notes on NASA Urban LULC overlay QA/QC`, paras 140-142): SA's four-pool parameters come from Spawn et al. data parameterized by NatCap (Lingling), refactored to omit embedded emissions / embedded storage / annual emissions for this project — matching the prototype's one-time-storage framing. NatCap flags the regression "does not provide values for categories not within SA but reasonable to expect to zone for" (known coverage gaps they worked around). What's outstanding is narrowed: either the MN-specific four-pool table, or guidance on whether to apply the Spawn et al. parameterization to MN ourselves.
 
 5. **For SA NDR integration: are watershed and DEM files in the shared Drive folder somewhere?** The README references `sa_dem_3m_proj.tif` and `San_Antonio_TX_buffer_mod.shp` with `E:/GIS/` paths suggesting they're on a NatCap internal machine, not shared. Need to obtain to implement NDR.
 
@@ -225,13 +225,47 @@ uncertainty is now resolved.
 Re-activated 2026-05-29 (the follow-up commit reverses the deferral in
 `27d7be3`).
 
-#### Outstanding sub-question
+#### Canopy-tier mapping — resolved as prototype-side choice (2026-05-29)
 
-The pptx does not explicitly document the 4-class crosswalk canopy axis
-→ 3-tier CN encoding mapping. The prototype's `tier = max(tree, 1)`
-(None+Low → tier 1, Medium → tier 2, High → tier 3) remains the
-conservative wet-side choice; this is a small open methodology question
-added to the running NatCap-questions list for a future ask.
+Initially logged as a small open question for NatCap. Subsequently resolved
+in-house after reading `Notes on NASA Urban parameterization QA.docx`
+(paragraphs 123-138), which documents that NatCap's UCM/UNA/Carbon parameter
+framework uses **continuous weighted averaging** of base × tree-canopy
+parameters based on fractional canopy cover — not a 3-tier discretization.
+The flood CN table is the only NatCap table that bins into discrete tiers
+(211/212/213), likely because CN values are non-linear and cannot be
+meaningfully averaged.
+
+NatCap does not have a 4→3 canopy mapping to recover. The prototype's
+`tier = max(tree, 1)` (None+Low → tier 1, Medium → tier 2, High → tier 3) is
+a documented prototype-side discretization driven by the flood CN table's
+structure, not a NatCap methodology gap. The conservative wet-side framing
+(None and Low both treated as lowest canopy) is retained.
+
+Reference: NatCap, *Notes on NASA Urban LULC overlay QA/QC*, paragraphs
+123-138 (in the LULC and Parameters August 2024 bundle).
+
+### UCM/UNA/Carbon canopy-weighted parameter framework — methodology note (2026-05-29)
+
+The compound NLCD × NLUD × tree-canopy biophysical tables for UCM, UNA, and
+Carbon are not 4-tier discretizations but rather materializations of a
+*continuous weighted-averaging* methodology that NatCap documents in
+`Notes on NASA Urban LULC overlay QA/QC`:
+
+- **UCM Shade:** "weighted average (base parameter, tree parameter) based on the amount of tree canopy. No impact of zoning." (para 126)
+- **UCM kC:** "weighted average (base parameter, tree parameter) based on the amount of tree canopy. Then increased by up to 10% based on expected irrigation use (as identified by NLUD)." (paras 128-129)
+- **UCM Albedo:** "weighted average (base parameter, tree parameter) based on the amount of tree canopy. Then increased by up to 10% based on expected irrigation use (as identified by NLUD)." (paras 131-132)
+- **UCM Green Area:** "any areas with greater than 50% tree canopy cover (i.e. 'High' tree canopy cover) were considered Green Areas no matter their underlying NLCD/NLUD classification. Areas Zoned as Rangeland, Timber, Developed Parks, Natural Parks, or Conservation were all considered Green Areas no matter their land cover type." (paras 134-135)
+- **Carbon (all pools):** "weighted average (base parameter, tree parameter) based on the amount of tree canopy" (paras 137-138)
+
+The prototype consumes the compound table directly (`lucode 0-1983`), which
+already encodes the weighted-averaging result per realistic combination. No
+prototype-side weighted-averaging logic is needed; the compound table is the
+materialized output. The flood CN table is the exception that uses 3-tier
+discrete binning (see question 12).
+
+Reference: `Notes on NASA Urban LULC overlay QA/QC` in NatCap's August 2024
+LULC and Parameters delivery.
 
 ### Medium priority
 
