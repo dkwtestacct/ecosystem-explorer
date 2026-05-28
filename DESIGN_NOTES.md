@@ -1446,6 +1446,40 @@ correctness fix to the current architecture.
   rows where prototype features point to ROOT (Cost Effectiveness,
   Balanced placement, Smart Scenario Search)
 
+## Signed metric cards — label-flip rule (Brief 1, 2026-05-28)
+
+Three "dollar/count" metric cards can render negative values for
+scenarios that make things worse (e.g. converting vegetated land to
+high-density development): **Preventable MH Cases**, **Avoided MH
+Costs**, and **Carbon Storage Value**. Each is hand-rolled inline
+(there is no shared metric-card renderer), so the rule below is applied
+per-card:
+
+- **Positive value** → benefit label, positive magnitude, green delta.
+- **Negative value** → harm/loss label, magnitude shown as a positive
+  number (no leading minus), red (`delta_color="inverse"`) delta.
+
+The negative-case labels are: "Preventable MH Cases" → "Additional MH
+Cases"; "Avoided MH Costs" → "Added MH Costs"; "Carbon Storage Value" →
+"Carbon Storage Loss" (SA) / "Avoided Carbon Cost" → "Added Carbon Cost"
+(MN). Brief 1 also brought Carbon Storage Value's negative color into
+alignment with the MH cards — it previously used neutral `"off"` for
+negatives while the MH cards used red `"inverse"`. (MN's carbon is
+always ≥ 0, so its loss labels are defensive and don't surface in
+practice; SA's four-pool stock model is the one that can go negative.)
+
+**Deferred to Brief 2 — the Carbon Storage Change *quantity* card**
+(`app.py`, the Ecological-section carbon card showing tonnes of CO2e via
+`results['carbon_tons_co2']`). It renders raw signed values through the
+shared `_delta_pill` helper, which is used uniformly by four cards
+(Flood Risk Reduction, Runoff, NDVI, Carbon Storage Change). Applying
+the label-flip there would mean either adding sign logic to
+`_delta_pill` (breaking its uniformity across the four callers) or
+extracting the quantity card into its own bespoke renderer — both larger
+than Brief 1's scope. Brief 2 is already revising the SA-vs-MN carbon
+methodology labels, so the quantity card's label-flip lands there
+alongside that work without duplicating effort.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

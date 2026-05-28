@@ -114,7 +114,7 @@ if "saved_scenarios" not in st.session_state:
 if "optimized_results" not in st.session_state:
     st.session_state.optimized_results = None
 if "active_example_scenario" not in st.session_state:
-    st.session_state.active_example_scenario = None
+    st.session_state.active_example_scenario = 'balanced'
 # Apply any pending slider values before sliders are rendered
 if "_pending_pct" in st.session_state:
     st.session_state.slider_pct_converted = st.session_state.pop("_pending_pct")
@@ -138,7 +138,10 @@ city_cfg = CITIES[selected_city]
 if st.session_state.get('_prev_city_key') != selected_city:
     for _k in ('slider_pct_converted', 'slider_gi_pct', 'slider_ff_pct'):
         st.session_state.pop(_k, None)
-    st.session_state.active_example_scenario = None
+    # First paint and every city switch reset the sliders to their defaults
+    # (10 / 50 / 50 via the setdefaults below), which is the Balanced preset —
+    # so re-highlight that button rather than clearing the active example.
+    st.session_state.active_example_scenario = 'balanced'
     # Brief A.2: also reset cross-city optimizer state. Without these, an MN
     # optimizer result visibly persists into the SA dashboard view (the
     # post-optimize success banner stays up, and the Optimized Scenario
@@ -3174,8 +3177,8 @@ st.sidebar.header("Land Use Scenario")
 # the city-change reset above composes cleanly and Streamlit does not warn
 # about a key being set both via the widget default and the Session State API.
 st.session_state.setdefault("slider_pct_converted", 10)
-st.session_state.setdefault("slider_gi_pct", 0)
-st.session_state.setdefault("slider_ff_pct", 0)
+st.session_state.setdefault("slider_gi_pct", 50)
+st.session_state.setdefault("slider_ff_pct", 50)
 
 pct_converted = st.sidebar.slider(
     "% of developed land to convert", 0, 50,
@@ -3210,6 +3213,11 @@ pct_highdensity = st.sidebar.number_input(
 
 mix_sum = green_infrastructure_pct + food_forest_pct + pct_highdensity
 
+st.sidebar.caption(
+    "Default view illustrates a balanced 50/50 mix at 10% conversion. "
+    "Adjust the sliders or use a Quick Start preset to explore alternatives."
+)
+
 if mix_sum == 100:
     st.sidebar.success("Mix sums to 100%")
 else:
@@ -3224,6 +3232,7 @@ st.sidebar.caption("Click any button to load a preset scenario instantly.")
 
 # Clear active example if the user has manually changed any slider away from its values
 _EXAMPLE_VALUES = {
+    'balanced':     (10, 50,  50),
     'food_forest':  (10,  0, 100),
     'green_infra':  (10, 100,  0),
     'high_density': (10,  0,   0),
@@ -3236,6 +3245,15 @@ if _active is not None:
             food_forest_pct != _exp_ff):
         st.session_state.active_example_scenario = None
         _active = None
+
+if st.sidebar.button("Balanced",
+                     type="primary" if _active == 'balanced' else "secondary"):
+    st.session_state._pending_pct = 10
+    st.session_state._pending_gi = 50
+    st.session_state._pending_ff = 50
+    st.session_state.active_example_scenario = 'balanced'
+    st.rerun()
+st.sidebar.caption("Default view — 50/50 nature-based mix")
 
 if st.sidebar.button("Green Infrastructure",
                      type="primary" if _active == 'green_infra' else "secondary"):
@@ -3765,17 +3783,23 @@ _confidence_caption(hs_na, "medium")
 _mh_cases = results.get('preventable_mh_cases', 0.0)
 _mh_cost  = results.get('avoided_mh_cost_usd', 0.0)
 if _mh_cases >= _MH_CASES_PILL_EPSILON:
+    _mh_cases_label = "Preventable MH Cases"
+    _mh_cases_value = f'{_mh_cases:,.0f}'
     _mh_cases_delta = f"+{_mh_cases:,.0f} cases prevented"
     _mh_cases_color = "normal"      # green ↑
 elif _mh_cases <= -_MH_CASES_PILL_EPSILON:
+    _mh_cases_label = "Additional MH Cases"
+    _mh_cases_value = f'{abs(_mh_cases):,.0f}'
     _mh_cases_delta = f"+{abs(_mh_cases):,.0f} cases induced"
     _mh_cases_color = "inverse"     # red ↑
 else:
+    _mh_cases_label = "Preventable MH Cases"
+    _mh_cases_value = f'{_mh_cases:,.0f}'
     _mh_cases_delta = None
     _mh_cases_color = "off"
 hs3.metric(
-    "Preventable MH Cases",
-    f'{_mh_cases:,.0f}',
+    _mh_cases_label,
+    _mh_cases_value,
     delta=_mh_cases_delta,
     delta_color=_mh_cases_color,
     help=(
@@ -3798,19 +3822,22 @@ hs3.metric(
 _confidence_caption(hs3, "medium")
 hs3.caption("cases prevented" if _mh_cases >= 0 else "cases induced")
 if _mh_cost >= _MH_COST_PILL_EPSILON:
+    _mh_cost_label = "Avoided MH Costs"
     _mh_cost_value = f'${_mh_cost / 1e6:.2f}M/yr'
     _mh_cost_delta = f"+${_mh_cost / 1e6:.2f}M/yr avoided"
     _mh_cost_color = "normal"
 elif _mh_cost <= -_MH_COST_PILL_EPSILON:
-    _mh_cost_value = f'-${abs(_mh_cost) / 1e6:.2f}M/yr'
+    _mh_cost_label = "Added MH Costs"
+    _mh_cost_value = f'${abs(_mh_cost) / 1e6:.2f}M/yr'
     _mh_cost_delta = f"+${abs(_mh_cost) / 1e6:.2f}M/yr added in costs"
     _mh_cost_color = "inverse"
 else:
+    _mh_cost_label = "Avoided MH Costs"
     _mh_cost_value = f'${_mh_cost / 1e6:.2f}M/yr'
     _mh_cost_delta = None
     _mh_cost_color = "off"
 hs4.metric(
-    "Avoided MH Costs",
+    _mh_cost_label,
     _mh_cost_value,
     delta=_mh_cost_delta,
     delta_color=_mh_cost_color,
@@ -4067,13 +4094,23 @@ else:
 # value-suffix branch on the same `_CARBON_IS_STOCK` flag as the
 # Carbon-quantity card above.
 _carbon_value_dollars = results.get('carbon_value_usd', 0.0)
-_carbon_dollar_label = "Carbon Storage Value" if _CARBON_IS_STOCK else "Avoided Carbon Cost"
 _dollar_period_suffix = "" if _CARBON_IS_STOCK else "/yr"
+
+# Brief 1: when the scenario loses carbon (negative dollar value), flip the
+# label to the loss/cost framing and show a positive magnitude, mirroring the
+# signed MH cards. (MN's carbon is always >= 0, so the loss labels only
+# surface for SA's four-pool stock model.)
+if _carbon_value_dollars < 0:
+    _carbon_dollar_label = "Carbon Storage Loss" if _CARBON_IS_STOCK else "Added Carbon Cost"
+else:
+    _carbon_dollar_label = "Carbon Storage Value" if _CARBON_IS_STOCK else "Avoided Carbon Cost"
 
 def _fmt_carbon_dollars(usd):
     if abs(usd) >= 1e4:
         return f"${usd / 1e6:.2f}M{_dollar_period_suffix}"
     return f"${usd:,.0f}{_dollar_period_suffix}"
+
+_carbon_dollar_value = _fmt_carbon_dollars(abs(_carbon_value_dollars))
 
 if _carbon_value_dollars >= 1e4:
     _carbon_dollar_delta = f"+${_carbon_value_dollars / 1e6:.2f}M{_dollar_period_suffix} vs baseline"
@@ -4081,6 +4118,15 @@ elif abs(_carbon_value_dollars) < 1:
     _carbon_dollar_delta = f"$0{_dollar_period_suffix} vs baseline"
 else:
     _carbon_dollar_delta = f"${_carbon_value_dollars:,.0f}{_dollar_period_suffix} vs baseline"
+
+# Align color with the MH cards: green for benefit, red ("inverse") for loss,
+# neutral ("off") only near zero.
+if _carbon_value_dollars >= 1:
+    _carbon_dollar_color = "normal"
+elif _carbon_value_dollars <= -1:
+    _carbon_dollar_color = "inverse"
+else:
+    _carbon_dollar_color = "off"
 
 _carbon_dollar_help = (
     (
@@ -4105,9 +4151,9 @@ _carbon_dollar_help = (
 )
 econ5.metric(
     _carbon_dollar_label,
-    _fmt_carbon_dollars(_carbon_value_dollars),
+    _carbon_dollar_value,
     delta=_carbon_dollar_delta,
-    delta_color="normal" if _carbon_value_dollars >= 1 else "off",
+    delta_color=_carbon_dollar_color,
     help=_carbon_dollar_help,
 )
 _confidence_caption(econ5, "medium")
