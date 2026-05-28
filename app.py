@@ -3319,24 +3319,51 @@ if st.sidebar.button("High Density",
 st.sidebar.caption("Control case — no green conversion")
 
 st.sidebar.divider()
+
+# ── Placement strategy ────────────────────────────────────────────────────────
+# Placed before "Find Best Scenario": placement shapes the *current* scenario,
+# so users configure it alongside the conversion mix, then optionally optimize.
+st.sidebar.subheader("Placement Strategy")
+placement_strategy = st.sidebar.radio(
+    "Which pixels get converted",
+    options=list(PLACEMENT_STRATEGY_LABELS.keys()),
+    format_func=lambda key: PLACEMENT_STRATEGY_LABELS[key],
+    index=0,
+    help=(
+        "Which pixels get converted. Random samples uniformly across "
+        "convertible developed pixels. Focused strategies bias placement "
+        "toward pixels where conversion yields the most benefit for the "
+        "chosen criterion. Balanced combines flood, cooling, and equity "
+        "signals equally."
+    ),
+    label_visibility="collapsed",
+)
+# Legacy alias kept for backward compatibility with saved scenarios.
+use_heat_priority = (placement_strategy == 'cooling-focused')
+
+st.sidebar.divider()
 st.sidebar.subheader("Find Best Scenario")
 
 st.sidebar.caption(
-    "Uses a surrogate model trained on ~90 full-resolution simulations to "
-    "search ~10,000 candidate strategies in seconds. Results are approximate "
-    "— verify promising scenarios using the main sliders."
+    "Uses a surrogate model to search ~10,000 candidate strategies in "
+    "seconds. Results are approximate — verify promising scenarios using "
+    "the main sliders."
 )
+with st.sidebar.expander("How this works", expanded=False):
+    st.caption(
+        "The optimizer is trained on the prototype's pre-computed scenario "
+        "library (~90 full-resolution simulations in Fast mode; more in the "
+        "higher-quality modes). It explores combinations of conversion "
+        "percentage and conversion mix far faster than running the full model "
+        "— but each returned scenario is a surrogate prediction, not a full "
+        "simulation. It targets flood retention, cooling, food production, and "
+        "carbon; cost and placement strategy are not part of the surrogate. "
+        "Use the controls above to verify any optimized scenario in detail."
+    )
 
 st.sidebar.caption(
-    "Optimization currently targets flood reduction, cooling, food production, and carbon "
-    "sequestration. Cost and placement strategy are not yet included in the surrogate."
-)
-
-st.sidebar.caption(
-    "Set targets the optimizer must satisfy. The sliders define minimum "
-    "acceptable performance (flood reduction, cooling, food, carbon) or "
-    "cap an unwanted outcome (runoff). The optimizer searches for "
-    "scenarios that meet all targets at once."
+    "Set the minimum performance each slider below must meet (or cap runoff); "
+    "the optimizer returns scenarios that satisfy all targets at once."
 )
 
 with st.sidebar.container(border=True):
@@ -3395,11 +3422,6 @@ with st.sidebar.container(border=True):
         help=_opt_carbon_help,
     )
 
-    st.caption(
-        "The optimizer uses a surrogate model — a fast approximation trained on pre-computed "
-        "scenarios — to search 10,000 candidate strategies in seconds. Results are approximate; "
-        "verify promising scenarios using the main sliders."
-    )
     if lookup_table:
         st.sidebar.caption(
             "Slider results use a precomputed lookup table for faster response. "
@@ -3424,27 +3446,6 @@ with st.sidebar.container(border=True):
         else:
             st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
             st.session_state.just_optimized = True
-
-st.sidebar.divider()
-
-# ── Placement strategy ────────────────────────────────────────────────────────
-st.sidebar.subheader("Placement Strategy")
-placement_strategy = st.sidebar.radio(
-    "Which pixels get converted",
-    options=list(PLACEMENT_STRATEGY_LABELS.keys()),
-    format_func=lambda key: PLACEMENT_STRATEGY_LABELS[key],
-    index=0,
-    help=(
-        "Which pixels get converted. Random samples uniformly across "
-        "convertible developed pixels. Focused strategies bias placement "
-        "toward pixels where conversion yields the most benefit for the "
-        "chosen criterion. Balanced combines flood, cooling, and equity "
-        "signals equally."
-    ),
-    label_visibility="collapsed",
-)
-# Legacy alias kept for backward compatibility with saved scenarios.
-use_heat_priority = (placement_strategy == 'cooling-focused')
 
 st.sidebar.divider()
 
@@ -3829,6 +3830,11 @@ hs_na, hs3, hs4 = st.columns(3)
 # Nature Access — canonical InVEST Urban Nature Access (2SFCA), re-implemented
 # in numpy by `calculate_nature_access`. See DESIGN_NOTES.md.
 _nature_access = results.get('nature_access_pct', 0.0)
+_nature_aoi = (
+    "City of San Antonio (ACS block groups)"
+    if selected_city.startswith("San Antonio")
+    else "the downtown Minneapolis modelable extent (Census tracts)"
+)
 hs_na.metric(
     "Nature Access",
     f'{_nature_access:.1f}%',
@@ -3842,6 +3848,10 @@ hs_na.metric(
         f"Parameters: {UNA_SEARCH_RADIUS_M:g}m uniform search radius, "
         f"{UNA_DECAY_FUNCTION} decay (per the active city's NatCap project framing — "
         f"see DESIGN_NOTES.md). "
+        f"High values (e.g. on food-forest scenarios) reflect intended "
+        f"saturation: converted developed pixels become nature-supplying, so "
+        f"most residents clear the per-capita standard. "
+        f"AOI: {_nature_aoi}. "
         f"Underlying model: [InVEST Urban Nature Access]"
         f"(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
     ),

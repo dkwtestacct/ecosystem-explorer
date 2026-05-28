@@ -1593,6 +1593,36 @@ cities (so Mpls Full has no baselines either), the surrogate never reads
 city (its stub selectbox is fed only available cities). Regenerate this CSV
 when Mpls Full is activated, alongside its baselines.
 
+## Brief 5 — sidebar reorganization + tooltips
+
+**Sidebar order** now follows the configure-then-optimize workflow:
+City → Land Use Scenario → Conversion Mix (with Quick Start buttons) →
+**Placement Strategy** → **Find Best Scenario** → Implementation Costs →
+Advanced Settings. Placement Strategy previously sat *below* Find Best
+Scenario, which inverted the intuitive flow — placement shapes the
+*current* scenario, so it belongs alongside the conversion mix, before
+the optimizer (an advanced, optional action). The move is purely visual:
+`placement_strategy` / `use_heat_priority` are not referenced by the Find
+Best block, and both are still defined before the main-panel `results`
+computation, so no `st.session_state` init reordering was needed.
+
+**Find Best Scenario text** was trimmed — a one-line inline caption plus a
+"How this works" expander, instead of three stacked captions before the
+controls. The expander prose was corrected for accuracy: the surrogate
+explores conversion percentage and conversion mix only; **placement
+strategy and cost are not part of the surrogate** (the earlier draft text
+that implied placement was searched was wrong). The "~90 simulations"
+figure is now framed as the Fast-mode count (higher-quality modes use
+more), fixing a stale headline.
+
+**Nature Access tooltip** gained an explicit AOI line (city-conditional:
+"City of San Antonio (ACS block groups)" vs the downtown Minneapolis
+extent / Census tracts) and a saturation explanation — high values on
+food-forest scenarios are the model's intended behavior (converted
+developed pixels become nature-supplying), not a suspicious outlier. The
+demand standard (16.7 m²/capita) and 800 m search radius were already
+interpolated from the city config, so no value is hardcoded.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
