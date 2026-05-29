@@ -68,6 +68,11 @@ Read via `natcap_validation.py` (`load_reference_outputs` / `lookup_reference` /
 `compare_to_reference` — delta-aware for the published metrics). Not yet wired
 into the dashboard; Brief B2 will surface per-metric card badges from it.
 
+**Validation story (if per-scenario compound inputs never arrive):** "the prototype
+reproduces NatCap's baseline, uses canonical InVEST methodology, and surfaces
+NatCap's own published scenario outcomes" — see `OPEN_QUESTIONS.md` → "Per-scenario
+compound LULC inputs" → "Impact if … never obtained".
+
 ## 2. Data Source Alignment
 
 Tracks alignment between the prototype's data inputs and NatCap-curated /

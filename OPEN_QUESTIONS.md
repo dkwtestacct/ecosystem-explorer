@@ -27,9 +27,70 @@ the Carbon/UCM/UNA compound-keyed tables cannot consume. See DESIGN_NOTES.md
 **Status / resolution paths.**
 - A local content-signature hunt (2026-05-29) across `~/Desktop`, `~/Downloads`,
   `~/Documents`, `/Volumes`, the Google Drive sync root, and the `_zip_archive`
-  zips found **only baseline compound rasters** — no scenario variants. So the
-  request is the path to un-gate, **but it is parked, not sent.** Send the draft
-  below only on an explicit decision to reach out.
+  zips found **only baseline compound rasters** — no scenario variants.
+- A Google Drive **connector** search (by name + `_3857` suffix) corroborates:
+  the per-scenario compound overlays are **not in the shared Drive** either. What
+  IS shared is the flood-encoded scenarios (`sa_lc_w_*_10m.tif`), the **compound
+  baseline** (`lulc_overlay_3857.tif`), and its component layers
+  (`nlcd_3857.tif`, `nlud_3857.tif`, `tree_3857.tif`). Conclusion: NatCap built
+  the per-scenario **compound** LULCs as **unsaved pipeline intermediates** — they
+  were generated, fed to Carbon/UCM, then not persisted.
+- **Sharpened ask (parked, not sent):** either (a) the six per-scenario compound
+  overlays if they can be regenerated/recovered, **or** (b) **Nootenboom's overlay
+  script** that composes NLCD×NLUD×tree-canopy into the compound LULC — owner
+  **cnootenb@umn.edu**. With the script we can rebuild the scenario overlays
+  ourselves from the shared component layers.
+- **Option 2 (local reconstruction) — possible, with a caveat.** We could rebuild
+  the compound scenario overlays from `nlud_3857` + `tree_3857` + the flood
+  scenario rasters. But the converted-pixel codes (`998` food forest / `999`
+  garden) have no native compound class, so their NLUD×tree mapping would be
+  **inferred**, not authoritative — a methodology assumption we'd have to own and
+  document. Prefer (a)/(b) over reconstruction where possible.
+- **Still parked, not sent.** Send the draft below only on an explicit decision.
+
+**Impact if the compound scenario inputs are never obtained.**
+The missing files are the per-scenario compound (NLCD×NLUD×tree) LULC rasters for
+the six NatCap fixed alternative scenarios (FF_20ac, FF_40ac, FF_MAX, UA_20ac,
+UA_40ac, UA_MAX). Without them, exactly one capability is foreclosed:
+
+> The prototype cannot independently reproduce — and therefore cannot validate —
+> its carbon and temperature outputs against NatCap's published per-scenario
+> values for those six scenarios. Computing the prototype's own carbon/temp for a
+> fixed scenario requires running the compound-keyed Carbon/UCM models, which need
+> a compound scenario raster that does not exist on our side (NatCap built them as
+> unsaved pipeline intermediates).
+
+Downstream consequences (all the same fact):
+- **B2** (per-metric validation badges): the per-scenario "✓ NatCap match (Δ X%)" /
+  "× Diverged" states cannot exist for carbon/temp on the fixed scenarios. (B2 is
+  deferred for this reason.)
+- **B1 Phase 3** (verify prototype scenario carbon/temp deltas vs NatCap
+  published): remains gated.
+- **D1** (InVEST export): the six fixed alternative scenarios export flood-only
+  (UFR args + flood-encoded source raster), with carbon/UCM/UNA args marked
+  "unavailable" in metadata. Baseline, Explorer-generated, and Optimizer-suggested
+  scenarios are unaffected and export the full five-model bundle.
+
+**Ceiling even if obtained:** the files would only enable carbon + temperature
+validation (the only two `natcap_published` metrics) on those six scenarios.
+Nature access, cooling, and mental health have no NatCap published per-scenario
+target, so they could not be validated against NatCap regardless.
+
+Not affected (intact without the files):
+- **Baseline reproduction/validation** — the compound baseline exists, so "the
+  prototype reproduces NatCap's baseline" holds. This is the validation
+  credibility anchor.
+- All **Explorer-generated and Optimizer-suggested** scenario exploration and full
+  five-model InVEST export (the prototype builds their compound rasters internally
+  via `evaluate_scenario`).
+- Displaying NatCap's published per-scenario carbon/temp as **reference values**
+  (the 14 figures are in `natcap_reference_outputs.csv`).
+- Flood metric on the fixed scenarios.
+
+**Validation story this leaves us with:** "the prototype reproduces NatCap's
+baseline, uses canonical InVEST methodology, and surfaces NatCap's own published
+scenario outcomes" — narrower than per-scenario reproduction, but fully honest and
+intact.
 
 **Send-ready email draft (verbatim — do not send without a go-ahead):**
 
@@ -44,15 +105,13 @@ the Carbon/UCM/UNA compound-keyed tables cannot consume. See DESIGN_NOTES.md
 > - **FF_20ac, FF_40ac, FF_MAX** (food-forest scenarios)
 > - **UA_20ac, UA_40ac, UA_MAX** (urban-ag / garden scenarios)
 >
-> The scenario rasters we already have (`sa_lc_w_*_10m.tif`) look like the flood/NDR inputs — they don't carry the land-use dimension the carbon/cooling tables key on, so we can't reproduce the carbon/temperature numbers from them.
+> The scenario rasters we already have (`sa_lc_w_*_10m.tif`) look like the flood/NDR inputs — they don't carry the land-use dimension the carbon/cooling tables key on, so we can't reproduce the carbon/temperature numbers from them. The shared Drive has the compound *baseline* overlay (`lulc_overlay_3857.tif`) and its `nlcd_3857` / `nlud_3857` / `tree_3857` components, but not the per-scenario compound overlays — it looks like those were pipeline intermediates that weren't saved.
 >
-> Could you share:
-> 1. The per-scenario LULC rasters used for the **carbon** and **urban-cooling** runs (the six scenarios above), **in whatever encoding and grid you ran them in** — we can reconcile CRS / resolution / encoding on our end as long as we know the scheme.
-> 2. The matching **biophysical / carbon-pool table**, if it differs from the ones already in the August 2024 share (`carbon__nlcd_nlud_tree.csv`, `ucm__nlcd_nlud_tree.csv`).
+> Either of these would unblock us:
+> 1. The six **per-scenario compound overlays** (the NLCD×NLUD×tree LULCs fed to carbon + urban-cooling), if they can be regenerated or recovered — in whatever encoding/grid you ran them; we can reconcile CRS/resolution on our end.
+> 2. **The overlay script** that composes the compound LULC from the NLCD / NLUD / tree-canopy layers (Chris Nootenboom may own this) — with it we can rebuild the scenario overlays ourselves from the shared component layers.
 >
-> If those scenario LULCs sit under different internal names than the flood inputs, even a pointer to where they live in the project structure would help.
->
-> Thanks!
+> A pointer to either is plenty — thanks!
 
 ---
 
