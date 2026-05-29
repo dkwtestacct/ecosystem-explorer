@@ -41,6 +41,33 @@ InVEST alignment" section.
 
 Parity status is about *methodological fidelity*. Confidence tier (per the in-app badges) is about *output quality*. A metric can be Approximate-parity and High-confidence (math is solid even if it shortcuts InVEST), or Proxy-parity and Medium-confidence (output is trustworthy for planning even though the method diverges).
 
+## Validated reference outputs (SA)
+
+`data/sa/natcap_reference_outputs.csv` is the source of truth for *what NatCap
+publishes* for the SA project scenarios (baseline + FF/UA × 20ac/40ac/MAX),
+extracted from `nootenboom_results/citywide_results_UPDATED.xlsx` by
+`extract_natcap_reference_outputs.py` (re-runnable — the script is the
+provenance). Long format, one row per prototype-metric × scenario (49 rows),
+absolute values + explicit baseline rows. Three `validation_status` states:
+
+- **`natcap_published`** (directly comparable, with tolerance): **temp_change_f**
+  (NatCap `avg_temp_f`, °F; tol 5 % / 0.1 °F) and **carbon_tons_co2** (NatCap
+  `c_sequestration` tons C × 44/12; tol 1 %). Compared as **deltas**
+  (scenario − baseline), since the prototype reports these as deltas.
+- **`aligned_method`** (canonical method, no clean citywide comparison, no
+  tolerance check): **nature_access_pct** (NatCap `ntr_bal_avg` is a
+  per-block-group balance aggregate ≈ 107 — a *different statistic*; see "SA UNA
+  / biophysical extent" and Track C per-block-group aggregation),
+  **cooling_energy_savings_usd** (NatCap citywide all-buildings spend vs
+  prototype typed-OSM ~29 % coverage), **flood_reduction** (canonical UFR, no
+  NatCap published value), **preventable_mh_cases** (canonical UMH at MAE≈0 per
+  Brief B, but UMH wasn't in NatCap's SA project).
+- **`prototype`** (no canonical analog): **food_mln_lbs**.
+
+Read via `natcap_validation.py` (`load_reference_outputs` / `lookup_reference` /
+`compare_to_reference` — delta-aware for the published metrics). Not yet wired
+into the dashboard; Brief B2 will surface per-metric card badges from it.
+
 ## 2. Data Source Alignment
 
 Tracks alignment between the prototype's data inputs and NatCap-curated /

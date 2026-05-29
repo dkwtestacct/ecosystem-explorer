@@ -282,6 +282,18 @@ non-zero pixels first and fills the remainder uniformly.
 
 ## Data Sources
 
+**NatCap reference outputs (validation)** — `data/sa/natcap_reference_outputs.csv`
+records the values NatCap published for the SA project scenarios (extracted from
+`citywide_results_UPDATED.xlsx`), against which prototype outputs can be checked.
+Three `validation_status` states: **`natcap_published`** (temperature, carbon —
+directly comparable as scenario-minus-baseline deltas, with tolerance),
+**`aligned_method`** (nature access, cooling energy, flood, mental health —
+canonical methodology but no clean apples-to-apples citywide comparison), and
+**`prototype`** (food production — no canonical InVEST analog). Built by
+`extract_natcap_reference_outputs.py`; read via `natcap_validation.py`. See
+NATCAP_ALIGNMENT.md "Validated reference outputs (SA)". Not yet shown in the
+dashboard (planned for the per-metric validation badges, Brief B2).
+
 **Land Use / Land Cover** — National Land Cover Database (NLCD) 2021, produced by the USGS Multi-Resolution Land Characteristics Consortium. Provides 30 m resolution land cover classifications across the contiguous US. Used to identify developed pixels eligible for conversion and to assign CN and HM values via biophysical lookup tables. Minneapolis downtown is in EPSG:26915 (UTM 15N); Minneapolis Full and San Antonio are in NLCD's native EPSG:5070 (NAD83 / Conus Albers, equal-area), fetched via MRLC's WCS endpoint by `download_minneapolis_nlcd.py` / `download_sa_data.py`.
 
 **Soils** — USDA Soil Survey Geographic Database (SSURGO), rasterized to match the NLCD grid. Soil hydrologic group (A/B/C/D) determines how quickly water infiltrates: Group A soils (sandy) absorb water readily; Group D soils (clay-rich) shed water quickly. Used to assign the correct Curve Number per land cover × soil combination. **Two ingestion paths** are in use: (1) the InVEST UFR sample shapefile pre-rasterized at `data/flood/soil_group_MN.tif` for downtown Minneapolis, covering 71.1 km² of the AOI's downtown core; (2) full Hennepin County SSURGO via the **USDA Soil Data Access REST API** (`download_ssurgo.py` → `process_ssurgo.py`), 32,442 polygons across 1,572 km², rasterized to the expanded EPSG:5070 grid. The 9 % of polygons with no `hydgrp` value (Udorthents / engineered urban fill / open water) are reassigned to C-class per NRCS convention for unknown urban/disturbed soils.

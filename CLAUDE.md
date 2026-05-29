@@ -68,6 +68,13 @@ Pipeline scripts: `download_sa_data.py` (NLCD), `download_ssurgo_sa.py` +
 `process_tracts_sa.py` (tracts).
 Detailed sourcing notes in `data/sa/README.md`.
 
+`data/sa/natcap_reference_outputs.csv` is the source of truth for "what does
+NatCap publish for the SA project scenarios?" — 7 prototype metrics × 7 NatCap
+scenarios, with `validation_status` ∈ {`natcap_published`, `aligned_method`,
+`prototype`}. Built by `extract_natcap_reference_outputs.py`; read via
+`natcap_validation.py` (lookup + delta-aware comparison). Not yet wired into the
+dashboard (Brief B2). See NATCAP_ALIGNMENT.md "Validated reference outputs (SA)".
+
 OSM buildings carry `type` as OSM strings ('house', 'apartments', 'retail', …)
 not the integer 0–3 codes InVEST expects. SA now maps those strings to InVEST
 type codes 1/2/3 via `_OSM_BUILDING_TO_INVEST_TYPE` in app.py (≈29 % pixel

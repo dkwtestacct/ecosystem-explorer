@@ -301,6 +301,7 @@ For per-tract neighborhood-improvement reporting overlay on the Map View tab.
 |---|---|---|
 | `data/sa/natcap_2024/acs_block_groups_3857.gpkg` | Census block-group polygons for the SA study area (1,124 polygons, EPSG:3857; reprojected to EPSG:5070 at load time) | Live as SA's `tracts_file`; consumed by `compute_per_tract_summary`'s Neighborhood breakdown table. Per-city dashboard caption is conditional ("Census tracts" for MN, "Census block groups" for SA). |
 | `data/sa/natcap_2024/acs_block_group_equity_data.csv` | Processed ACS demographics (percent BIPOC, per-capita income) + zonal-stat results from canonical InVEST runs | Joins to gpkg by `GEO_ID`. Not yet wired into the dashboard. |
+| `data/sa/natcap_reference_outputs.csv` | **Derived validation reference** — NatCap's published SA citywide scenario outputs (temp, carbon, nature balance, cooling spend) extracted from `nootenboom_results/citywide_results_UPDATED.xlsx`. 49 rows (7 prototype metrics × 7 scenarios), 3 validation states (`natcap_published` / `aligned_method` / `prototype`). Built by `extract_natcap_reference_outputs.py` (re-runnable); read by `natcap_validation.py`. Not yet wired into the dashboard (Brief B2). |
 
 CSV includes bivariate-color-scheme fields for plotting (percent_bipoc bins × average_temp bins → bivariate_category → hex colors). Intended for equity-overlay maps.
 
