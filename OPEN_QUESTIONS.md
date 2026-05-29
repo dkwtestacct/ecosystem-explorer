@@ -81,5 +81,108 @@ baseline, which would confuse users.
    "≈ invariant" (matching NatCap's documented "essentially no difference"
    finding) rather than a signed delta vs the prototype baseline.
 
-To be decided in **B2**, when the fixed-scenario flood card is wired into the
-dashboard. See DESIGN_NOTES.md "Brief B1".
+To be decided whenever a fixed-scenario flood card is built (see "B2 — Per-metric
+validation markers · DEFERRED" below). See DESIGN_NOTES.md "Brief B1".
+
+---
+
+## Deferred briefs
+
+### B2 — Per-metric validation markers · STATUS: DEFERRED (2026-05-29)
+
+**What it was.** Per-metric validation badges on the dashboard cards: ✓ NatCap
+match / × Diverged X% / ≈ Aligned method / Prototype, driven by
+`data/sa/natcap_reference_outputs.csv` + `natcap_validation.py`.
+
+**Why deferred.** The badges that were the point — per-scenario **Match /
+Diverged** — require a prototype value *computed for a NatCap fixed scenario* to
+compare against NatCap's published value. The available data doesn't support
+that, and may never:
+- The only two `natcap_published` metrics (`temp_change_f`, `carbon_tons_co2`)
+  are compound-keyed (UCM, four-pool carbon); NatCap's scenario rasters are
+  flood-encoded (NLCD×tree), so the prototype can't compute them for those
+  scenarios. The compound inputs that would un-gate reproduction are parked
+  (see "Per-scenario compound LULC inputs" above) and may not arrive.
+- The other metrics are `aligned_method` / `prototype` with no per-scenario
+  NatCap value, so they can only ever show a methodology label, not a match.
+- `validation_status` is constant per metric across scenarios, so absent
+  Match/Diverged the badges reduce to a **relabeling of the existing
+  high/medium/prototype confidence captions** — and that relabel would lose the
+  methodology-rigor distinction and mislabel the non-CSV cards (runoff, carbon-$,
+  etc.). Not worth shipping (Phase 0 finding #4).
+
+**Revisit only if** the parked compound scenario inputs arrive (un-gating
+carbon/temp reproduction). Even then, the likely shape is a **reworked, smaller
+surface** — baseline reproduction + a NatCap reference comparison table — **not**
+the original per-card, per-scenario badge design. The B1 scaffolding
+(`natcap_scenarios.py` loader + provenance taxonomy + flood helper) and
+`natcap_validation.py` (lookup/compare helpers) remain in tree, ready to build on.
+
+**No code shipped for B2.** Phase 0 only (investigation + this deferral record).
+
+---
+
+#### Preserved Phase 0 design work (reusable if B2 is reworked)
+
+Captured so a future session doesn't redo it. All line numbers are as of commit
+`436bffd` and will drift.
+
+**(1) Card inventory + fixed-scenario classification.** The dashboard renders 16
+`st.metric` cards (app.py ~3735–4292), each followed by `_confidence_caption(col,
+tier)`. For a NatCap *fixed* scenario, each card was classified as **published**
+(show NatCap's value from the reference CSV), **computed** (flood path via the B1
+helper), or **unavailable** (compound-encoding-gated or no reference):
+
+| card var | label | `results[...]` key | tier now | CSV metric → status | fixed-scenario |
+|---|---|---|---|---|---|
+| eco1 | Flood Retention | `flood_reduction` | high | `flood_reduction` → aligned | **computed** + reconcile |
+| eco2 | Temperature Change | `temp_change_f` | high | `temp_change_f` → natcap_published | **published** (Δ) |
+| eco3 | Runoff Volume | `runoff_acre_feet` | high | — | computed (flood path) / fold into flood |
+| eco4 | Carbon | `carbon_tons_co2` | four_pool/proto | `carbon_tons_co2` → natcap_published | **published** (Δ) |
+| eco5 | NDVI | `mean_ndvi` | prototype | — | **unavailable** |
+| hs_na | Nature Access | `nature_access_pct` | medium | `nature_access_pct` → aligned | **unavailable** (compound) |
+| hs3 | Preventable MH Cases | `preventable_mh_cases` | high | `preventable_mh_cases` → aligned | **unavailable** (compound/NDVI) |
+| hs4 | Avoided MH Costs | `avoided_mh_cost_usd` | high | (pairs w/ MH) → aligned | **unavailable** |
+| econ1 | Food Production | `food_mln_lbs` | prototype | `food_mln_lbs` → prototype | **unavailable** (code 998≠41; no ref) |
+| econ2 | Est. Implementation Cost | `total_cost_mln` | medium | — | **unavailable** (slider/mix artifact) |
+| econ3 | Flood Damage Avoided / Volume Reduction | `flood_damage_avoided_usd` / `flood_reduction` | medium | — | computed (SA → "Volume Reduction") + reconcile |
+| econ4 | Cooling Energy Savings | `cooling_energy_savings_usd` | medium | `cooling_energy_savings_usd` → aligned | **unavailable** (UCM compound) |
+| econ5 | Carbon Storage Value ($) | `carbon_value_usd` | medium | carbon × SC-CO2 → published-derived | **published** (derived) |
+| ceff1–3 | Cost-Effectiveness ratios | `ce[...]` | medium | — | **unavailable** (inputs unavailable) |
+
+Net per fixed scenario: ~4–5 cards carry a value (temp, carbon, carbon-$ →
+published; flood, runoff → computed); ~11 are "not available."
+
+**(2) Recommended architecture — (b2) dedicated reference-view.** `results` is
+built once at app.py:3569–3606 (lookup+`_fresh`, else `evaluate_scenario`) then
+consumed by the 16 cards + tradeoff plot + map with heavy inline delta/pill math
+that would choke on `None`. Rather than populate every key with sentinels and
+guard each card (pervasive, regression-prone, 11 grey cards), add a separate
+`render_natcap_fixed_scenario_view(scenario_id)` that a sidebar **scenario-source
+selector** (SA-only) routes to *instead of* the Explorer panel. It renders only
+the meaningful cards (temp/carbon/carbon-$ published; flood/runoff computed) plus
+a compact "not available for NatCap fixed scenarios (pending compound inputs):
+Nature Access, Cooling Energy, Mental Health, Food, NDVI, Cost…" note. Explorer
+path untouched; no optimizer/tradeoff/save (those are surrogate/slider-based).
+Provenance + scenario_id come from `natcap_scenarios.py`; published values from
+`natcap_validation.py` over `natcap_reference_outputs.csv`.
+
+**Badge taxonomy (5 states).** ✓ NatCap match / × Diverged X% (both require
+reproduction — gated), ≈ Aligned method, Prototype, and the interim **"NatCap
+published"** (show NatCap's value, no match/diverged) for temp/carbon until
+reproduction un-gates.
+
+**(3) Three open decisions + recommendations** (for whoever reworks B2):
+1. *Reference-view layout* — **(b2) compact dedicated view [recommended]** vs
+   (b1) full 16-card grid with ~11 "not available" cards (lots of dead space).
+2. *Confidence-badge replacement scope* — **(i) validation badges on the
+   fixed-view only, keep confidence badges on Explorer [recommended]** vs (ii)
+   unified hand-mapped taxonomy everywhere. (ii) collapses the high/medium
+   distinction (e.g. MH "high"→"aligned") and mislabels non-CSV cards (runoff,
+   carbon-$ fall to "Prototype" via the "no row" rule though InVEST-derived), so
+   it needs a curated per-card map, not a raw CSV lookup.
+3. *Flood reconcile (Brief B1 ~5-pt CN gap, native 81.4 vs prototype baseline
+   76.54)* — **(i) suppress the fixed-scenario flood delta, show "≈ invariant"
+   [recommended]** (matches NatCap's finding, low-risk) vs (ii) re-derive the SA
+   baseline flood through the native NLCD×tree path (more correct, but a
+   methodology change with wider blast radius).
