@@ -496,6 +496,20 @@ with st.expander("How this prototype works", expanded=False):
         "still a prototype number."
     )
 
+with st.expander("Validation status", expanded=False):
+    st.markdown(
+        "**How outputs are validated.** Ecosystem Explorer verifies its model "
+        "engine against canonical `natcap.invest` execution wherever the inputs "
+        "to do so exist — InVEST's UCM, UNA, and UMH match per-pixel. NatCap's "
+        "published project values are shown as reference points. Some of those "
+        "project values are displayed as published references rather than "
+        "reproduced from source, because the exact scenario land-cover rasters, "
+        "aggregation scripts, or model arguments behind NatCap's published "
+        "figures weren't available to us. Scenarios you build, or that the "
+        "optimizer suggests, are computed by the validated engine but are not "
+        "NatCap-published."
+    )
+
 # ── Data loading ───────────────────────────────────────────────────────────────
 def _resolve_table(data_dir, filename, *fallback_dirs):
     """Try `data_dir/filename` first, fall back to each `fallback_dirs/filename`.
@@ -3505,6 +3519,12 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         f"`nootenboom_results/citywide_results_UPDATED.xlsx`, surfaced via "
         f"`data/sa/natcap_reference_outputs.csv`.  \n"
         f"**Validation state per metric:** see `NATCAP_ALIGNMENT.md`."
+    )
+    st.caption(
+        "**Validation status (summary).** Engine: verified against canonical "
+        "InVEST where inputs allow. NatCap project values: shown as published "
+        "references. Exact scenario reproduction: unavailable (NatCap's "
+        "scenario rasters / aggregation scripts / args weren't shipped)."
     )
 
 

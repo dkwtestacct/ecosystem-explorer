@@ -372,6 +372,19 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   effect for SA. NatCap's own modeling confirms this ("essentially no
   difference between garden, food forest, park, or vacant vegetated
   space" — Ben NDR and Flood Mar_2023.pptx, slide 7).
+- **Track C1 / parity validation across UCM / UNA / Carbon for fixed
+  scenarios — FROZEN (2026-05-29).** Reproducing the six NatCap fixed
+  alternatives needs the compound scenario inputs, which NatCap built as
+  unsaved pipeline intermediates and never shipped (see `OPEN_QUESTIONS.md`).
+  NatCap's published citywide figures aren't recoverable from disk either:
+  their SA UCM args aren't in the drive pull, and the carbon aggregation
+  behind the published 107.32M t CO2e doesn't reconcile with `tot_c_cur.tif`
+  (which their `report.html` documents as 76.27M Mg C) by any standard
+  interpretation. Per-block-group UNA aggregation is the one piece that
+  *could* be computed independently, but without the compound inputs there
+  is no fixed-scenario parity to validate it against. **Do not resume
+  unless NatCap shares the compound LULCs, UCM args, or the carbon
+  aggregation script.** Full context in `STRATEGY.md` §7 (Track C) + §8.
 - **Heat Vulnerability Index — still pending.** The `equity_weights`
   raster is a proxy (NLCD intensity-coded), not a real CDC/ATSDR HVI by
   census tract. Replacing it is the next data-quality upgrade.
