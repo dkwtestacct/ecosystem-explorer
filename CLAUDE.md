@@ -270,7 +270,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   unioning with buildings, **~65 % of developed pixels (NLCD 21–24) remain convertible**
   (33,357 of 51,430). Rasterization is unbuffered line-to-pixel via `rasterio.features.rasterize`
   with `dtype="uint8"`; output is binary 0/1.
-- **`SCENARIO_SCHEMA_VERSION = 25`** — bump on every change that shifts `evaluate_scenario`
+- **`SCENARIO_SCHEMA_VERSION = 26`** — bump on every change that shifts `evaluate_scenario`
   outputs so cached lookup tables get regenerated. Full per-bump history in `HISTORY.md`
   "Schema version log"; per-brief reasoning in `DESIGN_NOTES.md`.
 - **City runtime state (`CityState` + `_load_city_runtime_state`).** All heavy
