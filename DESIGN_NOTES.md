@@ -2046,6 +2046,66 @@ suppresses the literal scenario−baseline delta and renders **"≈ invariant
 result that flood is essentially scenario-invariant. Tooltip explains the
 derivation gap.
 
+## Brief #3 — Scenario provenance + validation header badge (2026-05-29)
+
+**Goal.** Make scenario-level provenance impossible to miss with a prominent
+**Source + Validation** badge near the active scenario's title, present for
+every scenario the main panel shows. Complements the per-metric card badges
+(B2-revised) by describing the *scenario as a whole*; the card badges still
+carry per-metric nuance.
+
+**Architecture.** Single helper `_render_scenario_provenance_header(provenance,
+scenario_label, scenario_id, trailing_caption)` drives off the `PROVENANCE_*`
+constants re-exported from `natcap_scenarios.py` via `eib`. Five source-rule
+mappings in `_PROVENANCE_HEADER_INFO`:
+
+| Source label | Triggered when | Validation line | Color |
+|---|---|---|---|
+| `Baseline` | `pct_converted == 0` on Explorer dashboard | engine verified vs canonical InVEST; absolute NatCap citywide figures not reproduced | blue |
+| `NatCap published reference` | fixed-scenario reference view | displayed from NatCap output; exact scenario raster / aggregation not available | green |
+| `Explorer-generated` | slider scenario, non-baseline | canonical engine verified; scenario not NatCap-published | blue |
+| `Surrogate-suggested` | optimizer-applied scenario | engine-validated; exploratory (Brief #4 will append "full-raster evaluated" once Apply has run) | blue |
+
+The Validation strings come straight from STRATEGY.md §4's honest-claims
+language — no new validation logic, no new verification claims.
+
+**Two render paths wired.**
+- **Fixed-scenario reference view** (`_render_natcap_fixed_scenario_view`) — the
+  previous standalone `## label` + scenario_id/provenance caption is folded
+  into the unified header. The "Sidebar source = NatCap project scenario.
+  Flip to Explorer for custom scenarios." line is preserved as the helper's
+  `trailing_caption`. Single canonical statement, not two.
+- **Main Explorer dashboard** — new header rendered just before `#### Ecological`,
+  with provenance detected from `results['pct_converted']` (0 → BASELINE, else
+  EXPLORER). Labels are `"Baseline — {selected_city}"` or `"Explorer scenario ·
+  {scenario_name}"`.
+
+**OPTIMIZER provenance not yet detected at runtime.** The helper accepts
+`PROVENANCE_OPTIMIZER` (wording in place), but the main panel doesn't yet
+distinguish "applied from optimizer" from generic Explorer state — `apply_opt_*`
+buttons in the optimizer panel set slider state and rerun, with no flag
+persisting through the rerun beyond `applied_suggestion` (used for the ✓ marker
+on the apply button only). Brief #4 will plumb a real Applied-from-Optimizer
+flag through session_state so Apply → evaluate → header flips to
+Surrogate-suggested, and the D1 export stops mis-recording optimizer scenarios
+as Explorer.
+
+**Visual treatment.** Left-border-coloured block + `Source:` / `Validation:`
+labels, using `_VALIDATION_BADGE_COLOR_HEX` (the same green / blue / gray palette
+as the per-metric card badges) so the scenario header reads as the scenario-
+level analog. The block is a bordered `div` rather than a Streamlit native
+component because Streamlit doesn't offer a colored callout that lets the
+border color stay consistent with the per-card badge palette.
+
+**Not in scope for this brief.**
+- No new validation *logic* — this surfaces existing provenance + the validation
+  boundary; nothing is computed differently.
+- Per-metric card badges unchanged.
+- Saved-scenarios display unchanged — the brief targets the *active* scenario's
+  title; Brief #5 will reuse the same Source/Validation wording in the
+  cross-source comparison table when saved/optimizer scenarios mix with NatCap
+  rows.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

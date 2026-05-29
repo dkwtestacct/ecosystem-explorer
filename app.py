@@ -63,6 +63,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "Every scenario now shows its source and validation status at the top — NatCap published reference, baseline, engine-validated Explorer scenario, or surrogate-suggested optimizer suggestion — so it's always clear how grounded a given scenario is.",
     "San Antonio now has a sidebar option to load NatCap's project scenarios (baseline + the six food-forest and urban-agriculture alternatives) alongside Explorer scenarios. Every metric card carries a validation badge — \"NatCap published value\" where the number is sourced from NatCap directly, \"≈ NatCap method\" or \"≈ Aligned method\" for prototype computations using NatCap-aligned methodology, and \"Prototype\" for exploratory metrics.",
     "You can now download the current scenario as a runnable input bundle for canonical InVEST 3.19.0 — rasters, AOIs, biophysical tables, and per-model args files for all five urban models. San Antonio only for v1.",
     "Mental-health estimates (preventable cases and avoided healthcare costs) are now validated against NatCap's InVEST Urban Mental Health model and shown at higher confidence.",
@@ -3285,6 +3286,75 @@ def _render_validation_caption(col, metric_name, scenario_context,
     )
 
 
+# Brief #3 (2026-05-29) — scenario-level Source + Validation header. Sits
+# above each scenario's metric grid so provenance is impossible to miss.
+# Per-metric card badges (above) carry per-metric nuance; this header
+# describes the scenario as a whole. Drives off the same PROVENANCE_*
+# taxonomy from natcap_scenarios.py (re-exported via eib).
+_PROVENANCE_HEADER_INFO = {
+    eib.PROVENANCE_BASELINE: (
+        "Baseline",
+        "engine verified vs canonical InVEST; absolute NatCap citywide "
+        "figures not reproduced",
+        "blue",
+    ),
+    eib.PROVENANCE_NATCAP_FIXED: (
+        "NatCap published reference",
+        "displayed from NatCap output; exact scenario raster / aggregation "
+        "not available",
+        "green",
+    ),
+    eib.PROVENANCE_EXPLORER: (
+        "Explorer-generated",
+        "canonical engine verified; scenario not NatCap-published",
+        "blue",
+    ),
+    # Brief #4 (next) will plumb a real Applied-from-Optimizer flag through
+    # session_state and append "full-raster evaluated" to this line once Apply
+    # has run. Until then the header path won't hit OPTIMIZER, but the wording
+    # is in place for the wiring to land.
+    eib.PROVENANCE_OPTIMIZER: (
+        "Surrogate-suggested",
+        "engine-validated; exploratory",
+        "blue",
+    ),
+}
+
+
+def _render_scenario_provenance_header(provenance, scenario_label=None,
+                                       scenario_id=None,
+                                       trailing_caption=None):
+    """Render a prominent Source + Validation header for the active scenario.
+
+    `provenance` is one of `eib.PROVENANCE_*`. `scenario_label` is the
+    scenario's human-facing title (rendered as an `##` heading above the
+    badge); `scenario_id` is the canonical id where one exists (NatCap
+    scenarios) and shown inline in the Source line. `trailing_caption` is an
+    optional small caption rendered just below the badge (used by the
+    fixed-scenario reference view to keep the "flip to Explorer" hint).
+    """
+    info = _PROVENANCE_HEADER_INFO.get(
+        provenance,
+        ("Unknown", "provenance not recorded", "gray"),
+    )
+    source, validation, color_key = info
+    color = _VALIDATION_BADGE_COLOR_HEX.get(color_key, "#6e7681")
+    id_caption = f" · <code>scenario_id={scenario_id}</code>" if scenario_id else ""
+    if scenario_label:
+        st.markdown(f"## {scenario_label}")
+    st.markdown(
+        f'<div style="margin: 0.2em 0 1.0em 0; padding: 0.5em 0.75em; '
+        f'border-left: 4px solid {color}; background: #f6f8fa; '
+        f'color: #24292f; font-size: 0.92em; line-height: 1.4;">'
+        f'<strong>Source:</strong> {source}{id_caption}<br/>'
+        f'<strong>Validation:</strong> {validation}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    if trailing_caption:
+        st.caption(trailing_caption)
+
+
 def _render_natcap_fixed_scenario_view(scenario_id):
     """B2 (revised) Phase 3 — dedicated reference view for a NatCap SA fixed
     scenario. Reads NatCap's published temp/carbon from
@@ -3312,12 +3382,15 @@ def _render_natcap_fixed_scenario_view(scenario_id):
             return "No change"
         return f"{abs(dt):.1f}°F warmer" if dt > 0 else f"{abs(dt):.1f}°F cooler"
 
-    # ── Header ──
-    st.markdown(f"## {spec['label']}")
-    st.caption(
-        f"`scenario_id={scenario_id}` · provenance: `{spec['provenance']}` · "
-        f"source: NatCap SA Urban Agriculture project. Sidebar source = "
-        f"NatCap project scenario (flip to Explorer for custom scenarios)."
+    # ── Header (Brief #3 — unified Source + Validation) ──
+    _render_scenario_provenance_header(
+        spec["provenance"],
+        scenario_label=spec["label"],
+        scenario_id=scenario_id,
+        trailing_caption=(
+            "Sidebar source = NatCap project scenario. "
+            "Flip to Explorer for custom scenarios."
+        ),
     )
 
     # ── Compute flood on the loaded scenario raster (B1 helper) ──
@@ -4180,6 +4253,21 @@ else:
     _carbon_delta_str, _carbon_delta_color = _delta_pill(
         _carbon_value, fmt=",.0f", suffix="t CO2e/yr from conversions", epsilon=1.0,
     )
+
+# ── Scenario header (Brief #3 — unified Source + Validation) ─────────────────
+# The fixed-scenario reference view has its own header above (rendered inside
+# _render_natcap_fixed_scenario_view then st.stop()s); this path renders the
+# Explorer / baseline cases. The OPTIMIZER provenance is wired in the helper
+# but not detected here yet — Brief #4 will plumb an Applied-from-Optimizer
+# flag through session_state so Apply -> evaluate -> the header flips to
+# Surrogate-suggested.
+if results['pct_converted'] == 0:
+    _scen_provenance = eib.PROVENANCE_BASELINE
+    _scen_label = f"Baseline — {selected_city}"
+else:
+    _scen_provenance = eib.PROVENANCE_EXPLORER
+    _scen_label = f"Explorer scenario · {results['scenario_name']}"
+_render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label)
 
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
