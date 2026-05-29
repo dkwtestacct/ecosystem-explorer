@@ -1733,6 +1733,45 @@ of the Gaussian rather than calling the app's actual UMH path, so it didn't
 track the kernel change. The exporter now calls
 `app._umh_neighborhood_exposure`, so the harness validates the shipped code.
 
+## Brief A2 — SA UNA AOI investigation (document-only)
+
+**Question.** Yingjie's roadmap says NatCap's SA UNA uses
+`acs_block_group.gpkg` as the AOI; the prototype was thought to use a
+City-of-SA clipped extent. If they differ materially, per-scenario UNA
+comparison against NatCap's published outputs would be over different areas.
+
+**Finding.** Measured (LULC-valid mask vs block groups rasterised to the 30 m
+EPSG:5070 grid): the prototype's UNA extent is the **Bexar County bbox**
+(3,059 km², 1,906,325 people); NatCap's block groups (1,124 polygons, City of
+SA) are a **strict subset** (2,519 km², 1,878,866 people). **Area IoU = 0.824**,
+but **population overlap = 98.6 %** — only **27,457 people (1.4 %)** are in the
+bbox but outside the block groups (sparse exurban Bexar County). Detail +
+numbers in NATCAP_ALIGNMENT.md "SA UNA / biophysical extent".
+
+**Architectural insight (the reason this isn't a config swap).** The
+prototype's UNA path is **raster-only**: `calculate_nature_access(scenario_lulc,
+pop_count_raster)` takes no AOI vector — the modelable extent is wherever the
+LULC/population rasters have valid data. The `acs_block_groups_3857.gpkg` in the
+repo feeds **only** `compute_per_tract_summary` (the neighborhood-breakdown
+table), not any biophysical model. So "swapping the AOI" would mean *adding* a
+block-group mask to the UNA computation — coupling the polygons into the
+biophysical path where they currently aren't — not repointing a config path.
+
+**Decision: document, don't change (Option b).** The area IoU tripped the
+brief's 0.95 gate, but UNA's headline is **population-weighted** and the
+extents are 98.6 % population-aligned; the discrepancy is 1.4 % of population on
+sparse exurban land. Per-pixel `urban_nature_supply_percapita` is computed
+identically regardless of aggregation extent — so the real validation need
+(matching NatCap's per-block-group `ntr_bal_avg` in `nootenboom_results`) is met
+by **aggregating the prototype's supply raster per block group**, which is a
+Track C concern, not an A2 AOI change. Masking the UNA path would cost a code
+change + full SA baseline/dense-CSV regen + schema bump for a sub-1 % effect —
+cost exceeds value. No code, no baseline, no schema change in Brief A2.
+
+**Forward note.** Track A3 (CSV population) and Track C (parity validation vs
+`nootenboom_results`) should both use **per-block-group aggregation** of the
+prototype's supply raster, not the citywide headline, for SA UNA comparison.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

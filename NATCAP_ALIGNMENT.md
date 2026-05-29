@@ -98,11 +98,40 @@ Tracks the prototype's spatial representation vs NatCap recommendations.
 | Aspect | Current state | NatCap recommendation | Status |
 |---|---|---|---|
 | AOI extent (MN) | Downtown + near-neighborhoods, ~123 km², ~154k residents (InVEST UFR sample AOI) | NatCap's MN study extent | ✅ Aligned (uses NatCap-provided AOI) |
-| AOI extent (SA) | NatCap ACS block-group polygons (`data/sa/natcap_2024/acs_block_groups_3857.gpkg`, 1,124 polygons covering the City of San Antonio); the LULC raster's valid-pixel mask defines the actual modelable extent for every biophysical model — the AOI polygons feed only per-block-group reporting (compute_per_tract_summary's Neighborhood breakdown table). | NatCap's SA Urban Agriculture study extent (block-group polygons used in Vibrant Land Figure 10 equity analysis) | ✅ Aligned (Brief 31, 2026-05-25) |
+| AOI extent (SA) | Biophysical models (UNA, UCM, Carbon, UFR) run over the **SA LULC raster's valid-pixel footprint** = the Bexar County bbox (~3,059 km², 1.91 M pop). NatCap's ACS block-group polygons (`data/sa/natcap_2024/acs_block_groups_3857.gpkg`, 1,124 polygons, City of SA, ~2,519 km², 1.88 M pop) are a strict **subset** of that footprint and feed only per-block-group reporting (compute_per_tract_summary). See "SA UNA / biophysical extent" below. | NatCap's SA Urban Agriculture study extent (block-group polygons, Vibrant Land Figure 10) | ⚠️ Population-aligned (98.6 %); biophysical extent is a bbox **superset** — block groups ⊂ bbox, +27,457 exurban people (1.4 %). Per-pixel supply identical; aggregate per block group for project-scenario validation (Track C). |
 | Placement constraints | Three-layer non-convertible mask: buildings + roads excluded via the rasterized mask; existing nature never a candidate (pool is developed NLCD 21–24 only). Random or strategy-weighted selection within the remaining pool. | 3-layer mask: buildings + roads + existing nature | ✅ Aligned |
 | Building footprint coverage | Placement mask uses comprehensive OSM footprints city-wide for every city; the typed $-metrics use the InVEST UFR sample for MN (downtown core, where its per-building type codes are valid) | Comprehensive OSM building footprints | ✅ Aligned |
 | Road network coverage | OSM road network rasterized into the non-convertible mask, all cities | OSM road network | ✅ Aligned |
 | LULC resolution | 30 m / pixel (NLCD standard) | 30 m / pixel | ✅ Aligned |
+
+### SA UNA / biophysical extent — investigation (Brief A2, 2026-05-29)
+
+NatCap's SA project reports UNA per ACS block group
+(`acs_block_groups_3857.gpkg`). The prototype computes UNA — and every SA
+biophysical model — over the SA LULC raster's valid-pixel footprint, which is
+the **Bexar County bounding box**, not the block groups. Measured comparison
+(LULC-valid mask vs the block groups rasterised onto the 30 m EPSG:5070 grid):
+
+- Prototype UNA extent: 3,398,592 px ≈ **3,059 km²**, **1,906,325** people.
+- NatCap block groups: 2,799,438 px ≈ **2,519 km²**, **1,878,866** people.
+- The block groups are a **strict subset** of the prototype extent
+  (intersection = block-group coverage). **Area IoU = 0.824.**
+- Population overlap = **98.6 %**: only **27,457 people (1.4 %)** sit in the
+  prototype's extent but outside the block groups — sparse exurban/rural Bexar
+  County land.
+
+**Why this is not an AOI misalignment to "fix."** UNA's per-pixel
+`urban_nature_supply_percapita` is computed identically regardless of which
+pixels are later aggregated — the only difference is the *citywide denominator*
+of the population-weighted headline metric, which differs by ≤1.4 %. The
+prototype's UNA path is **raster-only** (no AOI vector — see DESIGN_NOTES.md
+"Brief A2"), so matching NatCap's extent would mean masking the UNA computation
+to the block groups: a real code change (coupling the polygons into the
+biophysical path) + a full SA baseline/dense-CSV regen, for a sub-1 % effect.
+**For NatCap project-scenario validation (Track C), aggregate the prototype's
+supply raster per block group** rather than comparing the citywide headline;
+that handles the extent difference exactly with no AOI change. Decision: document
+(Brief A2), don't mask.
 
 ## Research-direction synthesis
 
