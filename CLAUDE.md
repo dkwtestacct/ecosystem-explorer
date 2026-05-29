@@ -202,6 +202,8 @@ The codebase has been incrementally split as it grew. Current state:
 - **`config.py`** — Per-city configuration (`CITIES` dict) and cost defaults. Read-only; mutations belong in `app.py`'s runtime state.
 - **`surrogate.py`** — Random Forest surrogate model (training, prediction with uncertainty bands) and the Pareto optimizer. Streamlit-agnostic; the `@st.cache_resource` wrapper lives at the call site in `app.py`.
 - **`verify_baselines.py`** — CLI baseline regression check. Snapshots `evaluate_scenario` outputs for each city × scenario × placement strategy to `tests/baselines/<city>__<scenario>__<strategy>.json`. Currently 4 scenarios × 5 strategies × 2 cities = 40 baselines; runtime ~90 seconds. Run before commit when changes could have cross-cutting effects; run with `--update` after intentional changes.
+- **`natcap_scenarios.py`** — Standalone scaffolding for NatCap's SA fixed-scenario LULC rasters (Brief B1, partial): `SA_NATCAP_FIXED_SCENARIOS` metadata + `load_natcap_fixed_scenario` (reproject 10 m → 30 m EPSG:5070, `lru_cache`d) + a pure `flood_reduction_from_nlcd_tree` helper + the scenario provenance taxonomy (`PROVENANCE_BASELINE` / `_NATCAP_FIXED` / `_EXPLORER` / `_OPTIMIZER`). Streamlit-agnostic. Loader is not yet wired into the dashboard (deferred — see OPEN_QUESTIONS.md).
+- **`export_invest_bundle.py`** — Brief D1: assembles the currently-displayed scenario as a runnable canonical InVEST 3.19.0 input zip (rasters + AOIs + biophysical tables + per-model `args.json` + `metadata.json` + README). Streamlit-agnostic; the app.py caller (`_build_invest_bundle_for_current_scenario` near the bottom of the main panel) gathers runtime state into a `BundleSpec` and calls the builder. SA-only for v1. All five InVEST urban models (UCM / UNA / UFR / Carbon / UMH) execute cleanly on the baseline bundle (Phase 3 verified).
 
 Further extractions (loaders, scenario.py, plots.py) remain deferred — they're more tightly coupled to Streamlit's runtime than the surrogate or config blocks were.
 
@@ -398,6 +400,15 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   of pixels, or anywhere precision loss could shift a metric output. When in
   doubt, downcast — float32 carries 24-bit mantissa precision (~7 decimal digits)
   which is well beyond the precision of any geospatial input we ingest.
+- **Exported raster `nodata` must match the sentinel that raster actually
+  carries (Brief D1).** The prototype tolerates unmapped/sentinel lucodes — its
+  CN aggregation filters `CN > 0` and silently drops them; canonical InVEST does
+  NOT (UFR's `_lu_to_cn_op` raises with a misleading empty `[]` lucode list when
+  any non-nodata pixel maps to an all-zero CN row). For anything written to an
+  export bundle: NLCD×tree-reduced rasters use the prototype's **−128** sentinel
+  → write with `nodata=-128`; compound LULC nodata is **−1** (matches the
+  source); NDVI is float and uses **−1.0**. If you add a new raster to the
+  bundle, set its `nodata` to whatever sentinel the array actually contains.
 - **No bare globals for city data** — always pull city-specific values from
   `city_cfg`, the derived runtime aliases (`cooling_lulc`, `ET_RESIZED`,
   `BUILDINGS_RASTER`, ...), or the explicit-state handle

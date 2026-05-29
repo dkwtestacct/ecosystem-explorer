@@ -25,6 +25,7 @@ from surrogate import (
     optimize_scenario,
     compute_pareto,
 )
+import export_invest_bundle as eib   # Brief D1 — InVEST export bundle
 
 PIXEL_AREA_ACRES     = 0.2224  # 30 m × 30 m = 900 m² ÷ 4046.86 m²/acre. Same in EPSG:26915 (UTM) and EPSG:5070 (Albers); UTM ground-area distortion at MN is ~0.05 %, well within rounding.
 # FOOD_FOREST_LBS_ACRE is city-dependent — see "── City-derived constants ──" below.
@@ -60,6 +61,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "You can now download the current scenario as a runnable input bundle for canonical InVEST 3.19.0 — rasters, AOIs, biophysical tables, and per-model args files for all five urban models. San Antonio only for v1.",
     "Mental-health estimates (preventable cases and avoided healthcare costs) are now validated against NatCap's InVEST Urban Mental Health model and shown at higher confidence.",
     "San Antonio flood estimates now use NatCap's San Antonio Curve Numbers instead of Minneapolis values. Under SA's design-storm conditions, Green Infrastructure scenarios show minimal flood mitigation — GI's primary benefits in SA are heat, nature access, and carbon. (NatCap, 2023.)",
     "San Antonio land cover now uses NatCap's San Antonio data.",
@@ -3604,6 +3606,130 @@ else:
         carbon_rate_ff=st.session_state.carbon_rate_ff,
         carbon_rate_gi=st.session_state.carbon_rate_gi,
     )
+
+
+# ── Sidebar: Export for InVEST (Brief D1) ─────────────────────────────────────
+# Placed AFTER `results` is built so the bundle helper can read it. Streamlit
+# renders sidebar elements in code order; this lands at the bottom of the
+# sidebar regardless of where in the script body it's defined.
+def _build_invest_bundle_for_current_scenario():
+    """Gather the current SA scenario state and build a D1 InVEST export
+    bundle. Returns (zip_bytes, filename). SA-only (the bundle is built around
+    NatCap's compound LULC framework)."""
+    import subprocess
+
+    if results['pct_converted'] == 0:
+        provenance = eib.PROVENANCE_BASELINE
+        generator = {"type": "baseline",
+                     "note": "unmodified prototype LULC"}
+        scen_label = f"Baseline — {selected_city}"
+        scen_id = "baseline"
+    else:
+        provenance = eib.PROVENANCE_EXPLORER
+        generator = {
+            "type": "explorer_generated",
+            "pct_converted":            int(results['pct_converted']),
+            "green_infrastructure_pct": int(results['green_infrastructure_pct']),
+            "food_forest_pct":          int(results['food_forest_pct']),
+            "high_density_pct":         int(results['pct_highdensity']),
+            "placement_strategy":       placement_strategy,
+            "random_seed":              42,
+        }
+        scen_label = results['scenario_name']
+        scen_id = (f"explorer_pct{generator['pct_converted']}"
+                   f"_gi{generator['green_infrastructure_pct']}"
+                   f"_ff{generator['food_forest_pct']}_{placement_strategy}")
+
+    scen_compound = results['scenario_lulc_ucm']         # compound view (SA)
+    base_compound = cooling_lulc_compound                # baseline compound
+    scen_nlcdtree = reduce_compound_to_nlcd_tree(
+        scen_compound, COMPOUND_TO_NLCD_TREE).astype(np.int16)
+    base_nlcdtree = reduce_compound_to_nlcd_tree(
+        base_compound, COMPOUND_TO_NLCD_TREE).astype(np.int16)
+    scen_ndvi = _lulc_to_ndvi_raster(results['scenario_lulc']).astype(np.float32)
+    base_ndvi = _lulc_to_ndvi_raster(
+        reduce_compound_to_nlcd(base_compound, COMPOUND_TO_NLCD)).astype(np.float32)
+
+    ref_path = os.path.join(city_cfg['data_dir_flood'],
+                            city_cfg['compound_lulc_file'])
+    with rasterio.open(ref_path) as src:
+        profile = dict(height=src.height, width=src.width,
+                       crs=src.crs, transform=src.transform)
+
+    try:
+        git_commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+            timeout=5).stdout.strip()
+    except Exception:
+        git_commit = "unknown"
+
+    spec = eib.BundleSpec(
+        city_name=selected_city, city_slug="san_antonio_tx",
+        crs=city_cfg['crs'], pixel_size_m=30,
+        scenario_id=scen_id, scenario_label=scen_label,
+        scenario_description=f"{provenance} scenario from Ecosystem Explorer.",
+        provenance=provenance, generator=generator,
+        git_commit=git_commit, scenario_schema_version=SCENARIO_SCHEMA_VERSION,
+        is_sa=True, raster_profile=profile,
+        scenario_lulc_compound=scen_compound,
+        baseline_lulc_compound=base_compound,
+        scenario_lulc_nlcdtree=scen_nlcdtree,
+        baseline_lulc_nlcdtree=base_nlcdtree,
+        scenario_ndvi=scen_ndvi, baseline_ndvi=base_ndvi,
+        pop_path=city_cfg['pop_file'],
+        et_path=city_cfg['et_file'],
+        soil_path=os.path.join(city_cfg['data_dir_flood'], city_cfg['soil_file']),
+        block_groups_path=city_cfg['tracts_file'],
+        ucm_table_path='data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv',
+        una_table_path=city_cfg['una_table_file'],
+        carbon_table_path=city_cfg['carbon_table_file'],
+        cn_table_path=os.path.join(city_cfg['data_dir_flood'],
+                                   city_cfg['cn_table_file']),
+        uhi_max_c=UHI_MAX_C, t_ref_c=35.0, t_air_average_radius_m=600,
+        green_area_cooling_distance_m=GREEN_AREA_COOLING_DISTANCE_M,
+        una_demand_m2=UNA_DEMAND_M2_PER_CAPITA,
+        una_radius_m=int(UNA_SEARCH_RADIUS_M),
+        una_decay=UNA_DECAY_FUNCTION,
+        design_storm_mm=round(DESIGN_STORM_MM, 1),
+        umh_search_radius_m=UMH_SEARCH_RADIUS_M,
+        umh_rr_depression=RR_0_1_NDVI_DEPRESSION,
+        umh_rr_anxiety=RR_0_1_NDVI_ANXIETY,
+        umh_bir_depression=BIR_DEPRESSION, umh_bir_anxiety=BIR_ANXIETY,
+        umh_cost_depression=float(COST_PER_DEPRESSION_CASE_USD),
+        umh_cost_anxiety=float(COST_PER_ANXIETY_CASE_USD),
+    )
+    return eib.build_invest_bundle(spec), eib.bundle_filename(spec)
+
+
+st.sidebar.divider()
+st.sidebar.subheader("Export for InVEST")
+if not selected_city.startswith("San Antonio"):
+    st.sidebar.caption(
+        "InVEST export is currently SA-only (the bundle is built around NatCap's "
+        "compound LULC framework). MN export is future work."
+    )
+else:
+    st.sidebar.caption(
+        "Download the current scenario as a runnable canonical-InVEST 3.19.0 "
+        "input bundle — rasters + AOIs + biophysical tables + per-model "
+        "`args.json` (UCM / UNA / UFR / Carbon / UMH). ~20 MB; for technical "
+        "users with InVEST installed."
+    )
+    if st.sidebar.button("Prepare InVEST bundle"):
+        with st.spinner("Building InVEST bundle (10–30 s)…"):
+            _data, _fname = _build_invest_bundle_for_current_scenario()
+            st.session_state["_invest_bundle"] = (_data, _fname)
+    if "_invest_bundle" in st.session_state:
+        _data, _fname = st.session_state["_invest_bundle"]
+        st.sidebar.download_button(
+            f"⬇ Download bundle ({len(_data) / 1e6:.1f} MB)",
+            data=_data, file_name=_fname, mime="application/zip",
+        )
+        st.sidebar.caption(f"`{_fname}`")
+        if st.sidebar.button("Clear prepared bundle"):
+            del st.session_state["_invest_bundle"]
+            st.rerun()
+
 
 # ── Top metric cards ───────────────────────────────────────────────────────────
 def _fmt_runoff(af):

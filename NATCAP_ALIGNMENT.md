@@ -73,6 +73,12 @@ reproduces NatCap's baseline, uses canonical InVEST methodology, and surfaces
 NatCap's own published scenario outcomes" — see `OPEN_QUESTIONS.md` → "Per-scenario
 compound LULC inputs" → "Impact if … never obtained".
 
+**Per-model validation state travels with the InVEST export bundle (Brief D1).**
+The bundle's `metadata.json → validation` block records each model's status
+(`validated` / `methodology_aligned`) + reference InVEST version + a per-model
+notes string sourced from this section. A downstream user opening an exported
+bundle can read the validation context without re-deriving it from these docs.
+
 ## 2. Data Source Alignment
 
 Tracks alignment between the prototype's data inputs and NatCap-curated /

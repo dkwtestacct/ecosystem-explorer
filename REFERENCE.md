@@ -913,3 +913,65 @@ To add per-type metrics for Minneapolis Full, the buildings would need to come f
 **Why San Antonio = Bexar County bbox** *(2026-05-09)*: The San Antonio AOI is a bounding box covering Bexar County rather than the city's municipal boundary. Every upstream dataset feeds in at county granularity — Census 2020 (FIPS 48029), SSURGO soils (TX029), TIGER tracts (375 Bexar tracts) — or requires a bbox clip from a larger distribution (Geofabrik Texas OSM, CGIAR Global-AI/ET0). Clipping to the city-of-San-Antonio municipal boundary would add a geometric-intersection step to every pipeline without methodological gain — the urban-greening question doesn't actually care whether a converted pixel sits inside or outside the city limit. The raster captures **1,906,325 people** — between San Antonio proper (~1.4M) and the full county (~2.0M); the bbox edges crop some of Bexar's outermost corners, which is the gap. This contrasts with the two Minneapolis entries: downtown MN uses the InVEST UFR sample shapefile's pre-cut AOI (123 km² covering downtown + near-neighborhoods), and Minneapolis Full uses the municipal city boundary (148.9 km²). SA has no InVEST sample to inherit from, so bbox-on-county was the natural extent for the build. To change the extent: re-clip all upstream rasters (NLCD, SSURGO, ET, population, tracts, OSM) to a different polygon and bump `SCENARIO_SCHEMA_VERSION`.
 
 **Nature Access under canonical 2SFCA.** The Nature Access card reports `pct_pop_supply_ge_demand` from canonical InVEST UNA 2SFCA (see "Official InVEST alignment — UNA"). On the downtown Minneapolis extent the baseline is ≈ 46.9 % and the metric spans ≈ 43–100 % across the standard scenarios, saturating toward 100 % only at high (≥ 50 %) nature conversion — a real property of the supply-vs-demand comparison, not a degeneracy. Minneapolis Full is currently hidden from the UI and its 2SFCA behaviour has not been separately characterised.
+
+## External Workflows
+
+### Export for InVEST (Brief D1)
+
+The sidebar's **"Export for InVEST"** section packages the currently-displayed scenario as a runnable canonical **InVEST 3.19.0** input bundle: a zip with rasters (scenario + baseline compound LULC, the NLCD×tree-reduced view for UFR, and an NDVI proxy raster for UMH), shared inputs (population, reference ET, soil hydrologic group, AOIs, baseline-prevalence vectors), per-model biophysical tables, and one `args.json` per InVEST urban model. A `metadata.json` records full provenance — scenario source / generator parameters, the prototype's git commit, `SCENARIO_SCHEMA_VERSION`, and a per-model **validation state** sourced from `NATCAP_ALIGNMENT.md`.
+
+San Antonio only for v1 (the bundle is built around NatCap's compound LULC framework). For Minneapolis the sidebar shows a "future work" caption. Click **Prepare InVEST bundle** to assemble (~10–30 s on SA), then **Download bundle**.
+
+#### Bundle structure
+
+```
+ecosystem_explorer_export_<city_slug>_<scenario_id>_<timestamp>.zip
+├── README.md                                            (how-to-run; bundle-relative paths)
+├── metadata.json                                        (provenance, generator, per-model validation)
+├── inputs/
+│   ├── prototype/                                       (rasters on the 30 m EPSG:5070 prototype grid)
+│   │   ├── scenario_lulc_evaluated_30m_5070.tif         (compound — UCM / UNA / Carbon-alt)
+│   │   ├── baseline_lulc_evaluated_30m_5070.tif         (compound — Carbon-bas / baseline re-runs)
+│   │   ├── scenario_lulc_nlcdtree_30m_5070.tif          (NLCD×tree — UFR)
+│   │   ├── baseline_lulc_nlcdtree_30m_5070.tif          (NLCD×tree — UFR baseline)
+│   │   ├── scenario_ndvi_30m_5070.tif                   (UMH `ndvi_alt`)
+│   │   └── baseline_ndvi_30m_5070.tif                   (UMH `ndvi_base`)
+│   ├── shared/                                          (population, ET, soil, AOIs, prevalence vectors)
+│   └── biophysical/                                     (ucm / una / carbon compound tables; SA NLCD×tree CN table)
+└── args/prototype_grid/                                 (one args.json per model)
+    ├── urban_cooling_args.json
+    ├── urban_nature_access_args.json
+    ├── urban_flood_risk_mitigation_args.json
+    ├── carbon_args.json
+    ├── urban_mental_health_depression_args.json         (effect_size = RR per 0.1 NDVI, depression)
+    └── urban_mental_health_anxiety_args.json            (effect_size = RR per 0.1 NDVI, anxiety)
+```
+
+#### Running canonical InVEST on the bundle
+
+From the **bundle root** (paths in the args files are bundle-root-relative):
+
+```bash
+python -c "import json; from natcap.invest import urban_cooling_model as m; m.execute(json.load(open('args/prototype_grid/urban_cooling_args.json')))"
+```
+
+Substitute the module and args path for each model (UCM / UNA / UFR / Carbon / UMH). All five execute cleanly on InVEST 3.19.0 — verified on the SA baseline bundle as part of D1 Phase 3.
+
+#### Scenario vs baseline deltas
+
+- **Carbon** runs baseline-vs-scenario in a single execution (`lulc_bas_path` + `lulc_alt_path` + `calc_sequestration=True`).
+- **UCM / UNA / UFR / UMH** produce one result per LULC — to get the delta, run each twice, pointing `lulc_*_path` first at `inputs/prototype/scenario_lulc_evaluated_30m_5070.tif` and then at `inputs/prototype/baseline_lulc_evaluated_30m_5070.tif`. The bundle's `README.md` documents this.
+
+#### Known bundle-level caveats
+
+- **UCM is biophysical-cooling only** — `do_energy_valuation=False`. The prototype's Cooling Energy Savings $-card is not reproduced.
+- **UFR damage valuation is omitted** — SA has no damage table (Path C).
+- **The prototype-extent AOI is a bounding-box polygon**, not a hydrologic watershed or admin boundary. UNA's `admin_boundaries` uses NatCap's ACS block-groups (the NatCap SA equity framing); the other models' AOI uses the bbox.
+- **UMH uses a synthetic uniform `risk_rate` vector and a synthetic NDVI proxy** (per-land-cover, not satellite). Two args files (depression / anxiety). Algorithmic parity is validated (Brief B) and canonical execution on the baseline is verified — input-quality caveats, not parity gaps.
+
+#### Out of scope for v1
+
+- **Source-grid args files** (NatCap's 10 m grid for the fixed-scenario rasters) — technical users can construct these themselves.
+- **NatCap fixed *alternative* scenarios** (FF_20ac/40ac/MAX, UA_*) are not yet wired through the sidebar selector — when wired, those will export the flood source raster + UFR args only, with the compound-model args explicitly marked unavailable in `metadata.json` (NatCap shipped only the flood encoding for them; see `OPEN_QUESTIONS.md`).
+- **Batch export from the saved-scenarios table** — single-scenario export only.
+- **Round-trip import of canonical InVEST results** — out of scope.

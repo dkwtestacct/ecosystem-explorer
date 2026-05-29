@@ -1864,6 +1864,83 @@ the chosen scenarios should be vendored + pre-reprojected into the repo
 (Streamlit Cloud has no `~/Desktop`). Deferred to avoid committing binaries in
 this code-only scaffolding commit.
 
+## Brief D1 — Export for InVEST workflow (2026-05-29)
+
+**Goal.** Bridge the prototype to canonical InVEST: a single sidebar button packages
+the currently-displayed scenario as a runnable **InVEST 3.19.0** input zip — rasters
++ AOIs + biophysical tables + per-model `args.json` for **UCM / UNA / UFR / Carbon /
+UMH** + a `metadata.json` recording provenance, generator parameters, and per-model
+validation state. Delivers value-ladder Level 5 ("workflow layer") as a concrete
+capability, not aspirational. SA-only for v1.
+
+**Architecture.** New `export_invest_bundle.py` is Streamlit-agnostic (mirrors
+`surrogate.py` / `natcap_scenarios.py`): a `BundleSpec` dataclass + a `build_invest_bundle(spec)
+→ bytes` builder that writes the zip in memory (Streamlit-Cloud-safe, no temp dir).
+The app.py caller (`_build_invest_bundle_for_current_scenario`) gathers runtime
+state into the spec and calls the builder; the sidebar uses a two-step
+**Prepare → Download** flow (avoids rebuilding the ~20 MB bundle on every rerun)
+plus a "Clear prepared bundle" reset.
+
+**Scenario-vs-baseline shape.** Baseline scenarios export `provenance=baseline`;
+Explorer-generated scenarios export `provenance=explorer_generated` with the full
+slider parameter set + `placement_strategy` + `random_seed`. The polymorphic
+`generator` block keys off the `natcap_scenarios.py` provenance taxonomy. Carbon
+runs `lulc_bas` + `lulc_alt` in a single args file; UCM/UNA produce one result per
+LULC — the bundle includes both the scenario and baseline rasters so the user
+re-runs each for the delta (documented in the bundle README). NatCap fixed
+*alternative* scenarios are flagged in the bundle metadata as
+`compound_models_available=False` and export the flood source + UFR args only —
+not yet wired through the sidebar (compound LULC unavailable per Brief B1;
+`OPEN_QUESTIONS.md`).
+
+**AOIs.** Synthesized **bounding-box** polygon (`aoi_prototype_extent.gpkg`) for
+UCM / UFR (watersheds) / UMH — citywide aggregation footprint matching the
+prototype's citywide-mean reporting. NatCap's ACS block-group polygons
+(`aoi_natcap_block_groups.gpkg`) are used for UNA's `admin_boundaries` — the
+framing NatCap uses for SA equity analysis (Vibrant Land). The
+`metadata.json → aoi` block records each AOI's role + reason.
+
+**Per-model args choices** (Phase 0 introspection of InVEST 3.19.0 `ModelSpec`):
+UCM `cc_method="factors"` with weights 0.6 / 0.2 / 0.2 mirroring the prototype's
+HMI formula; **`do_energy_valuation=False`** — biophysical-cooling only, no
+building-vector dependency, no Cooling Energy Savings $-card reproduction (noted
+in README + metadata). UNA `decay_function="dichotomy"`, `search_radius_mode="uniform
+radius"`, `search_radius=800`, `urban_nature_demand=16.7`. UFR uses NatCap's
+NLCD×tree CN table directly; damage valuation omitted (no SA damage table, Path
+C). Carbon `do_valuation=False` (stock change only — keeps the run minimal +
+matches the prototype's SC-CO2-applied-separately framing). UMH `model_option="ndvi"`
++ a synthesized polygon `baseline_prevalence_vector` carrying `risk_rate` =
+CDC ever-diagnosed BIR; two args files emitted (depression, anxiety) since
+InVEST UMH's `effect_size` is per-condition.
+
+**Phase 3 verification — all 5 models PASS on the baseline bundle** (canonical
+`natcap.invest` 3.19.0, conda env `natcap_umh_validation`): UCM ✓, UNA ✓, UFR ✓,
+Carbon ✓, UMH-depression ✓, UMH-anxiety ✓. Per-model validation states in the
+exported `metadata.json` reflect this: UCM / UNA / UMH = `validated`; Carbon / UFR
+= `methodology_aligned` (canonical method, framing differences documented in
+notes). Brief amendment had marked UMH best-effort/unverified; it ran cleanly,
+so the hedge is dropped and UMH is recorded `validated`.
+
+**Nodata sentinel rule (general truth, surfaced by D1 Phase 3 UFR failure-then-fix).**
+The prototype tolerates unmapped or sentinel lucodes — its CN aggregation filters
+`CN > 0` and silently drops them. **Canonical InVEST does NOT** — InVEST UFR
+`_lu_to_cn_op` raises `ValueError` (with a misleading empty `[]` lucode list, a
+known display bug) when any non-nodata pixel maps to an all-zero CN row. So
+**every exported raster's `nodata` tag must match the sentinel that raster
+actually carries**: the NLCD×tree-reduced view emits the prototype's **−128**
+sentinel for outside-boundary pixels → write with `nodata=-128`; compound LULC
+nodata is **−1** (matches the source); NDVI is float and uses **−1.0**.
+Initial D1 UFR run wrote the NLCD×tree raster with `nodata=0`, leaving 35,973
+−128 pixels unmasked — InVEST raised on them. Fixed in
+`export_invest_bundle.py` (`nodata=-128` for both nlcdtree rasters); all five
+models then PASS. Save the next export path — fixed-alternative, a fresh
+Explorer-scenario export, or any future raster added to the bundle — from
+rediscovering this the hard way.
+
+**WHATS_NEW + Underway discipline.** Added a WHATS_NEW entry — D1 clears the bar
+(major user-visible capability: a new sidebar button + downloadable bundle).
+Underway stays empty.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
