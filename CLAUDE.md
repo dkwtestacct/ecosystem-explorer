@@ -270,7 +270,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   unioning with buildings, **~65 % of developed pixels (NLCD 21–24) remain convertible**
   (33,357 of 51,430). Rasterization is unbuffered line-to-pixel via `rasterio.features.rasterize`
   with `dtype="uint8"`; output is binary 0/1.
-- **`SCENARIO_SCHEMA_VERSION = 26`** — bump on every change that shifts `evaluate_scenario`
+- **`SCENARIO_SCHEMA_VERSION = 27`** — bump on every change that shifts `evaluate_scenario`
   outputs so cached lookup tables get regenerated. Full per-bump history in `HISTORY.md`
   "Schema version log"; per-brief reasoning in `DESIGN_NOTES.md`.
 - **City runtime state (`CityState` + `_load_city_runtime_state`).** All heavy
@@ -366,14 +366,6 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
 - **Heat Vulnerability Index — still pending.** The `equity_weights`
   raster is a proxy (NLCD intensity-coded), not a real CDC/ATSDR HVI by
   census tract. Replacing it is the next data-quality upgrade.
-- **UMH NE-kernel exact parity — deferred (Brief B).** UMH is validated
-  against canonical InVEST 3.19.0 (`compare_umh_invest.py`): aggregate
-  preventable-cases match ~1.5 %, but per-pixel r ≈ 0.95–0.98 because the
-  app uses a Gaussian NE kernel while canonical uses a uniform buffer-mean.
-  Switching to a buffer mean for exact per-pixel parity shifts
-  `preventable_mh_cases` everywhere → baseline + dense-CSV regen + schema
-  bump; intentionally its own future brief. See `DESIGN_NOTES.md` "UMH
-  validation against canonical InVEST 3.19.0".
 - **Minneapolis Full extent (hidden from UI).** Live in `CITIES` but
   `available=False`. See `HISTORY.md` "Full Minneapolis extent" for the
   activation+hiding rationale and pipeline path details.

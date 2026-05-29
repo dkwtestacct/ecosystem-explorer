@@ -82,10 +82,12 @@ def run_export() -> int:
         ndvi_alt = app._lulc_to_ndvi_raster(res["scenario_lulc"]).astype("float32")
         pop = np.asarray(state.pop_count_raster, dtype="float32")
 
-        # Prototype per-pixel preventable cases, using app's real constants.
-        gf = app._gaussian_filter
-        ne_b = gf(ndvi_base, sigma=app._UMH_SIGMA_PX, mode="nearest")
-        ne_a = gf(ndvi_alt, sigma=app._UMH_SIGMA_PX, mode="nearest")
+        # Prototype per-pixel preventable cases, using the app's ACTUAL NE
+        # kernel + constants (so this harness tracks the shipped UMH code, not
+        # an inline copy). `_umh_neighborhood_exposure` is the buffer-mean NE
+        # used by calculate_mental_health_impact.
+        ne_b = app._umh_neighborhood_exposure(ndvi_base)
+        ne_a = app._umh_neighborhood_exposure(ndvi_alt)
         d_ne = ne_a - ne_b
         pc_dep = ((1.0 - np.exp(app._UMH_LN_RR_DEPRESSION * 10 * d_ne))
                   * app.BIR_DEPRESSION * pop).astype("float32")

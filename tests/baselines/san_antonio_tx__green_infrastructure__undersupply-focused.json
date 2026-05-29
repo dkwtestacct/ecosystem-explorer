@@ -1,5 +1,5 @@
 {
-  "avoided_mh_cost_usd": 54579972.0,
+  "avoided_mh_cost_usd": 55425014.0,
   "carbon_tons_co2": 4383773.5,
   "carbon_value_usd": 832916965.0,
   "cooling_energy_savings_usd": 3336422.0,
@@ -22,7 +22,7 @@
   "pct_highdensity": 0,
   "people_fed": 0,
   "people_with_nature_access": 1904959,
-  "preventable_mh_cases": 7400.3,
+  "preventable_mh_cases": 7515.4,
   "runoff_acre_feet": 53626.6,
   "scenario_lulc__md5": "8a097316a88c3440ae72cb1f3d0fd610",
   "scenario_lulc_carbon__md5": "777b5b9f781adc7e7fd4c210aef75f44",

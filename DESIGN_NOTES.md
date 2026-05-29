@@ -1676,13 +1676,62 @@ MN/SA, so the "default-input" MAE coincides with the matched-input number;
 (b) the NE kernel itself, which is inherent. Validation is on the prototype's
 **synthetic NDVI proxy**, so it validates the algorithm, not the NDVI source.
 
-**Deferred — Brief B (exact-parity kernel switch).** Switching the prototype's
-NE from a Gaussian to a buffer-mean would bring per-pixel parity to canonical,
-but it shifts `preventable_mh_cases` / `avoided_mh_cost_usd` for every scenario
-→ requires regenerating the 40 baselines + both dense CSVs and a
-`SCENARIO_SCHEMA_VERSION` bump. It's a methodology change, not a doc fix, so it
-is intentionally NOT bundled into this validation commit; it should land as its
-own brief if exact canonical parity is wanted.
+**Deferred — Brief B (exact-parity kernel switch). → DONE, see below.**
+Switching the prototype's NE from a Gaussian to a buffer-mean brings per-pixel
+parity to canonical; it shifts `preventable_mh_cases` / `avoided_mh_cost_usd`
+for every scenario → requires regenerating the 40 baselines + both dense CSVs
+and a `SCENARIO_SCHEMA_VERSION` bump. Landed in Brief B (next section).
+
+## Brief B — UMH NE kernel: Gaussian → buffer-mean
+
+**What changed.** The UMH neighborhood-exposure (NE) kernel was switched from a
+Gaussian (`σ = search_radius / pixel_size`) to the canonical InVEST UMH 3.19.0
+**buffer-mean**: an edge-corrected mean of the NDVI proxy over a flat binary
+disk of radius `search_radius / pixel_size` (apothem 10 px at 30 m / 300 m,
+317-pixel disk). Implemented by reusing the existing `_convolve_edge_corrected`
+helper (the prototype's port of
+`pygeoprocessing.convolve_2d(ignore_nodata_and_edges=True)`) with a disk kernel
+and `kernel_sum=1.0` so it returns the local mean. The new
+`_umh_neighborhood_exposure` helper feeds both the scenario NE
+(`calculate_mental_health_impact`) and the baseline NE
+(`_BASELINE_NE_RASTER`). `scipy.ndimage.gaussian_filter` and `_UMH_SIGMA_PX`
+are gone.
+
+**How the kernel was pinned down.** Probed canonical's emitted `kernel.tif`
+(21×21 binary disk, sum 317) and confirmed edge-correction via an all-ones NDVI
+test (buffer-mean = 1.0 everywhere, including edges). An independent random-NDVI
+probe matched the candidate to MAE 1e-8.
+
+**Validation result (`compare_umh_invest.py`, post-fix):**
+- **MN: exact** — MAE ≈ 1e-9, Pearson r = 1.000000 (both outcomes); proto
+  totals now equal canonical (128.6 dep / 86.9 anx).
+- **SA: MAE ≈ 0 on aligned input.** Feeding the app's raw 30 m grid, the harness
+  showed MAE rel 0.14 %, r = 0.9988 — *above* the brief's 0.1 % gate. The
+  alignment diagnostic resolved it: applying the app's NE kernel to canonical's
+  **own aligned NDVI** (`ndvi_*_aligned_masked`) matched canonical's
+  `*_buffer_mean` to **MAE 9.4e-9** over all 3.47 M pixels. So the kernel is
+  mathematically identical; the 0.14 % was large-grid feeding-alignment + FFT
+  noise in the *comparison*, not a metric divergence. (Lesson: on the big SA
+  grid, integer-pixel cropping of canonical's padded output can't absorb
+  sub-pixel alignment — validate against canonical's aligned raster directly.)
+
+**Propagation.** Read-only baseline diff confirmed drift isolated to
+`preventable_mh_cases` + `avoided_mh_cost_usd` only (60 divergences across the
+30 conversion scenarios; the 10 zero-conversion baselines unchanged; shifts
+~1.5–3 %). Regenerated all 40 baselines + both dense CSVs;
+`SCENARIO_SCHEMA_VERSION` 26 → 27.
+
+**Confidence.** MH cards upgraded Medium → High — the algorithm now has
+per-pixel canonical parity. The synthetic-NDVI-proxy caveat is retained in the
+card help as a separate *input-quality* note (real-satellite-NDVI is a distinct
+future workstream). The remaining documented divergence is the per-admin
+prevalence vector (a), unquantifiable without per-tract MH-prevalence data.
+
+**Harness note.** Fixing this surfaced a latent bug in `compare_umh_invest.py`'s
+export step (from Brief A): it recomputed the prototype NE with an *inline copy*
+of the Gaussian rather than calling the app's actual UMH path, so it didn't
+track the kernel change. The exporter now calls
+`app._umh_neighborhood_exposure`, so the harness validates the shipped code.
 
 ## Topics not yet documented
 

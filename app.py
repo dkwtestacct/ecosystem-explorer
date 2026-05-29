@@ -13,7 +13,6 @@ import rasterio
 from rasterio.features import rasterize as _rasterize
 from skimage.transform import resize
 import geopandas as _gpd
-from scipy.ndimage import gaussian_filter as _gaussian_filter
 from scipy.ndimage import distance_transform_edt as _distance_transform_edt
 from scipy.ndimage import zoom as _zoom
 from scipy.signal import fftconvolve as _fftconvolve
@@ -61,6 +60,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "Mental-health estimates (preventable cases and avoided healthcare costs) are now validated against NatCap's InVEST Urban Mental Health model and shown at higher confidence.",
     "San Antonio flood estimates now use NatCap's San Antonio Curve Numbers instead of Minneapolis values. Under SA's design-storm conditions, Green Infrastructure scenarios show minimal flood mitigation — GI's primary benefits in SA are heat, nature access, and carbon. (NatCap, 2023.)",
     "San Antonio land cover now uses NatCap's San Antonio data.",
     "San Antonio carbon now uses NatCap's four-pool storage framework — reported as one-time storage value rather than annual rate.",
@@ -1350,25 +1350,39 @@ _MH_CASES_PILL_EPSILON       = 1     # cases threshold for pill suppression
 _MH_COST_PILL_EPSILON        = 1000  # USD threshold for pill suppression
 UMH_SEARCH_RADIUS_M          = 300   # Li et al. 2025; ~10 px at 30 m NLCD
 
-# Neighborhood NDVI exposure (NE): the prototype Gaussian-smooths the NDVI
-# proxy with sigma = search_radius / pixel_size.
-# NOTE: canonical InVEST UMH 3.19.0 instead uses a UNIFORM BUFFER-MEAN within
-# the search radius (a flat disk), NOT a Gaussian — verified by
-# compare_umh_invest.py. The two kernels agree on city-wide aggregate
-# preventable cases to ~1.5 % but differ per-pixel (Pearson r 0.95-0.98).
-# Switching to a buffer mean for exact per-pixel parity is a deferred follow-up
-# (it shifts preventable_mh_cases everywhere → needs a baseline + dense-CSV
-# regen + a SCENARIO_SCHEMA_VERSION bump). See DESIGN_NOTES.md "UMH validation
-# against canonical InVEST 3.19.0".
-_UMH_SIGMA_PX = UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M     # = 10.0 at 30 m / 300 m
+# Neighborhood NDVI exposure (NE): a uniform BUFFER-MEAN of the NDVI proxy over
+# a flat disk of radius `search_radius / pixel_size`, matching canonical InVEST
+# UMH 3.19.0's NE kernel exactly — a binary-disk convolution with edge
+# correction, i.e. pygeoprocessing.convolve_2d(ignore_nodata_and_edges=True).
+# Validated to per-pixel parity (MAE ≈ 0, Pearson r ≈ 1.0) against
+# `natcap.invest.urban_mental_health.execute()` via compare_umh_invest.py — see
+# DESIGN_NOTES.md "Brief B — UMH NE kernel: Gaussian → buffer-mean".
+# (Brief A's Gaussian σ=radius kernel diverged per-pixel; Brief B switched it.)
+_UMH_RADIUS_PX = UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M     # = 10.0 at 30 m / 300 m
+_UMH_APOTHEM   = int(np.floor(_UMH_RADIUS_PX))
+_umh_yy, _umh_xx = np.mgrid[-_UMH_APOTHEM:_UMH_APOTHEM + 1, -_UMH_APOTHEM:_UMH_APOTHEM + 1]
+_UMH_KERNEL = (np.hypot(_umh_yy, _umh_xx) <= _UMH_RADIUS_PX).astype(np.float64)
+del _umh_yy, _umh_xx
 _UMH_LN_RR_DEPRESSION = float(np.log(RR_0_1_NDVI_DEPRESSION))
 _UMH_LN_RR_ANXIETY    = float(np.log(RR_0_1_NDVI_ANXIETY))
+
+
+def _umh_neighborhood_exposure(ndvi_raster):
+    """Neighborhood NDVI exposure (NE) = edge-corrected mean of the NDVI proxy
+    over the UMH buffer disk — canonical InVEST UMH's `ndvi_*_buffer_mean`. The
+    NDVI proxy is fully filled (no nodata), so valid_mask is all-True; the edge
+    correction handles the AOI boundary exactly as canonical's radius padding
+    does. `kernel_sum=1.0` makes `_convolve_edge_corrected` return numer/denom —
+    the local mean rather than a weighted sum."""
+    valid = np.ones(ndvi_raster.shape, dtype=bool)
+    return _convolve_edge_corrected(
+        ndvi_raster.astype(np.float64), _UMH_KERNEL, valid, 1.0)
 
 
 def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count, ndvi_raster=None):
     """Return (preventable_mh_cases, avoided_mh_cost_usd) for the scenario.
 
-    `baseline_ne_raster` is the smoothed NE raster for the unmodified LULC
+    `baseline_ne_raster` is the buffer-mean NE raster for the unmodified LULC
     (precomputed once at module load — see _BASELINE_NE_RASTER below). We
     compute the scenario-side NE on the fly, take ΔNE, apply the InVEST UMH
     formula per pixel, and sum population-weighted preventable cases. Returns
@@ -1382,9 +1396,7 @@ def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count,
         return 0.0, 0.0
     if ndvi_raster is None:
         ndvi_raster = _lulc_to_ndvi_raster(scenario_lulc)
-    ne_scenario = _gaussian_filter(
-        ndvi_raster, sigma=_UMH_SIGMA_PX, mode="nearest"
-    )
+    ne_scenario = _umh_neighborhood_exposure(ndvi_raster)
     delta_ne = ne_scenario - baseline_ne_raster
 
     rr_dep = np.exp(_UMH_LN_RR_DEPRESSION * 10 * delta_ne)
@@ -1885,7 +1897,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 26  # bumped: Brief B adds three per-target fallback-pixel diagnostic keys to `evaluate_scenario`'s return dict — `ff_fellback_pixels`, `gi_fellback_pixels`, `hd_fellback_pixels`. For SA these count converted pixels whose source (NLUD, tree-canopy) tuple had no matching crosswalk row and fell back to DEFAULT_<target>_LUCODE (1310 / 122 / 341). For MN they're always 0 (no compound conversion path). Not surrogate targets — pure metadata about the conversion, surfaced in the SA dashboard's Conversion fidelity panel. Brief 30 was at 25.
+SCENARIO_SCHEMA_VERSION = 27  # bumped: UMH neighborhood-exposure kernel changed from Gaussian to canonical buffer-mean (InVEST 3.19.0 per-pixel parity) — `preventable_mh_cases` / `avoided_mh_cost_usd` shift for every conversion scenario. Full per-bump rationale in HISTORY.md "Schema version log". (26 added the per-target fallback-pixel diagnostic fields.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -2489,9 +2501,8 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         _ucm_baseline_lulc, l_shade_arr, l_kc_arr, l_albedo_arr, et_resized, max_et_ref,
         l_green_area_arr,
     )
-    baseline_ne_raster = _gaussian_filter(
-        _lulc_to_ndvi_raster(l_cooling_lulc), sigma=_UMH_SIGMA_PX, mode="nearest",
-    )
+    baseline_ne_raster = _umh_neighborhood_exposure(
+        _lulc_to_ndvi_raster(l_cooling_lulc))
     # Canonical InVEST UNA `urban_nature_supply_percapita` at baseline — for
     # the undersupply-focused placement strategy (Brief 9 Stage D). Reuses
     # the canonical 2SFCA implementation via its `_pure` variant because
@@ -3888,23 +3899,27 @@ hs3.metric(
     delta=_mh_cases_delta,
     delta_color=_mh_cases_color,
     help=(
-        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
+        "Confidence: High — see 'How this prototype works' for tier definitions. "
         "Estimated preventable depression "
         "and anxiety cases from the scenario's NDVI exposure change. Based on "
         "the InVEST Urban Mental Health model (v3.19.0): per-pixel "
-        "ΔNE = NE_scenario − NE_baseline (smoothed at 300 m), "
-        "RR = exp(ln(RR₀.₁) × 10 × ΔNE), "
+        "ΔNE = NE_scenario − NE_baseline (300 m buffer-mean, the canonical "
+        "InVEST UMH kernel), RR = exp(ln(RR₀.₁) × 10 × ΔNE), "
         "PC = (1 − RR) × baseline_prevalence × population. "
         "Effect sizes from Liu et al. 2023 meta-analysis; baseline prevalence "
         "from CDC 2023 (depression 21 %, anxiety 19 %). Returns 0 at baseline "
         "and for scenarios with no greenness change. Negative values mean the "
         "scenario INDUCED cases (e.g. converting open space to high-density "
         "development) — shown in red. "
+        "Validated to per-pixel parity (MAE ≈ 0, r = 1.0) against canonical "
+        "InVEST UMH 3.19.0 (compare_umh_invest.py). NDVI here is a synthetic "
+        "per-land-cover proxy, not satellite-derived — an input-quality caveat "
+        "separate from the validated algorithm. "
         "Underlying model: [InVEST Urban Mental Health]"
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_mental_health.html)."
     ),
 )
-_confidence_caption(hs3, "medium")
+_confidence_caption(hs3, "high")
 hs3.caption("cases prevented" if _mh_cases >= 0 else "cases induced")
 if _mh_cost >= _MH_COST_PILL_EPSILON:
     _mh_cost_label = "Avoided MH Costs"
@@ -3927,7 +3942,7 @@ hs4.metric(
     delta=_mh_cost_delta,
     delta_color=_mh_cost_color,
     help=(
-        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
+        "Confidence: High — see 'How this prototype works' for tier definitions. "
         "Avoided healthcare cost = "
         "preventable_cases × per-case cost-of-illness. Per-case costs: "
         f"\\${COST_PER_DEPRESSION_CASE_USD:,}/depression, "
@@ -3942,7 +3957,7 @@ hs4.metric(
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_mental_health.html)."
     ),
 )
-_confidence_caption(hs4, "medium")
+_confidence_caption(hs4, "high")
 hs4.caption("avoided MH costs/yr" if _mh_cost >= 0 else "added MH costs/yr")
 
 st.divider()
