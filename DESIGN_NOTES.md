@@ -1205,7 +1205,7 @@ exposure.
 only — no model, schema, or baseline changes:
 
 1. **Main card.** The SA-specific branch (typed buildings present,
-   no damage table) now renders as `"Flood Retention"` with the
+   no damage table) now renders as `"Flood Volume Reduction"` with the
    value `f"{flood_reduction:.1f}%"` and help text citing the
    Vibrant Land precedent. The previous "—" with "would light this
    card up" framing is gone. MN's branch (damage table present)
@@ -1216,7 +1216,7 @@ only — no model, schema, or baseline changes:
    city-conditional. MN renders dollars (Baseline `$0`, Scenario
    `$X.XM`, Change `+$X.XM`). SA renders volume reduction
    (Baseline `0%`, Scenario `X.X%`, Change `+X.X%`). Row label
-   shifts to `"Flood Retention"` for SA.
+   shifts to `"Flood Volume Reduction"` for SA.
 
 3. **Underlying field unchanged.** `avoided_flood_damage_usd` still
    returns $0 for SA and the real dollar value for MN. Surrogate
@@ -1492,12 +1492,14 @@ unaffected.
   (`app.py`) is computed identically for both cities and is a retention
   index, not a damage-curve risk metric — so the rename applies to MN and
   SA alike (the lead-card label is not city-conditional). **Known
-  consequence:** SA now shows the same `flood_reduction` value under the
-  "Flood Retention" name in two places — the Ecological card (index 0–100)
-  and the Economic card (Brief 33's % volume reduction) — plus two rows in
-  the comparison table. Harmonizing the *name* was the brief's explicit
-  ask; de-duplicating or differentiating the two cards is a possible
-  follow-up, out of Brief 2's scope.
+  consequence (resolved in Brief 7):** the rename briefly made SA show the
+  same `flood_reduction` value under the "Flood Retention" name twice — the
+  Ecological card (index 0–100) and the Economic card (Brief 33's % volume
+  framing) — plus two comparison-table rows. Brief 7 took **Approach B
+  (differentiate)**: the Economic card and its comparison-table row were
+  renamed to **"Flood Volume Reduction"**, so the two now carry distinct
+  labels matching their distinct framings. The Ecological card keeps
+  "Flood Retention".
 - **SA carbon confidence badge.** The carbon *quantity* card's badge
   (`_confidence_caption`) was hard-coded "Prototype" for both cities,
   which undercut SA's NatCap four-pool framework (Brief 30). It's now

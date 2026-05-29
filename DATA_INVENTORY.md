@@ -2,7 +2,7 @@
 
 **Purpose:** A canonical reference for every data source the Urban Ecosystem Tradeoff Explorer prototype consumes. Covers both supported cities (Minneapolis, San Antonio) and the dormant Minneapolis Full configuration, organized by data category rather than by city. The goal is that any future session can read this file and understand what data exists, where it lives, what it's for, and what's pending — without re-discovering the same context from scratch.
 
-**Status:** v1 finalized 2026-05-24. v2 audited 2026-05-26 against the live repo (post-Brief 33) — reconciled with Briefs 14 (SA UHI), 23 (per-city rainfall), 27 (compound LULC), 28b (compound UCM), 29 (compound UNA), 30 (four-pool Carbon), 31 (ACS block groups), 33 (Flood Retention reframe). Maintained alongside `REFERENCE.md`, `DESIGN_NOTES.md`, and `NATCAP_ALIGNMENT.md`.
+**Status:** v1 finalized 2026-05-24. v2 audited 2026-05-26 against the live repo (post-Brief 33) — reconciled with Briefs 14 (SA UHI), 23 (per-city rainfall), 27 (compound LULC), 28b (compound UCM), 29 (compound UNA), 30 (four-pool Carbon), 31 (ACS block groups), 33 (Flood Volume Reduction reframe). Maintained alongside `REFERENCE.md`, `DESIGN_NOTES.md`, and `NATCAP_ALIGNMENT.md`.
 
 **Scope:** External data sources the prototype consumes — rasters, vectors, tabular data, biophysical parameter tables. Derived intermediates and runtime-computed rasters are *not* enumerated here (those live in code).
 
@@ -472,7 +472,7 @@ For completeness — these are project documentation files in the repo root:
 | San Antonio NatCap-curated (NLCD+NLUD+tree compound lucode framework) | ✅ Adopted across LULC raster (Brief 27), UCM (Brief 28b), UNA (Brief 29), Carbon (Brief 30), and ACS block groups (Brief 31) | This doc §2/§6/§8/§9. Reflected in NATCAP_ALIGNMENT.md, CITY_PARITY.md, REFERENCE.md per their respective briefs. |
 | Annual NLCD migration | 🔵 Not pursued — would require complete revalidation | DESIGN_NOTES.md "NLCD legacy vs Annual NLCD" |
 | AlphaEarth satellite embeddings | 🔵 Feasibility research only | ALPHAEARTH_FEASIBILITY.md |
-| SA building damage rates per-city | ✅ Resolved Brief 33 (Path C — match NatCap's Vibrant Land methodology, render "Flood Retention" % volume reduction instead of monetized damage). Reversible if NatCap surfaces SA-specific damage values. | DESIGN_NOTES.md "SA flood damage table — resolved (Path C, Brief 33)" |
+| SA building damage rates per-city | ✅ Resolved Brief 33 (Path C — match NatCap's Vibrant Land methodology, render "Flood Volume Reduction" instead of monetized damage). Reversible if NatCap surfaces SA-specific damage values. | DESIGN_NOTES.md "SA flood damage table — resolved (Path C, Brief 33)" |
 
 ---
 

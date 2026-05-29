@@ -4027,7 +4027,7 @@ elif BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
     # `avoided_flood_damage_usd` field stays at $0 (surrogate-training
     # compatibility, no schema change).
     econ3.metric(
-        "Flood Retention",
+        "Flood Volume Reduction",
         f"{results['flood_reduction']:.1f}%",
         delta=(
             f"+{results['flood_reduction']:.1f}% vs baseline"
@@ -4305,7 +4305,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             if _flood_damage_avoided >= 1e4 else '$0'
         )
     else:
-        _flood_label_table = 'Flood Retention'
+        _flood_label_table = 'Flood Volume Reduction'
         _flood_baseline_table = '0%'
         _flood_scenario_table = f'{results["flood_reduction"]:.1f}%'
         _flood_change_table = f'+{results["flood_reduction"]:.1f}%'
