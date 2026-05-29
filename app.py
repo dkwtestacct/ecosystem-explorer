@@ -1350,9 +1350,16 @@ _MH_CASES_PILL_EPSILON       = 1     # cases threshold for pill suppression
 _MH_COST_PILL_EPSILON        = 1000  # USD threshold for pill suppression
 UMH_SEARCH_RADIUS_M          = 300   # Li et al. 2025; ~10 px at 30 m NLCD
 
-# InVEST UMH uses Gaussian-smoothed NDVI exposure within the search radius.
-# `sigma_pixels = UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M` matches the canonical
-# InVEST behavior (search radius interpreted as kernel σ).
+# Neighborhood NDVI exposure (NE): the prototype Gaussian-smooths the NDVI
+# proxy with sigma = search_radius / pixel_size.
+# NOTE: canonical InVEST UMH 3.19.0 instead uses a UNIFORM BUFFER-MEAN within
+# the search radius (a flat disk), NOT a Gaussian — verified by
+# compare_umh_invest.py. The two kernels agree on city-wide aggregate
+# preventable cases to ~1.5 % but differ per-pixel (Pearson r 0.95-0.98).
+# Switching to a buffer mean for exact per-pixel parity is a deferred follow-up
+# (it shifts preventable_mh_cases everywhere → needs a baseline + dense-CSV
+# regen + a SCENARIO_SCHEMA_VERSION bump). See DESIGN_NOTES.md "UMH validation
+# against canonical InVEST 3.19.0".
 _UMH_SIGMA_PX = UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M     # = 10.0 at 30 m / 300 m
 _UMH_LN_RR_DEPRESSION = float(np.log(RR_0_1_NDVI_DEPRESSION))
 _UMH_LN_RR_ANXIETY    = float(np.log(RR_0_1_NDVI_ANXIETY))

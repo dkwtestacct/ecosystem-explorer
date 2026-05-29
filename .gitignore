@@ -39,6 +39,10 @@ data/sa/tracts_bexar/
 # Local on-disk cache (osmnx / Streamlit scratch)
 cache/
 
+# UMH validation fixtures (~67 MB of GeoTIFFs) — regenerable via
+# `compare_umh_invest.py export`. See CONTRIBUTING.md "Canonical-InVEST validation".
+tests/umh_fixtures/
+
 # Minneapolis Full inputs — the runtime-needed files (LULC, soil, pop, tracts,
 # roads, buildings.gpkg) ARE tracked. The bulky regenerable source data is not.
 # Raw Hennepin SSURGO shapefile (~47 MB) — regenerable via download_ssurgo.py

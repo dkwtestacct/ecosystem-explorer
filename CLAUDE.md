@@ -366,6 +366,14 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
 - **Heat Vulnerability Index — still pending.** The `equity_weights`
   raster is a proxy (NLCD intensity-coded), not a real CDC/ATSDR HVI by
   census tract. Replacing it is the next data-quality upgrade.
+- **UMH NE-kernel exact parity — deferred (Brief B).** UMH is validated
+  against canonical InVEST 3.19.0 (`compare_umh_invest.py`): aggregate
+  preventable-cases match ~1.5 %, but per-pixel r ≈ 0.95–0.98 because the
+  app uses a Gaussian NE kernel while canonical uses a uniform buffer-mean.
+  Switching to a buffer mean for exact per-pixel parity shifts
+  `preventable_mh_cases` everywhere → baseline + dense-CSV regen + schema
+  bump; intentionally its own future brief. See `DESIGN_NOTES.md` "UMH
+  validation against canonical InVEST 3.19.0".
 - **Minneapolis Full extent (hidden from UI).** Live in `CITIES` but
   `available=False`. See `HISTORY.md` "Full Minneapolis extent" for the
   activation+hiding rationale and pipeline path details.

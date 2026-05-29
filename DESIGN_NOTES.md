@@ -1627,6 +1627,63 @@ developed pixels become nature-supplying), not a suspicious outlier. The
 demand standard (16.7 m²/capita) and 800 m search radius were already
 interpolated from the city config, so no value is hardcoded.
 
+## UMH validation against canonical InVEST 3.19.0
+
+**What was done (2026-05-29).** Closed the gap that the Carbon/UMH coverage
+investigation flagged: the prototype's numpy Urban Mental Health
+reimplementation had no parity check against canonical InVEST (UCM and UNA
+both have MAE≈0 results; UMH had none). `compare_umh_invest.py` now validates
+it against `natcap.invest.urban_mental_health.execute()` (v3.19.0).
+
+**Why a separate environment.** The app `.venv` is Python 3.9; canonical UMH
+arrived in InVEST 3.18/3.19 which require Python ≥3.10 (the installed 3.16.2 in
+anaconda base has no `urban_mental_health` module at all). So the validation
+runs in a dedicated isolated conda env — **neither the app `.venv` nor anaconda
+base was modified.** The two-environment "decoupled" harness pattern is
+documented in `CONTRIBUTING.md` "Canonical-InVEST validation environments".
+
+**Results (matched inputs, per outcome, both cities):**
+
+| City | Outcome | Proto total | Canonical total | Aggregate Δ | Per-pixel rel MAE | Pearson r |
+|------|---------|------------:|----------------:|------------:|------------------:|----------:|
+| MN | depression | 126.94 | 128.57 | +1.3 % | 21.3 % | 0.946 |
+| MN | anxiety | 85.79 | 86.90 | +1.3 % | 21.3 % | 0.946 |
+| SA | depression | 3,980.2 | 4,038.5 | +1.5 % | 16.4 % | 0.975 |
+| SA | anxiety | 2,690.7 | 2,730.4 | +1.5 % | 16.4 % | 0.975 |
+
+**The finding.** Canonical UMH 3.19.0 computes neighborhood exposure (NE) as a
+uniform **buffer-mean** within the search radius (it emits `ndvi_*_buffer_mean`
+rasters + a `kernel` output, and pads the grid by the radius); the prototype
+uses a **Gaussian** (σ = radius/px). These are genuinely different kernels. The
+city-wide *aggregate* preventable-cases total — the number the dashboard
+reports — matches to ~1.3–1.5 % because both kernels roughly conserve total
+NDVI exposure. But *per-pixel* they redistribute exposure differently, hence
+r ≈ 0.95–0.98 rather than the MAE≈0 of UCM/UNA. `effect_size` semantics were
+confirmed correct (= RR per 0.1 NDVI): if they were wrong the totals would
+diverge, and they don't. The prototype's old code comment claiming the Gaussian
+"matches the canonical behavior" was inaccurate and has been corrected
+(app.py); REFERENCE.md already framed it as "similar but not identical" and now
+carries the quantified result.
+
+**Decision: document, don't change the formula (Option A).** The reported
+aggregate metric validates well and the Gaussian is a defensible smoothing
+choice, so the MH cards stay **Medium** confidence (per-pixel agreement isn't
+tight enough to claim "High", and the metric is fundamentally spatial). Two
+divergences could not be neutralized in the harness and are documented rather
+than hidden: (a) the prototype's uniform national CDC prevalence vs InVEST's
+per-admin `risk_rate` vector — we have no per-tract MH-prevalence data for
+MN/SA, so the "default-input" MAE coincides with the matched-input number;
+(b) the NE kernel itself, which is inherent. Validation is on the prototype's
+**synthetic NDVI proxy**, so it validates the algorithm, not the NDVI source.
+
+**Deferred — Brief B (exact-parity kernel switch).** Switching the prototype's
+NE from a Gaussian to a buffer-mean would bring per-pixel parity to canonical,
+but it shifts `preventable_mh_cases` / `avoided_mh_cost_usd` for every scenario
+→ requires regenerating the 40 baselines + both dense CSVs and a
+`SCENARIO_SCHEMA_VERSION` bump. It's a methodology change, not a doc fix, so it
+is intentionally NOT bundled into this validation commit; it should land as its
+own brief if exact canonical parity is wanted.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
