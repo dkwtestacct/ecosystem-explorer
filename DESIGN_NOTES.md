@@ -2106,6 +2106,78 @@ border color stay consistent with the per-card badge palette.
   cross-source comparison table when saved/optimizer scenarios mix with NatCap
   rows.
 
+## Brief #4 — Optimizer as trustworthy scenario discovery (2026-05-29)
+
+**Goal.** Make the optimizer read as the bridge from exploration (L4) to
+canonical validation (L5): clearer framing as scenario discovery,
+predicted-vs-evaluated kept honest and visible, applied optimizer scenarios
+properly tagged so they stop being mislabeled as Explorer-generated in the
+D1 export bundle, and the Brief #3 "Surrogate-suggested" header firing on
+actually-applied optimizer scenarios (was dormant in Brief #3).
+
+**The Apply seam pre-#4.** The optimizer's surrogate-prediction table at the
+bottom of the Tradeoff Analysis tab labeled itself "These are surrogate model
+predictions. Click Apply to run a full pixel-level simulation and verify the
+result." The Apply button (`apply_opt_*`) set `_pending_pct/gi/ff` +
+`applied_suggestion` + `_show_apply_toast`, then `st.rerun()`. On rerun, the
+pending values became slider values, `evaluate_scenario` ran on those values,
+the main cards showed full-raster evaluated values — but nothing on the
+dashboard signaled "this just came from the optimizer." The cards looked
+identical to any Explorer-scenario rendering, and the D1 export silently
+recorded the scenario as `PROVENANCE_EXPLORER`.
+
+**Changes (single commit).**
+
+1. **`applied_from_optimizer` flag through session_state.** A boolean
+   session_state value plus `_applied_optimizer_values = (pct, gi, ff)`
+   recording the just-Applied scenario's slider state. Set in the optimizer
+   Apply button (`apply_opt_*`); auto-cleared at the top of every rerun if
+   the current slider state diverges from `_applied_optimizer_values`
+   (manual edit, preset button, Best-by-Goal Apply, etc.). Also reset on
+   city change so an MN-applied scenario doesn't carry OPTIMIZER provenance
+   into SA.
+
+2. **OPTIMIZER provenance detection** plumbed into the **main-panel scenario
+   header** (above `#### Ecological`) and the **D1 export helper**
+   (`_build_invest_bundle_for_current_scenario`). Detection order:
+   `pct_converted == 0` → BASELINE; else `applied_from_optimizer` →
+   OPTIMIZER; else EXPLORER. The header label flips to
+   `"Optimizer suggestion · {scenario_name}"`; the export records
+   `PROVENANCE_OPTIMIZER` with an `optimizer_suggested` generator block
+   carrying the slider params + a note *"Applied from Optimizer suggestion;
+   full-raster evaluated by the prototype engine before export."*
+
+3. **OPTIMIZER validation line updated** in `_PROVENANCE_HEADER_INFO` from
+   Brief #3's placeholder *"engine-validated; exploratory"* to
+   *"engine-validated; full-raster evaluated — exploratory candidate for
+   further validation."* The OPTIMIZER provenance only fires on a scenario
+   that has been Applied (slider state matches `_applied_optimizer_values`),
+   so "full-raster evaluated" is always true when this badge appears.
+
+4. **Entry-text reframe** in the sidebar. The subheader changed from
+   *"Find Best Scenario"* (verdict framing) to *"Discover scenarios to
+   validate"* (discovery framing). The first caption opens with
+   *"Searches for promising scenarios to validate further."* and walks the
+   discovery → Apply → evaluate → export path. The existing surrogate
+   prediction-uncertainty language under "Optimized Scenario Suggestions"
+   stays — it's already good.
+
+5. **D1 export path** already worked for optimizer-applied scenarios (it
+   operates on `results`, which is engine-evaluated post-Apply) — but the
+   bundle's `metadata.json` recorded the wrong provenance. The OPTIMIZER
+   branch fixes that so downstream readers of the bundle know the scenario
+   came from the surrogate's discovery loop, not a manual Explorer build.
+
+**Not in scope.**
+- Best-Scenarios-by-Goal (`apply_best_goal_*`) is NOT classified as OPTIMIZER
+  — those come from the precomputed scenario grid, not the surrogate's
+  discovery search. They remain Explorer-generated when applied.
+- Per-metric card badges unchanged (B2-revised already carries the per-metric
+  validation state correctly).
+- Surrogate prediction-uncertainty bands and the "These are surrogate model
+  predictions" caption pre-existed; #4 only added the matching post-Apply
+  provenance + framing story.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

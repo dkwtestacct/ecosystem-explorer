@@ -63,6 +63,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "The scenario optimizer is now framed as scenario discovery, and an applied optimizer suggestion is labeled as such — in the scenario header and in its exported InVEST bundle — instead of being indistinguishable from a manually built scenario.",
     "Every scenario now shows its source and validation status at the top — NatCap published reference, baseline, engine-validated Explorer scenario, or surrogate-suggested optimizer suggestion — so it's always clear how grounded a given scenario is.",
     "San Antonio now has a sidebar option to load NatCap's project scenarios (baseline + the six food-forest and urban-agriculture alternatives) alongside Explorer scenarios. Every metric card carries a validation badge — \"NatCap published value\" where the number is sourced from NatCap directly, \"≈ NatCap method\" or \"≈ Aligned method\" for prototype computations using NatCap-aligned methodology, and \"Prototype\" for exploratory metrics.",
     "You can now download the current scenario as a runnable input bundle for canonical InVEST 3.19.0 — rasters, AOIs, biophysical tables, and per-model args files for all five urban models. San Antonio only for v1.",
@@ -114,12 +115,36 @@ if "optimized_results" not in st.session_state:
     st.session_state.optimized_results = None
 if "active_example_scenario" not in st.session_state:
     st.session_state.active_example_scenario = 'balanced'
+# Brief #4 — track whether the active scenario was applied from an optimizer
+# suggestion (vs manually constructed via Explorer sliders or hit baseline).
+# Survives the rerun the Apply button triggers; cleared when the user moves
+# sliders away from the applied values (manual edit, preset click, etc.) so
+# the OPTIMIZER provenance never stays stale.
+if "applied_from_optimizer" not in st.session_state:
+    st.session_state.applied_from_optimizer = False
+if "_applied_optimizer_values" not in st.session_state:
+    st.session_state._applied_optimizer_values = None
 # Apply any pending slider values before sliders are rendered
 if "_pending_pct" in st.session_state:
     st.session_state.slider_pct_converted = st.session_state.pop("_pending_pct")
     st.session_state.slider_gi_pct        = st.session_state.pop("_pending_gi")
     st.session_state.slider_ff_pct        = st.session_state.pop("_pending_ff")
     # active_example_scenario is set by the button handler before _pending_ keys are written
+# Brief #4 — auto-clear the Applied-from-Optimizer flag whenever the current
+# slider state diverges from the values that were applied (manual user edit,
+# preset button, Best-by-Goal Apply, etc.). The optimizer Apply path sets
+# both the slider values AND _applied_optimizer_values, so a match means we
+# are still on the just-applied optimizer scenario.
+if st.session_state.get("applied_from_optimizer"):
+    _cur_slider_vals = (
+        st.session_state.get("slider_pct_converted"),
+        st.session_state.get("slider_gi_pct"),
+        st.session_state.get("slider_ff_pct"),
+    )
+    _applied_vals = st.session_state.get("_applied_optimizer_values")
+    if _applied_vals is None or _cur_slider_vals != _applied_vals:
+        st.session_state.applied_from_optimizer = False
+        st.session_state._applied_optimizer_values = None
 
 # ── City selection ─────────────────────────────────────────────────────────────
 # Only available cities surface in the dropdown. Unavailable entries (e.g.
@@ -147,6 +172,10 @@ if st.session_state.get('_prev_city_key') != selected_city:
     # Suggestions section keeps rendering MN's results table).
     st.session_state.optimized_results = None
     st.session_state.just_optimized = False
+    # Brief #4: also reset the Applied-from-Optimizer flag on city change so a
+    # scenario applied in MN doesn't carry OPTIMIZER provenance into SA.
+    st.session_state.applied_from_optimizer = False
+    st.session_state._applied_optimizer_values = None
     st.session_state._prev_city_key = selected_city
 
 # ── City-derived constants ────────────────────────────────────────────────────
@@ -3309,13 +3338,15 @@ _PROVENANCE_HEADER_INFO = {
         "canonical engine verified; scenario not NatCap-published",
         "blue",
     ),
-    # Brief #4 (next) will plumb a real Applied-from-Optimizer flag through
-    # session_state and append "full-raster evaluated" to this line once Apply
-    # has run. Until then the header path won't hit OPTIMIZER, but the wording
-    # is in place for the wiring to land.
+    # Brief #4 — Applied-from-Optimizer flag is now plumbed through
+    # session_state, so the OPTIMIZER provenance only ever fires on a scenario
+    # that has been Applied and therefore full-raster evaluated by the prototype
+    # engine. The validation line reflects that: "full-raster evaluated" rules
+    # out the misread that the displayed cards are still surrogate predictions.
     eib.PROVENANCE_OPTIMIZER: (
         "Surrogate-suggested",
-        "engine-validated; exploratory",
+        "engine-validated; full-raster evaluated — exploratory candidate "
+        "for further validation",
         "blue",
     ),
 }
@@ -3749,7 +3780,7 @@ st.sidebar.caption("Control case — no green conversion")
 st.sidebar.divider()
 
 # ── Placement strategy ────────────────────────────────────────────────────────
-# Placed before "Find Best Scenario": placement shapes the *current* scenario,
+# Placed before "Discover scenarios to validate": placement shapes the *current* scenario,
 # so users configure it alongside the conversion mix, then optionally optimize.
 st.sidebar.subheader("Placement Strategy")
 placement_strategy = st.sidebar.radio(
@@ -3770,12 +3801,15 @@ placement_strategy = st.sidebar.radio(
 use_heat_priority = (placement_strategy == 'cooling-focused')
 
 st.sidebar.divider()
-st.sidebar.subheader("Find Best Scenario")
+st.sidebar.subheader("Discover scenarios to validate")
 
 st.sidebar.caption(
-    "Uses a surrogate model to search ~10,000 candidate strategies in "
-    "seconds. Results are approximate — verify promising scenarios using "
-    "the main sliders."
+    "**Searches for promising scenarios to validate further.** The surrogate "
+    "explores ~10,000 candidate strategies in seconds and surfaces a ranked "
+    "shortlist — these are *predicted* values, not final answers. Apply a "
+    "suggestion to compute it with the full prototype engine; export the "
+    "evaluated scenario for canonical InVEST when you want full-resolution "
+    "validation."
 )
 with st.sidebar.expander("How this works", expanded=False):
     st.caption(
@@ -4032,6 +4066,28 @@ def _build_invest_bundle_for_current_scenario():
                      "note": "unmodified prototype LULC"}
         scen_label = f"Baseline — {selected_city}"
         scen_id = "baseline"
+    elif st.session_state.get("applied_from_optimizer"):
+        # Brief #4 — the slider state matches the optimizer's just-Applied
+        # values, so this scenario came from the surrogate's discovery loop and
+        # was then full-raster evaluated. Record OPTIMIZER provenance + an
+        # honest generator note so downstream users (and the bundle metadata)
+        # don't misread an optimizer-derived design as a manual Explorer one.
+        provenance = eib.PROVENANCE_OPTIMIZER
+        generator = {
+            "type": "optimizer_suggested",
+            "pct_converted":            int(results['pct_converted']),
+            "green_infrastructure_pct": int(results['green_infrastructure_pct']),
+            "food_forest_pct":          int(results['food_forest_pct']),
+            "high_density_pct":         int(results['pct_highdensity']),
+            "placement_strategy":       placement_strategy,
+            "random_seed":              42,
+            "note": ("Applied from Optimizer suggestion; full-raster evaluated "
+                     "by the prototype engine before export."),
+        }
+        scen_label = f"Optimizer suggestion · {results['scenario_name']}"
+        scen_id = (f"optimizer_pct{int(results['pct_converted'])}"
+                   f"_gi{int(results['green_infrastructure_pct'])}"
+                   f"_ff{int(results['food_forest_pct'])}_{placement_strategy}")
     else:
         provenance = eib.PROVENANCE_EXPLORER
         generator = {
@@ -4257,13 +4313,16 @@ else:
 # ── Scenario header (Brief #3 — unified Source + Validation) ─────────────────
 # The fixed-scenario reference view has its own header above (rendered inside
 # _render_natcap_fixed_scenario_view then st.stop()s); this path renders the
-# Explorer / baseline cases. The OPTIMIZER provenance is wired in the helper
-# but not detected here yet — Brief #4 will plumb an Applied-from-Optimizer
-# flag through session_state so Apply -> evaluate -> the header flips to
-# Surrogate-suggested.
+# Explorer / baseline / optimizer cases. Brief #4 plumbed the Applied-from-
+# Optimizer flag so a just-applied optimizer scenario flips to Surrogate-
+# suggested provenance; the clearing logic at the top of the script resets
+# it whenever sliders drift, so the OPTIMIZER tag never stays stale.
 if results['pct_converted'] == 0:
     _scen_provenance = eib.PROVENANCE_BASELINE
     _scen_label = f"Baseline — {selected_city}"
+elif st.session_state.get("applied_from_optimizer"):
+    _scen_provenance = eib.PROVENANCE_OPTIMIZER
+    _scen_label = f"Optimizer suggestion · {results['scenario_name']}"
 else:
     _scen_provenance = eib.PROVENANCE_EXPLORER
     _scen_label = f"Explorer scenario · {results['scenario_name']}"
@@ -5332,6 +5391,14 @@ with tab2:
                 st.session_state._pending_ff  = int(round(row.food_forest_pct / 5) * 5)
                 if st.session_state._pending_gi + st.session_state._pending_ff > 100:
                     st.session_state._pending_ff = 100 - st.session_state._pending_gi
+                # Brief #4: Best-by-Goal comes from the precomputed scenario
+                # grid, not the surrogate optimizer — make sure a previously-
+                # set Applied-from-Optimizer flag is cleared, so a best-goal
+                # scenario that happens to share pct/gi/ff with a prior
+                # optimizer Apply doesn't inherit OPTIMIZER provenance via the
+                # auto-clear's "values match" path.
+                st.session_state.applied_from_optimizer = False
+                st.session_state._applied_optimizer_values = None
                 st.session_state._show_apply_toast = True
                 st.rerun()
 
@@ -5464,6 +5531,17 @@ with tab2:
                         if st.session_state._pending_gi + st.session_state._pending_ff > 100:
                             st.session_state._pending_ff = 100 - st.session_state._pending_gi
                         st.session_state.applied_suggestion = i
+                        # Brief #4: tag this scenario as Applied-from-Optimizer
+                        # so the main panel header reads "Surrogate-suggested"
+                        # and the D1 export records PROVENANCE_OPTIMIZER, not
+                        # Explorer. The clearing logic at the top of the script
+                        # resets the flag when slider values drift away.
+                        st.session_state.applied_from_optimizer = True
+                        st.session_state._applied_optimizer_values = (
+                            st.session_state._pending_pct,
+                            st.session_state._pending_gi,
+                            st.session_state._pending_ff,
+                        )
                         st.session_state._show_apply_toast = True
                         st.rerun()
 
