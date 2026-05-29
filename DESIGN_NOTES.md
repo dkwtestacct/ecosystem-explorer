@@ -1772,6 +1772,98 @@ cost exceeds value. No code, no baseline, no schema change in Brief A2.
 `nootenboom_results`) should both use **per-block-group aggregation** of the
 prototype's supply raster, not the citywide headline, for SA UNA comparison.
 
+## Brief B1 — NatCap fixed scenarios as first-class inputs (2026-05-29, partial)
+
+**Goal.** Make NatCap's seven SA project scenarios (`baseline`, `FF_20ac`,
+`FF_40ac`, `FF_MAX`, `UA_20ac`, `UA_40ac`, `UA_MAX`) loadable as first-class
+scenarios, identified by the `scenario_id` values in
+`data/sa/natcap_reference_outputs.csv`, so B2's per-metric validation badges can
+join a loaded scenario's prototype output to NatCap's published reference value.
+This is the keystone for the "validated scenario exploration" workflow.
+
+**Investigate-first finding — the scenario rasters are flood-encoded, not
+compound.** NatCap shipped the SA scenario LULCs (`sa_lc_w_*_10m.tif`) only in
+the **NLCD × tree-canopy 3-tier** encoding (211/212/213 = NLCD 21 × low/med/high
+canopy; `998` = food forest, `999` = garden), at 10 m in a WGS84-datum Albers
+CRS. That matches the prototype's SA **flood** CN table
+(`biophys_floodmitig_sa.csv`) directly — so the flood metric computes correctly
+on them. It does **not** match the compound NLCD×NLUD×tree `lucode` (0–1983)
+encoding the **Carbon / UCM (temperature) / UNA** tables are keyed on. The
+integers collide with unrelated compound classes (scenario code `901` = woody
+wetland, but compound `lucode 901` = Perennial Ice/Snow; `999` = garden, but
+compound `lucode 999` = Mixed Forest), so feeding these rasters into those
+tables produces silent, wrong-but-plausible numbers. The reference CSV's only
+two `natcap_published` metrics — `temp_change_f` and `carbon_tons_co2` — are
+both compound-keyed, so carbon/temperature reproduction (Phase 3) is **gated**
+pending NatCap's compound scenario inputs.
+
+**Local hunt for compound scenario rasters — empty (2026-05-29).** Searched by
+content signature (max value + unique-value count), not just filename, across
+`~/Desktop`, `~/Downloads`, `~/Documents`, `/Volumes`, and the Google Drive
+sync root, plus inside the `_zip_archive` zips. Every compound-signature raster
+on disk (max ~1900, ~800 unique values) is a **baseline**: five distinct
+contents (`lulc_overlay_3857.tif`, `land_use_compound_sa.tif`, and the per-model
+baseline inputs `ucm/intermediate/lulc.tif`, `una/intermediate/aligned_lulc.tif`,
+`una/intermediate/masked_lulc.tif`), duplicated 17× across the pulls + GDrive
+mirror. The `InVEST Results/` tree is a single baseline run (carbon outputs
+suffixed `_cur`); there are no scenario-suffixed inputs or per-scenario result
+sets. NatCap's per-scenario carbon/temperature spreadsheet values therefore came
+from runs whose compound inputs were never shared in this drive pull. The NatCap
+data request that would un-gate Phase 3 is **parked (not sent)** in
+`OPEN_QUESTIONS.md` → "Per-scenario compound LULC inputs", with a send-ready
+draft; nothing goes out without an explicit decision.
+
+**What landed in this commit (scope A — standalone scaffolding).**
+`natcap_scenarios.py` (Streamlit-agnostic, mirrors `surrogate.py`):
+- Provenance taxonomy: `PROVENANCE_BASELINE` / `_NATCAP_FIXED` / `_EXPLORER` /
+  `_OPTIMIZER`. B2 keys its badges off `(provenance, scenario_id)`; D1's
+  generator block reads provenance.
+- `SA_NATCAP_FIXED_SCENARIOS` metadata dict, keyed on the CSV's `scenario_id`s.
+- `load_natcap_fixed_scenario(scenario_id, reference_grid_path)` — reproject +
+  `Resampling.mode` (majority-rule, categorical) onto the prototype's 30 m
+  EPSG:5070 SA grid; `lru_cache`d. Returns `(lulc_nlcd_tree, metadata)`.
+- `flood_reduction_from_nlcd_tree(...)` — pure, dependency-injected flood helper
+  mirroring `evaluate_scenario`'s SA CN path. Runoff stays in app.py's
+  `cn_to_runoff_acre_feet` (single source for the SCS-CN formula).
+
+**Why the dashboard wiring was deferred to B2 (Phase 0 D — invasive-change
+gate).** `evaluate_scenario` is monolithic and conversion-centric: it builds the
+scenario raster internally from slider params and computes all metrics in one
+pass; there is no pre-built-raster entry point. Routing the dashboard to a fixed
+scenario forces every compound-keyed card + the tradeoff plot + the `_hm_delta`/
+carbon delta math to render a value they cannot compute on the flood encoding —
+which is precisely B2's deferred per-card display work (published value + badge).
+So B1 lands the standalone loader/provenance/flood infrastructure; B2 owns the
+selector→dashboard routing and per-card display in one coherent pass.
+
+**Smoke-test result + a flagged divergence.** `python natcap_scenarios.py`
+reprojects all six alternative scenarios and computes flood: `mean_cn ≈ 81.4`,
+`flood_reduction ≈ 18.5–18.6`, varying only minutely across scenarios — matching
+NatCap's documented SA conclusion that flood is essentially scenario-invariant
+under design-storm saturation. **B2-investigate item:** the prototype's *own* SA
+baseline is `mean_cn 76.54` / flood 23.5, a ~5-point CN gap from these scenarios
+(~81.4). Both use the same CN table, so the gap points to the prototype's
+**compound→NLCD×tree reduction** (`tier = max(tree, 1)`) producing a different
+canopy-tier mix than NatCap's native NLCD×tree raster. Not a NatCap-published
+mismatch (no NatCap flood reference exists), so it doesn't gate B1 — but it means
+a "food forest" fixed scenario currently reads as *lower* flood retention than
+the baseline, which B2 must reconcile (align the baseline's flood derivation to
+the native NLCD×tree path, or annotate the card) before surfacing the number.
+Tracked in `OPEN_QUESTIONS.md` → "Native NLCD×tree baseline flood raster".
+
+**Interim badge stance for B2 (captured here so it isn't lost).** For a fixed
+scenario, display NatCap's published carbon/temperature value from the reference
+CSV and badge it "NatCap published"; once Phase 3 reproduction passes (compound
+inputs arrive), upgrade to "✓ NatCap match — independently reproduced, Δ X%".
+Flood can show the prototype's computed value now (no NatCap reference).
+
+**Deploy-safety note.** The loader resolves scenario rasters from external paths
+(`~/Desktop/natcap_drive_pull/...`); the in-repo `data/sa/natcap_scenarios/` dir
+is preferred but not yet populated. When B2 wires this into the deployed app,
+the chosen scenarios should be vendored + pre-reprojected into the repo
+(Streamlit Cloud has no `~/Desktop`). Deferred to avoid committing binaries in
+this code-only scaffolding commit.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
