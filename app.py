@@ -26,6 +26,8 @@ from surrogate import (
     compute_pareto,
 )
 import export_invest_bundle as eib   # Brief D1 — InVEST export bundle
+import natcap_validation as nv       # Brief B2 (revised) — validation badges
+import natcap_scenarios as ns        # Brief B1 + B2 — fixed-scenario loader/flood helper
 
 PIXEL_AREA_ACRES     = 0.2224  # 30 m × 30 m = 900 m² ÷ 4046.86 m²/acre. Same in EPSG:26915 (UTM) and EPSG:5070 (Albers); UTM ground-area distortion at MN is ~0.05 %, well within rounding.
 # FOOD_FOREST_LBS_ACRE is city-dependent — see "── City-derived constants ──" below.
@@ -61,6 +63,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "San Antonio now has a sidebar option to load NatCap's project scenarios (baseline + the six food-forest and urban-agriculture alternatives) alongside Explorer scenarios. Every metric card carries a validation badge — \"NatCap published value\" where the number is sourced from NatCap directly, \"≈ NatCap method\" or \"≈ Aligned method\" for prototype computations using NatCap-aligned methodology, and \"Prototype\" for exploratory metrics.",
     "You can now download the current scenario as a runnable input bundle for canonical InVEST 3.19.0 — rasters, AOIs, biophysical tables, and per-model args files for all five urban models. San Antonio only for v1.",
     "Mental-health estimates (preventable cases and avoided healthcare costs) are now validated against NatCap's InVEST Urban Mental Health model and shown at higher confidence.",
     "San Antonio flood estimates now use NatCap's San Antonio Curve Numbers instead of Minneapolis values. Under SA's design-storm conditions, Green Infrastructure scenarios show minimal flood mitigation — GI's primary benefits in SA are heat, nature access, and carbon. (NatCap, 2023.)",
@@ -3226,6 +3229,318 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     return fig
 
 
+# ── Brief B2 (revised, 2026-05-29): per-metric VALIDATION badges ──────────────
+# Replaces the previous High/Medium/Prototype confidence tiers. Sourced from
+# data/sa/natcap_reference_outputs.csv via `natcap_validation.py`:
+#  - green ✓ NatCap-anchored  — displayed value IS an actual NatCap value
+#    (baseline: prototype reproduces; natcap_fixed: NatCap published).
+#  - blue  ≈ NatCap method    — natcap_published-class metric on a scenario
+#    with no NatCap analog (Explorer / Optimizer): methodology aligned, value
+#    is the prototype's own computation, not anchored to NatCap.
+#  - blue  ≈ Aligned method   — aligned_method metric (canonical InVEST, no
+#    directly-comparable NatCap citywide reference).
+#  - gray  Prototype          — exploratory metric, no canonical InVEST analog.
+# See DESIGN_NOTES.md "Brief B2 (revised)" for the non-CSV-card curated map.
+
+_VALIDATION_BADGE_COLOR_HEX = {
+    "green": "#1a7f37",
+    "blue":  "#0969da",
+    "gray":  "#6e7681",
+}
+
+
+def _render_validation_caption(col, metric_name, scenario_context,
+                               explicit_status=None):
+    """Render the per-card validation badge as a colored caption with a
+    scenario-aware tooltip. Replaces the previous `_confidence_caption`.
+
+    `metric_name` is the canonical CSV name (e.g. `temp_change_f`) when the
+    metric is in `natcap_reference_outputs.csv`; otherwise `explicit_status`
+    must be passed for the non-CSV-card curated map (`'natcap_published'` /
+    `'aligned_method'` / `'prototype'`).
+    """
+    badge = nv.render_validation_badge(metric_name, scenario_context,
+                                       explicit_status=explicit_status)
+    if badge["text"] is None:
+        col.caption("—")
+        return
+    color = _VALIDATION_BADGE_COLOR_HEX.get(badge["color"], "#6e7681")
+    col.caption(
+        f'<span style="color: {color}">{badge["text"]}</span>',
+        help=badge["tooltip"], unsafe_allow_html=True,
+    )
+
+
+def _render_natcap_fixed_scenario_view(scenario_id):
+    """B2 (revised) Phase 3 — dedicated reference view for a NatCap SA fixed
+    scenario. Reads NatCap's published temp/carbon from
+    `natcap_reference_outputs.csv`, computes flood via the B1 helper, shows
+    explicit 'not available' states for compound-gated metrics. Does NOT
+    route through `evaluate_scenario`.
+
+    Flood reconcile (per B2-revised, OPEN_QUESTIONS.md): the prototype's
+    flood-on-native-NLCD×tree vs flood-on-compound-reduced baseline gap is
+    mostly derivation artifact; NatCap's documented SA finding is flood ≈
+    scenario-invariant under design-storm saturation. So the delta pill
+    reflects '≈ invariant.'
+    """
+    spec = ns.SA_NATCAP_FIXED_SCENARIOS.get(scenario_id)
+    if spec is None:
+        st.error(f"Unknown NatCap scenario_id: {scenario_id!r}")
+        return
+    ctx_for_metrics = (
+        nv.SCENARIO_CONTEXT_BASELINE if scenario_id == "baseline"
+        else nv.SCENARIO_CONTEXT_NATCAP_FIXED
+    )
+
+    def _fmt_dt(dt, threshold=0.1):
+        if abs(dt) < threshold:
+            return "No change"
+        return f"{abs(dt):.1f}°F warmer" if dt > 0 else f"{abs(dt):.1f}°F cooler"
+
+    # ── Header ──
+    st.markdown(f"## {spec['label']}")
+    st.caption(
+        f"`scenario_id={scenario_id}` · provenance: `{spec['provenance']}` · "
+        f"source: NatCap SA Urban Agriculture project. Sidebar source = "
+        f"NatCap project scenario (flip to Explorer for custom scenarios)."
+    )
+
+    # ── Compute flood on the loaded scenario raster (B1 helper) ──
+    flood_red = mean_cn = None
+    flood_source_label = None
+    if scenario_id == "baseline":
+        lulc_nlcdtree = reduce_compound_to_nlcd_tree(
+            cooling_lulc_compound, COMPOUND_TO_NLCD_TREE
+        ).astype(np.int16)
+        flood_source_label = "prototype baseline (compound → NLCD×tree)"
+    else:
+        try:
+            lulc_nlcdtree, _ld_meta = ns.load_natcap_fixed_scenario(
+                scenario_id, "data/sa/flood/land_use_compound_sa.tif"
+            )
+            flood_source_label = (
+                f"NatCap-shipped flood-encoded raster "
+                f"(`{os.path.basename(_ld_meta['source_path'])}`)"
+            )
+        except FileNotFoundError as e:
+            st.warning(
+                f"Could not load the NatCap scenario raster for "
+                f"`{scenario_id}` — source not present on this machine. "
+                f"Flood card will be unavailable.\n\n`{e}`"
+            )
+            lulc_nlcdtree = None
+            flood_source_label = "unavailable (source raster missing)"
+    if lulc_nlcdtree is not None:
+        _soil_clamped = np.clip(soil_resized, 1, 4)
+        mean_cn, flood_red = ns.flood_reduction_from_nlcd_tree(
+            lulc_nlcdtree, _soil_clamped, cn_table, lucode_idx_arr
+        )
+
+    # ── Validation claim (B2 revised Phase 4 — conservative reframe) ──
+    # The original Phase-4 ambition was a "we reproduce NatCap's baseline"
+    # match panel (prototype absolute vs NatCap absolute + Δ + ✓/✗). The
+    # investigation (2026-05-29) established that NatCap's published citywide
+    # absolutes — `avg_temp_f` = 90.08°F and `c_sequestration` = 107.32M
+    # t CO2e — are NOT reproducible from the disk content: their UCM args
+    # aren't shipped, and the carbon aggregation script behind the spreadsheet
+    # isn't either. Per the conservative-floor directive: no prototype-vs-
+    # NatCap absolute side-by-side (even captioned, it reads as a miss and
+    # they aren't comparable quantities). One plain line instead.
+    if scenario_id == "baseline":
+        st.markdown("#### Validation claim")
+        st.markdown(
+            "**Validated:** per-pixel parity vs canonical InVEST "
+            "(HMI MAE 0.0000, Brief 28b; UMH MAE ≈ 0, Brief B).  \n"
+            "**Not established:** reproduction of NatCap's published "
+            "citywide figures — their UCM args and carbon-aggregation script "
+            "aren't recoverable from disk. See `OPEN_QUESTIONS.md`."
+        )
+        st.divider()
+
+    # ── Card row — Ecological ──
+    st.markdown("#### Ecological")
+    eco_a, eco_b, eco_c, eco_d = st.columns(4)
+
+    sv_t, bv_t, dT = nv.published_delta(selected_city, scenario_id, "temp_change_f")
+    if scenario_id == "baseline" and bv_t is not None:
+        eco_a.metric("Mean Air Temperature (baseline)", f"{bv_t:.2f}°F",
+                     delta="NatCap published baseline", delta_color="off")
+    elif dT is not None:
+        eco_a.metric("Temperature Change", _fmt_dt(dT),
+                     delta="NatCap published Δ (scenario − baseline)",
+                     delta_color="off")
+    else:
+        eco_a.metric("Temperature Change", "—")
+    _render_validation_caption(eco_a, "temp_change_f", ctx_for_metrics)
+
+    sv_c, bv_c, dC = nv.published_delta(selected_city, scenario_id, "carbon_tons_co2")
+    if scenario_id == "baseline" and bv_c is not None:
+        eco_b.metric("Carbon Storage (baseline)",
+                     f"{bv_c / 1e6:.1f}M t CO2e",
+                     delta="NatCap published baseline", delta_color="off")
+    elif dC is not None:
+        _sign = "+" if dC >= 0 else ""
+        eco_b.metric("Carbon Storage Change",
+                     f"{_sign}{dC / 1e6:.2f}M t CO2e",
+                     delta="NatCap published Δ (scenario − baseline)",
+                     delta_color="off")
+    else:
+        eco_b.metric("Carbon Storage Change", "—")
+    _render_validation_caption(eco_b, "carbon_tons_co2", ctx_for_metrics)
+
+    if scenario_id == "baseline" and bv_c is not None:
+        eco_c.metric("Carbon Storage Value (baseline)",
+                     f"${bv_c * EPA_SOCIAL_COST_CARBON / 1e9:.1f}B",
+                     delta=f"@ ${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
+                     delta_color="off")
+    elif dC is not None:
+        _usd = dC * EPA_SOCIAL_COST_CARBON
+        _sign = "+" if _usd >= 0 else ""
+        eco_c.metric("Carbon Storage Value",
+                     f"{_sign}${_usd / 1e6:.0f}M",
+                     delta=f"@ ${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
+                     delta_color="off")
+    else:
+        eco_c.metric("Carbon Storage Value", "—")
+    # Carbon $ is the prototype's derivation (NatCap-published carbon × EPA
+    # SC-CO2) — methodology-aligned, but the dollar figure is NOT itself a
+    # NatCap-published value. Use aligned_method so the badge stays honest
+    # (blue "≈ Aligned method") even in the fixed-scenario reference view.
+    _render_validation_caption(eco_c, "carbon_value_usd", ctx_for_metrics,
+                               explicit_status="aligned_method")
+
+    if flood_red is not None:
+        _flood_delta_label = ("baseline" if scenario_id == "baseline"
+                              else "≈ invariant (design-storm saturation, NatCap finding)")
+        eco_d.metric(
+            "Flood Retention", f"{flood_red:.1f}",
+            delta=_flood_delta_label, delta_color="off",
+            help=(
+                "Unitless index (100 − mean CN). Computed by the prototype "
+                "on the loaded scenario raster via the canonical SCS-CN "
+                "method (B1 flood helper). NatCap's documented SA finding: "
+                "under the 24-hour 100-year design storm, soil infiltration "
+                "is exceeded and the flood metric is essentially scenario-"
+                "invariant — GI's primary SA benefits are heat, nature "
+                "access, and carbon, not flood (NatCap, 2023). The literal "
+                "scenario − baseline delta is suppressed here because of a "
+                "~5-pt CN gap between the native NLCD×tree path and the "
+                "prototype's compound-reduced baseline (mostly derivation "
+                "artifact; see OPEN_QUESTIONS.md → \"Native NLCD×tree "
+                "baseline flood raster\")."
+            ),
+        )
+    else:
+        eco_d.metric("Flood Retention", "—")
+    _render_validation_caption(eco_d, "flood_reduction", ctx_for_metrics)
+
+    # ── Compact "not available" summary ──
+    st.divider()
+    st.markdown("#### Not available for this NatCap scenario")
+    st.caption(
+        "These cards require the **compound** (NLCD × NLUD × tree-canopy) "
+        "scenario inputs, which NatCap built as unsaved pipeline "
+        "intermediates (see `OPEN_QUESTIONS.md` → \"Per-scenario compound "
+        "LULC inputs\"). Baseline reproduction + display of NatCap's "
+        "published reference values for temp / carbon is intact."
+    )
+    st.markdown(
+        "- **Nature Access** (UNA)  \n"
+        "- **Mental Health** — preventable cases + avoided costs  \n"
+        "- **Cooling Energy Savings**  \n"
+        "- **Food Production**  \n"
+        "- **NDVI**  \n"
+        "- **Implementation Cost** & **Cost-Effectiveness** ratios"
+    )
+
+    # ── Cross-scenario comparison (B2 revised Phase 4) ──
+    st.divider()
+    st.markdown("#### NatCap scenarios — side-by-side")
+    st.caption(
+        "All values from NatCap's published scenario outputs "
+        "(`nootenboom_results/citywide_results_UPDATED.xlsx` → "
+        "`natcap_reference_outputs.csv`). Flood is intentionally excluded "
+        "(different derivation between baseline and alternatives; see the "
+        "per-scenario flood card)."
+    )
+    _comp_rows = []
+    for _sid in ns.SA_NATCAP_FIXED_SCENARIOS.keys():
+        _, _bv_t_s, _dT_s = nv.published_delta(selected_city, _sid, "temp_change_f")
+        _, _bv_c_s, _dC_s = nv.published_delta(selected_city, _sid, "carbon_tons_co2")
+        _label = ns.SA_NATCAP_FIXED_SCENARIOS[_sid]["label"]
+        if _sid == scenario_id:
+            _label = f"▶ {_label}"
+        if _sid == "baseline":
+            _t_str = f"{_bv_t_s:.2f} °F" if _bv_t_s is not None else "—"
+            _c_str = f"{_bv_c_s / 1e6:.2f}M t CO2e" if _bv_c_s is not None else "—"
+            _cv_str = (f"${_bv_c_s * EPA_SOCIAL_COST_CARBON / 1e9:.2f}B"
+                       if _bv_c_s is not None else "—")
+        else:
+            _t_str = (f"{_fmt_dt(_dT_s)} ({_dT_s:+.3f} °F)"
+                      if _dT_s is not None else "—")
+            _c_str = (f"{_dC_s / 1e6:+.2f}M t CO2e"
+                      if _dC_s is not None else "—")
+            _cv_str = (f"${_dC_s * EPA_SOCIAL_COST_CARBON / 1e6:+.0f}M"
+                       if _dC_s is not None else "—")
+        _comp_rows.append({
+            "Scenario": _label,
+            "Temperature (NatCap published)": _t_str,
+            "Carbon stock change (NatCap published)": _c_str,
+            "Carbon Value $ (derived)": _cv_str,
+        })
+    st.dataframe(pd.DataFrame(_comp_rows),
+                 use_container_width=True, hide_index=True)
+    st.caption(
+        "Carbon $ derivation: NatCap-published carbon Δ × "
+        f"${EPA_SOCIAL_COST_CARBON}/t CO2e (EPA 2023, 2 % discount, 2030). "
+        "Baseline row shows absolute values; alternatives show Δ vs baseline."
+    )
+
+    # ── Source / methodology footer ──
+    st.divider()
+    st.caption(
+        f"**Flood input:** {flood_source_label}.  \n"
+        f"**Temperature & carbon:** NatCap's published values from "
+        f"`nootenboom_results/citywide_results_UPDATED.xlsx`, surfaced via "
+        f"`data/sa/natcap_reference_outputs.csv`.  \n"
+        f"**Validation state per metric:** see `NATCAP_ALIGNMENT.md`."
+    )
+
+
+# ── Sidebar: scenario-source selector (Brief B2 revised, Phase 3) ─────────────
+# SA-only. When the user picks a NatCap fixed scenario, the main panel routes
+# to a dedicated reference view (populated from `natcap_reference_outputs.csv`
+# + the B1 flood helper); the Explorer sidebar controls below are skipped via
+# `st.stop()` so the sidebar shows only the source selector + scenario picker.
+st.session_state.setdefault("scenario_source", "Explorer")
+st.session_state.setdefault("natcap_fixed_scenario_id", "baseline")
+
+if selected_city.startswith("San Antonio"):
+    _src = st.sidebar.radio(
+        "Scenario source",
+        options=["Explorer", "NatCap project scenario"],
+        key="scenario_source",
+        help=(
+            "Explorer: build a custom scenario with the sliders below. "
+            "NatCap project scenario: load one of NatCap's published SA "
+            "Urban Agriculture scenarios and see the validated outputs."
+        ),
+    )
+    if _src == "NatCap project scenario":
+        _fixed_ids = list(ns.SA_NATCAP_FIXED_SCENARIOS.keys())
+        _fixed_labels = {sid: ns.SA_NATCAP_FIXED_SCENARIOS[sid]["label"]
+                         for sid in _fixed_ids}
+        _picked = st.sidebar.selectbox(
+            "NatCap scenario",
+            options=_fixed_ids,
+            format_func=lambda sid: _fixed_labels[sid],
+            key="natcap_fixed_scenario_id",
+        )
+        _render_natcap_fixed_scenario_view(_picked)
+        st.stop()
+
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 st.sidebar.header("Land Use Scenario")
 
@@ -3779,22 +4094,15 @@ def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", epsilon=0.05):
         return f"+{value_delta:{fmt}} {suffix}", "normal"
     return f"-{abs(value_delta):{fmt}} {suffix}", "normal"
 
-_CONFIDENCE_BADGES = {
-    "high":             "High confidence",
-    "medium":           "Medium confidence",
-    "prototype":        "Prototype",
-    # Methodology-specific descriptor (not a confidence tier) for SA carbon,
-    # which uses NatCap's four-pool stock framework (Brief 30) rather than
-    # the MN single-rate proxy. Brief 2.
-    "natcap_four_pool": "Four-pool stock (NatCap framework)",
-}
-
-def _confidence_caption(col, tier):
-    """Render the badge under a metric card.
-    tier ∈ {'high', 'medium', 'prototype'} for confidence tiers, or a
-    methodology descriptor key like 'natcap_four_pool' — see 'How this
-    prototype works' expander for tier definitions."""
-    col.caption(_CONFIDENCE_BADGES[tier])
+# The active scenario's context. Drives the badge's anchored-vs-aligned color
+# rule. Baseline = pct_converted == 0; any slider-derived non-zero scenario is
+# Explorer for B2 v1 (Optimizer scenarios don't have a separate render path —
+# the user manually copies the slider values). When the fixed-scenario
+# reference view lands (Phase 3), it sets its own NATCAP_FIXED context locally.
+_validation_scenario_context = (
+    nv.SCENARIO_CONTEXT_BASELINE if results['pct_converted'] == 0
+    else nv.SCENARIO_CONTEXT_EXPLORER
+)
 
 # read from state to avoid silent-staleness if city switches
 _flood_delta = results['flood_reduction'] - (100 - _CURRENT_CITY_STATE.baseline_cn)
@@ -3875,7 +4183,7 @@ eco1.metric(
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
     )
 )
-_confidence_caption(eco1, "high")
+_render_validation_caption(eco1, "flood_reduction", _validation_scenario_context)
 eco2.metric(
     "Temperature Change",
     _temp_change_label,
@@ -3883,7 +4191,7 @@ eco2.metric(
     delta_color="off",
     help=f"Confidence: High — see 'How this prototype works' for tier definitions. Approximate temperature change vs baseline, shown as °F cooler or warmer. Derived from mean Heat Mitigation Index (HMI) under the InVEST UCM (calibration factor {HM_TO_FAHRENHEIT:.2f}°F/HMI unit, UHI_max = {UHI_MAX_C:.2f}°C; ±2°F accuracy). HMI is the canonical InVEST UCM output, validated at MAE = 0.0000 against `natcap.invest.urban_cooling_model.execute()`. Underlying model: [InVEST Urban Cooling Model](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_cooling_model.html)."
 )
-_confidence_caption(eco2, "high")
+_render_validation_caption(eco2, "temp_change_f", _validation_scenario_context)
 eco3.metric(
     "Runoff Volume",
     _fmt_runoff(results['runoff_acre_feet']),
@@ -3898,7 +4206,7 @@ eco3.metric(
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
     )
 )
-_confidence_caption(eco3, "high")
+_render_validation_caption(eco3, "runoff_acre_feet", _validation_scenario_context, explicit_status="aligned_method")
 
 _ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
 _ndvi_delta_str, _ndvi_delta_color = _delta_pill(_ndvi_delta, fmt=".3f", suffix="vs baseline", epsilon=0.001)
@@ -3936,7 +4244,7 @@ eco4.metric(
     delta_color=_carbon_delta_color,
     help=_carbon_card_help,
 )
-_confidence_caption(eco4, "natcap_four_pool" if _CARBON_IS_STOCK else "prototype")
+_render_validation_caption(eco4, "carbon_tons_co2", _validation_scenario_context, explicit_status=None if _CARBON_IS_STOCK else "prototype")
 eco5.metric(
     "NDVI",
     f"{results['mean_ndvi']:.3f}",
@@ -3949,7 +4257,7 @@ eco5.metric(
         "Treat as directional only."
     )
 )
-_confidence_caption(eco5, "prototype")
+_render_validation_caption(eco5, "ndvi", _validation_scenario_context, explicit_status="prototype")
 
 st.divider()
 
@@ -4000,7 +4308,7 @@ hs_na.metric(
         f"(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
     ),
 )
-_confidence_caption(hs_na, "medium")
+_render_validation_caption(hs_na, "nature_access_pct", _validation_scenario_context)
 
 _mh_cases = results.get('preventable_mh_cases', 0.0)
 _mh_cost  = results.get('avoided_mh_cost_usd', 0.0)
@@ -4045,7 +4353,7 @@ hs3.metric(
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_mental_health.html)."
     ),
 )
-_confidence_caption(hs3, "high")
+_render_validation_caption(hs3, "preventable_mh_cases", _validation_scenario_context)
 hs3.caption("cases prevented" if _mh_cases >= 0 else "cases induced")
 if _mh_cost >= _MH_COST_PILL_EPSILON:
     _mh_cost_label = "Avoided MH Costs"
@@ -4083,7 +4391,7 @@ hs4.metric(
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_mental_health.html)."
     ),
 )
-_confidence_caption(hs4, "high")
+_render_validation_caption(hs4, "avoided_mh_cost_usd", _validation_scenario_context, explicit_status="aligned_method")
 hs4.caption("avoided MH costs/yr" if _mh_cost >= 0 else "added MH costs/yr")
 
 st.divider()
@@ -4113,7 +4421,7 @@ econ1.metric(
         + " Treat as directional only."
     )
 )
-_confidence_caption(econ1, "prototype")
+_render_validation_caption(econ1, "food_mln_lbs", _validation_scenario_context)
 if results['food_mln_lbs'] == 0:
     econ1.caption(
         "No food forest in this scenario — add Food Forest % to see production estimates."
@@ -4124,7 +4432,7 @@ econ2.metric(
     delta=None,
     help="Confidence: Medium — see 'How this prototype works' for tier definitions. Total cost based on $/acre sliders × converted acreage."
 )
-_confidence_caption(econ2, "medium")
+_render_validation_caption(econ2, "total_cost_mln", _validation_scenario_context, explicit_status="prototype")
 
 # Row 2: the three model-derived dollar metrics (each computed downstream
 # from the scenario, not directly from the user's sliders).
@@ -4164,7 +4472,7 @@ if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_
             "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
         ),
     )
-    _confidence_caption(econ3, "medium")
+    _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="aligned_method")
 elif BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
     # Typed buildings but no damage table (SA today). Brief 33 / Path C:
     # match NatCap's Vibrant Land (Guerry et al. 2023) methodology —
@@ -4195,7 +4503,7 @@ elif BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
             "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
         ),
     )
-    _confidence_caption(econ3, "medium")
+    _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="aligned_method")
 else:
     if BUILDINGS_DATA_AVAILABLE and not BUILDINGS_HAVE_TYPES:
         _help_text = (
@@ -4213,7 +4521,7 @@ else:
         "—",
         help="Confidence: Medium — see 'How this prototype works' for tier definitions. " + _help_text + " Underlying model: [InVEST Urban Flood Risk Mitigation](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html).",
     )
-    _confidence_caption(econ3, "medium")
+    _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="aligned_method")
 
 _energy_savings = results.get('cooling_energy_savings_usd', 0.0)
 _energy_available = (
@@ -4283,7 +4591,7 @@ if _energy_available:
         delta_color="normal" if _energy_savings >= 1e3 else "off",
         help=_help_text,
     )
-    _confidence_caption(econ4, "medium")
+    _render_validation_caption(econ4, "cooling_energy_savings_usd", _validation_scenario_context, explicit_status="aligned_method")
     # Per-pixel rate as a small secondary caption — only when the city
     # total is meaningful. Suppresses at HD-only scenarios where there's
     # no cooling delta to amortize.
@@ -4313,7 +4621,7 @@ else:
             "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_cooling_model.html)."
         )
     econ4.metric("Cooling Energy Savings", "—", help=_help_text)
-    _confidence_caption(econ4, "medium")
+    _render_validation_caption(econ4, "cooling_energy_savings_usd", _validation_scenario_context, explicit_status="aligned_method")
 
 # Brief 30: Carbon dollar metric. For SA = one-time stock value
 # (Vibrant Land framing); for MN = annual avoided-cost flow. Label and
@@ -4382,7 +4690,7 @@ econ5.metric(
     delta_color=_carbon_dollar_color,
     help=_carbon_dollar_help,
 )
-_confidence_caption(econ5, "medium")
+_render_validation_caption(econ5, "carbon_value_usd", _validation_scenario_context, explicit_status="natcap_published" if _CARBON_IS_STOCK else "prototype")
 
 st.divider()
 
@@ -4400,7 +4708,7 @@ ceff1.metric(
     delta=None,
     help=f"Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by runoff reduction vs baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario increases runoff or has no cost."
 )
-_confidence_caption(ceff1, "medium")
+_render_validation_caption(ceff1, "cost_per_acft", _validation_scenario_context, explicit_status="prototype")
 ceff2.metric(
     "Cost / Citywide °F Cooling",
     _fmt_ce(ce['cost_per_degf']),
@@ -4408,14 +4716,14 @@ ceff2.metric(
     delta_color="off" if _temp_change_f >= 0 else "normal",
     help="Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by degrees F of city-average cooling vs baseline (the °F is a citywide mean, not a per-person or per-site value). N/A if no cooling improvement. InVEST UCM canonical units are °C — to translate, this is approximately (Cost / °F) × 1.8 per °C."
 )
-_confidence_caption(ceff2, "medium")
+_render_validation_caption(ceff2, "cost_per_degf", _validation_scenario_context, explicit_status="prototype")
 ceff3.metric(
     "Cost / 1,000 People Fed",
     _fmt_ce(ce['cost_per_1k_people']),
     delta=None,
     help="Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by (people fed ÷ 1,000). N/A if no food production."
 )
-_confidence_caption(ceff3, "medium")
+_render_validation_caption(ceff3, "cost_per_1k_people", _validation_scenario_context, explicit_status="prototype")
 
 st.caption(
     "For outcome metrics, higher is generally better except Runoff Volume, where "

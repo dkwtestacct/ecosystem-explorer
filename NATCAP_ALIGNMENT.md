@@ -65,13 +65,37 @@ absolute values + explicit baseline rows. Three `validation_status` states:
 - **`prototype`** (no canonical analog): **food_mln_lbs**.
 
 Read via `natcap_validation.py` (`load_reference_outputs` / `lookup_reference` /
-`compare_to_reference` — delta-aware for the published metrics). Not yet wired
-into the dashboard; Brief B2 will surface per-metric card badges from it.
+`compare_to_reference` — delta-aware for the published metrics). Surfaced in the
+dashboard via per-metric validation badges (Brief B2 revised, 2026-05-29):
+
+- **Green "NatCap published value"** — fixed-scenario reference view only; the
+  card surfaces NatCap's number from the reference CSV directly. No reproduction
+  claim.
+- **Blue "≈ NatCap method"** — `natcap_published`-class metric anywhere else
+  (baseline / Explorer / Optimizer). The displayed value is the prototype's own
+  computation, methodology-aligned. Per-metric tooltip: temperature CAN cite
+  measured per-pixel HMI parity (Brief 28b); carbon must NOT (Brief 30 is
+  four-pool methodology adoption, not a per-pixel parity measurement).
+- **Blue "≈ Aligned method"** — `aligned_method` metrics regardless of scenario.
+- **Gray "Prototype"** — `prototype` metrics regardless of scenario.
+
+**A3 status — comparison-READY, never executed.** The CSV stores NatCap's
+published values and `compare_to_reference` implements the delta tolerance
+check, but **no end-to-end `evaluate_scenario → compare_to_reference` pipeline
+has ever run** — the only `natcap_published` metrics (`temp_change_f`,
+`carbon_tons_co2`) are exactly those gated by the unavailable compound scenario
+inputs (see `OPEN_QUESTIONS.md`). The only callers of `compare_to_reference` are
+the four-line `__main__` smoke test with hardcoded values, exercising the
+match/diverged/no_reference branches against synthesized inputs.
 
 **Validation story (if per-scenario compound inputs never arrive):** "the prototype
-reproduces NatCap's baseline, uses canonical InVEST methodology, and surfaces
-NatCap's own published scenario outcomes" — see `OPEN_QUESTIONS.md` → "Per-scenario
-compound LULC inputs" → "Impact if … never obtained".
+reproduces **canonical InVEST per-pixel** (HMI MAE 0.0000 — Brief 28b; UMH MAE ≈ 0
+— Brief B), uses canonical InVEST methodology, and surfaces NatCap's own published
+scenario outcomes" — see `OPEN_QUESTIONS.md` → "Per-scenario compound LULC inputs"
+→ "Impact if … never obtained". Note: per the Brief B2 (revised) investigation,
+NatCap's published *citywide absolutes* are NOT reproducible from disk (their UCM
+args and carbon aggregation script aren't shipped); the reproduction claim sits
+at per-pixel parity, not citywide absolute.
 
 **Per-model validation state travels with the InVEST export bundle (Brief D1).**
 The bundle's `metadata.json → validation` block records each model's status

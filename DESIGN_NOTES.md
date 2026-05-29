@@ -1941,6 +1941,111 @@ rediscovering this the hard way.
 (major user-visible capability: a new sidebar button + downloadable bundle).
 Underway stays empty.
 
+## Brief B2 (revised) — Validation badges + NatCap fixed-scenario reference view (2026-05-29)
+
+**Context.** The original B2 (per-metric Match/Diverged badges keyed on a
+prototype-computed value vs NatCap's published value) was deferred earlier this
+session (see `OPEN_QUESTIONS.md` → "Deferred briefs") because Match/Diverged
+needs prototype reproduction for the six NatCap fixed alternative scenarios,
+which is gated on the unavailable compound scenario inputs. The revised brief
+expanded scope: keep Match/Diverged out, but deliver the ungated symposium core
+— the three-state taxonomy as badges, a dedicated **fixed-scenario reference
+view** routing around the monolithic `evaluate_scenario`, a side-by-side
+comparison surface, baseline reproduction posture, and a flood reconcile.
+
+**Conservative-floor decision (this session).** The investigation pass under
+the "no parameter fitting" guardrail established that NatCap's published
+**citywide absolute baselines** aren't reproducible from disk:
+
+- **Temperature.** No SA UCM `args.json` ships anywhere in the drive pull. The
+  `T_ref` / `uhi_max` NatCap used for `avg_temp_f = 90.08 °F` are not
+  documented or recoverable. (`T_air_nomix.tif` exists; back-solving from it
+  crosses the no-fit guardrail.)
+- **Carbon.** NatCap's `tot_c_cur.tif` (EPSG:3857, ~34.5 m nominal pixel,
+  5,283 km² extent, mean 17.2) does NOT aggregate to the published 107.32M
+  t CO2e by any standard interpretation (per-ha → 25–33M depending on the
+  cos²(lat) area choice; per-pixel-total → 280M). The published number is a
+  separate aggregation script that wasn't shipped. The prototype's own Bexar-
+  bbox four-pool sum is 147.96M.
+- **A3 status.** `natcap_published` is "comparison-READY, never executed."
+  The only callers of `compare_to_reference` are the four-line `__main__`
+  smoke test with hardcoded values. No `evaluate_scenario → compare_to_reference`
+  pipeline has ever run, because the only `natcap_published` metrics
+  (`temp_change_f`, `carbon_tons_co2`) are exactly those gated by the
+  unavailable compound inputs.
+
+Net: a clean citywide-absolute reproduction match is not achievable from what's
+on disk. The demonstrable reproduction claim, in order of strength, is **per-
+pixel parity vs canonical InVEST** (HMI MAE 0.0000 / r 1.0000, Brief 28b; UMH
+MAE ≈ 0, Brief B), then **four-pool methodology adoption** (Brief 30 — a
+methodology choice, not a parity measurement). The badge taxonomy was tightened
+to match.
+
+**Badge floor (`natcap_validation.render_validation_badge`).**
+
+| context | metric class | badge |
+|---|---|---|
+| `NATCAP_FIXED` | `natcap_published` | **green "NatCap published value"** — the ONLY green case; the fixed-scenario reference view surfaces NatCap's number directly from `natcap_reference_outputs.csv`. |
+| `BASELINE` / `EXPLORER` / `OPTIMIZER` | `natcap_published` | **blue "≈ NatCap method"** — prototype's own computation, methodology-aligned. |
+| any | `aligned_method` | blue "≈ Aligned method" |
+| any | `prototype` | gray "Prototype" |
+
+**Metric-aware tooltip** on `≈ NatCap method`: temperature CAN cite measured
+per-pixel HMI parity (Brief 28b); carbon MUST NOT — four-pool *methodology
+adoption* (Brief 30) is alignment, not a per-pixel parity measurement, and
+overclaiming would misframe the reproduction posture.
+
+**Curated non-CSV-card status map** (for `_render_validation_caption(...,
+explicit_status=...)` callers): runoff = aligned_method (canonical SCS-CN
+derivation); NDVI = prototype (synthetic per-NLCD proxy); implementation cost
+= prototype (slider artifact); flood damage avoided / volume reduction =
+aligned_method; cooling energy savings = aligned_method (typed-OSM scope
+caveat); carbon-$ = natcap_published on SA (derived from natcap_published
+carbon × SC-CO2) / prototype on MN (per-cover annual proxy); MH costs =
+aligned_method (pairs with MH cases); cost-effectiveness ratios = prototype.
+
+**Reference-view architecture.** Routed by a sidebar "Scenario source" radio
+(SA-only) — selecting "NatCap project scenario" + a scenario_id from
+`SA_NATCAP_FIXED_SCENARIOS` calls `_render_natcap_fixed_scenario_view(...)`
+then `st.stop()`s the script before the Explorer sidebar / sliders / optimizer
+/ Export-for-InVEST block. Keeps the Explorer path untouched. The view reads
+NatCap's published temp/carbon from `natcap_reference_outputs.csv` and the
+flood metric via the B1 helper (`natcap_scenarios.flood_reduction_from_nlcd_tree`)
+— it does NOT route through `evaluate_scenario`. Compound-gated cards (Nature
+Access, MH cases+costs, Cooling Energy, Food, NDVI, Cost & CE) are listed in an
+explicit "not available for this NatCap scenario" section, with a pointer to
+`OPEN_QUESTIONS.md`.
+
+**Baseline panel — conservative reframe.** The original Phase-4 ambition was a
+prototype-vs-NatCap absolute side-by-side with a ✓/✗ verdict. Given the
+investigation result, that would put two ✗ markers on the symposium credibility
+panel, for parameter/scope reasons not methodology divergence. Replaced with a
+single plain-line claim:
+
+> **Validated:** per-pixel parity vs canonical InVEST (HMI MAE 0.0000, Brief
+> 28b; UMH MAE ≈ 0, Brief B). **Not established:** reproduction of NatCap's
+> published citywide figures — their UCM args and carbon-aggregation script
+> aren't recoverable from disk. See OPEN_QUESTIONS.md.
+
+No numbers (which would invite a false comparison). Honest about what is and
+isn't validated. If the audience is NatCap-savvy (in which the scope/parameter
+caveats land naturally), a methodology-comparison panel with the figures + the
+caveat would be the alternative — that's a one-line edit when needed.
+
+**Cross-scenario comparison table.** A small `st.dataframe` over the seven
+NatCap scenarios × (temperature, carbon stock change, carbon $) — all values
+from the reference CSV (NatCap-published), with explicit "(NatCap published)"
+column labels. Flood is intentionally excluded (different derivation between
+baseline and alternatives — baseline uses compound→NLCD×tree reduction,
+alternatives use NatCap's native NLCD×tree raster; the ~5-pt CN gap is mostly
+artifact). The active scenario is marked with a ▶ prefix.
+
+**Flood reconcile (per-scenario card).** The fixed-scenario flood card
+suppresses the literal scenario−baseline delta and renders **"≈ invariant
+(design-storm saturation, NatCap finding)"** — matching NatCap's documented SA
+result that flood is essentially scenario-invariant. Tooltip explains the
+derivation gap.
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed

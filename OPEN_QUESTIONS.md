@@ -77,9 +77,9 @@ Nature access, cooling, and mental health have no NatCap published per-scenario
 target, so they could not be validated against NatCap regardless.
 
 Not affected (intact without the files):
-- **Baseline reproduction/validation** — the compound baseline exists, so "the
-  prototype reproduces NatCap's baseline" holds. This is the validation
-  credibility anchor.
+- **Per-pixel parity vs canonical InVEST** — HMI MAE 0.0000 (Brief 28b), UMH
+  MAE ≈ 0 (Brief B), measured against canonical InVEST 3.19.0. This is the
+  validation credibility anchor.
 - All **Explorer-generated and Optimizer-suggested** scenario exploration and full
   five-model InVEST export (the prototype builds their compound rasters internally
   via `evaluate_scenario`).
@@ -87,10 +87,16 @@ Not affected (intact without the files):
   (the 14 figures are in `natcap_reference_outputs.csv`).
 - Flood metric on the fixed scenarios.
 
-**Validation story this leaves us with:** "the prototype reproduces NatCap's
-baseline, uses canonical InVEST methodology, and surfaces NatCap's own published
-scenario outcomes" — narrower than per-scenario reproduction, but fully honest and
-intact.
+**What is NOT reproducible from disk** (Brief B2 revised investigation, 2026-05-29):
+NatCap's published *citywide absolute* baseline figures — `avg_temp_f` = 90.08 °F
+and `c_sequestration` = 107.32M t CO2e. Their SA UCM `args.json` isn't shipped, and
+`tot_c_cur.tif` doesn't aggregate to 107.32M by any standard interpretation. The
+reproduction claim sits at **per-pixel parity**, not at citywide absolute.
+
+**Validation story this leaves us with:** "the prototype reproduces canonical
+InVEST per-pixel, uses canonical InVEST methodology, and surfaces NatCap's own
+published scenario outcomes" — narrower than citywide-absolute reproduction, but
+fully honest and intact.
 
 **Send-ready email draft (verbatim — do not send without a go-ahead):**
 
@@ -148,6 +154,16 @@ validation markers · DEFERRED" below). See DESIGN_NOTES.md "Brief B1".
 ## Deferred briefs
 
 ### B2 — Per-metric validation markers · STATUS: DEFERRED (2026-05-29)
+
+> **2026-05-29 update — partial unblock.** B2 was revised mid-session under a
+> conservative-floor scope that DROPS the gated Match/Diverged states and
+> delivers the ungated core: a three-state badge taxonomy (NatCap-anchored /
+> NatCap method / Aligned method / Prototype), a dedicated SA fixed-scenario
+> reference view, a cross-scenario comparison table, and a plain-line baseline
+> validation claim. **That work landed** — see `DESIGN_NOTES.md` "Brief B2
+> (revised)". The **original** match/diverged design described below remains
+> deferred (compound-input-gated), and the preserved Phase-0 design lower in
+> this entry stays a useful reference if the gated piece is ever rebuilt.
 
 **What it was.** Per-metric validation badges on the dashboard cards: ✓ NatCap
 match / × Diverged X% / ≈ Aligned method / Prototype, driven by
