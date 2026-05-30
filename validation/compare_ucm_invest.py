@@ -12,7 +12,7 @@ max(CC_local, CC_park) step with exponential decay near green areas >= 2 ha,
 substituting a Gaussian smoothing at sigma=15 px (450 m).
 
 Usage:
-    python compare_ucm_invest.py
+    python validation/compare_ucm_invest.py
 
 Prerequisites:
     - natcap.invest installed (conda install -c conda-forge natcap.invest)
@@ -28,6 +28,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import rasterio

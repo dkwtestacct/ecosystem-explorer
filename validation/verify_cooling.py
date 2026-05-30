@@ -10,6 +10,9 @@ import argparse
 import os
 import sys
 import importlib.util
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 # `CITY_KEY` controls which `CITIES[...]` entry the headless harness selects.
@@ -144,7 +147,7 @@ def load_app(uhi_override=None):
     """Force a fresh import of app.py, optionally patching UHI_MAX_C."""
     sys.modules.pop("app", None)
     _stub_streamlit()
-    spec = importlib.util.spec_from_file_location("app", "app.py")
+    spec = importlib.util.spec_from_file_location("app", str(Path(__file__).resolve().parent.parent / "app.py"))
     m = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(m)

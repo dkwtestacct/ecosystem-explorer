@@ -11,12 +11,16 @@ docstring in surrogate.py), so comparing against random placement isolates the
 surrogate's own approximation error rather than conflating it with the
 placement-geometry divergence the surrogate structurally cannot capture.
 
-Run on the app's .venv:  .venv/bin/python validate_surrogate_predictions.py
+Run on the app's .venv:  .venv/bin/python diagnostics/validate_surrogate_predictions.py
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+sys.path.insert(0, str(_REPO_ROOT / "validation"))
 
 import pandas as pd
 

@@ -22,8 +22,8 @@ every InVEST model the prototype reimplements:
 
 | Env | Python | natcap.invest | Has | Used by |
 |-----|--------|---------------|-----|---------|
-| anaconda **base** | 3.13 | 3.16.2 | UCM, UFR, UNA, Carbon | `compare_ucm_invest.py`, `compare_una_invest.py`, `compare_carbon_invest.py` |
-| **`natcap_umh_validation`** (conda) | 3.12 | 3.19.0 | + Urban Mental Health | `compare_umh_invest.py` |
+| anaconda **base** | 3.13 | 3.16.2 | UCM, UFR, UNA, Carbon | `validation/compare_ucm_invest.py`, `validation/compare_una_invest.py`, `validation/compare_carbon_invest.py` |
+| **`natcap_umh_validation`** (conda) | 3.12 | 3.19.0 | + Urban Mental Health | `validation/compare_umh_invest.py` |
 
 Urban Mental Health was added in InVEST **3.18/3.19**, which require **Python
 ≥ 3.10** — the app's `.venv` (Python 3.9) cannot host it, and anaconda base's
@@ -43,7 +43,7 @@ conda run -n natcap_umh_validation python -c \
 
 ### The decoupled two-environment harness pattern
 
-`compare_umh_invest.py` can't `import app` in the isolated env (the env
+`validation/compare_umh_invest.py` can't `import app` in the isolated env (the env
 deliberately lacks app's rasterio/sklearn/scikit-image stack). Instead it
 bridges the two environments on disk:
 
@@ -51,7 +51,7 @@ bridges the two environments on disk:
    ```bash
    PROJ_DATA=.venv/lib/python3.9/site-packages/rasterio/proj_data \
    GDAL_DATA=.venv/lib/python3.9/site-packages/rasterio/gdal_data \
-   .venv/bin/python compare_umh_invest.py export
+   .venv/bin/python validation/compare_umh_invest.py export
    ```
    Writes shared inputs (NDVI base/alt, population) and the prototype's
    per-pixel output rasters to `tests/umh_fixtures/<city>/` (gitignored,
@@ -59,7 +59,7 @@ bridges the two environments on disk:
 
 2. **COMPARE** (run in the isolated env):
    ```bash
-   conda run -n natcap_umh_validation python compare_umh_invest.py compare
+   conda run -n natcap_umh_validation python validation/compare_umh_invest.py compare
    ```
    Feeds the *same* inputs into canonical `execute()` and reports MAE +
    Pearson r vs the prototype's rasters.

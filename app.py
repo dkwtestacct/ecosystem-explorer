@@ -565,7 +565,7 @@ def _resolve_table(data_dir, filename, *fallback_dirs):
 #       `DEFAULT_<target>_LUCODE` fallback. Currently used only at load
 #       time for the reduction; Brief 28+ will consume the compound_after_*
 #       arrays inside evaluate_scenario when per-model tables go compound-
-#       keyed. See SA_INTEGRATION_PLAN.md Decision 2 and DESIGN_NOTES.md.
+#       keyed. See docs/archive/SA_INTEGRATION_PLAN_2026-05.md Decision 2 and docs/internal/DESIGN_NOTES.md.
 # NLCD classes the SA flood CN table (biophys_floodmitig_sa.csv) represents
 # with a single, non-tiered 2-digit code rather than three canopy tiers. Per
 # NatCap's QA canopy rules, water/ice are "None canopy only" and forests are
@@ -613,7 +613,7 @@ def load_lulc_crosswalk(crosswalk_path, default_ff, default_gi, default_hd):
     # `Ben NDR and Flood Mar_2023.pptx` for flood methodology, but that file is
     # not in the shared folders. The mapping above is a defensible methodology
     # choice pending NatCap clarification (logged as a question for the next
-    # NatCap conversation; see NATCAP_COLLABORATION.md).
+    # NatCap conversation; see docs/internal/NATCAP_COLLABORATION.md).
     #
     # Two notes on edge cases (not action items here):
     # - Barren (31): the QA notes say "Barren is only allowed None canopy," yet
@@ -725,7 +725,7 @@ def _assert_raster_crs(src, expected_crs, file_path):
     integration mistakes — the prototype's area math assumes equal-area
     projections (EPSG:26915 for MN, EPSG:5070 for SA) and would silently
     produce wrong numbers if a 3857 raster (or any non-equal-area CRS)
-    were introduced. See ARCHITECTURE.md "CRS handling" for the
+    were introduced. See docs/internal/ARCHITECTURE.md "CRS handling" for the
     rationale. Comparison via `rasterio.crs.CRS.from_user_input` handles
     both EPSG-code and WKT-string representations consistently."""
     if src.crs is None:
@@ -740,7 +740,7 @@ def _assert_raster_crs(src, expected_crs, file_path):
             f"All rasters must be in the city's canonical equal-area CRS for "
             f"PIXEL_AREA_ACRES math to be correct. If this raster genuinely "
             f"belongs in a different CRS, reproject it at preparation time "
-            f"(not runtime) — see ARCHITECTURE.md 'CRS handling'."
+            f"(not runtime) — see docs/internal/ARCHITECTURE.md 'CRS handling'."
         )
 
 
@@ -1144,7 +1144,7 @@ NATURE_RADIUS_CAP_M = 1000
 # for the InVEST UCM. The model runs inside the app's own environment (no
 # natcap.invest runtime dependency); the numpy result is validated offline
 # against `natcap.invest.urban_nature_access.execute()`. Parameter rationale is
-# in DESIGN_NOTES.md.
+# in docs/internal/DESIGN_NOTES.md.
 #
 # Per-city parameters (Brief 22): NatCap maintains two project framings — MN
 # project uses `demand=250 / radius=1000m / decay=exponential` (aspirational
@@ -1291,7 +1291,7 @@ def calculate_nature_access(scenario_lulc, pop_count_raster):
 
     Re-implements `natcap.invest.urban_nature_access` (uniform search
     radius + configurable decay, with per-city parameters — see
-    DESIGN_NOTES.md) in numpy via two-step floating catchment area
+    docs/internal/DESIGN_NOTES.md) in numpy via two-step floating catchment area
     (2SFCA). The headline metric is `pct_pop_supply_ge_demand`: the share of the
     modelable-extent population whose per-capita nature supply meets the demand
     standard.
@@ -1406,7 +1406,7 @@ UMH_SEARCH_RADIUS_M          = 300   # Li et al. 2025; ~10 px at 30 m NLCD
 # correction, i.e. pygeoprocessing.convolve_2d(ignore_nodata_and_edges=True).
 # Validated to per-pixel parity (MAE ≈ 0, Pearson r ≈ 1.0) against
 # `natcap.invest.urban_mental_health.execute()` via compare_umh_invest.py — see
-# DESIGN_NOTES.md "Brief B — UMH NE kernel: Gaussian → buffer-mean".
+# docs/internal/DESIGN_NOTES.md "Brief B — UMH NE kernel: Gaussian → buffer-mean".
 # (Brief A's Gaussian σ=radius kernel diverged per-pixel; Brief B switched it.)
 _UMH_RADIUS_PX = UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M     # = 10.0 at 30 m / 300 m
 _UMH_APOTHEM   = int(np.floor(_UMH_RADIUS_PX))
@@ -1550,7 +1550,7 @@ def _fmt_ce(val):
 # Five named strategies for selecting which convertible pixels to convert.
 # 'random' is the default and reproduces the prior uniform-sampling behavior.
 # The others weight the sampling toward pixels where conversion yields the
-# highest benefit per the INVEST_PLACEMENT.md research. UI exposure is deferred
+# highest benefit per the docs/research/INVEST_PLACEMENT.md research. UI exposure is deferred
 # to a future session; for now these are Python-API-only.
 PLACEMENT_STRATEGIES = {
     'random':              'Uniform random sampling',
@@ -1682,7 +1682,7 @@ def _select_pixels_for_conversion(convertible_pixels, n_to_convert, strategy, rn
     # intent for the pixels the strategy can rank — sampled in weighted-
     # priority order, same convention as the non-saturated path) and fill
     # the remainder uniformly from the zero-weighted pool.
-    # See PLACEMENT_STRATEGY_DIAGNOSTIC.md §3 and §7.
+    # See docs/research/PLACEMENT_STRATEGY_DIAGNOSTIC.md §3 and §7.
     nonzero_mask = weights > 0
     nonzero_count = int(nonzero_mask.sum())
     if nonzero_count < n_to_convert:
@@ -1947,7 +1947,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 27  # bumped: UMH neighborhood-exposure kernel changed from Gaussian to canonical buffer-mean (InVEST 3.19.0 per-pixel parity) — `preventable_mh_cases` / `avoided_mh_cost_usd` shift for every conversion scenario. Full per-bump rationale in HISTORY.md "Schema version log". (26 added the per-target fallback-pixel diagnostic fields.)
+SCENARIO_SCHEMA_VERSION = 27  # bumped: UMH neighborhood-exposure kernel changed from Gaussian to canonical buffer-mean (InVEST 3.19.0 per-pixel parity) — `preventable_mh_cases` / `avoided_mh_cost_usd` shift for every conversion scenario. Full per-bump rationale in docs/archive/HISTORY.md "Schema version log". (26 added the per-target fallback-pixel diagnostic fields.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -3285,7 +3285,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 #  - blue  ≈ Aligned method   — aligned_method metric (canonical InVEST, no
 #    directly-comparable NatCap citywide reference).
 #  - gray  Prototype          — exploratory metric, no canonical InVEST analog.
-# See DESIGN_NOTES.md "Brief B2 (revised)" for the non-CSV-card curated map.
+# See docs/internal/DESIGN_NOTES.md "Brief B2 (revised)" for the non-CSV-card curated map.
 
 _VALIDATION_BADGE_COLOR_HEX = {
     "green": "#1a7f37",
@@ -3394,7 +3394,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
     explicit 'not available' states for compound-gated metrics. Does NOT
     route through `evaluate_scenario`.
 
-    Flood reconcile (per B2-revised, OPEN_QUESTIONS.md): the prototype's
+    Flood reconcile (per B2-revised, docs/internal/OPEN_QUESTIONS.md): the prototype's
     flood-on-native-NLCD×tree vs flood-on-compound-reduced baseline gap is
     mostly derivation artifact; NatCap's documented SA finding is flood ≈
     scenario-invariant under design-storm saturation. So the delta pill
@@ -3473,7 +3473,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
             "(HMI MAE 0.0000, Brief 28b; UMH MAE ≈ 0, Brief B).  \n"
             "**Not established:** reproduction of NatCap's published "
             "citywide figures — their UCM args and carbon-aggregation script "
-            "aren't recoverable from disk. See `OPEN_QUESTIONS.md`."
+            "aren't recoverable from disk. See `docs/internal/OPEN_QUESTIONS.md`."
         )
         st.divider()
 
@@ -3546,7 +3546,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
                 "scenario − baseline delta is suppressed here because of a "
                 "~5-pt CN gap between the native NLCD×tree path and the "
                 "prototype's compound-reduced baseline (mostly derivation "
-                "artifact; see OPEN_QUESTIONS.md → \"Native NLCD×tree "
+                "artifact; see docs/internal/OPEN_QUESTIONS.md → \"Native NLCD×tree "
                 "baseline flood raster\")."
             ),
         )
@@ -3560,7 +3560,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
     st.caption(
         "These cards require the **compound** (NLCD × NLUD × tree-canopy) "
         "scenario inputs, which NatCap built as unsaved pipeline "
-        "intermediates (see `OPEN_QUESTIONS.md` → \"Per-scenario compound "
+        "intermediates (see `docs/internal/OPEN_QUESTIONS.md` → \"Per-scenario compound "
         "LULC inputs\"). Baseline reproduction + display of NatCap's "
         "published reference values for temp / carbon is intact."
     )
@@ -3623,7 +3623,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         f"**Temperature & carbon:** NatCap's published values from "
         f"`nootenboom_results/citywide_results_UPDATED.xlsx`, surfaced via "
         f"`data/sa/natcap_reference_outputs.csv`.  \n"
-        f"**Validation state per metric:** see `NATCAP_ALIGNMENT.md`."
+        f"**Validation state per metric:** see `docs/internal/NATCAP_ALIGNMENT.md`."
     )
     st.caption(
         "**Validation status (summary).** Engine: verified against canonical "
@@ -4010,7 +4010,7 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
 #   (cost sliders, carbon-rate sliders, fresh rasters), NOT for staleness
 #   protection. Future devs: do NOT add new defensive overwrites for
 #   surrogate-target fields — bump SCENARIO_SCHEMA_VERSION instead. Full
-#   contract in DESIGN_NOTES.md "Lookup-overlay safety contract".
+#   contract in docs/internal/DESIGN_NOTES.md "Lookup-overlay safety contract".
 lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
 if lookup_key in lookup_table and placement_strategy == 'random':
     # Lookup table was computed with random placement — only use it in random mode
@@ -4448,7 +4448,7 @@ st.markdown("#### Human & Social")
 hs_na, hs3, hs4 = st.columns(3)
 
 # Nature Access — canonical InVEST Urban Nature Access (2SFCA), re-implemented
-# in numpy by `calculate_nature_access`. See DESIGN_NOTES.md.
+# in numpy by `calculate_nature_access`. See docs/internal/DESIGN_NOTES.md.
 _nature_access = results.get('nature_access_pct', 0.0)
 _nature_aoi = (
     "City of San Antonio (ACS block groups)"
@@ -4467,7 +4467,7 @@ hs_na.metric(
         f"cooling-LULC nodata pixels InVEST cannot model. "
         f"Parameters: {UNA_SEARCH_RADIUS_M:g}m uniform search radius, "
         f"{UNA_DECAY_FUNCTION} decay (per the active city's NatCap project framing — "
-        f"see DESIGN_NOTES.md). "
+        f"see docs/internal/DESIGN_NOTES.md). "
         f"High values (e.g. on food-forest scenarios) reflect intended "
         f"saturation: converted developed pixels become nature-supplying, so "
         f"most residents clear the per-capita standard. "
@@ -5001,7 +5001,7 @@ with st.expander("Assumptions and limitations"):
             "LULC framework (1,984 compound lucodes; foundational adoption "
             "landed Brief 27). UCM, UNA, and Carbon all consume the "
             "compound-keyed biophysical tables directly (Briefs 28b, 29, 30). "
-            "See `SA_INTEGRATION_PLAN.md` for the brief sequence."
+            "See `docs/archive/SA_INTEGRATION_PLAN_2026-05.md` for the brief sequence."
         )
     # Brief B: Conversion fidelity panel — SA-only. Shows what fraction
     # of this scenario's converted pixels resolved via the documented

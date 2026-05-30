@@ -23,7 +23,7 @@ Work performed:
             pixel-count and population summaries for the "nature" classes
             (urban_nature > 0 in the UNA biophysical table).
   - Step 3  One canonical InVEST UNA run (natcap.invest 3.16.2) with the
-            parameters from DESIGN_NOTES.md, reporting the
+            parameters from docs/internal/DESIGN_NOTES.md, reporting the
             headline UNA metrics.
 
 Running InVEST UNA *twice* (once per LULC) was the originally-scoped step 3.
@@ -36,7 +36,7 @@ single run captures the concrete UNA baseline numbers for the research
 document.
 
 Usage:
-    python3 compare_una_lulc.py        # anaconda base env (natcap.invest 3.16.2)
+    python3 diagnostics/compare_una_lulc.py        # anaconda base env (natcap.invest 3.16.2)
 
 Prerequisites:
     - natcap.invest installed (3.16.2 — same env as compare_una_invest.py).
@@ -69,7 +69,7 @@ UNA_TABLE = ("data/invest/nature_access/UrbanNatureAccess_sample_data_MN/"
 POP_RASTER = "data/population/minneapolis_pop_2020.tif"
 CRS = "EPSG:26915"
 
-# ── InVEST UNA parameters (from DESIGN_NOTES.md) ─────────────────
+# ── InVEST UNA parameters (from docs/internal/DESIGN_NOTES.md) ─────────────────
 UNA_DEMAND = 16.7              # m²/capita — NatCap SA-study value
 UNA_SEARCH_RADIUS = 800        # m — NatCap SA-study value (~10-min walk)
 UNA_SEARCH_RADIUS_MODE = "uniform radius"
@@ -277,7 +277,7 @@ def main():
     # ── Step 3: One canonical InVEST UNA run ─────────────────────────────
     print("\n3. Canonical InVEST UNA run (single run — see module docstring)")
     print("-" * 70)
-    print(f"   Parameters (DESIGN_NOTES.md):")
+    print(f"   Parameters (docs/internal/DESIGN_NOTES.md):")
     print(f"     urban_nature_demand   = {UNA_DEMAND}")
     print(f"     search_radius_mode    = {UNA_SEARCH_RADIUS_MODE!r}")
     print(f"     search_radius         = {UNA_SEARCH_RADIUS}")
@@ -305,7 +305,7 @@ def main():
         "identical parameters a deterministic model yields bit-identical "
         "output, so a per-LULC pixel comparison is Pearson r=1.000, MAE=0 by "
         "construction. The UNA run used the parameters from "
-        "DESIGN_NOTES.md (urban_nature_demand=16.7, "
+        "docs/internal/DESIGN_NOTES.md (urban_nature_demand=16.7, "
         "search_radius_mode='uniform radius', search_radius=800, "
         "decay_function='dichotomy', aggregate_by_pop_group=False), the UNA "
         "biophysical table, and the Census 2020 population raster. "

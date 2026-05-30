@@ -26,10 +26,10 @@ Three layers of measurement, written to CSV under analysis/placement_diagnostic/
 
 Usage:
     # Orchestrator mode (default) — launches one subprocess per city
-    python3 placement_strategy_diagnostic.py
+    python3 diagnostics/placement_strategy_diagnostic.py
 
     # Worker mode — runs one city only (used by the orchestrator)
-    python3 placement_strategy_diagnostic.py --city "Minneapolis, MN"
+    python3 diagnostics/placement_strategy_diagnostic.py --city "Minneapolis, MN"
 
 CSVs are append-only with a header written on first row. Re-running
 skips (city, strategy, scenario, pct, seed) tuples already present.
@@ -52,6 +52,8 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 # ── Configuration ─────────────────────────────────────────────────────────────
@@ -187,7 +189,7 @@ def run_worker(city_key: str) -> None:
             # `saturated` is now a marker on the row rather than a skip
             # condition — the app's _select_pixels_for_conversion handles
             # the saturated case via its non-zero-then-uniform-remainder
-            # fallback (see PLACEMENT_STRATEGY_DIAGNOSTIC.md §7).
+            # fallback (see docs/research/PLACEMENT_STRATEGY_DIAGNOSTIC.md §7).
             saturated = (
                 strat in nonzero_count_by_strategy
                 and n_chosen > nonzero_count_by_strategy[strat]
@@ -240,7 +242,7 @@ def run_worker(city_key: str) -> None:
                 # `saturated` is now a marker on the row, not a skip — the
                 # app's _select_pixels_for_conversion handles the saturated
                 # case via its non-zero-then-uniform-remainder fallback.
-                # See PLACEMENT_STRATEGY_DIAGNOSTIC.md §7.
+                # See docs/research/PLACEMENT_STRATEGY_DIAGNOSTIC.md §7.
                 saturated = (
                     strat in nonzero_count_by_strategy
                     and n_chosen > nonzero_count_by_strategy[strat]

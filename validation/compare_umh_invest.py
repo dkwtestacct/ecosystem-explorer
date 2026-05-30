@@ -3,12 +3,12 @@
 reimplementation against canonical natcap.invest.urban_mental_health (v3.19.0).
 
 Two-environment design (canonical InVEST 3.19.0 needs Python >=3.10, which the
-app's py3.9 .venv can't host; see CONTRIBUTING.md "Canonical-InVEST validation").
+app's py3.9 .venv can't host; see docs/dev/CONTRIBUTING.md "Canonical-InVEST validation").
 
   1. EXPORT  (run in the app .venv, which has app's full stack):
          PROJ_DATA=.venv/lib/python3.9/site-packages/rasterio/proj_data \
          GDAL_DATA=.venv/lib/python3.9/site-packages/rasterio/gdal_data \
-         .venv/bin/python compare_umh_invest.py export
+         .venv/bin/python validation/compare_umh_invest.py export
      Imports `app`, and for each city writes to tests/umh_fixtures/<slug>/:
        ndvi_base.tif, ndvi_alt.tif, pop.tif  (shared inputs, NLCD-space proxy)
        proto_pc_dep.tif, proto_pc_anx.tif    (prototype per-pixel preventable
@@ -18,7 +18,7 @@ app's py3.9 .venv can't host; see CONTRIBUTING.md "Canonical-InVEST validation")
        params.json                           (constants + CRS the compare step needs)
 
   2. COMPARE (run in the isolated natcap_umh_validation conda env):
-         conda run -n natcap_umh_validation python compare_umh_invest.py compare
+         conda run -n natcap_umh_validation python validation/compare_umh_invest.py compare
      Feeds the SAME ndvi_base/ndvi_alt/pop into canonical UMH execute()
      (model_option='ndvi'), per outcome, and reports MAE + Pearson r of the
      canonical `preventable_cases` raster vs the prototype's.
@@ -42,6 +42,8 @@ import json
 import os
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 

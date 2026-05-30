@@ -20,7 +20,7 @@ lucode 901 = Perennial Ice/Snow), so feeding these rasters into those tables
 yields silent garbage. Carbon/temperature reproduction is therefore GATED pending
 NatCap's compound scenario inputs (requested separately). A local content-
 signature hunt (2026-05-29) found only baseline compound rasters on disk — no
-scenario variants. Full record: DESIGN_NOTES.md "Brief B1".
+scenario variants. Full record: docs/internal/DESIGN_NOTES.md "Brief B1".
 """
 from __future__ import annotations
 import os

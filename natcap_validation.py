@@ -138,7 +138,7 @@ def published_delta(city: str, scenario_id: str, metric_name: str):
 # The original B2's per-scenario "✓ Match (Δ X%)" / "× Diverged" states are
 # intentionally OUT of scope here — they need prototype reproduction for the
 # NatCap fixed alternative scenarios, which is gated on compound scenario
-# inputs (see OPEN_QUESTIONS.md). When/if those arrive, this helper grows a
+# inputs (see docs/internal/OPEN_QUESTIONS.md). When/if those arrive, this helper grows a
 # 4th and 5th state.
 
 # Active-scenario contexts. The caller passes one based on session_state /
@@ -172,7 +172,7 @@ def _natcap_method_tooltip_for_metric(metric_name):
             "prototype's own computation; per-pixel HMI parity vs canonical "
             "InVEST UCM is measured (MAE 0.0000, r 1.0000 — Brief 28b). "
             "NatCap's published citywide T_air baseline isn't reproducible "
-            "from disk (UCM args not shipped); see OPEN_QUESTIONS.md."
+            "from disk (UCM args not shipped); see docs/internal/OPEN_QUESTIONS.md."
         )
     if metric_name in ("carbon_tons_co2", "carbon_value_usd"):
         return (
@@ -182,7 +182,7 @@ def _natcap_method_tooltip_for_metric(metric_name):
             "canonical InVEST Carbon has NOT been measured. NatCap's "
             "published citywide baseline carbon isn't reproducible from "
             "disk (their aggregation script isn't shipped); see "
-            "OPEN_QUESTIONS.md."
+            "docs/internal/OPEN_QUESTIONS.md."
         )
     return (
         "NatCap-aligned methodology (canonical InVEST). The displayed "
@@ -222,11 +222,11 @@ def render_validation_badge(metric_name: str, scenario_context: str,
     absolutes (temp `avg_temp_f` 90.08 °F, carbon 107.32M t CO2e) aren't
     reproducible from disk — UCM args and carbon aggregation scripts aren't
     shipped. Per-pixel InVEST parity (Brief B / Brief 28b) is the validated
-    claim. See `OPEN_QUESTIONS.md`.
+    claim. See `docs/internal/OPEN_QUESTIONS.md`.
 
     `explicit_status` lets the caller override the CSV lookup with a hand-
     curated status — used for non-CSV cards (runoff, NDVI, cost-effectiveness,
-    carbon-$ on SA, etc.). See `DESIGN_NOTES.md` → "Brief B2 (revised)" for
+    carbon-$ on SA, etc.). See `docs/internal/DESIGN_NOTES.md` → "Brief B2 (revised)" for
     the per-card map.
     """
     if scenario_context not in ALL_SCENARIO_CONTEXTS:
@@ -252,7 +252,7 @@ def render_validation_badge(metric_name: str, scenario_context: str,
                 "scenario**, sourced from `natcap_reference_outputs.csv` "
                 "(originally `nootenboom_results/citywide_results_UPDATED.xlsx`). "
                 "The prototype does not independently reproduce it (compound "
-                "scenario inputs are unavailable; see OPEN_QUESTIONS.md)."
+                "scenario inputs are unavailable; see docs/internal/OPEN_QUESTIONS.md)."
             )
             return {"text": "NatCap published value", "tooltip": tooltip,
                     "color": "green", "state": "natcap_anchored"}
@@ -267,7 +267,7 @@ def render_validation_badge(metric_name: str, scenario_context: str,
             "Canonical InVEST methodology. No directly-comparable NatCap "
             "citywide reference exists, or the framing differs (different "
             "summary statistic, scope, or aggregation level). See "
-            "NATCAP_ALIGNMENT.md."
+            "docs/internal/NATCAP_ALIGNMENT.md."
         )
         return {"text": "≈ Aligned method", "tooltip": tooltip,
                 "color": "blue", "state": "aligned_method"}

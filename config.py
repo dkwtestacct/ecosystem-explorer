@@ -169,7 +169,7 @@ CITIES = {
         # faithfully means the prototype's GI scenarios show minimal-to-slightly-
         # positive flood impact for SA, matching NatCap's published behavior.
         # GI's primary SA benefits are heat, nature access, and carbon — not flood.
-        # Full methodology record: NATCAP_COLLABORATION.md question 12.
+        # Full methodology record: docs/internal/NATCAP_COLLABORATION.md question 12.
         'cn_table_file':        'biophys_floodmitig_sa.csv',
         # Brief 28b: switched from the Köppen-BSh-tuned per-NLCD prototype
         # table to NatCap's compound NLCD×NLUD×tree-canopy UCM table (1,984
@@ -242,7 +242,7 @@ CITIES = {
         # framework; SC-CO2 constant (EPA_SOCIAL_COST_CARBON, $190/t @ 2%,
         # EPA 2023) is the prototype's choice — more current than Vibrant
         # Land's IWG 2021 ($53/t @ 3%) but the same US-government standard
-        # lineage. See DESIGN_NOTES.md "SA Carbon four-pool framework adoption".
+        # lineage. See docs/internal/DESIGN_NOTES.md "SA Carbon four-pool framework adoption".
         'carbon_table_file':    'data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv',
         # Documentation only (sourced from real SSURGO TX029, CGIAR ET0 v3.1,
         # full InVEST UCM CC pipeline) — the live override at module load
@@ -265,7 +265,7 @@ CITIES = {
         # NatCap-canonical alignment principle. The prototype previously
         # used 3.5 °C, an average-summer-day estimate. ΔT in °F = ΔHMI × 19.8.
         # (The prototype reports pure deltas — `reference_air_temperature`
-        # has no analog to mirror.) See DESIGN_NOTES.md "UCM args alignment".
+        # has no analog to mirror.) See docs/internal/DESIGN_NOTES.md "UCM args alignment".
         'uhi_max_c':            11,
         # SA UNA from NatCap's curated SA dataset README (Brief 22) —
         # WHO-minimum demand, dichotomy decay. Different framing than MN's
@@ -280,7 +280,7 @@ CITIES = {
         # NatCap compound LULC framework (Brief 27, foundational adoption).
         # `compound_lulc_file` is reprojected EPSG:3857 → EPSG:5070 with
         # nearest-neighbor at 30 m (1984×1713 grid) by hand-run gdalwarp; see
-        # `data/sa/README.md` and `SA_INTEGRATION_PLAN.md`. `crosswalk_file`
+        # `data/sa/README.md` and `docs/archive/SA_INTEGRATION_PLAN_2026-05.md`. `crosswalk_file`
         # maps each compound `lucode` (0–1983) to its constituent NLCD/NLUD/
         # tree-canopy bins; the prototype reduces compound → NLCD via the
         # crosswalk's `nlcd` column at load time so existing per-NLCD
@@ -296,7 +296,7 @@ CITIES = {
         #   HD (NLCD 24) →  341: Developed High Intensity, Residential/Urban, low canopy
         # Used by Brief 28+ when an NLUD/tree-canopy combination from a source
         # pixel doesn't appear with the target NLCD in the crosswalk. Logged
-        # in DESIGN_NOTES.md for durable rationale.
+        # in docs/internal/DESIGN_NOTES.md for durable rationale.
         'default_ff_lucode':        1310,
         'default_gi_lucode':         122,
         'default_hd_lucode':         341,

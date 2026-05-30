@@ -6,7 +6,7 @@ both the app's evaluate_scenario and natcap.invest.carbon.execute, then
 writes a single-row comparison CSV.
 
 Usage:
-    python compare_carbon_invest.py
+    python validation/compare_carbon_invest.py
 
 Prerequisites:
     - natcap.invest installed (conda install -c conda-forge natcap.invest)
@@ -22,6 +22,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import rasterio

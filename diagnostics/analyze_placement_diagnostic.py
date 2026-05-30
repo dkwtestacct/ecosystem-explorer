@@ -1,11 +1,11 @@
 """
 analyze_placement_diagnostic.py — turn the three CSVs from
 placement_strategy_diagnostic.py into the tables and summaries that
-populate PLACEMENT_STRATEGY_DIAGNOSTIC.md.
+populate docs/research/PLACEMENT_STRATEGY_DIAGNOSTIC.md.
 
 Run after the diagnostic has finished:
 
-    python3 analyze_placement_diagnostic.py
+    python3 diagnostics/analyze_placement_diagnostic.py
 
 Prints markdown-ready tables to stdout.
 """

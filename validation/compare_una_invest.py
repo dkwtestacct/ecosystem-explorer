@@ -19,7 +19,7 @@ These represent different things mathematically; this script quantifies how
 different they are spatially and on aggregate.
 
 Usage:
-    python compare_una_invest.py
+    python validation/compare_una_invest.py
 
 Prerequisites:
     - natcap.invest installed (conda env, 3.16.2 — same as UCM/Carbon)
@@ -36,6 +36,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import pandas as pd
