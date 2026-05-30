@@ -3,7 +3,7 @@
 **Audience:** Research
 **Status:** Research — concluded (led to the Nature Quality Score removal)
 **Use this for:** The UNA investigation record behind that decision
-**Do not use this for:** Current UNA methodology (→ REFERENCE.md) or the decision itself (→ HISTORY.md)
+**Do not use this for:** Current UNA methodology (→ ../../../REFERENCE.md) or the decision itself (→ ../../archive/HISTORY.md)
 **Historical record of:** UNA divergence case studies
 
 ---
@@ -65,7 +65,7 @@ Honest Gaps.** 56.6 % of the population raster falls on pixels the cooling LULC
 marks nodata, where InVEST cannot model supply at all. The original "~70 % vs
 ~10 %" framing compared two different population denominators; this was
 reconciled on 2026-05-21 (`compare_una_invest.py` restricted-extent columns;
-REFERENCE.md "Official InVEST alignment — UNA" updated).
+../../../REFERENCE.md "Official InVEST alignment — UNA" updated).
 
 ---
 
@@ -168,7 +168,7 @@ model output.
   pixels. On a common base (valid-extent residents only) the proxy scores
   **100 % "access" and InVEST 9.5 % "adequate"** — the divergence is *larger*,
   not smaller, than the headline suggested. **Reconciled 2026-05-21**
-  (`compare_una_invest.py` now emits restricted-extent columns; REFERENCE.md
+  (`compare_una_invest.py` now emits restricted-extent columns; ../../../REFERENCE.md
   updated): the mixed denominator was the measurement artifact — it *deflated*
   the proxy's headline (off-LULC residents scored 0), so removing them widens
   the gap to 100 % vs 9.5 %. The gap itself is a real property of the metrics,

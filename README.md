@@ -36,29 +36,35 @@ The first run trains the surrogate model (a few seconds) and loads the lookup ta
 Pick the path that matches what you need:
 
 - **Using the app, wondering what a metric means or how grounded it is** → `REFERENCE.md`
-- **Understanding how the system is built** → `ARCHITECTURE.md`
-- **The big picture and where it's headed** → `STRATEGY.md`
-- **NatCap collaborator checking alignment** → `NATCAP_ALIGNMENT.md`, then `CITY_PARITY.md`
-- **Setting up or running the validation harness** → `CONTRIBUTING.md`
-- **Picking the project back up after a break** → this file, then `ARCHITECTURE.md`
+- **Understanding how the system is built** → `docs/internal/ARCHITECTURE.md`
+- **The big picture and where it's headed** → `docs/internal/STRATEGY.md`
+- **NatCap collaborator checking alignment** → `docs/internal/NATCAP_ALIGNMENT.md`, then `docs/internal/CITY_PARITY.md`
+- **Setting up or running the validation harness** → `docs/dev/CONTRIBUTING.md`
+- **Picking the project back up after a break** → this file, then `docs/internal/ARCHITECTURE.md`
 
 ---
 
-## Documentation
+## Documentation map
 
-Two docs are **external** — written to stand on their own:
+Each question has one source of truth — if you're unsure where something belongs, it goes in the doc that owns that question, and nowhere else.
 
-- **`README.md`** (this file) — entry point and map
-- **`REFERENCE.md`** — what each dashboard number means, where the data comes from, and how the models align with InVEST/NatCap (with caveats)
-
-Everything else is **internal** working documentation, currently at the repo root, organized here by role:
-
-- **Internal** — `STRATEGY.md` (north star) · `ARCHITECTURE.md` · `DESIGN_NOTES.md` (decision log) · `DATA_INVENTORY.md` · `NATCAP_ALIGNMENT.md` (validation status) · `CITY_PARITY.md` (per-city parameter parity) · `OPEN_QUESTIONS.md` (current blockers) · `NATCAP_COLLABORATION.md` (collaboration log) · `docs/internal/DEMO_AND_COLLABORATION.md` (demo/meeting runbook)
-- **Developer** — `CONTRIBUTING.md` (setup + validation harness). `CLAUDE.md` also at the repo root, where tooling expects it.
-- **Research (feasibility + investigation)** — `ALPHAEARTH_FEASIBILITY.md`, `INVEST_PLACEMENT.md`, `PLACEMENT_STRATEGY_DIAGNOSTIC.md`, and the four `UNA_*.md` notes
-- **Archive (superseded / historical)** — `HISTORY.md`, `SPEC.md` (original spec), `SUMMARY.md`, `SA_INTEGRATION_PLAN.md`
-
-Every doc carries a status header (Audience · Status · Source of truth for) declaring its role, so you can tell at a glance whether it's current truth or a historical record.
+| Question | Source of truth |
+|---|---|
+| What is this app? | `README.md` |
+| What do the dashboard metrics mean? | `REFERENCE.md` |
+| What is the internal strategic framing? | `docs/internal/STRATEGY.md` |
+| How does the system work? | `docs/internal/ARCHITECTURE.md` |
+| Why was a design choice made? | `docs/internal/DESIGN_NOTES.md` |
+| How aligned is this with InVEST/NatCap? | `docs/internal/NATCAP_ALIGNMENT.md` |
+| How aligned is each city configuration? | `docs/internal/CITY_PARITY.md` |
+| What is the running log of NatCap asks, gaps, and decisions? | `docs/internal/NATCAP_COLLABORATION.md` |
+| What data exists? | `docs/internal/DATA_INVENTORY.md` |
+| What is still unresolved? | `docs/internal/OPEN_QUESTIONS.md` |
+| What do I say in a demo or meeting? | `docs/internal/DEMO_AND_COLLABORATION.md` |
+| How do I set up and run validation/contribution workflows? | `docs/dev/CONTRIBUTING.md` |
+| How should a Claude session work in this repo? | `CLAUDE.md` (repo root) |
+| What did I investigate historically? | `docs/research/` |
+| What is superseded history? | `docs/archive/` |
 
 ---
 
@@ -78,4 +84,4 @@ data/                    Source rasters, biophysical tables, config
 
 ## Status
 
-Prototype, actively developed. The NatCap collaboration is ongoing — see `NATCAP_COLLABORATION.md` for the running log and `OPEN_QUESTIONS.md` for current blockers.
+Prototype, actively developed. The NatCap collaboration is ongoing — see `docs/internal/NATCAP_COLLABORATION.md` for the running log and `docs/internal/OPEN_QUESTIONS.md` for current blockers.

@@ -3,10 +3,12 @@
 **Audience:** Developer (Claude sessions)
 **Status:** Current
 **Use this for:** How Claude should operate here — coding conventions, working principles, current constants and paths
-**Do not use this for:** Per-decision rationale (→ DESIGN_NOTES.md) or retired/historical detail (→ HISTORY.md)
+**Do not use this for:** Per-decision rationale (→ docs/internal/DESIGN_NOTES.md) or retired/historical detail (→ docs/archive/HISTORY.md)
 **Source of truth for:** How Claude works on this project
 
 ---
+
+*Kept at repo root for Claude Code auto-discovery.*
 
 ## What the app does
 
@@ -53,7 +55,7 @@ All data lives under `data/`. Each city gets its own subdirectory pair.
 | `data/sa/flood/land_use_2021_sa.tif` | Prior canonical SA NLCD-only LULC raster (same CRS/grid). Kept as fallback/reference; the live SA pipeline now reads `land_use_compound_sa.tif` (Brief 27) and reduces to NLCD via the crosswalk. | done; superseded by compound LULC |
 | `data/sa/flood/land_use_compound_sa.tif` | NatCap compound NLCD×NLUD×tree-canopy LULC reprojected from `data/sa/natcap_2024/lulc_overlay_3857.tif` to EPSG:5070 + nearest-neighbor resampled at 30 m (1984×1713). 800 unique compound lucodes in raster (of 1,984 possible per crosswalk). 1.06 % nodata at clipped extent edges. Brief 27 foundational adoption. | done (Brief 27) |
 | `data/sa/natcap_2024/lulc_crosswalk.csv` | NatCap LULC crosswalk: each `lucode` (0–1983) maps to its constituent NLCD/NLUD/tree-canopy bins plus `is_realistic_to_create` flag. Loaded by `load_lulc_crosswalk()`; used to build the `COMPOUND_TO_NLCD` reduction lookup, the `COMPOUND_TO_NLCD_TREE` NLCD×tree-canopy reduction (SA flood CN path), and the three `COMPOUND_AFTER_*` per-target lookups. | done (Brief 27) |
-| `data/sa/flood/biophys_floodmitig_sa.csv` | **Live SA flood CN table.** NatCap's San-Antonio-specific Curve Numbers, keyed by NLCD×tree-canopy 3-tier codes (e.g. 211/212/213 = Developed Open × low/med/high canopy; tier reduces CN as canopy rises). Single 2-digit codes for water/ice (11/12) and forests (41/42/43); plus SA scenario codes 997/998/999 (unreachable by current conversion path). 53 rows. Looked up via `reduce_compound_to_nlcd_tree(COMPOUND_TO_NLCD_TREE)` in `evaluate_scenario`'s SA branch; canopy mapping `tier = max(tree, 1)`. Design-storm-saturation framework — see NATCAP_COLLABORATION.md question 12. | done (2026-05-29) |
+| `data/sa/flood/biophys_floodmitig_sa.csv` | **Live SA flood CN table.** NatCap's San-Antonio-specific Curve Numbers, keyed by NLCD×tree-canopy 3-tier codes (e.g. 211/212/213 = Developed Open × low/med/high canopy; tier reduces CN as canopy rises). Single 2-digit codes for water/ice (11/12) and forests (41/42/43); plus SA scenario codes 997/998/999 (unreachable by current conversion path). 53 rows. Looked up via `reduce_compound_to_nlcd_tree(COMPOUND_TO_NLCD_TREE)` in `evaluate_scenario`'s SA branch; canopy mapping `tier = max(tree, 1)`. Design-storm-saturation framework — see docs/internal/NATCAP_COLLABORATION.md question 12. | done (2026-05-29) |
 | `data/sa/flood/UFR_biophysical_table_SA.csv` | **Superseded** Minneapolis-placeholder CN table (NLCD-keyed, MN values). No longer wired (replaced by `biophys_floodmitig_sa.csv`); kept on disk for reference and still read by the one-time `download_sa_data.py` QA diagnostic. | superseded |
 | `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | Retired (Brief 28b). Kept on disk for reference; the per-class rationale sidecar `data/sa/cooling/biophysical_table_sources.md` documents the historical Köppen-BSh tuning. The live SA UCM path uses the compound table below. | retired |
 | `data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv` | NatCap compound NLCD×NLUD×tree-canopy UCM biophysical table (1,984 rows × 27 cols, keyed on compound `lucode` 0–1983). Provides per-pixel `shade`, `kc`, `albedo`, `green_area`, `building_intensity` indexed directly by the compound LULC raster. Referenced via SA's `cooling_table_file` config. | done (Brief 28b) |
@@ -81,7 +83,7 @@ NatCap publish for the SA project scenarios?" — 7 prototype metrics × 7 NatCa
 scenarios, with `validation_status` ∈ {`natcap_published`, `aligned_method`,
 `prototype`}. Built by `extract_natcap_reference_outputs.py`; read via
 `natcap_validation.py` (lookup + delta-aware comparison). Not yet wired into the
-dashboard (Brief B2). See NATCAP_ALIGNMENT.md "Validated reference outputs (SA)".
+dashboard (Brief B2). See docs/internal/NATCAP_ALIGNMENT.md "Validated reference outputs (SA)".
 
 OSM buildings carry `type` as OSM strings ('house', 'apartments', 'retail', …)
 not the integer 0–3 codes InVEST expects. SA now maps those strings to InVEST
@@ -158,10 +160,10 @@ separate cache entries via the path parameters.
 | `FOOD_FOREST_LBS_ACRE` | 11,500 | Food forest yield benchmark (lbs/acre/year) — from San Antonio NatCap study |
 | `UHI_MAX_C` | per-city | Read from `city_cfg['uhi_max_c']` at module load (i.e. on every script rerun) — NOT a fixed global. MN downtown: 2.05 °C (InVEST `urban_cooling_model_args_MN.json`); MN Full: 2.05 °C (same AOI climate); SA: 11 °C (NatCap SA README, Brief 14). Used in `compute_cooling_energy_savings` for CC → ΔT °C conversion. Consumers: app.py:1422 (cooling) and app.py:3307 (assumptions tab display). |
 | `DESIGN_STORM_INCHES` | per-city | Read from `city_cfg['design_storm_inches']` at module load — NOT a fixed global (post-Brief 23). MN downtown: 3.94" (100 mm per NatCap MN `invest_urban_flood_risk_args_MN.json`); MN Full: 3.94" (same MN-project framing); SA: 6.18" (157 mm per NatCap SA README). Derived `DESIGN_STORM_MM = DESIGN_STORM_INCHES × 25.4` for tooltip display. The SCS-CN formula uses inches internally. |
-| `HM_TO_FAHRENHEIT` | per-city | Derived as `UHI_MAX_C × 1.8`. MN: 3.69 °F/CC; SA: 6.30 °F/CC. Rebound every rerun alongside `UHI_MAX_C`. Feeds `hm_to_temp_change_f(mean_hm)`, which returns the scenario's `temp_change_f` under the **ΔT convention: positive = warmer, negative = cooler** (`= T_after − T_before`). The display layer (`_fmt_temp_change`) renders this as natural language ("X°F cooler"/"X°F warmer"/"No change") so users never see a bare signed number; the per-tract breakdown uses the same convention. The optimizer is unaffected (it ranks on `mean_hm`, not `temp_change_f`). Full story: DESIGN_NOTES.md "Brief 4 — `cooling_f` → `temp_change_f` sign-convention refactor". |
+| `HM_TO_FAHRENHEIT` | per-city | Derived as `UHI_MAX_C × 1.8`. MN: 3.69 °F/CC; SA: 6.30 °F/CC. Rebound every rerun alongside `UHI_MAX_C`. Feeds `hm_to_temp_change_f(mean_hm)`, which returns the scenario's `temp_change_f` under the **ΔT convention: positive = warmer, negative = cooler** (`= T_after − T_before`). The display layer (`_fmt_temp_change`) renders this as natural language ("X°F cooler"/"X°F warmer"/"No change") so users never see a bare signed number; the per-tract breakdown uses the same convention. The optimizer is unaffected (it ranks on `mean_hm`, not `temp_change_f`). Full story: docs/internal/DESIGN_NOTES.md "Brief 4 — `cooling_f` → `temp_change_f` sign-convention refactor". |
 | `GREEN_AREA_COOLING_DISTANCE_M` | 450 | InVEST UCM `green_area_cooling_distance` (d_cool), from InVEST args JSON. Drives the exponential-decay kernel for `CC_park` in the canonical HMI. `_HMI_DECAY_PX = 450/30 = 15` at 30 m NLCD resolution. |
 | `COST_PER_KWH_USD` | 0.13 | US average residential electricity price (EIA 2024). Used to convert avoided-AC-kWh into $. |
-| `EPA_SOCIAL_COST_CARBON` | 190 | $/ton CO2e — EPA 2023 final rule, 2 % discount rate, 2030 emissions. Multiplied by `carbon_tons_co2` → `carbon_value_usd`. Per-city semantics (annual flow MN vs one-time stock SA) and the methodology-matches-but-SC-CO2-vintage-differs alignment with NatCap's Vibrant Land report live in `DESIGN_NOTES.md` "SA Carbon four-pool framework adoption" and `NATCAP_COLLABORATION.md` Brief 30 decision row. |
+| `EPA_SOCIAL_COST_CARBON` | 190 | $/ton CO2e — EPA 2023 final rule, 2 % discount rate, 2030 emissions. Multiplied by `carbon_tons_co2` → `carbon_value_usd`. Per-city semantics (annual flow MN vs one-time stock SA) and the methodology-matches-but-SC-CO2-vintage-differs alignment with NatCap's Vibrant Land report live in `docs/internal/DESIGN_NOTES.md` "SA Carbon four-pool framework adoption" and `docs/internal/NATCAP_COLLABORATION.md` Brief 30 decision row. |
 | `PIXEL_AREA_M2` | 900 | NLCD 30 × 30 m pixel area in m². Used for cooling energy savings (consumption rate is kWh/(m²·°C)/yr from `energy_consumption.csv`). |
 | `NATURE_RADIUS_CAP_M` | 1000 | Upper cap applied to every `search_radius_m` in the InVEST UNA table. Without this cap, water/forest classes (5 km radius) saturate the AOI to 100 % nature access. Caps at ~12-min walking distance, matches the table's own value for "Developed, Open Space" (urban parks). |
 | `RR_0_1_NDVI_DEPRESSION` | 0.96 | InVEST UMH relative risk per 0.1 NDVI increase, depression. Source: Liu et al. 2023 meta-analysis. |
@@ -183,7 +185,7 @@ separate cache entries via the path parameters.
 | Name | MN downtown | MN Full | San Antonio | Meaning |
 |------|------------:|--------:|------------:|---------|
 | `BASELINE_CN` | 75.67 | 77.68 | 76.54 | Mean curve number of unmodified land × soil grid |
-| `BASELINE_HM` (= mean CC) | 0.1859 | 0.1600 | 0.3937 | Mean Cooling Capacity (`0.6·shade + 0.2·albedo + 0.2·ETI`) over the AOI. Cross-city interpretation caveat below; Brief 28b magnitude history in DESIGN_NOTES.md and HISTORY.md. |
+| `BASELINE_HM` (= mean CC) | 0.1859 | 0.1600 | 0.3937 | Mean Cooling Capacity (`0.6·shade + 0.2·albedo + 0.2·ETI`) over the AOI. Cross-city interpretation caveat below; Brief 28b magnitude history in docs/internal/DESIGN_NOTES.md and docs/archive/HISTORY.md. |
 | `BASELINE_NDVI` | 0.2326 | 0.2072 | 0.4242 | Mean synthetic NDVI proxy |
 | Population | ~154 K | 463,794 | 1,906,323 | Census 2020 county-level totals in the bbox |
 
@@ -210,7 +212,7 @@ The codebase has been incrementally split as it grew. Current state:
 - **`config.py`** — Per-city configuration (`CITIES` dict) and cost defaults. Read-only; mutations belong in `app.py`'s runtime state.
 - **`surrogate.py`** — Random Forest surrogate model (training, prediction with uncertainty bands) and the Pareto optimizer. Streamlit-agnostic; the `@st.cache_resource` wrapper lives at the call site in `app.py`.
 - **`verify_baselines.py`** — CLI baseline regression check. Snapshots `evaluate_scenario` outputs for each city × scenario × placement strategy to `tests/baselines/<city>__<scenario>__<strategy>.json`. Currently 4 scenarios × 5 strategies × 2 cities = 40 baselines; runtime ~90 seconds. Run before commit when changes could have cross-cutting effects; run with `--update` after intentional changes.
-- **`natcap_scenarios.py`** — Standalone scaffolding for NatCap's SA fixed-scenario LULC rasters (Brief B1, partial): `SA_NATCAP_FIXED_SCENARIOS` metadata + `load_natcap_fixed_scenario` (reproject 10 m → 30 m EPSG:5070, `lru_cache`d) + a pure `flood_reduction_from_nlcd_tree` helper + the scenario provenance taxonomy (`PROVENANCE_BASELINE` / `_NATCAP_FIXED` / `_EXPLORER` / `_OPTIMIZER`). Streamlit-agnostic. Loader is not yet wired into the dashboard (deferred — see OPEN_QUESTIONS.md).
+- **`natcap_scenarios.py`** — Standalone scaffolding for NatCap's SA fixed-scenario LULC rasters (Brief B1, partial): `SA_NATCAP_FIXED_SCENARIOS` metadata + `load_natcap_fixed_scenario` (reproject 10 m → 30 m EPSG:5070, `lru_cache`d) + a pure `flood_reduction_from_nlcd_tree` helper + the scenario provenance taxonomy (`PROVENANCE_BASELINE` / `_NATCAP_FIXED` / `_EXPLORER` / `_OPTIMIZER`). Streamlit-agnostic. Loader is not yet wired into the dashboard (deferred — see docs/internal/OPEN_QUESTIONS.md).
 - **`export_invest_bundle.py`** — Brief D1: assembles the currently-displayed scenario as a runnable canonical InVEST 3.19.0 input zip (rasters + AOIs + biophysical tables + per-model `args.json` + `metadata.json` + README). Streamlit-agnostic; the app.py caller (`_build_invest_bundle_for_current_scenario` near the bottom of the main panel) gathers runtime state into a `BundleSpec` and calls the builder. SA-only for v1. All five InVEST urban models (UCM / UNA / UFR / Carbon / UMH) execute cleanly on the baseline bundle (Phase 3 verified).
 
 Further extractions (loaders, scenario.py, plots.py) remain deferred — they're more tightly coupled to Streamlit's runtime than the surrogate or config blocks were.
@@ -245,7 +247,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   sidebar radio picker. The legacy `use_heat_priority=True` kwarg remains in the function
   signature for backward compatibility and internally translates to
   `placement_strategy='cooling-focused'`. See REFERENCE.md "Placement strategies" for the
-  suitability formulas and honest caveats, and `INVEST_PLACEMENT.md` for the underlying
+  suitability formulas and honest caveats, and `docs/research/INVEST_PLACEMENT.md` for the underlying
   research (InVEST is placement-agnostic — the strategies are an app feature, not a parity
   requirement).
 - **Equity weighting**: `equity_weights` raster weights high-intensity developed pixels (NLCD 23)
@@ -288,8 +290,8 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   (33,357 of 51,430). Rasterization is unbuffered line-to-pixel via `rasterio.features.rasterize`
   with `dtype="uint8"`; output is binary 0/1.
 - **`SCENARIO_SCHEMA_VERSION = 27`** — bump on every change that shifts `evaluate_scenario`
-  outputs so cached lookup tables get regenerated. Full per-bump history in `HISTORY.md`
-  "Schema version log"; per-brief reasoning in `DESIGN_NOTES.md`.
+  outputs so cached lookup tables get regenerated. Full per-bump history in `docs/archive/HISTORY.md`
+  "Schema version log"; per-brief reasoning in `docs/internal/DESIGN_NOTES.md`.
 - **City runtime state (`CityState` + `_load_city_runtime_state`).** All heavy
   per-city allocations — rasters from `load_data`, the population raster, the
   resized ET raster, building/road/tract rasterisations, the static nature-
@@ -358,14 +360,14 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   Streamlit Cloud's 1 GB worker ceiling, the smaller MN / Mpls-Full
   grids fit by definition. The Streamlit Cloud memory-fit workstream
   (resolved 2026-05-11) landed five mitigations whose combination
-  brought peak memory under the ceiling — see `HISTORY.md`
+  brought peak memory under the ceiling — see `docs/archive/HISTORY.md`
   "Streamlit Cloud memory-fit workstream" for the full stack.
 - **Stratified Impervious Siting (placement-step control).** Currently the stochastic placement step samples uniformly from the building/road-filtered NLCD 21–24 pool, treating all impervious-intensity classes as equivalent for siting. Proposal: expose impervious-intensity stratification to users via sidebar control, allowing them to direct placement toward NLCD 21 (≥20% impervious, open-space dominant), NLCD 22/23 (low-medium intensity), or NLCD 24 (≥80% impervious, high-intensity mitigation / depaving). Use `_distance_transform_edt` against `BUILDINGS_RASTER` for optional micro-siting refinement (e.g. "open lot" vs "private yard" via 15m/30m distance thresholds). Frame strictly as impervious-intensity stratification, not policy/ownership tiering — NLCD classes correlate with but do not equal ownership. Open questions for scoping session: (a) mutually-exclusive radio buttons vs multi-select vs per-tier weight sliders; (b) whether to dynamically clamp slider max based on selected tier's available acreage; (c) whether stratified placement empirically resolves the Nature Access saturation issue noted in REFERENCE.md (validate before claiming). Source: Gemini-3 proposal, iterated through 3 versions on Claude critique; v3 is the version to scope from.
 - **SA flood damage — resolved (Brief 33, Path C).** Dashboard renders
   "Flood Volume Reduction" for SA instead of monetized
   damage, matching NatCap's Vibrant Land (Guerry et al. 2023) reporting.
   Underlying `avoided_flood_damage_usd` field still returns $0 for SA
-  (no schema change). See `DESIGN_NOTES.md` "SA flood damage table —
+  (no schema change). See `docs/internal/DESIGN_NOTES.md` "SA flood damage table —
   resolved (Path C, Brief 33)". Reversible if NatCap surfaces a
   preference for SA-specific damage values (Path A).
 - **SA flood biophysical — integrated 2026-05-29.** The SA flood model
@@ -373,7 +375,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   (`biophys_floodmitig_sa.csv`). The previous MN-placeholder table is no
   longer wired but kept on disk for reference (still read by
   `download_sa_data.py:121` as a one-time QA diagnostic). Methodology
-  documented in `NATCAP_COLLABORATION.md` question 12: NatCap's CN
+  documented in `docs/internal/NATCAP_COLLABORATION.md` question 12: NatCap's CN
   values reflect a design-storm-saturation framework where soil
   infiltration capacity is exceeded under the 24-hour 100-year storm;
   under this framework, GI scenarios produce minimal flood-volume
@@ -383,7 +385,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
 - **Track C1 / parity validation across UCM / UNA / Carbon for fixed
   scenarios — FROZEN (2026-05-29).** Reproducing the six NatCap fixed
   alternatives needs the compound scenario inputs, which NatCap built as
-  unsaved pipeline intermediates and never shipped (see `OPEN_QUESTIONS.md`).
+  unsaved pipeline intermediates and never shipped (see `docs/internal/OPEN_QUESTIONS.md`).
   NatCap's published citywide figures aren't recoverable from disk either:
   their SA UCM args aren't in the drive pull, and the carbon aggregation
   behind the published 107.32M t CO2e doesn't reconcile with `tot_c_cur.tif`
@@ -392,19 +394,19 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   *could* be computed independently, but without the compound inputs there
   is no fixed-scenario parity to validate it against. **Do not resume
   unless NatCap shares the compound LULCs, UCM args, or the carbon
-  aggregation script.** Full context in `STRATEGY.md` §7 (Track C) + §8.
+  aggregation script.** Full context in `docs/internal/STRATEGY.md` §7 (Track C) + §8.
 - **Heat Vulnerability Index — still pending.** The `equity_weights`
   raster is a proxy (NLCD intensity-coded), not a real CDC/ATSDR HVI by
   census tract. Replacing it is the next data-quality upgrade.
 - **Minneapolis Full extent (hidden from UI).** Live in `CITIES` but
-  `available=False`. See `HISTORY.md` "Full Minneapolis extent" for the
+  `available=False`. See `docs/archive/HISTORY.md` "Full Minneapolis extent" for the
   activation+hiding rationale and pipeline path details.
 - **`load_data` is parameterized via `city_cfg`** — `lulc_file`, `soil_file`,
   `cooling_lulc_file`, plus the module-level loaders for ET / energy / UNA /
   buildings / roads / tracts all read from `city_cfg`. Biophysical tables (CN +
   cooling) use a fallback path via `_resolve_table()` so cities with custom
   `data_dir`s (Mpls Full → `data/minneapolis_expanded/`) can still reference
-  the project-shared tables. CRS reads via `city_cfg['crs']`. See `HISTORY.md`
+  the project-shared tables. CRS reads via `city_cfg['crs']`. See `docs/archive/HISTORY.md`
   "`load_data` parameterization (2026-05-09)" for the transition record.
 
 ---
@@ -523,7 +525,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   `_CARBON_IS_STOCK` flag (set once after module alias rebinding) drives
   dashboard card labels, optimizer slider unit suffixes, and comparison-table
   formatting. `EPA_SOCIAL_COST_CARBON × carbon_tons_co2 = carbon_value_usd`.
-  Methodology rationale + magnitude evidence in DESIGN_NOTES.md "SA Carbon
+  Methodology rationale + magnitude evidence in docs/internal/DESIGN_NOTES.md "SA Carbon
   four-pool framework adoption".
 - **Carbon sequestration (MN only) counts converted pixels** — `CARBON_SEQ_RATES` maps the three
   conversion target codes (`CODE_FOOD_FOREST`, `CODE_GREEN_INFRA`, `CODE_HIGH_DENSITY`) to
@@ -550,7 +552,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   $8,467 / $5,765 (US nominal). Returns (0, 0) at the unmodified baseline by construction.
   `_BASELINE_NE_RASTER` is precomputed once at module load. (The previous
   `compute_wellbeing_score` composite metric + weight sliders were removed
-  entirely when UMH landed; see `HISTORY.md` "Wellbeing Score" for context.)
+  entirely when UMH landed; see `docs/archive/HISTORY.md` "Wellbeing Score" for context.)
   See REFERENCE.md "Official InVEST alignment — UMH" for parity status and
   divergences (uniform BIR vs per-admin, Gaussian kernel vs uniform buffer,
   synthetic vs satellite NDVI).
@@ -620,7 +622,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   the trigger by skipping the check or reframing the content as "close enough." Examples
   from real session experience: a v2.5 doc wasn't placed at the expected path (browser
   cache served v1), and a sentinel "should contain 'Per-city parameter framing'" caught it
-  — without the sentinel, CC would have committed wrong content. A "DESIGN_NOTES.md
+  — without the sentinel, CC would have committed wrong content. A "docs/internal/DESIGN_NOTES.md
   should not already have a `# Design Notes` heading" sentinel caught an existing heading
   and prevented duplicate-heading commit. Sentinels are the parts of the brief where CC
   judgment is *constrained*, not just guided.
@@ -704,5 +706,5 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   decision. Without this pattern, a future session might either blindly
   downgrade a constant to match an older publication, or treat the constant
   divergence as methodology misalignment when it isn't. Document both the
-  methodology alignment and the constant divergence in `DESIGN_NOTES.md` and
-  `NATCAP_COLLABORATION.md` when this pattern applies.
+  methodology alignment and the constant divergence in `docs/internal/DESIGN_NOTES.md` and
+  `docs/internal/NATCAP_COLLABORATION.md` when this pattern applies.

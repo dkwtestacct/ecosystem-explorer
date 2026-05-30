@@ -10,7 +10,7 @@
 
 *Strategic framing, prioritization, and working principles. Captured 2026-05-29; revised 2026-05-29 after the B2 validation investigation (see §4, §8).*
 
-This document captures the conceptual scaffolding that the operational docs (CLAUDE.md, DESIGN_NOTES.md, NATCAP_ALIGNMENT.md, HISTORY.md) reference but don't themselves articulate. If you're a future Claude or a future Deborah picking this up cold, read this first.
+This document captures the conceptual scaffolding that the operational docs (../../CLAUDE.md, DESIGN_NOTES.md, NATCAP_ALIGNMENT.md, ../archive/HISTORY.md) reference but don't themselves articulate. If you're a future Claude or a future Deborah picking this up cold, read this first.
 
 ---
 
@@ -101,7 +101,7 @@ Two changelog audiences, two bars:
 
 **WHATS_NEW_ENTRIES** (in-app, strict bar) — Returning dashboard user would notice it; one line; no internal vocabulary or parameter values. Reserved for user-visible feature changes, confidence-level changes, architectural shifts users see.
 
-**Collaborator-facing docs** (NATCAP_ALIGNMENT.md, DESIGN_NOTES.md, HISTORY.md) — Looser bar. Methodology milestones, validation results, schema bumps, internal taxonomy. The institutional record.
+**Collaborator-facing docs** (NATCAP_ALIGNMENT.md, DESIGN_NOTES.md, ../archive/HISTORY.md) — Looser bar. Methodology milestones, validation results, schema bumps, internal taxonomy. The institutional record.
 
 **Operational implication:** A methodology change might be major-for-WHATS_NEW (because the user-visible numbers shift) but a confidence upgrade alone might not be (if the numbers don't move). CC's judgment per commit.
 
@@ -133,7 +133,7 @@ Tracks and their dependency order. Strikethrough = completed.
 **Track B — Keystone**
 - ~~B1: NatCap fixed scenarios as first-class inputs~~ — **landed partial** (436bffd): loader + provenance taxonomy (`PROVENANCE_BASELINE`/`_NATCAP_FIXED`/`_EXPLORER`/`_OPTIMIZER`) + pure `flood_reduction_from_nlcd_tree` helper. Carbon/temp reproduction for the six fixed alternatives is gated (compound scenario inputs unavailable — NatCap built them as unsaved pipeline intermediates; see `OPEN_QUESTIONS.md`).
 - ~~B2: Per-metric validation markers in dashboard~~ — **landed as B2-revised** (conservative floor; see `DESIGN_NOTES.md` "Brief B2 (revised)"). Three-state badges wired across all 16 cards, an SA fixed-scenario reference view, a cross-scenario comparison table, and a plain-line baseline validation claim. The original Match/Diverged design stays deferred — gated on the same unavailable compound inputs.
-- ~~B2a: In-app validation-status note~~ — **landed** (b9d6600). Plain-language "validated vs displayed vs exploratory" note surfaced in the app; C1 recorded as frozen in CLAUDE.md.
+- ~~B2a: In-app validation-status note~~ — **landed** (b9d6600). Plain-language "validated vs displayed vs exploratory" note surfaced in the app; C1 recorded as frozen in ../../CLAUDE.md.
 - ~~B2b: Scenario provenance header~~ — **landed** (9fca481). Every scenario shows a Source + Validation header driven by the `PROVENANCE_*` taxonomy, wired into the main dashboard and the fixed-scenario reference view.
 - ~~B2c: Cross-source comparison table~~ — **landed** (0dc4726). NatCap anchors + current + saved scenarios side by side at the top of the Tradeoff Analysis tab; mandatory Source/Validation columns, uniform Δ-vs-baseline basis, "—" for compound-gated NatCap cells.
 - B3: Canonical flood-volume output for SA alongside index (needs investigation pass first).
@@ -192,7 +192,7 @@ Tracks and their dependency order. Strikethrough = completed.
 
 ---
 
-## 9. Working principles (these are firm, in CLAUDE.md too)
+## 9. Working principles (these are firm, in ../../CLAUDE.md too)
 
 - **Align with NatCap canonical, per city.** Different cities can have different per-city parameters; what matters is matching the published methodology for each.
 - **Investigate before refactoring.** Phase 0 with a hard stop-and-report gate catches wrong premises. Multiple briefs this session validated this pattern.
@@ -238,22 +238,11 @@ The NatCap Symposium (June 29 – July 1, 2026) is a place to meet people and ta
 
 ---
 
-## 12. Where to look next
+## 12. Related documents
 
-If picking this up cold:
+This document is the internal source of truth for strategic framing: what the app is, what it is not, and how validation, exploration, optimization, and InVEST export fit together.
 
-1. Read this file (you're here)
-2. Read `CLAUDE.md` for operational conventions and pending-work pointers
-3. Check `git log --oneline -20` for recent commit landings (most recent: B2-revised, D1)
-4. Read `DESIGN_NOTES.md` "Brief B2 (revised)" and "Brief B" for the two most-recent significant findings
-5. Read `OPEN_QUESTIONS.md` for the compound-input gating, the never-run comparison status, and the parked NatCap data request
-6. Look at `data/sa/natcap_reference_outputs.csv` (A3 landed); remember `natcap_published` there is comparison-ready, not verified (§4)
-
-Drafted/landed briefs as of this revision (May 29, 2026) — note `/mnt/user-data/outputs/` is ephemeral, so copies live in the repo `briefs/`:
-- `BRIEF_A3_IMPL.md` — populate natcap_reference_outputs.csv for SA — **landed**
-- `BRIEF_D1_EXPORT_INVEST.md` (+ amended) — Export for InVEST — **landed** (Phase 3 verified)
-- `BRIEF_B2_REVISED.md` — validation badges + fixed-scenario reference view — **landed** (conservative floor)
-- `BRIEF_NATURE_ACCESS_NTR_BAL.md` — KILLED by empirical measurement; do not send
+For metric definitions, see `../../REFERENCE.md`. For system architecture, see `ARCHITECTURE.md`. For current NatCap/InVEST alignment, see `NATCAP_ALIGNMENT.md`. For demo talking points, see `DEMO_AND_COLLABORATION.md`.
 
 ---
 

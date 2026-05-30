@@ -30,12 +30,12 @@ The Ecosystem Explorer combines NatCap-curated data, InVEST-aligned biophysical 
 |---|---|
 | **LULC raster input** | NatCap-curated where available (San Antonio: compound NLCD×NLUD×tree-canopy framework from NatCap's 2024 NASA Urban project, adopted Brief 27). Otherwise NLCD 2021 (Minneapolis: InVEST UFR/UCM/UNA sample data). |
 | **Biophysical model evaluation** | InVEST-aligned numpy reimplementations of Urban Cooling Model, Urban Flood Risk, Urban Nature Access, Urban Mental Health, and Carbon. Validated against canonical `natcap.invest.*` outputs where applicable (see "Official InVEST alignment" below). |
-| **Scenario placement logic** | Prototype-specific. The five placement strategies (`random`, `flood-focused`, `cooling-focused`, `undersupply-focused`, `balanced`) are Ecosystem Explorer heuristics — InVEST models are placement-agnostic (see `INVEST_PLACEMENT.md`). |
+| **Scenario placement logic** | Prototype-specific. The five placement strategies (`random`, `flood-focused`, `cooling-focused`, `undersupply-focused`, `balanced`) are Ecosystem Explorer heuristics — InVEST models are placement-agnostic (see `docs/research/INVEST_PLACEMENT.md`). |
 | **Optimization / search** | Prototype-specific. The surrogate-driven Pareto optimizer and "Find Best Scenario" tab are Ecosystem Explorer features layered on top of the InVEST-aligned biophysical evaluation. |
 
 Two implications worth noting:
 
-- **Land-use fidelity differs between cities.** Minneapolis uses InVEST/NLCD sample land cover; San Antonio uses NatCap's compound NLCD × NLUD × tree-canopy land-use framework. This is not a flaw — it reflects the data available for each city. See `DATA_INVENTORY.md` Section 2 and `NATCAP_ALIGNMENT.md` rows for the per-city detail.
+- **Land-use fidelity differs between cities.** Minneapolis uses InVEST/NLCD sample land cover; San Antonio uses NatCap's compound NLCD × NLUD × tree-canopy land-use framework. This is not a flaw — it reflects the data available for each city. See `docs/internal/DATA_INVENTORY.md` Section 2 and `docs/internal/NATCAP_ALIGNMENT.md` rows for the per-city detail.
 - **"Food forest" and "Green Infrastructure" are scenario concepts, not InVEST land-use classes.** Food forest maps to NLCD 41 (deciduous forest) as a proxy; Green Infrastructure maps to NLCD 90 (woody wetlands) as a proxy for wetland-style GI. No NLCD class exists specifically for food forests or agroforestry. The land-use class is the proxy; "food forest" is the planning intervention name. See the "Food Production" and "Carbon Sequestration" metric definitions below for the proxy framing in context.
 
 ---
@@ -124,7 +124,7 @@ The app builds on several InVEST urban models from the Natural Capital Project (
 
 **Methodology fidelity tracking** — Per-metric alignment status with
 InVEST canonical implementations is maintained in
-[`NATCAP_ALIGNMENT.md`](NATCAP_ALIGNMENT.md), Table 1 (Metric
+[`docs/internal/NATCAP_ALIGNMENT.md`](docs/internal/NATCAP_ALIGNMENT.md), Table 1 (Metric
 Methodology Fidelity). Updated alongside any commit that changes a
 metric's implementation status.
 
@@ -146,13 +146,13 @@ InVEST UNA implements a Two-Step Floating Catchment Area (2SFCA) method: Step 1 
 
 **The app implements this canonically.** `calculate_nature_access` (app.py) is a numpy re-implementation of `natcap.invest.urban_nature_access` for the uniform-radius / dichotomy-decay configuration — the same approach `_compute_hmi_raster` takes for the InVEST UCM (re-implement in numpy, validate offline against `execute()`, avoid a heavy runtime dependency). The pipeline: (1) per-pixel urban-nature area = the `urban_nature` proportion from the biophysical table × pixel area (900 m²); (2) decay-weighted population = the population raster convolved with the search kernel; (3) the R_j ratio = nature area ÷ decay-weighted population per pixel (with InVEST's rule that where the reachable population ≤ 1 the ratio is set to the nature area, avoiding a divide-by-near-zero blow-up); (4) per-pixel `urban_nature_supply_percapita` = R_j convolved with the search kernel again. A pixel is "adequately supplied" where `supply_percapita ≥ urban_nature_demand`, and the headline metric is the population-weighted share of pixels that clear that bar.
 
-**Parameters** (`DESIGN_NOTES.md`): uniform **800 m** search radius, **dichotomy** decay (the kernel is a binary disk — every pixel within 800 m / 30 m ≈ 26.7 px counts equally, built exactly as `pygeoprocessing.kernels.dichotomous_kernel`), **16.7 m²/capita** demand. The biophysical table (`data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv`) is unchanged — what changed from the earlier proxy is how its `urban_nature` column is used: previously `urban_nature × in_range` thresholded at 0.3, now `urban_nature × pixel_area` feeding 2SFCA.
+**Parameters** (`docs/internal/DESIGN_NOTES.md`): uniform **800 m** search radius, **dichotomy** decay (the kernel is a binary disk — every pixel within 800 m / 30 m ≈ 26.7 px counts equally, built exactly as `pygeoprocessing.kernels.dichotomous_kernel`), **16.7 m²/capita** demand. The biophysical table (`data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv`) is unchanged — what changed from the earlier proxy is how its `urban_nature` column is used: previously `urban_nature × in_range` thresholded at 0.3, now `urban_nature × pixel_area` feeding 2SFCA.
 
 **Validation.** The numpy implementation was checked against canonical `natcap.invest.urban_nature_access.execute()` (3.16.2) on the MN baseline: the per-pixel `urban_nature_supply_percapita` raster matches at **MAE 0.0234 m²/person** over ~89,600 m²/person values (relative ≈ 3×10⁻⁷, **Pearson r = 1.000000**), and the aggregate headline `pct_pop_supply_ge_demand` is **identical at 46.86 %**. This is the same MAE-≈-0 fidelity established for the UCM HMI re-implementation.
 
 **Modelable-extent denominator.** The headline reports the share of the *modelable-extent* population — residents on pixels with valid land cover, which is what 2SFCA can actually evaluate. For downtown MN that is **66,945 residents, 43.4 % of the 154,242 in the AOI**; the other **56.6 % sit on cooling-LULC nodata pixels** the model cannot evaluate. The Nature Access card tooltip frames this denominator explicitly so the figure is not misread as a share of the whole city.
 
-**Reasoning trail.** The path from the earlier reachability proxy to canonical 2SFCA is documented across the Phase 1 work: `UNA_DIVERGENCE_CASE_STUDIES.md` and `UNA_METHODOLOGY_CROSS_CHECK.md` (how and why the proxy's `max(urban_nature × in_range)` reachability score diverged from 2SFCA supply/demand), `UNA_QUALITY_SCORE_SENSITIVITY.md` (why the companion Nature Quality Score was retired rather than carried forward), and `UNA_LULC_INVESTIGATION.md` (confirming the prototype's cooling LULC is the correct input raster — it is byte-identical to the InVEST UNA sample LULC). Phase 1 measured the proxy↔2SFCA gap; this implementation closes it by adopting 2SFCA outright.
+**Reasoning trail.** The path from the earlier reachability proxy to canonical 2SFCA is documented across the Phase 1 work: `docs/research/una/UNA_DIVERGENCE_CASE_STUDIES.md` and `docs/research/una/UNA_METHODOLOGY_CROSS_CHECK.md` (how and why the proxy's `max(urban_nature × in_range)` reachability score diverged from 2SFCA supply/demand), `docs/research/una/UNA_QUALITY_SCORE_SENSITIVITY.md` (why the companion Nature Quality Score was retired rather than carried forward), and `docs/research/una/UNA_LULC_INVESTIGATION.md` (confirming the prototype's cooling LULC is the correct input raster — it is byte-identical to the InVEST UNA sample LULC). Phase 1 measured the proxy↔2SFCA gap; this implementation closes it by adopting 2SFCA outright.
 
 **Reference:** [InVEST UNA User Guide](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)
 
@@ -249,7 +249,7 @@ sidebar as a radio picker. The default is uniform random sampling.
 
 The strategies are an app feature, not an InVEST methodology requirement —
 InVEST's urban models are placement-agnostic and accept whatever LULC
-raster the user provides (see `INVEST_PLACEMENT.md` for the underlying
+raster the user provides (see `docs/research/INVEST_PLACEMENT.md` for the underlying
 research). The strategies offer faster scenario exploration of "what if
 we targeted high-CN pixels?" or "what if we prioritized underserved areas?"
 without the user manually constructing per-pixel LULC alternatives.
@@ -280,10 +280,10 @@ non-zero pixels first and fills the remainder uniformly.
   are the app's heuristics, each grounded in a canonical InVEST quantity
   (`Q_{p,i}` for flood, HMI for cooling, `urban_nature_supply_percapita`
   for undersupply) rather than the homegrown proxies they replaced in
-  the 2026-05-23 reformulation (see `DESIGN_NOTES.md` "Suitability formulas").
+  the 2026-05-23 reformulation (see `docs/internal/DESIGN_NOTES.md` "Suitability formulas").
 - **Strategy effect sizes are measured.** Empirical per-city, per-metric
   strategy effects under the current formulas live in
-  `PLACEMENT_STRATEGY_DIAGNOSTIC.md` — refer there for "does this strategy
+  `docs/research/PLACEMENT_STRATEGY_DIAGNOSTIC.md` — refer there for "does this strategy
   do anything" rather than reading the formulas alone.
 
 ---
@@ -299,7 +299,7 @@ directly comparable as scenario-minus-baseline deltas, with tolerance),
 canonical methodology but no clean apples-to-apples citywide comparison), and
 **`prototype`** (food production — no canonical InVEST analog). Built by
 `extract_natcap_reference_outputs.py`; read via `natcap_validation.py`. See
-NATCAP_ALIGNMENT.md "Validated reference outputs (SA)". Not yet shown in the
+docs/internal/NATCAP_ALIGNMENT.md "Validated reference outputs (SA)". Not yet shown in the
 dashboard (planned for the per-metric validation badges, Brief B2).
 
 **Land Use / Land Cover** — National Land Cover Database (NLCD) 2021, produced by the USGS Multi-Resolution Land Characteristics Consortium. Provides 30 m resolution land cover classifications across the contiguous US. Used to identify developed pixels eligible for conversion and to assign CN and HM values via biophysical lookup tables. Minneapolis downtown is in EPSG:26915 (UTM 15N); Minneapolis Full and San Antonio are in NLCD's native EPSG:5070 (NAD83 / Conus Albers, equal-area), fetched via MRLC's WCS endpoint by `download_minneapolis_nlcd.py` / `download_sa_data.py`.
@@ -369,7 +369,7 @@ The app combines three computational layers to balance realism and responsivenes
 
 **Pixel-Level Simulation:** Each pixel is cross-referenced against biophysical lookup tables — one for curve numbers (mapping land cover × soil group) and one for heat mitigation values. In High resolution mode, these calculations were run for all 2,541 precomputed scenarios at startup to ensure hydrological and thermal accuracy at the pixel level. In Fast prototype and Balanced modes, the same pixel-level simulation runs live on every slider interaction.
 
-**Cache invalidation via `SCENARIO_SCHEMA_VERSION`** — bumped whenever the metric schema or one of the upstream pipeline pieces changes. Current value: **27**. The constant is hashed into the Streamlit `@st.cache_data` keys for `compute_scenario_grid`, `compute_lookup_table`, and `train_surrogate`, so a bump forces recomputation. Per-city caches don't collide because the cache key also includes the city's data directories and filename arguments. See `HISTORY.md` "Schema version log" for the full per-bump rationale (kept there to avoid dual-maintenance drift).
+**Cache invalidation via `SCENARIO_SCHEMA_VERSION`** — bumped whenever the metric schema or one of the upstream pipeline pieces changes. Current value: **27**. The constant is hashed into the Streamlit `@st.cache_data` keys for `compute_scenario_grid`, `compute_lookup_table`, and `train_surrogate`, so a bump forces recomputation. Per-city caches don't collide because the cache key also includes the city's data directories and filename arguments. See `docs/archive/HISTORY.md` "Schema version log" for the full per-bump rationale (kept there to avoid dual-maintenance drift).
 
 ---
 
@@ -486,20 +486,20 @@ San Antonio's baseline HMI is **54 % higher than Minneapolis downtown** — a pl
 
 ## 👥 Human & Social
 
-> **Note (2026-05-22):** The Nature Access card was reimplemented with canonical InVEST UNA 2SFCA (see "Official InVEST alignment — UNA" above and `DESIGN_NOTES.md`) and restored to the dashboard. The earlier `max(urban_nature × in_range)` reachability proxy was retired in the process, and with it the companion **Nature Quality Score** — Quality Score had no canonical InVEST analog, and sensitivity testing (`UNA_QUALITY_SCORE_SENSITIVITY.md`) showed it functioned as a two-state "greening vs none" indicator rather than a continuous quality measure. The Nature Quality Score row below is retained for methodology history only.
+> **Note (2026-05-22):** The Nature Access card was reimplemented with canonical InVEST UNA 2SFCA (see "Official InVEST alignment — UNA" above and `docs/internal/DESIGN_NOTES.md`) and restored to the dashboard. The earlier `max(urban_nature × in_range)` reachability proxy was retired in the process, and with it the companion **Nature Quality Score** — Quality Score had no canonical InVEST analog, and sensitivity testing (`docs/research/una/UNA_QUALITY_SCORE_SENSITIVITY.md`) showed it functioned as a two-state "greening vs none" indicator rather than a continuous quality measure. The Nature Quality Score row below is retained for methodology history only.
 
 Shows **three cards**: Nature Access, Preventable MH Cases, and Avoided MH Costs. NDVI sits in the Ecological section as a vegetation-index measure, not a social one. The MH cards split value from unit: the big-number slot shows the number alone ("285", "$2.10M/yr"), with a conditional caption below ("cases prevented" / "cases induced", "avoided MH costs/yr" / "added MH costs/yr").
 
 | Card | Meaning |
 |------|---------|
-| **Nature Access** | **Share of the modelable-extent population whose per-capita nature supply meets the 16.7 m²/capita demand standard** (`pct_pop_supply_ge_demand`). Computed by `calculate_nature_access` — a numpy re-implementation of `natcap.invest.urban_nature_access` via two-step floating catchment area: per-pixel urban-nature area = `urban_nature` proportion × 900 m²; the population raster is convolved with the search kernel; the R_j ratio = nature area ÷ decay-weighted population; a second convolution of R_j yields per-pixel `urban_nature_supply_percapita`; the headline is the population-weighted share of pixels where supply ≥ demand. Parameters: uniform **800 m** search radius, **dichotomy** decay (binary disk kernel), **16.7 m²/capita** demand — see `DESIGN_NOTES.md`. The `urban_nature` proportions come from the **InVEST UNA biophysical table** at `data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv`. Validated against `natcap.invest.urban_nature_access.execute()` at MAE 0.0234 m²/person, Pearson r = 1.000000 (see "Official InVEST alignment — UNA"). **Population data:** US Census 2020 block-level totals (`P1_001N`) — Hennepin County for the two Minneapolis cities, Bexar County for San Antonio. **Modelable extent:** ~43 % of the MN AOI population; the rest sit on cooling-LULC nodata pixels the model cannot evaluate (the card tooltip frames this denominator). |
-| **Nature Quality Score** *(removed)* | Formerly a population-weighted mean of the 0–1 proxy access score, computed alongside the old Nature Access proxy as a continuous companion metric (a pixel near a class-0.5 open-space patch contributed 0.5 to the average). It was retired when the proxy was replaced by canonical 2SFCA: Quality Score had **no canonical InVEST analog**, and `UNA_QUALITY_SCORE_SENSITIVITY.md` showed it behaved as a two-state "greening vs none" indicator rather than a continuous quality gradient. Row retained for methodology history; the metric is no longer computed or displayed. |
+| **Nature Access** | **Share of the modelable-extent population whose per-capita nature supply meets the 16.7 m²/capita demand standard** (`pct_pop_supply_ge_demand`). Computed by `calculate_nature_access` — a numpy re-implementation of `natcap.invest.urban_nature_access` via two-step floating catchment area: per-pixel urban-nature area = `urban_nature` proportion × 900 m²; the population raster is convolved with the search kernel; the R_j ratio = nature area ÷ decay-weighted population; a second convolution of R_j yields per-pixel `urban_nature_supply_percapita`; the headline is the population-weighted share of pixels where supply ≥ demand. Parameters: uniform **800 m** search radius, **dichotomy** decay (binary disk kernel), **16.7 m²/capita** demand — see `docs/internal/DESIGN_NOTES.md`. The `urban_nature` proportions come from the **InVEST UNA biophysical table** at `data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv`. Validated against `natcap.invest.urban_nature_access.execute()` at MAE 0.0234 m²/person, Pearson r = 1.000000 (see "Official InVEST alignment — UNA"). **Population data:** US Census 2020 block-level totals (`P1_001N`) — Hennepin County for the two Minneapolis cities, Bexar County for San Antonio. **Modelable extent:** ~43 % of the MN AOI population; the rest sit on cooling-LULC nodata pixels the model cannot evaluate (the card tooltip frames this denominator). |
+| **Nature Quality Score** *(removed)* | Formerly a population-weighted mean of the 0–1 proxy access score, computed alongside the old Nature Access proxy as a continuous companion metric (a pixel near a class-0.5 open-space patch contributed 0.5 to the average). It was retired when the proxy was replaced by canonical 2SFCA: Quality Score had **no canonical InVEST analog**, and `docs/research/una/UNA_QUALITY_SCORE_SENSITIVITY.md` showed it behaved as a two-state "greening vs none" indicator rather than a continuous quality gradient. Row retained for methodology history; the metric is no longer computed or displayed. |
 | **Preventable MH Cases & Avoided MH Costs** | The InVEST Urban Mental Health Model's two paired outputs — annual preventable depression + anxiety cases, and the avoided healthcare cost. Per-pixel `NE = gaussian_filter(NDVI_proxy, σ = 300 m / 30 m px)`; `ΔNE = NE_scenario − NE_baseline`; `RR = exp(ln(RR₀.₁) × 10 × ΔNE)`; `PC = (1 − RR) × baseline_prevalence × population`. Constants: RR per 0.1 NDVI = 0.96 (depression) / 0.97 (anxiety) from Liu et al. 2023; `BIR = 0.21 / 0.19` from CDC 2023 (ever-diagnosed); cost-of-illness $8,467 / $5,765 (US nominal). See the dedicated section under **Preventable MH Cases & Avoided MH Costs (InVEST Urban Mental Health v3.19.0)** below for the full formula, constants, and caveats. Both cards display 0 / $0 at the unmodified baseline by construction (ΔNE = 0). |
 
 **Additional Nature Access caveats:**
 
 - **Modelable-extent denominator.** The headline is a share of the population on valid-LULC pixels (~43 % of the MN AOI), not of the whole city — InVEST 2SFCA cannot model per-capita supply for residents on cooling-LULC nodata pixels. The card tooltip states this.
-- **Uniform radius, dichotomy decay are documented choices.** A single 800 m search radius applies to every nature class (the biophysical table's per-class `search_radius_m` column is not used in this configuration), and reachability within the radius is binary (no distance decay). `DESIGN_NOTES.md` records the rationale; InVEST also supports a per-class `urban_nature_table` radius mode and exponential/gaussian decay.
+- **Uniform radius, dichotomy decay are documented choices.** A single 800 m search radius applies to every nature class (the biophysical table's per-class `search_radius_m` column is not used in this configuration), and reachability within the radius is binary (no distance decay). `docs/internal/DESIGN_NOTES.md` records the rationale; InVEST also supports a per-class `urban_nature_table` radius mode and exponential/gaussian decay.
 - **Euclidean, not a walkshed.** The search kernel is straight-line — it ignores street networks, barriers, and slope.
 - **Saturates at high nature conversion.** Once substantial nature is added, most modelable pixels clear the 16.7 m²/capita bar, so scenarios with ≥50 % conversion to forest/wetland reach ~100 %. This is a real property of the metric at this demand standard, not a degeneracy — across the standard MN scenarios `pct_pop_supply_ge_demand` spans ~43–100 %, strongly discriminating.
 
@@ -926,7 +926,7 @@ To add per-type metrics for Minneapolis Full, the buildings would need to come f
 
 ### Export for InVEST (Brief D1)
 
-The sidebar's **"Export for InVEST"** section packages the currently-displayed scenario as a runnable canonical **InVEST 3.19.0** input bundle: a zip with rasters (scenario + baseline compound LULC, the NLCD×tree-reduced view for UFR, and an NDVI proxy raster for UMH), shared inputs (population, reference ET, soil hydrologic group, AOIs, baseline-prevalence vectors), per-model biophysical tables, and one `args.json` per InVEST urban model. A `metadata.json` records full provenance — scenario source / generator parameters, the prototype's git commit, `SCENARIO_SCHEMA_VERSION`, and a per-model **validation state** sourced from `NATCAP_ALIGNMENT.md`.
+The sidebar's **"Export for InVEST"** section packages the currently-displayed scenario as a runnable canonical **InVEST 3.19.0** input bundle: a zip with rasters (scenario + baseline compound LULC, the NLCD×tree-reduced view for UFR, and an NDVI proxy raster for UMH), shared inputs (population, reference ET, soil hydrologic group, AOIs, baseline-prevalence vectors), per-model biophysical tables, and one `args.json` per InVEST urban model. A `metadata.json` records full provenance — scenario source / generator parameters, the prototype's git commit, `SCENARIO_SCHEMA_VERSION`, and a per-model **validation state** sourced from `docs/internal/NATCAP_ALIGNMENT.md`.
 
 San Antonio only for v1 (the bundle is built around NatCap's compound LULC framework). For Minneapolis the sidebar shows a "future work" caption. Click **Prepare InVEST bundle** to assemble (~10–30 s on SA), then **Download bundle**.
 
@@ -980,6 +980,6 @@ Substitute the module and args path for each model (UCM / UNA / UFR / Carbon / U
 #### Out of scope for v1
 
 - **Source-grid args files** (NatCap's 10 m grid for the fixed-scenario rasters) — technical users can construct these themselves.
-- **NatCap fixed *alternative* scenarios** (FF_20ac/40ac/MAX, UA_*) are not yet wired through the sidebar selector — when wired, those will export the flood source raster + UFR args only, with the compound-model args explicitly marked unavailable in `metadata.json` (NatCap shipped only the flood encoding for them; see `OPEN_QUESTIONS.md`).
+- **NatCap fixed *alternative* scenarios** (FF_20ac/40ac/MAX, UA_*) are not yet wired through the sidebar selector — when wired, those will export the flood source raster + UFR args only, with the compound-model args explicitly marked unavailable in `metadata.json` (NatCap shipped only the flood encoding for them; see `docs/internal/OPEN_QUESTIONS.md`).
 - **Batch export from the saved-scenarios table** — single-scenario export only.
 - **Round-trip import of canonical InVEST results** — out of scope.

@@ -3,7 +3,7 @@
 **Audience:** Archive
 **Status:** Historical (original spec)
 **Use this for:** The original design specification, kept for provenance
-**Do not use this for:** Current design (→ ARCHITECTURE.md, DESIGN_NOTES.md)
+**Do not use this for:** Current design (→ ../internal/ARCHITECTURE.md, ../internal/DESIGN_NOTES.md)
 **Historical record of:** The project's original specification
 
 ---

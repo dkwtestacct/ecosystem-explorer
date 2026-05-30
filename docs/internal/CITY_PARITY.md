@@ -1,6 +1,6 @@
 # City Parity
 
-**Audience:** Internal
+**Audience:** Internal — not shared with NatCap
 **Status:** Current
 **Use this for:** The per-city parameter-parity matrix — how closely each city's configured inputs match NatCap's published configuration
 **Do not use this for:** Overall validation status or the validated/displayed/exploratory framing (→ NATCAP_ALIGNMENT.md)
@@ -8,17 +8,7 @@
 
 ---
 
-**Purpose:** Track how closely the prototype's per-city parameters and methodology match NatCap's published configurations for each city. The unit of comparison is *the city*, not the methodology — answering "how aligned is the prototype with NatCap on Minneapolis?" rather than "is the prototype's UCM canonical?"
-
-**Audience:** Daniel and future Claude sessions. Not shared with NatCap.
-
 **Naming:** Refer to NatCap collaborators as "NatCap" — no individual names.
-
-**Relationship to other docs:**
-
-- `NATCAP_ALIGNMENT.md` — alignment by *methodology* (six tables: per-metric, per-vocabulary). Methodology fidelity.
-- `NATCAP_COLLABORATION.md` — running conversation log (asks, decisions, open questions).
-- This doc — alignment by *city*. Concrete per-city, per-parameter parity matrix.
 
 **Working principle (post 2026-05-24):** NatCap parameters are project-specific by design. Each city's project is tuned to its own policy framing. The right form of alignment is *per-city* — match MN-side parameters to NatCap's MN project; match SA-side parameters to NatCap's SA project. See `NATCAP_COLLABORATION.md` § "Per-city parameter framing."
 
@@ -50,7 +40,7 @@
 | `do_energy_valuation` | True | True | ✅ |
 | `do_productivity_valuation` | False | False | ✅ |
 | Biophysical table | `data/cooling/biophysical_table_urban_cooling_MN.csv` | `biophysical_table_urban_cooling.csv` (in MN bundle) | ✅ Verified identical 2026-05-24 on all 14 shared lucodes (shade, kc, albedo, green_area, building_intensity). Prototype has one extra row, lucode 82 (Cultivated Crops, documented SA-support addition). |
-| LULC raster | `data/cooling/land_use_2021.tif` (byte-identical to NatCap UNA sample) | `land_use_2021.tif` (in MN bundle) | ✅ (likely; MD5-confirmed against UNA sample bundle in `UNA_LULC_INVESTIGATION.md`) |
+| LULC raster | `data/cooling/land_use_2021.tif` (byte-identical to NatCap UNA sample) | `land_use_2021.tif` (in MN bundle) | ✅ (likely; MD5-confirmed against UNA sample bundle in `../research/una/UNA_LULC_INVESTIGATION.md`) |
 | ET raster | `data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/reference_evapotranspiration_annual.tif` (~1 km, 10×10 km extent) | `reference_evapotranspiration_annual.tif` (in MN bundle) | ✅ MD5 verified identical 2026-05-24 (`fdf460d9bf5ef5a3641f74af117cbd66`, 4,712 bytes both). Same file from same InVEST UCM sample bundle. |
 
 **UCM summary:** Fully aligned on args, biophysical table, and ET raster (all MD5-verified 2026-05-24).
@@ -79,7 +69,7 @@
 | `search_radius_mode` | uniform radius | uniform radius | ✅ |
 | `aggregate_by_pop_group` | False | False | ✅ |
 | `population_group_radii_table` | not used | empty | ✅ |
-| LULC raster | `data/cooling/land_use_2021.tif` (UNA-sample LULC) | `LULC_NLCD_2021.tif` (in MN bundle) | ✅ MD5 verified identical 2026-05-24 (`56d1080fa70576cad15896642a107a3d`, 297,417 bytes both). Confirms the prototype's cooling LULC is byte-identical to NatCap's MN UNA sample LULC — consistent with the earlier `UNA_LULC_INVESTIGATION.md` finding. |
+| LULC raster | `data/cooling/land_use_2021.tif` (UNA-sample LULC) | `LULC_NLCD_2021.tif` (in MN bundle) | ✅ MD5 verified identical 2026-05-24 (`56d1080fa70576cad15896642a107a3d`, 297,417 bytes both). Confirms the prototype's cooling LULC is byte-identical to NatCap's MN UNA sample LULC — consistent with the earlier `../research/una/UNA_LULC_INVESTIGATION.md` finding. |
 | LULC attribute table | `data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv` | `LULC_attribute_table_UNA.csv` | ✅ Verified bit-identical 2026-05-24 (14 rows: lucode, lulc_desc, urban_nature, search_radius_m). Same file from same InVEST UNA sample bundle. |
 | Population raster | Census 2020 blocks, rasterized via `download_census_pop.py` (360×356 px at 30 m, ~154k people; **deliberate — newer decennial vintage**) | `total_population_census_2010.tif` (270×266 px at 30 m, ~130k people; **NatCap MN sample shipped with 2010 — older bundle**) | ⚠️ Vintage differs (2020 vs 2010). Prototype's choice of 2020 is intentional. 154k vs 130k is consistent with MN downtown population growth from 2010→2020. Worth confirming in future NatCap conversation whether they consider 2010 still current or have updated to 2020 internally. |
 
@@ -269,7 +259,7 @@ NatCap's SA data uses a compound LULC framework that overlays three signals: NLC
 | NDR | ❌ Not implemented |
 | Food Forest | ⚠️ Single benchmark vs per-crop CoSA |
 
-**Overall SA parity:** All three SA biophysical models (UCM Brief 28b, UNA Brief 29, Carbon Brief 30) consume the NatCap compound LULC + compound-keyed biophysical tables directly; the AOI (Brief 31) now uses NatCap's ACS block-group polygons; the SA NatCap data integration workstream (Briefs 27 → 31 per SA_INTEGRATION_PLAN.md) is complete. NDR remains unimplemented. Only the population source still diverges (TIGER 2020 blocks vs. NatCap's population_per_pixel raster); per-tract reporting now uses the finer-grained block-group polygons paralleling NatCap's Vibrant Land Figure 10 framing.
+**Overall SA parity:** All three SA biophysical models (UCM Brief 28b, UNA Brief 29, Carbon Brief 30) consume the NatCap compound LULC + compound-keyed biophysical tables directly; the AOI (Brief 31) now uses NatCap's ACS block-group polygons; the SA NatCap data integration workstream (Briefs 27 → 31 per ../archive/SA_INTEGRATION_PLAN_2026-05.md) is complete. NDR remains unimplemented. Only the population source still diverges (TIGER 2020 blocks vs. NatCap's population_per_pixel raster); per-tract reporting now uses the finer-grained block-group polygons paralleling NatCap's Vibrant Land Figure 10 framing.
 
 ---
 

@@ -3,31 +3,31 @@
 **Audience:** Archive
 **Status:** Historical (durable — still appended)
 **Use this for:** Schema-version history, retired infrastructure, completed-workstream specifics
-**Do not use this for:** Current conventions (→ CLAUDE.md), per-brief reasoning (→ DESIGN_NOTES.md), commit detail (→ git log)
+**Do not use this for:** Current conventions (→ ../../CLAUDE.md), per-brief reasoning (→ ../internal/DESIGN_NOTES.md), commit detail (→ git log)
 **Source of truth for:** What changed and what was retired, over time
 
 ---
 
-Content extracted from CLAUDE.md during the post-Brief-31 trim
-(2026-05-25) when CLAUDE.md exceeded its 40k-char recommended size.
+Content extracted from ../../CLAUDE.md during the post-Brief-31 trim
+(2026-05-25) when ../../CLAUDE.md exceeded its 40k-char recommended size.
 
 This file holds content that's durably useful for future sessions but
 not on the critical-path orientation reading. Categories:
 
 1. **Schema version history** — every `SCENARIO_SCHEMA_VERSION` bump's
-   rationale (current value + one-line summary stays in CLAUDE.md).
+   rationale (current value + one-line summary stays in ../../CLAUDE.md).
 
 2. **Retired infrastructure** — components, conventions, or model
    pieces that were removed or replaced. The "what was retired and
    why" context that explains current decisions.
 
 3. **Completed-workstream specifics** — per-brief magnitude evidence
-   and implementation detail extracted from CLAUDE.md. The canonical
-   per-brief reasoning lives in DESIGN_NOTES.md; this section preserves
-   anything from CLAUDE.md that wasn't already duplicated there.
+   and implementation detail extracted from ../../CLAUDE.md. The canonical
+   per-brief reasoning lives in ../internal/DESIGN_NOTES.md; this section preserves
+   anything from ../../CLAUDE.md that wasn't already duplicated there.
 
 For current-state coding conventions, architecture, data files, and
-constants, see CLAUDE.md. For per-brief reasoning, see DESIGN_NOTES.md.
+constants, see ../../CLAUDE.md. For per-brief reasoning, see ../internal/DESIGN_NOTES.md.
 For commit-level changes, see git log.
 
 ---
@@ -35,7 +35,7 @@ For commit-level changes, see git log.
 ## Schema version log
 
 Full per-bump rationale for every `SCENARIO_SCHEMA_VERSION` increase.
-The current value and a one-line summary live in CLAUDE.md.
+The current value and a one-line summary live in ../../CLAUDE.md.
 
 - **7→8** — UCM rework: ET fix, Gaussian convolution, canonical energy formula.
 - **8→9** — ET nodata sentinel masked.
@@ -51,12 +51,12 @@ The current value and a one-line summary live in CLAUDE.md.
 - **18→19** — SA Urban Cooling args aligned to NatCap canonical: `uhi_max` 3.5 → 11 °C (heat-wave-day scenario per NatCap's curated SA InVEST inputs — 35 °C reference air temp, 11 °C UHI). Commit `f97b693`.
 - **19→20** — MN UNA params aligned to NatCap MN-project canonical: demand 250 m²/capita, search radius 1000 m, exponential decay. Commit `12fb92a`.
 - **20→21** — Brief 23 per-city UFR rainfall depth: MN 100 mm canonical, SA 157 mm canonical — every flood metric shifts in both cities.
-- **21→22** — Brief 27 foundational SA compound LULC adoption — NatCap `lulc_overlay_3857.tif` reprojected to EPSG:5070 + nearest-neighbor at 30 m produces `data/sa/flood/land_use_compound_sa.tif`; reduced to NLCD via `lulc_crosswalk.csv` for the existing per-NLCD biophysical tables. SA baseline drift <0.5 % on every headline; MN untouched. `DEFAULT_FF_LUCODE=1310`, `DEFAULT_GI_LUCODE=122`, `DEFAULT_HD_LUCODE=341` are the configured fallback compound codes for conversion targets when the source pixel's (NLUD, tree) tuple has no row for the target NLCD; consumed by the load-time `COMPOUND_AFTER_*` lookup arrays. See `DESIGN_NOTES.md` "SA compound LULC integration — foundational decisions".
+- **21→22** — Brief 27 foundational SA compound LULC adoption — NatCap `lulc_overlay_3857.tif` reprojected to EPSG:5070 + nearest-neighbor at 30 m produces `data/sa/flood/land_use_compound_sa.tif`; reduced to NLCD via `lulc_crosswalk.csv` for the existing per-NLCD biophysical tables. SA baseline drift <0.5 % on every headline; MN untouched. `DEFAULT_FF_LUCODE=1310`, `DEFAULT_GI_LUCODE=122`, `DEFAULT_HD_LUCODE=341` are the configured fallback compound codes for conversion targets when the source pixel's (NLUD, tree) tuple has no row for the target NLCD; consumed by the load-time `COMPOUND_AFTER_*` lookup arrays. See `../internal/DESIGN_NOTES.md` "SA compound LULC integration — foundational decisions".
 - **22→23** — Brief 28b SA UCM compound biophysical table (`ucm__nlcd_nlud_tree.csv`) replaces the per-NLCD Köppen-BSh tuning; SA `baseline_hm` 0.2866 → 0.3937 (+37 %) reflecting tree-canopy variation on developed land that per-NLCD couldn't capture; SA `cooling_energy_savings_usd` -77 to -86 % as downstream amplification; MN untouched. `scenario_lulc_ucm` field added to `evaluate_scenario`'s return dict — compound view for SA, same as `scenario_lulc` for MN — so UCM consumers index the right lucode space.
-- **23→24** — Brief 29 SA UNA compound biophysical table (`una__nlcd_nlud_tree.csv`) replaces the borrowed-from-MN per-NLCD `LULC_attribute_table_UNA.csv` for SA; SA baseline `nature_access_pct` 89.7 → 94.2 (+5.0 %, +4.5 pp), baseline `people_with_nature_access` +84,486; MN untouched. `scenario_lulc_una` field added to `evaluate_scenario`'s return dict — compound view for SA, same as `scenario_lulc` for MN — mirroring the Brief 28b `scenario_lulc_ucm` pattern. The `URBAN_NATURE_PROPORTION` Python-dict + per-class boolean-mask loop in `_una_supply_percapita` was replaced with a vectorized `urban_nature_arr[scenario_lulc_una]` indexed lookup because the dict pattern would have done 1,984 raster-wide comparisons per call at SA's cardinality. `urban_nature_arr` joins `shade_arr` / `kc_arr` / `albedo_arr` / `green_area_arr` on `CityState`. Three CSV strip sites updated: `compute_scenario_grid`, `compute_lookup_table`, `precompute_scenarios.py`. See `DESIGN_NOTES.md` "SA UNA compound biophysical table adoption".
-- **24→25** — Brief 30 SA Carbon four-pool stock framework (`carbon__nlcd_nlud_tree.csv`, 1,984 rows × 27 cols; four pools `c_above` / `c_below` / `c_soil` / `c_dead` in t C/ha) replaces SA's per-conversion-type `CARBON_SEQ_RATES` annual-flow proxy. SA Carbon consumers index `cooling_lulc_compound` directly via a new `scenario_lulc_carbon` field; the `_compute_carbon_four_pool` wrapper computes one-time t CO2 stock change from the LULC delta per the InVEST four-pool framework, matching NatCap's Vibrant Land (Guerry et al. 2023) methodology. **Field rename**: `carbon_tons_co2_yr` → `carbon_tons_co2` (unified key; semantics differ per city — annual flow MN, one-time stock SA). **Dollar metric reframe**: `avoided_carbon_cost_usd` → `carbon_value_usd` with city-conditional dashboard label ("Avoided Carbon Cost"/yr for MN, "Carbon Storage Value" one-time for SA). `EPA_SOCIAL_COST_CARBON=$190/t` (EPA 2023, 2 % discount) is kept untouched; methodology matches Vibrant Land but the SC-CO2 vintage differs from theirs (IWG 2021, $53/t @ 3 %) — same US-government lineage, different vintage, intentional. SA Carbon stock numerically ~30× the prior annual proxy (category-error correction, not a value shift); MN baselines unchanged (zero value divergence across 20 baselines). Three CSV strip sites updated (same as Brief 29): `compute_scenario_grid`, `compute_lookup_table`, `precompute_scenarios.py`. `c_above_arr` / `c_below_arr` / `c_soil_arr` / `c_dead_arr` join the existing per-city arrays on `CityState`. See `DESIGN_NOTES.md` "SA Carbon four-pool framework adoption".
+- **23→24** — Brief 29 SA UNA compound biophysical table (`una__nlcd_nlud_tree.csv`) replaces the borrowed-from-MN per-NLCD `LULC_attribute_table_UNA.csv` for SA; SA baseline `nature_access_pct` 89.7 → 94.2 (+5.0 %, +4.5 pp), baseline `people_with_nature_access` +84,486; MN untouched. `scenario_lulc_una` field added to `evaluate_scenario`'s return dict — compound view for SA, same as `scenario_lulc` for MN — mirroring the Brief 28b `scenario_lulc_ucm` pattern. The `URBAN_NATURE_PROPORTION` Python-dict + per-class boolean-mask loop in `_una_supply_percapita` was replaced with a vectorized `urban_nature_arr[scenario_lulc_una]` indexed lookup because the dict pattern would have done 1,984 raster-wide comparisons per call at SA's cardinality. `urban_nature_arr` joins `shade_arr` / `kc_arr` / `albedo_arr` / `green_area_arr` on `CityState`. Three CSV strip sites updated: `compute_scenario_grid`, `compute_lookup_table`, `precompute_scenarios.py`. See `../internal/DESIGN_NOTES.md` "SA UNA compound biophysical table adoption".
+- **24→25** — Brief 30 SA Carbon four-pool stock framework (`carbon__nlcd_nlud_tree.csv`, 1,984 rows × 27 cols; four pools `c_above` / `c_below` / `c_soil` / `c_dead` in t C/ha) replaces SA's per-conversion-type `CARBON_SEQ_RATES` annual-flow proxy. SA Carbon consumers index `cooling_lulc_compound` directly via a new `scenario_lulc_carbon` field; the `_compute_carbon_four_pool` wrapper computes one-time t CO2 stock change from the LULC delta per the InVEST four-pool framework, matching NatCap's Vibrant Land (Guerry et al. 2023) methodology. **Field rename**: `carbon_tons_co2_yr` → `carbon_tons_co2` (unified key; semantics differ per city — annual flow MN, one-time stock SA). **Dollar metric reframe**: `avoided_carbon_cost_usd` → `carbon_value_usd` with city-conditional dashboard label ("Avoided Carbon Cost"/yr for MN, "Carbon Storage Value" one-time for SA). `EPA_SOCIAL_COST_CARBON=$190/t` (EPA 2023, 2 % discount) is kept untouched; methodology matches Vibrant Land but the SC-CO2 vintage differs from theirs (IWG 2021, $53/t @ 3 %) — same US-government lineage, different vintage, intentional. SA Carbon stock numerically ~30× the prior annual proxy (category-error correction, not a value shift); MN baselines unchanged (zero value divergence across 20 baselines). Three CSV strip sites updated (same as Brief 29): `compute_scenario_grid`, `compute_lookup_table`, `precompute_scenarios.py`. `c_above_arr` / `c_below_arr` / `c_soil_arr` / `c_dead_arr` join the existing per-city arrays on `CityState`. See `../internal/DESIGN_NOTES.md` "SA Carbon four-pool framework adoption".
 - **25→26** — Brief B adds three per-target fallback-pixel diagnostic keys to `evaluate_scenario`'s return dict — `ff_fellback_pixels`, `gi_fellback_pixels`, `hd_fellback_pixels`. For SA these count converted pixels whose source (NLUD, tree-canopy) tuple had no matching crosswalk row and fell back to `DEFAULT_<target>_LUCODE` (1310 / 122 / 341); for MN they're always 0 (no compound conversion path). Not surrogate targets — pure conversion metadata, surfaced in the SA dashboard's Conversion fidelity panel.
-- **26→27** — UMH neighborhood-exposure (NE) kernel changed from a Gaussian (σ = search_radius/pixel) to the canonical InVEST UMH 3.19.0 **buffer-mean** (an edge-corrected flat disk of radius search_radius/pixel, via `_convolve_edge_corrected`). Validated to per-pixel parity against `natcap.invest.urban_mental_health.execute()` (compare_umh_invest.py): **MN MAE ≈ 0, r = 1.0** directly; **SA MAE ≈ 0** when the app kernel is fed canonical's own aligned input (the harness's 0.14 % residual on SA's 1713×1984 grid was empirically shown to be large-grid feeding-alignment noise, not a kernel divergence). `preventable_mh_cases` / `avoided_mh_cost_usd` shift ~1.5–3 % for every conversion scenario (the 10 zero-conversion baselines are unchanged); MH card confidence Medium → High. Follows the UMH-validation commit `db94098`. See `DESIGN_NOTES.md` "Brief B — UMH NE kernel: Gaussian → buffer-mean".
+- **26→27** — UMH neighborhood-exposure (NE) kernel changed from a Gaussian (σ = search_radius/pixel) to the canonical InVEST UMH 3.19.0 **buffer-mean** (an edge-corrected flat disk of radius search_radius/pixel, via `_convolve_edge_corrected`). Validated to per-pixel parity against `natcap.invest.urban_mental_health.execute()` (compare_umh_invest.py): **MN MAE ≈ 0, r = 1.0** directly; **SA MAE ≈ 0** when the app kernel is fed canonical's own aligned input (the harness's 0.14 % residual on SA's 1713×1984 grid was empirically shown to be large-grid feeding-alignment noise, not a kernel divergence). `preventable_mh_cases` / `avoided_mh_cost_usd` shift ~1.5–3 % for every conversion scenario (the 10 zero-conversion baselines are unchanged); MH card confidence Medium → High. Follows the UMH-validation commit `db94098`. See `../internal/DESIGN_NOTES.md` "Brief B — UMH NE kernel: Gaussian → buffer-mean".
 
 
 ---
@@ -65,7 +65,7 @@ The current value and a one-line summary live in CLAUDE.md.
 
 Components, conventions, or model pieces that were removed or replaced.
 "What was retired and why" context that helps explain current decisions.
-Each entry has a one-line stub in CLAUDE.md pointing here.
+Each entry has a one-line stub in ../../CLAUDE.md pointing here.
 
 ### Wellbeing Score (retired; replaced by InVEST UMH preventable cases)
 
@@ -78,7 +78,7 @@ al. 2023 NDVI exposure RR for depression / anxiety; Li et al. 2025
 search radius) rather than user-tunable weights, so there is nothing
 to expose in the sidebar. The "Wellbeing Score" UI card is gone; the
 "Preventable MH Cases" + "Avoided MH Costs" cards replace it. See
-REFERENCE.md "Official InVEST alignment — UMH" for parity status and
+../../REFERENCE.md "Official InVEST alignment — UMH" for parity status and
 divergences (uniform BIR vs. per-admin, Gaussian kernel vs. uniform
 buffer, synthetic vs. satellite NDVI).
 
@@ -89,7 +89,7 @@ computed alongside the old Nature Access proxy as a continuous
 companion metric. Removed when Nature Access was reimplemented as
 canonical InVEST UNA 2SFCA (2026-05-22) — Quality Score had no
 canonical InVEST analog and sensitivity testing
-(`UNA_QUALITY_SCORE_SENSITIVITY.md`) showed it behaved as a two-state
+(`../research/una/UNA_QUALITY_SCORE_SENSITIVITY.md`) showed it behaved as a two-state
 "greening vs none" indicator rather than a continuous quality
 gradient. The function signature in `calculate_nature_access` still
 returns a three-tuple where the middle slot is `0.0` (legacy
@@ -134,9 +134,9 @@ signature is now the steady state.
 
 ## Completed-workstream specifics
 
-Per-brief implementation detail extracted from CLAUDE.md. Canonical
-per-brief reasoning lives in DESIGN_NOTES.md; this section preserves
-anything from CLAUDE.md that wasn't already duplicated there.
+Per-brief implementation detail extracted from ../../CLAUDE.md. Canonical
+per-brief reasoning lives in ../internal/DESIGN_NOTES.md; this section preserves
+anything from ../../CLAUDE.md that wasn't already duplicated there.
 
 ### Streamlit Cloud memory-fit workstream (2026-05-11)
 

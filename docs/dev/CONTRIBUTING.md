@@ -3,7 +3,7 @@
 **Audience:** Developer
 **Status:** Current
 **Use this for:** Environment setup and running the canonical-InVEST validation harness (the two-env pattern, PROJ_DATA/GDAL_DATA)
-**Do not use this for:** Architecture overview (→ ARCHITECTURE.md) or metric methodology (→ REFERENCE.md)
+**Do not use this for:** Architecture overview (→ ../internal/ARCHITECTURE.md) or metric methodology (→ ../../REFERENCE.md)
 **Source of truth for:** How to set up and validate the project
 
 ---
@@ -67,7 +67,7 @@ bridges the two environments on disk:
 This pattern generalizes to any future canonical-InVEST validation where the
 canonical model needs a newer interpreter than the app `.venv`: keep the
 prototype side in `.venv`, the canonical side in an isolated env, and compare
-exported rasters. See `DESIGN_NOTES.md` "UMH validation against canonical
+exported rasters. See `../internal/DESIGN_NOTES.md` "UMH validation against canonical
 InVEST 3.19.0" for the result and interpretation.
 
 > The `PROJ_DATA` / `GDAL_DATA` override on the EXPORT command works around the

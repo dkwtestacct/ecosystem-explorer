@@ -4,7 +4,7 @@
 **Status:** Superseded
 **Use this for:** Historical snapshot of the project summary as of 2026-05 only
 **Do not use this for:** Anything current — it's stale (lists retired cards, dormant cities)
-**Superseded by:** README.md + DEMO_AND_COLLABORATION.md
+**Superseded by:** ../../README.md + ../internal/DEMO_AND_COLLABORATION.md
 
 ---
 

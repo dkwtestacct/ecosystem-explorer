@@ -3,7 +3,7 @@
 **Audience:** Research
 **Status:** Research — concluded (led to the Nature Quality Score removal)
 **Use this for:** The UNA investigation record behind that decision
-**Do not use this for:** Current UNA methodology (→ REFERENCE.md) or the decision itself (→ HISTORY.md)
+**Do not use this for:** Current UNA methodology (→ ../../../REFERENCE.md) or the decision itself (→ ../../archive/HISTORY.md)
 **Historical record of:** the UNA methodology cross-check
 
 ---
@@ -192,7 +192,7 @@ design. The 100 % vs 9.5 % result is real, not an artifact.**
 - One trivial input difference (class 81 Hay/Pasture radius 500 m vs 1,000 m,
   147 pixels) has no material effect.
 
-This confirms the existing "Proxy" parity rating and the REFERENCE.md framing
+This confirms the existing "Proxy" parity rating and the ../../../REFERENCE.md framing
 (commit 5c7a6a4): closing the gap would mean adopting 2SFCA as the metric, not
 correcting a mismatch. There is nothing to correct — the comparison is sound.
 

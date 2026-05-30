@@ -3,7 +3,7 @@
 **Audience:** Research
 **Status:** Research — findings absorbed
 **Use this for:** Empirical measurements of placement-strategy effect sizes (Briefs 6/9)
-**Do not use this for:** Current behavior — findings live in DESIGN_NOTES.md / the code
+**Do not use this for:** Current behavior — findings live in ../internal/DESIGN_NOTES.md / the code
 **Historical record of:** Placement-strategy effect-size measurements
 
 ---
@@ -340,7 +340,7 @@ measured.
 Brief 9 Stage I replaced the two doc hedges that motivated this whole
 question:
 
-- `REFERENCE.md:166-170` (the "SA larger AOI → bigger strategy effects"
+- `../../REFERENCE.md:166-170` (the "SA larger AOI → bigger strategy effects"
   hedge) was rewritten in Brief 9 Stage F as part of the "Honest caveats"
   section under the new placement-strategy table — the unsourced
   speculation is gone; the section now points readers to this diagnostic

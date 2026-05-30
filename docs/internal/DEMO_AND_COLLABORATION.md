@@ -3,7 +3,7 @@
 **Audience:** Internal
 **Status:** Demo / collaboration runbook
 **Use this for:** Spoken demos, screenshots, meeting prep, README language
-**Do not use this for:** Metric definitions (→ `REFERENCE.md`) or validation status / source of truth (→ `NATCAP_ALIGNMENT.md`)
+**Do not use this for:** Metric definitions (→ `../../REFERENCE.md`) or validation status / source of truth (→ `NATCAP_ALIGNMENT.md`)
 **Source of truth for:** How to present and talk about the app
 
 ---

@@ -3,18 +3,12 @@
 **Audience:** Internal
 **Status:** Current
 **Use this for:** How the system is built — the three layers (raster sims → lookup → surrogate), CRS handling, how validation works
-**Do not use this for:** Metric meanings (→ REFERENCE.md) or per-decision rationale (→ DESIGN_NOTES.md)
+**Do not use this for:** Metric meanings (→ ../../REFERENCE.md) or per-decision rationale (→ DESIGN_NOTES.md)
 **Source of truth for:** How the system works
 
 ---
 
-**Purpose:** A high-level map of how the Urban Ecosystem Tradeoff Explorer is built. For someone who needs to understand the system before reading code, or who wants to know where to look for a specific concern.
-
-**Audience:** Anyone — Daniel, future Claude sessions, NatCap collaborators, anyone picking up the project after a break.
-
-**For deeper detail:** `REFERENCE.md` covers methodology (what each metric means, which model produced it). `DESIGN_NOTES.md` covers internal design decisions (options considered, chosen, why). This doc is the orienting overview that sits above both.
-
----
+**For deeper detail:** `../../REFERENCE.md` covers methodology (what each metric means, which model produced it). `DESIGN_NOTES.md` covers internal design decisions (options considered, chosen, why). This doc is the orienting overview that sits above both.
 
 ## At a glance
 
@@ -77,7 +71,7 @@ The Streamlit map rendering uses EPSG:3857 internally (because tile servers and 
 
 **Speed cost.** A single SA `evaluate_scenario()` call takes ~0.9 seconds. MN downtown takes ~0.03 seconds. Too slow for interactive slider response on SA, which is why Layer 2 exists.
 
-**For deeper reading:** `REFERENCE.md` (per-metric methodology), `INVEST_PLACEMENT.md` (placement-strategy formulas), `PLACEMENT_STRATEGY_DIAGNOSTIC.md` (empirical findings).
+**For deeper reading:** `../../REFERENCE.md` (per-metric methodology), `../research/INVEST_PLACEMENT.md` (placement-strategy formulas), `../research/PLACEMENT_STRATEGY_DIAGNOSTIC.md` (empirical findings).
 
 ---
 
@@ -172,11 +166,11 @@ This is the regression gate. Every brief that touches biophysical math or scenar
 
 | If you want to understand... | Read |
 |---|---|
-| What each user-facing metric means | `REFERENCE.md` |
+| What each user-facing metric means | `../../REFERENCE.md` |
 | Why a particular design choice was made | `DESIGN_NOTES.md` |
 | What data the prototype consumes | `DATA_INVENTORY.md` |
 | How aligned the prototype is with NatCap canonical, per city | `CITY_PARITY.md` |
 | Per-methodology NatCap alignment status | `NATCAP_ALIGNMENT.md` |
 | The collaboration log with NatCap | `NATCAP_COLLABORATION.md` |
-| Empirical placement-strategy effect sizes | `PLACEMENT_STRATEGY_DIAGNOSTIC.md` |
-| Per-InVEST-model placement analysis | `INVEST_PLACEMENT.md` |
+| Empirical placement-strategy effect sizes | `../research/PLACEMENT_STRATEGY_DIAGNOSTIC.md` |
+| Per-InVEST-model placement analysis | `../research/INVEST_PLACEMENT.md` |

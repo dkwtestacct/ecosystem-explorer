@@ -3,28 +3,8 @@
 **Audience:** Archive
 **Status:** Superseded (executed)
 **Use this for:** The historical plan for adopting NatCap's SA dataset (Briefs 27+)
-**Do not use this for:** Current SA integration state — the decisions that landed are in DESIGN_NOTES.md
-**Superseded by:** DESIGN_NOTES.md (the SA compound-LULC entries)
-
----
-
-**Purpose:** Plan the multi-brief integration of NatCap's curated SA dataset
-into the prototype. Establishes three foundational decisions (CRS/extent,
-conversion-target mapping, sequence), enumerates the brief sequence with
-scope per brief, and surfaces open questions for future NatCap conversations.
-
-**Audience:** Daniel and future Claude sessions. Not user-facing.
-
-**Relationship to other docs:**
-
-- `CITY_PARITY.md` — per-city alignment matrix. The "SA Compound LULC
-  Framework" subsection in the SA section has the structural inventory
-  (Brief 24). This plan sits on top of it.
-- `NATCAP_COLLABORATION.md` — running collaboration log. SA integration
-  is documented there as an active workstream.
-- `DESIGN_NOTES.md` — internal design decisions. Per-city framing
-  (Briefs 22+23) established the alignment principle this plan executes
-  against.
+**Do not use this for:** Current SA integration state — the decisions that landed are in ../internal/DESIGN_NOTES.md
+**Superseded by:** ../internal/DESIGN_NOTES.md (the SA compound-LULC entries)
 
 ---
 
@@ -41,11 +21,11 @@ What this plan does NOT cover:
 - **NDR model implementation.** NatCap's SA project includes Nutrient
   Delivery Ratio as the 6th model; the prototype implements 5/6. NDR is
   a separate workstream blocked on NatCap sharing DEM and watersheds
-  (see NATCAP_COLLABORATION.md).
+  (see ../internal/NATCAP_COLLABORATION.md).
 - **AlphaEarth integration.** Future LULC pipeline upgrade. Documented
-  in `ALPHAEARTH_FEASIBILITY.md`; deferred pending this SA integration.
+  in `../research/ALPHAEARTH_FEASIBILITY.md`; deferred pending this SA integration.
 - **CoSA per-crop yield data.** Replaces the SA food forest placeholder.
-  Open ask in NATCAP_COLLABORATION.md, blocked on NatCap sharing.
+  Open ask in ../internal/NATCAP_COLLABORATION.md, blocked on NatCap sharing.
 
 ---
 
@@ -181,13 +161,13 @@ table swap is a clean atomic update on top.
 | Brief | Scope | Output impact |
 |---|---|---|
 | 27 | ✅ Done 2026-05-24. Adopt compound LULC raster + crosswalk. Reproject to 5070 + clip. Add `lulc_crosswalk.csv` loading. Add `DEFAULT_FF/GI/HD_LUCODE` config (1310 / 122 / 341, picked from `is_realistic_to_create=yes` rows by descending frequency). Route compound lucodes through to existing per-NLCD tables via crosswalk's `nlcd` column. | Minimal — 97.91 % pixel-wise agreement with prior `land_use_2021_sa.tif`; SA baselines drift <0.5 % on every headline metric (mean_hm, mean_cn, flood_reduction, runoff_acre_feet, nature_access_pct). MN untouched. |
-| 28 | ✅ Done 2026-05-24. Switched SA UCM biophysical table to `ucm__nlcd_nlud_tree.csv`. SA UCM consumers now index the compound LULC raster directly (UFR + UNA still route through compound→NLCD reduction pending Briefs 29-30). Köppen-BSh tuning retired (file preserved on disk for historical reference). | Substantial — `baseline_hm` 0.2866 → 0.3937 (+37%) because the compound table captures tree-canopy variation on developed land that the per-NLCD table couldn't. `cooling_energy_savings_usd` dropped 77-86% across SA scenarios (mechanically explained — see DESIGN_NOTES.md). MN untouched (0 divergences across 20 MN baselines). |
+| 28 | ✅ Done 2026-05-24. Switched SA UCM biophysical table to `ucm__nlcd_nlud_tree.csv`. SA UCM consumers now index the compound LULC raster directly (UFR + UNA still route through compound→NLCD reduction pending Briefs 29-30). Köppen-BSh tuning retired (file preserved on disk for historical reference). | Substantial — `baseline_hm` 0.2866 → 0.3937 (+37%) because the compound table captures tree-canopy variation on developed land that the per-NLCD table couldn't. `cooling_energy_savings_usd` dropped 77-86% across SA scenarios (mechanically explained — see ../internal/DESIGN_NOTES.md). MN untouched (0 divergences across 20 MN baselines). |
 | 29 | ✅ Done 2026-05-24. Switched SA UNA biophysical table to `una__nlcd_nlud_tree.csv` (1,984 rows; `urban_nature` ∈ {0.0, 0.5, 1.0} at 960/48/976). SA UNA consumers now index the compound LULC raster directly via a new `scenario_lulc_una` view threaded through `evaluate_scenario`. The previous Python-dict-iteration lookup over `URBAN_NATURE_PROPORTION` was replaced with a vectorized `urban_nature_arr[scenario_lulc_una]` indexed read. Only Carbon still routes through compound→NLCD reduction (pending Brief 30). | Modest — SA baseline `nature_access_pct` 89.7 → 94.2 (+5.0%, +4.5 pp); baseline people-with-access 1,710,167 → 1,794,653 (+84,486). Random-strategy scenarios shifted ~0.3–6 pp depending on whether they remove urban-nature pixels (high-density: +5.9 pp) or add saturated ones (food_forest already near 100%). Undersupply-focused + balanced placements also shift downstream metrics because the baseline UNA raster feeds suitability weights. MN untouched (0 value divergences across 20 MN baselines — only the new `scenario_lulc_una__md5` field added). |
 | 30 | ✅ Done 2026-05-25. Switched SA Carbon to NatCap's four-pool stock framework via `carbon__nlcd_nlud_tree.csv` (1,984 rows × 27 cols; pools c_above/c_below/c_soil/c_dead in tons C/ha). SA Carbon consumers index `cooling_lulc_compound` directly via a new `scenario_lulc_carbon` view threaded through `evaluate_scenario`. Field rename: `carbon_tons_co2_yr` → `carbon_tons_co2` (unified key; semantics differ per city — annual flow MN, one-time stock SA). Dollar metric reframe: `avoided_carbon_cost_usd` → `carbon_value_usd` with city-conditional dashboard label ("Avoided Carbon Cost"/yr for MN, "Carbon Storage Value" one-time for SA). Methodology matches NatCap's Vibrant Land (Guerry et al. 2023); `EPA_SOCIAL_COST_CARBON=$190/t` kept untouched (EPA 2023 vintage vs Vibrant Land's IWG 2021 $53/t — methodology aligns, SC-CO2 vintage differs intentionally). | Substantial — SA Carbon stock numerically ~30× the prior annual proxy (category-error correction, not a value shift). E.g. SA food_forest_random: 65,264.9 t CO2/yr → 1,936,072 t CO2 stock; green_infrastructure_balanced: 37,294.3 → 4,375,912; high_density now shows negative stock (–849,262, nature loss) where the prior proxy clipped at $0. MN baselines unchanged (zero value divergence across 20 baselines — only the new `scenario_lulc_carbon__md5` field added; hash matches `scenario_lulc__md5` for MN). Order-of-magnitude check vs Vibrant Land's 340,000 t citywide reference: within plausible bounds given different AOI extent + "full conversion" definition. |
 | 31 | ✅ Done 2026-05-25. Switched SA AOI from `data/sa/tracts_bexar.shp` (375 Bexar County TIGER 2020 tracts) to NatCap's `acs_block_groups_3857.gpkg` (1,124 ACS block-group polygons covering the City of San Antonio). Investigation classified as Shape B (mild form) — unit-of-aggregation change with no metric impact. The AOI polygon file is consumed only by `compute_per_tract_summary`'s Neighborhood breakdown table (called at render time, not from `evaluate_scenario`); no biophysical metric depends on the polygon count or boundaries. Dashboard caption made city-conditional ("Census tracts" for MN, "Census block groups" for SA). Per-block-group reporting now parallels NatCap's Vibrant Land Figure 10 equity-analysis framing. | Zero metric impact (all 40 baselines pass without regen); aggregation granularity changes from 375 tracts to 1,124 block groups for the SA Neighborhood breakdown panel; MN untouched. |
 
 Each brief: schema bump, MN-untouched baseline regeneration (SA only),
-WHATS_NEW entry, NATCAP_ALIGNMENT.md row update, CITY_PARITY.md row
+WHATS_NEW entry, ../internal/NATCAP_ALIGNMENT.md row update, ../internal/CITY_PARITY.md row
 flip.
 
 ---
@@ -232,7 +212,7 @@ after Brief 28-30 land.
 
 ## Open questions for NatCap
 
-Bundled with the existing NATCAP_COLLABORATION.md open questions; not
+Bundled with the existing ../internal/NATCAP_COLLABORATION.md open questions; not
 duplicating here. The integration-specific ones are:
 
 1. Are we right that EPSG:5070 (Conus Albers) is the appropriate CRS for
@@ -257,5 +237,5 @@ Update when:
 - A new SA NatCap data file arrives that affects the plan
 - An open question is answered by NatCap
 
-Pair updates with `NATCAP_COLLABORATION.md` and `CITY_PARITY.md` when
+Pair updates with `../internal/NATCAP_COLLABORATION.md` and `../internal/CITY_PARITY.md` when
 relevant.

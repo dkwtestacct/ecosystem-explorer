@@ -20,8 +20,8 @@ Same discipline as `WHATS_NEW` and `verify_baselines.py`.
 ## 1. Metric Methodology Fidelity
 
 The parity table — how close each app metric is to its canonical InVEST
-implementation. Moved here from `REFERENCE.md`; the per-model gap notes
-(UFR, UCM, UNA, UMH, Carbon, Crop) remain in `REFERENCE.md`'s "Official
+implementation. Moved here from `../../REFERENCE.md`; the per-model gap notes
+(UFR, UCM, UNA, UMH, Carbon, Crop) remain in `../../REFERENCE.md`'s "Official
 InVEST alignment" section.
 
 | App metric | Current implementation | InVEST analogue | Parity | Confidence |
@@ -42,7 +42,7 @@ InVEST alignment" section.
 
 **Parity taxonomy:**
 - **Implemented** — App calculation follows InVEST methodology directly.
-- **Approximate** — Math is in the spirit of InVEST but takes documented shortcuts (named in the per-model gap notes in `REFERENCE.md`).
+- **Approximate** — Math is in the spirit of InVEST but takes documented shortcuts (named in the per-model gap notes in `../../REFERENCE.md`).
 - **Proxy** — Output is in the same family as InVEST but the method is fundamentally different.
 - **Inspired-by** — Uses InVEST framing but the underlying calculation isn't from any InVEST model.
 - **N/A** — No meaningful InVEST counterpart.
@@ -220,17 +220,17 @@ table below for granular tracking:
 
 - **Multi-model integration.** Five InVEST urban models are live (UCM, UFR,
   UNA, UMH, Carbon) for both cities. NDR is pending — blocked on SA DEM +
-  watersheds from NatCap. See "Official InVEST alignment" in `REFERENCE.md`.
+  watersheds from NatCap. See "Official InVEST alignment" in `../../REFERENCE.md`.
 - **Spatially realistic scenario generation.** Roads, buildings, and existing
   nature are unioned into a non-convertible placement mask. For San Antonio
   the prototype additionally preserves each pixel's (NLUD, tree-canopy)
   context through conversion using NatCap's compound crosswalk. See
-  `REFERENCE.md` "Land-use alignment".
+  `../../REFERENCE.md` "Land-use alignment".
 - **Optimization and cost-effectiveness.** A Random Forest surrogate trained
   on a precomputed scenario grid drives Pareto search in "Find Best Scenario".
   Cost-effectiveness ratios (dollars per unit benefit) are reported alongside
   biophysical metrics in the dashboard's Cost Effectiveness card group. See
-  `REFERENCE.md` "Division of labor" for the architectural split.
+  `../../REFERENCE.md` "Division of labor" for the architectural split.
 
 **Main pending work** (also tracked per-row in the Research Direction Status
 table below): NDR for SA (pending NatCap DEM + watersheds), per-crop CoSA
@@ -252,7 +252,7 @@ prototype's status on each.
 | PLUS land-use simulation | "Existing models" in NatCap document | 🔵 Considered, deferred | C++/Qt app, integration heavy; see `DESIGN_NOTES.md` |
 | CLUE land-use simulation | "Existing models" in NatCap document | 🔵 Considered, deferred | Java-based; same constraints as PLUS |
 | LCM (Land Change Modeler) | "Existing models" in NatCap document | 🔵 Not pursued — proprietary | Can't ship in an open-source prototype |
-| AlphaEarth satellite embeddings (NDVI replacement) | Identified as future direction | 🔵 Feasibility researched, not implemented | See `ALPHAEARTH_FEASIBILITY.md` |
+| AlphaEarth satellite embeddings (NDVI replacement) | Identified as future direction | 🔵 Feasibility researched, not implemented | See `../research/ALPHAEARTH_FEASIBILITY.md` |
 | Land ownership layer | "Future consideration" in NatCap document | 🔵 Not pursued | Out of scope for current prototype |
 | San Antonio as full pilot | Active NatCap research direction | 🔄 In progress | Pending SA data folder access |
 | Carbon Storage and Sequestration model (deeper) | Listed as additional model for consideration | 🔵 Not pursued | Current single-rate approach simpler |

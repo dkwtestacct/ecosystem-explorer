@@ -3,7 +3,7 @@
 **Audience:** Research
 **Status:** Research — forward-looking, not acted on
 **Use this for:** The feasibility assessment of AlphaEarth embeddings as a future LULC source; agenda for the Yingjie conversation
-**Do not use this for:** Current data the app uses (→ DATA_INVENTORY.md) — AlphaEarth is not integrated
+**Do not use this for:** Current data the app uses (→ ../internal/DATA_INVENTORY.md) — AlphaEarth is not integrated
 **Source of truth for:** AlphaEarth feasibility findings
 
 ---

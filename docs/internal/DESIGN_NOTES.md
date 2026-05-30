@@ -8,19 +8,6 @@
 
 ---
 
-**Purpose:** Internal design decisions for the Urban Ecosystem Tradeoff Explorer. Records what options were considered, what was chosen, and why — for decisions that don't surface to users or to NatCap collaborators.
-
-**Audience:** Future Claude sessions and Daniel-six-months-from-now. Not user-facing; not part of the NatCap collaboration log.
-
-**Related docs:**
-
-- `REFERENCE.md` — user-facing methodology (what each metric means).
-- `ARCHITECTURE.md` — three-layer system overview.
-- `NATCAP_COLLABORATION.md` — running collaboration log with NatCap (asks, gaps, decisions made without confirmation, open questions).
-- `NATCAP_ALIGNMENT.md` — per-surface alignment status.
-- `CITY_PARITY.md` — per-city alignment matrix.
-- `DATA_INVENTORY.md` — every external data source the prototype consumes.
-
 ---
 
 ## City-specific copy convention
@@ -213,7 +200,7 @@ flood-focused, cooling-focused, equity-focused, balanced) operate only on
 that remaining candidate area. Implementation: `_load_city_runtime_state`
 in `app.py` (Phase 9 rasterizes roads and unions them into
 `buildings_raster`; Phase 11 builds `convertible_pixels`); see also
-CLAUDE.md "OSM road exclusion".
+../../CLAUDE.md "OSM road exclusion".
 
 **Bounded by design.** This is a deliberately modest spatial-fidelity
 improvement: it constrains *where* conversions can physically land using
@@ -381,7 +368,7 @@ takes more time and results in undoing previous work."* This document
 records the chosen formulas; the rationale per strategy is above; the
 methodology shift is real, not cosmetic — the new formulas can produce
 materially different scenario outputs from the old ones. Brief 9's
-verify_baselines regeneration and PLACEMENT_STRATEGY_DIAGNOSTIC.md
+verify_baselines regeneration and ../research/PLACEMENT_STRATEGY_DIAGNOSTIC.md
 re-run capture the empirical impact.
 
 ## Land use and land cover sources
@@ -400,7 +387,7 @@ each use a single raster for both flood and cooling.
 
 | City (role) | Path | CRS | Dimensions | Notes |
 |---|---|---|---|---|
-| Minneapolis — cooling & scenario LULC | `data/cooling/land_use_2021.tif` | EPSG:26915 | 356 × 360, int16 | The canonical scenario raster. **Byte-identical to the InVEST UNA sample** LULC — see `UNA_LULC_INVESTIGATION.md` (MD5 `56d1080fa70576cad15896642a107a3d`). |
+| Minneapolis — cooling & scenario LULC | `data/cooling/land_use_2021.tif` | EPSG:26915 | 356 × 360, int16 | The canonical scenario raster. **Byte-identical to the InVEST UNA sample** LULC — see `../research/una/UNA_LULC_INVESTIGATION.md` (MD5 `56d1080fa70576cad15896642a107a3d`). |
 | Minneapolis — flood / CN LULC | `data/flood/LULC_NLCD_2021_MN.tif` | EPSG:26915 | 356 × 360, int16 | Drives the Curve Number / flood calculation. Same AOI and grid as the cooling LULC but a distinct file (MD5 `a8687db9f76394aa1333b8a3d35ec57e`) — from the InVEST UFR sample bundle rather than UCM/UNA. |
 | Minneapolis Full (dormant) | `data/minneapolis_expanded/lulc_nlcd_2021_mpls_full.tif` | EPSG:5070 | 607 × 374, uint8 | `available=False` — hidden from the city selector. One raster for both flood and cooling. |
 | San Antonio | `data/sa/flood/land_use_2021_sa.tif` | EPSG:5070 | 1713 × 1984, uint8 | One raster for both flood and cooling (the `cooling_lulc_file` is a `../flood/` relative reference to the same file). Independently sourced via `download_sa_data.py`. |
@@ -579,7 +566,7 @@ noted in `NATCAP_COLLABORATION.md` as an open question.
 
 Brief 27 adopted NatCap's compound NLCD×NLUD×tree-canopy LULC framework
 for SA, with three judgment calls worth recording durably (the
-planning artifact `SA_INTEGRATION_PLAN.md` walks through the same
+planning artifact `../archive/SA_INTEGRATION_PLAN_2026-05.md` walks through the same
 decisions ahead of execution; this section is the long-lived record
 once that planning artifact ages out of relevance).
 
@@ -670,7 +657,7 @@ converted scenario rather than the NLCD-only `scenario_lulc`.
 - Whether MN should also migrate to compound LULC. Out of scope — MN's
   NLCD-only framework works and NatCap hasn't shipped MN compound data.
 - When to swap each per-model biophysical table to compound-keyed.
-  Brief sequence in `SA_INTEGRATION_PLAN.md`.
+  Brief sequence in `../archive/SA_INTEGRATION_PLAN_2026-05.md`.
 - Whether to switch SA AOI to NatCap's `acs_block_groups_3857.gpkg`.
   Optional (Brief 31).
 - The compound `code` column encoding scheme — not positional, no
@@ -990,7 +977,7 @@ continues to use `CARBON_SEQ_RATES` (FF 3.5, GI 2.0, HD 0.0 t
 CO2e/acre/yr) via `_compute_carbon(n_wet, n_for, n_hd)` — the
 per-conversion-type annual flow. The cross-city temporal-framing
 divergence is per the project's "align with NatCap canonical, per
-city" working principle (CLAUDE.md). Replacing MN with a four-pool
+city" working principle (../../CLAUDE.md). Replacing MN with a four-pool
 framework would require sourcing NatCap MN data of the same shape, out
 of scope for this brief.
 
@@ -1020,7 +1007,7 @@ Brief 31 swapped SA's `tracts_file` config pointer from
 NatCap's `data/sa/natcap_2024/acs_block_groups_3857.gpkg` (1,124 ACS
 block-group polygons covering the City of San Antonio). Final brief
 in the SA NatCap data integration workstream per
-SA_INTEGRATION_PLAN.md.
+../archive/SA_INTEGRATION_PLAN_2026-05.md.
 
 **Shape determination (per the brief's investigate-first
 classification).** Shape B (mild form) — unit-of-aggregation change.
@@ -1270,7 +1257,7 @@ def compute_lookup_table(_state, city_key, data_dir_flood,
 
 When `SCENARIO_SCHEMA_VERSION` is bumped (the standard discipline
 for any change to `evaluate_scenario`'s return-dict shape or
-semantics — see CLAUDE.md), all cached lookup entries are
+semantics — see ../../CLAUDE.md), all cached lookup entries are
 automatically invalidated. The lookup table is rebuilt from
 scratch using the current `evaluate_scenario`. Every field loaded
 from a lookup row is therefore guaranteed to be schema-current.
@@ -1439,11 +1426,11 @@ correctness fix to the current architecture.
 
 **Where ROOT shows up in the docs:**
 
-- `REFERENCE.md` Balanced placement strategy (~line 255) — pointer to
+- `../../REFERENCE.md` Balanced placement strategy (~line 255) — pointer to
   ROOT for true multi-objective optimization
-- `REFERENCE.md` Cost Effectiveness section (~line 549) — pointer to
+- `../../REFERENCE.md` Cost Effectiveness section (~line 549) — pointer to
   ROOT for cost-as-factor optimization
-- `REFERENCE.md` Smart Scenario Search (~line 665) — explicit
+- `../../REFERENCE.md` Smart Scenario Search (~line 665) — explicit
   Relationship-to-ROOT paragraph
 - `NATCAP_ALIGNMENT.md` Research-direction synthesis (~line 140) —
   ROOT listed under "Main pending work" with framing as not currently
@@ -1532,11 +1519,11 @@ unaffected.
   not a real CDC/ATSDR HVI. The placement-exclusion note (buildings + roads
   excluded via OSM) already lives in the map's "Assumptions and limitations"
   expander, so nothing was added there.
-- **Doc scope.** REFERENCE.md, NATCAP_ALIGNMENT.md, SUMMARY.md, and
+- **Doc scope.** ../../REFERENCE.md, NATCAP_ALIGNMENT.md, ../archive/SUMMARY_2026-05.md, and
   `app.py`'s methodology-tab pointer originally kept the old "Flood Risk
   Reduction" wording, deferred because the rename cascades through internal
   cross-references. **Resolved by the Brief 6 doc-sweep**, which renamed
-  them all to "Flood Retention" (the REFERENCE.md heading plus every prose,
+  them all to "Flood Retention" (the ../../REFERENCE.md heading plus every prose,
   table, and cross-reference mention; no `#flood-risk-reduction` anchor
   links existed, so nothing broke). No WHATS_NEW entry was added — these
   are clarity/consistency tweaks that don't clear the "would a returning
@@ -1648,7 +1635,7 @@ arrived in InVEST 3.18/3.19 which require Python ≥3.10 (the installed 3.16.2 i
 anaconda base has no `urban_mental_health` module at all). So the validation
 runs in a dedicated isolated conda env — **neither the app `.venv` nor anaconda
 base was modified.** The two-environment "decoupled" harness pattern is
-documented in `CONTRIBUTING.md` "Canonical-InVEST validation environments".
+documented in `../dev/CONTRIBUTING.md` "Canonical-InVEST validation environments".
 
 **Results (matched inputs, per outcome, both cities):**
 
@@ -1670,7 +1657,7 @@ r ≈ 0.95–0.98 rather than the MAE≈0 of UCM/UNA. `effect_size` semantics we
 confirmed correct (= RR per 0.1 NDVI): if they were wrong the totals would
 diverge, and they don't. The prototype's old code comment claiming the Gaussian
 "matches the canonical behavior" was inaccurate and has been corrected
-(app.py); REFERENCE.md already framed it as "similar but not identical" and now
+(app.py); ../../REFERENCE.md already framed it as "similar but not identical" and now
 carries the quantified result.
 
 **Decision: document, don't change the formula (Option A).** The reported

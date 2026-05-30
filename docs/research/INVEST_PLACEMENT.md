@@ -3,7 +3,7 @@
 **Audience:** Research
 **Status:** Research — findings absorbed
 **Use this for:** Per-InVEST-model analysis of placement-strategy effects (the investigation record)
-**Do not use this for:** Current placement behavior — that lives in DESIGN_NOTES.md / the code
+**Do not use this for:** Current placement behavior — that lives in ../internal/DESIGN_NOTES.md / the code
 **Historical record of:** Per-model placement-strategy analysis
 
 ---
@@ -297,7 +297,7 @@ step rather than a suitability weight.
 This section was written as forward-looking recommendations during the
 placement research; most items have since landed in the app. Marked
 status follows each recommendation; full details for the shipped pieces
-are in `DESIGN_NOTES.md` and CLAUDE.md.
+are in `../internal/DESIGN_NOTES.md` and ../../CLAUDE.md.
 
 1. **Implement a single suitability-weighted placement mode** as an
    alternative to uniform random sampling. The mode computes a per-pixel
@@ -330,7 +330,7 @@ are in `DESIGN_NOTES.md` and CLAUDE.md.
    as an app-specific placement heuristic informed by InVEST model
    structure but not part of any InVEST model.
 
-   **Status: shipped.** `REFERENCE.md` "Placement strategies" includes
+   **Status: shipped.** `../../REFERENCE.md` "Placement strategies" includes
    the "No InVEST parity claim" caveat.
 
 5. **Validate before shipping.** Run the suitability-weighted mode

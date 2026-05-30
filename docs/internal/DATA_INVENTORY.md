@@ -3,14 +3,14 @@
 **Audience:** Internal
 **Status:** Current
 **Use this for:** Every external data source the app consumes — per-city, per-category, with provenance and producing script
-**Do not use this for:** How metrics are computed (→ REFERENCE.md) or model alignment (→ NATCAP_ALIGNMENT.md)
+**Do not use this for:** How metrics are computed (→ ../../REFERENCE.md) or model alignment (→ NATCAP_ALIGNMENT.md)
 **Source of truth for:** What data exists and where it comes from
 
 ---
 
 **Purpose:** A canonical reference for every data source the Urban Ecosystem Tradeoff Explorer prototype consumes. Covers both supported cities (Minneapolis, San Antonio) and the dormant Minneapolis Full configuration, organized by data category rather than by city. The goal is that any future session can read this file and understand what data exists, where it lives, what it's for, and what's pending — without re-discovering the same context from scratch.
 
-**Status:** v1 finalized 2026-05-24. v2 audited 2026-05-26 against the live repo (post-Brief 33) — reconciled with Briefs 14 (SA UHI), 23 (per-city rainfall), 27 (compound LULC), 28b (compound UCM), 29 (compound UNA), 30 (four-pool Carbon), 31 (ACS block groups), 33 (Flood Volume Reduction reframe). Maintained alongside `REFERENCE.md`, `DESIGN_NOTES.md`, and `NATCAP_ALIGNMENT.md`.
+**Status:** v1 finalized 2026-05-24. v2 audited 2026-05-26 against the live repo (post-Brief 33) — reconciled with Briefs 14 (SA UHI), 23 (per-city rainfall), 27 (compound LULC), 28b (compound UCM), 29 (compound UNA), 30 (four-pool Carbon), 31 (ACS block groups), 33 (Flood Volume Reduction reframe). Maintained alongside `../../REFERENCE.md`, `DESIGN_NOTES.md`, and `NATCAP_ALIGNMENT.md`.
 
 **Scope:** External data sources the prototype consumes — rasters, vectors, tabular data, biophysical parameter tables. Derived intermediates and runtime-computed rasters are *not* enumerated here (those live in code).
 
@@ -88,7 +88,7 @@ The prototype uses **NLCD 2021** (legacy MRLC product) across all currently acti
 
 | Role | Path | CRS | Dimensions | Source | Provenance |
 |---|---|---|---|---|---|
-| Cooling & scenario LULC | `data/cooling/land_use_2021.tif` | EPSG:26915 (UTM 15N) | 356 × 360, int16 | InVEST UNA sample bundle | **Byte-identical** to the InVEST UNA sample LULC (MD5 `56d1080fa70576cad15896642a107a3d`). See `UNA_LULC_INVESTIGATION.md`. |
+| Cooling & scenario LULC | `data/cooling/land_use_2021.tif` | EPSG:26915 (UTM 15N) | 356 × 360, int16 | InVEST UNA sample bundle | **Byte-identical** to the InVEST UNA sample LULC (MD5 `56d1080fa70576cad15896642a107a3d`). See `../research/una/UNA_LULC_INVESTIGATION.md`. |
 | Flood / CN LULC | `data/flood/LULC_NLCD_2021_MN.tif` | EPSG:26915 | 356 × 360, int16 | InVEST UFR sample bundle | Same AOI and grid as the cooling LULC but a distinct file (MD5 `a8687db9f76394aa1333b8a3d35ec57e`). |
 
 Minneapolis downtown is the only city where flood and cooling use *different* LULC rasters — an artifact of inheriting from separate InVEST sample bundles (UFR vs UCM/UNA). The originals are preserved under `data/invest/flood/UFR_sample_data_MN/LULC_NLCD_2021_MN.tif` and `data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_NLCD_2021.tif`.
@@ -255,7 +255,7 @@ Used for the InVEST UNA per-capita supply calculation, neighborhood reporting, a
 |---|---|---|---|
 | `data/population/minneapolis_pop_2020.tif` | US Census 2020 block-level (canonical) | `download_census_pop.py` | 2020 |
 
-**Caveat:** the repo also contains `clip_worldpop.py`, an *alternative* MN downtown population pipeline that produces the same output path from a USA WorldPop raster. Both scripts target `data/population/minneapolis_pop_2020.tif`. The canonical setup per REFERENCE.md / CLAUDE.md is the Census pipeline. The on-disk file's provenance cannot be determined from the file alone; if WorldPop was the source, totals would diverge from the Census reference.
+**Caveat:** the repo also contains `clip_worldpop.py`, an *alternative* MN downtown population pipeline that produces the same output path from a USA WorldPop raster. Both scripts target `data/population/minneapolis_pop_2020.tif`. The canonical setup per ../../REFERENCE.md / ../../CLAUDE.md is the Census pipeline. The on-disk file's provenance cannot be determined from the file alone; if WorldPop was the source, totals would diverge from the Census reference.
 
 TIGER 2020 tabulation-block polygons (cached under `data/population/tiger/`) join to the Census table via `GEOID20` and rasterize to the active grid.
 
@@ -333,7 +333,7 @@ For Minneapolis Full, the raster extrapolates beyond its native extent at the bb
 |---|---|---|---|
 | `data/sa/cooling/et_annual_sa.tif` | CGIAR Global-AI/ET0 v3.1 (raw 645 MB zip preserved at `data/sa/cooling/cgiar_et0/Global-AI_ET0__annual_v3_1.zip` → reprojected `et0_v31_yr.tif`), reprojected to EPSG:5070 | 30 arc-seconds (~1 km) | Annual PET 1,580–1,716 mm/yr (mean 1,657) for the SA bbox |
 
-Pipeline: `download_et_sa.py`. SA's PET is ~50% higher than MN's ~1,140 mm/yr, but enters the CC formula via normalized ETI so absolute mm/yr cancels (see REFERENCE.md "Cross-city Heat Mitigation Index comparison").
+Pipeline: `download_et_sa.py`. SA's PET is ~50% higher than MN's ~1,140 mm/yr, but enters the CC formula via normalized ETI so absolute mm/yr cancels (see ../../REFERENCE.md "Cross-city Heat Mitigation Index comparison").
 
 ### San Antonio (NatCap-curated, pending integration)
 
@@ -455,17 +455,17 @@ For completeness — these are project documentation files in the repo root:
 
 | File | Purpose |
 |---|---|
-| `REFERENCE.md` | User-facing methodology reference. Metric cards, data sources, computation architecture. |
+| `../../REFERENCE.md` | User-facing methodology reference. Metric cards, data sources, computation architecture. |
 | `DESIGN_NOTES.md` | Internal methodology decisions. Options considered, rationale, open questions. |
 | `NATCAP_ALIGNMENT.md` | Per-surface alignment status with NatCap recommendations. Six tables. |
-| `INVEST_PLACEMENT.md` | Per-InVEST-model placement-strategy analysis. |
-| `PLACEMENT_STRATEGY_DIAGNOSTIC.md` | Empirical measurements of placement-strategy effects (Brief 6 baseline + Brief 9 reformulation findings). |
-| `ALPHAEARTH_FEASIBILITY.md` | Research on AlphaEarth Foundations as future LULC source. |
-| `UNA_DIVERGENCE_CASE_STUDIES.md`, `UNA_METHODOLOGY_CROSS_CHECK.md`, `UNA_QUALITY_SCORE_SENSITIVITY.md`, `UNA_LULC_INVESTIGATION.md` | UNA-specific investigations leading to the "temporarily removed" status of the Nature Quality Score. |
-| `CLAUDE.md` | Working principles for Claude sessions. |
-| `SPEC.md` | One-line: design specification — purpose, intended users, scope boundaries. Pre-dates most of the per-model methodology docs. |
-| `SUMMARY.md`, `SUMMARY.docx`, `SUMMARY.pdf` | High-level prototype summary, refreshed in Brief 8 Addendum 2. |
-| `REFERENCE.docx` | Word-format copy of REFERENCE.md, may lag the live `.md`. |
+| `../research/INVEST_PLACEMENT.md` | Per-InVEST-model placement-strategy analysis. |
+| `../research/PLACEMENT_STRATEGY_DIAGNOSTIC.md` | Empirical measurements of placement-strategy effects (Brief 6 baseline + Brief 9 reformulation findings). |
+| `../research/ALPHAEARTH_FEASIBILITY.md` | Research on AlphaEarth Foundations as future LULC source. |
+| `../research/una/UNA_DIVERGENCE_CASE_STUDIES.md`, `../research/una/UNA_METHODOLOGY_CROSS_CHECK.md`, `../research/una/UNA_QUALITY_SCORE_SENSITIVITY.md`, `../research/una/UNA_LULC_INVESTIGATION.md` | UNA-specific investigations leading to the "temporarily removed" status of the Nature Quality Score. |
+| `../../CLAUDE.md` | Working principles for Claude sessions. |
+| `../archive/SPEC_original.md` | One-line: design specification — purpose, intended users, scope boundaries. Pre-dates most of the per-model methodology docs. |
+| `../archive/SUMMARY_2026-05.md`, `SUMMARY.docx`, `SUMMARY.pdf` | High-level prototype summary, refreshed in Brief 8 Addendum 2. |
+| `REFERENCE.docx` | Word-format copy of ../../REFERENCE.md, may lag the live `.md`. |
 | `requirements.txt` | Python dependencies. |
 | `runtime.txt` | One-line: `python-3.11`. Streamlit Cloud uses this to pin the Python version. |
 
@@ -475,12 +475,12 @@ For completeness — these are project documentation files in the repo root:
 
 | Integration | Status | Tracked in |
 |---|---|---|
-| Minneapolis downtown (cooling, flood, UNA, buildings, soil, population, tracts) | ✅ Active and validated | REFERENCE.md, DESIGN_NOTES.md |
+| Minneapolis downtown (cooling, flood, UNA, buildings, soil, population, tracts) | ✅ Active and validated | ../../REFERENCE.md, DESIGN_NOTES.md |
 | Minneapolis Full | ⏸️ Dormant — `available=False` in city config | DESIGN_NOTES.md |
-| San Antonio current (independent NLCD + four-class hot-semi-arid cooling tuning) | ✅ Active | REFERENCE.md (SA caveats) |
-| San Antonio NatCap-curated (NLCD+NLUD+tree compound lucode framework) | ✅ Adopted across LULC raster (Brief 27), UCM (Brief 28b), UNA (Brief 29), Carbon (Brief 30), and ACS block groups (Brief 31) | This doc §2/§6/§8/§9. Reflected in NATCAP_ALIGNMENT.md, CITY_PARITY.md, REFERENCE.md per their respective briefs. |
+| San Antonio current (independent NLCD + four-class hot-semi-arid cooling tuning) | ✅ Active | ../../REFERENCE.md (SA caveats) |
+| San Antonio NatCap-curated (NLCD+NLUD+tree compound lucode framework) | ✅ Adopted across LULC raster (Brief 27), UCM (Brief 28b), UNA (Brief 29), Carbon (Brief 30), and ACS block groups (Brief 31) | This doc §2/§6/§8/§9. Reflected in NATCAP_ALIGNMENT.md, CITY_PARITY.md, ../../REFERENCE.md per their respective briefs. |
 | Annual NLCD migration | 🔵 Not pursued — would require complete revalidation | DESIGN_NOTES.md "NLCD legacy vs Annual NLCD" |
-| AlphaEarth satellite embeddings | 🔵 Feasibility research only | ALPHAEARTH_FEASIBILITY.md |
+| AlphaEarth satellite embeddings | 🔵 Feasibility research only | ../research/ALPHAEARTH_FEASIBILITY.md |
 | SA building damage rates per-city | ✅ Resolved Brief 33 (Path C — match NatCap's Vibrant Land methodology, render "Flood Volume Reduction" instead of monetized damage). Reversible if NatCap surfaces SA-specific damage values. | DESIGN_NOTES.md "SA flood damage table — resolved (Path C, Brief 33)" |
 
 ---
