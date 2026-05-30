@@ -8,7 +8,7 @@
 
 ---
 
-Raw analytical material for `UNA_METRIC_COMPARISON.md`. Identifies specific
+Raw material for a planned UNA metric-comparison narrative (not yet written). Identifies specific
 Minneapolis locations where the prototype's reachability proxy and canonical
 InVEST 2SFCA diverge most, with thorough per-location characterization. **This
 is raw material, not finished prose — the narrative case studies are Deborah's

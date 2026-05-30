@@ -271,7 +271,7 @@ Further extractions (loaders, scenario.py, plots.py) remain deferred — they're
   → $/yr (× `COST_PER_KWH_USD`); still per-pixel, not per-building polygon —
   the one remaining UCM divergence. The HMI algorithm is validated against
   `natcap.invest.urban_cooling_model.execute()` at MAE = 0.0000, r = 1.0000
-  (`compare_ucm_invest.py`); see `UCM_AUDIT.md` for the implementation-status
+  (`compare_ucm_invest.py`); see `data/invest/cooling/UCM_AUDIT.md` for the implementation-status
   writeup and REFERENCE.md "Official InVEST alignment — UCM" for the per-metric
   parity table. Both functions are called inside `evaluate_scenario`; the loader
   builds the baseline via the pure variant `_compute_hmi_raster_pure`.

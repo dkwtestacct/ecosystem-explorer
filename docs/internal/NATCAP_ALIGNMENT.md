@@ -261,7 +261,7 @@ prototype's status on each.
 
 ## 6. Vocabulary and Reporting Alignment
 
-Tracks how the prototype's user-facing vocabulary (metric card names, tooltips, axis labels, prose) aligns with InVEST canonical terminology. Surfaced by the 2026-05-23 vocabulary audit (`NATCAP_VOCABULARY_AUDIT.md`).
+Tracks how the prototype's user-facing vocabulary (metric card names, tooltips, axis labels, prose) aligns with InVEST canonical terminology. Surfaced by the 2026-05-23 vocabulary audit.
 
 | Surface | Current wording | InVEST canonical | Status |
 |---|---|---|---|
