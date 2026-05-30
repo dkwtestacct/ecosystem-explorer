@@ -63,6 +63,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "A single comparison table on the Tradeoff Analysis tab now puts NatCap's published scenarios, the current scenario, and any you've saved side by side — each row labeled with its source and how it's validated, so you can compare different kinds of scenarios honestly. (San Antonio shows NatCap anchors; Minneapolis shows your current and saved scenarios.)",
     "The scenario optimizer is now framed as scenario discovery, and an applied optimizer suggestion is labeled as such — in the scenario header and in its exported InVEST bundle — instead of being indistinguishable from a manually built scenario.",
     "Every scenario now shows its source and validation status at the top — NatCap published reference, baseline, engine-validated Explorer scenario, or surrogate-suggested optimizer suggestion — so it's always clear how grounded a given scenario is.",
     "San Antonio now has a sidebar option to load NatCap's project scenarios (baseline + the six food-forest and urban-agriculture alternatives) alongside Explorer scenarios. Every metric card carries a validation badge — \"NatCap published value\" where the number is sourced from NatCap directly, \"≈ NatCap method\" or \"≈ Aligned method\" for prototype computations using NatCap-aligned methodology, and \"Prototype\" for exploratory metrics.",
@@ -5298,6 +5299,191 @@ with tab2:
         if s.get("city", selected_city) == selected_city
     ]
 
+    # ── Cross-source comparison table (Brief #5) ──
+    # Always shows the active scenario as a row (marked ▶ Current), plus
+    # NatCap fixed scenarios as anchor rows on SA, plus any saved scenarios
+    # for the active city. Source / Validation columns drive off per-row
+    # provenance (Brief #3 wording). MN currently has no NatCap anchors;
+    # the rest of the table works unchanged. Flood is intentionally excluded
+    # (different derivations between baseline and NatCap alternatives —
+    # the per-scenario flood card is the right place for that). Carbon $
+    # column is labeled (derived) on every row because it's the prototype's
+    # own NatCap-carbon × EPA SC-CO2 multiplication, not itself a NatCap-
+    # published dollar value.
+    st.markdown("#### Compare scenarios")
+    st.caption(
+        ("NatCap-published reference scenarios, t"
+         if selected_city.startswith("San Antonio") else "T")
+        + "he current scenario, and any you've saved — side by side. "
+        "**Source** says where the value comes from; **Validation** says how "
+        "it's grounded. Different sources are not directly comparable as "
+        "precision numbers; the columns make the difference visible."
+    )
+
+    def _cs_source_validation(prov):
+        info = _PROVENANCE_HEADER_INFO.get(
+            prov, ("Unknown", "provenance not recorded", "gray"))
+        return info[0], info[1]
+
+    # Short Validation cell labels. The full Brief #3 wording (kept in
+    # `_PROVENANCE_HEADER_INFO`) is moved to the column-header tooltip via
+    # column_config to keep the table from getting cramped.
+    _CS_SHORT_VAL = {
+        eib.PROVENANCE_BASELINE:     "engine verified",
+        eib.PROVENANCE_NATCAP_FIXED: "displayed (NatCap)",
+        eib.PROVENANCE_EXPLORER:     "engine verified",
+        eib.PROVENANCE_OPTIMIZER:    "engine + full-raster",
+    }
+    def _cs_short_validation(prov):
+        return _CS_SHORT_VAL.get(prov, "—")
+
+    def _cs_row_metrics(r):
+        """Metric cells for a row drawn from a results-shaped dict (current
+        or saved). Each cell returns "—" when the value is missing; 0 is
+        a legitimate value and renders normally."""
+        v_temp     = r.get('temp_change_f')
+        v_carbon   = r.get('carbon_tons_co2')
+        v_carbon_d = r.get('carbon_value_usd')
+        v_cool     = r.get('cooling_energy_savings_usd')
+        v_una      = r.get('nature_access_pct')
+        v_food     = r.get('food_mln_lbs')
+        v_mh       = r.get('preventable_mh_cases')
+        v_cost     = r.get('total_cost_mln')
+        return {
+            "Temperature":              _fmt_temp_change(v_temp) if v_temp is not None else "—",
+            "Carbon stock":             f"{v_carbon/1e6:+.2f}M t CO2e" if v_carbon is not None else "—",
+            "Carbon Value $ (derived)": f"${v_carbon_d/1e6:+.0f}M"     if v_carbon_d is not None else "—",
+            "Cooling Energy $":         f"${v_cool/1e6:.2f}M/yr"       if v_cool is not None else "—",
+            "Nature Access %":          f"{v_una:.1f}%"                if v_una is not None else "—",
+            "Food (M lbs)":             f"{v_food:.2f}"                if v_food is not None else "—",
+            "MH cases":                 f"{int(v_mh):,}"               if v_mh is not None else "—",
+            "Cost $M":                  f"${v_cost:.1f}M"              if v_cost is not None else "—",
+        }
+
+    _cs_rows = []
+
+    # ── 1. NatCap anchor rows (SA only) ──
+    if selected_city.startswith("San Antonio"):
+        _src_natcap = _cs_source_validation(eib.PROVENANCE_NATCAP_FIXED)[0]
+        _val_natcap = _cs_short_validation(eib.PROVENANCE_NATCAP_FIXED)
+        for _sid in ns.SA_NATCAP_FIXED_SCENARIOS.keys():
+            _spec = ns.SA_NATCAP_FIXED_SCENARIOS[_sid]
+            _, _bv_t_s, _dT_s = nv.published_delta(selected_city, _sid, "temp_change_f")
+            _, _bv_c_s, _dC_s = nv.published_delta(selected_city, _sid, "carbon_tons_co2")
+            if _sid == "baseline":
+                # Every other row in these three columns is Δ-vs-baseline.
+                # Show "baseline" here rather than absolutes so each column
+                # is on a single basis. NatCap's absolute citywide anchors
+                # (90.08 °F, 107.32M t CO2e, $20.39B) are surfaced in the
+                # Tab 4 reference view, not mixed into this Δ-basis table.
+                _t_str  = "baseline"
+                _c_str  = "baseline"
+                _cv_str = "baseline"
+            else:
+                _t_str  = (f"{_fmt_temp_change(_dT_s)} ({_dT_s:+.3f} °F)"
+                           if _dT_s is not None else "—")
+                _c_str  = (f"{_dC_s / 1e6:+.2f}M t CO2e"
+                           if _dC_s is not None else "—")
+                _cv_str = (f"${_dC_s * EPA_SOCIAL_COST_CARBON / 1e6:+.0f}M"
+                           if _dC_s is not None else "—")
+            _cs_rows.append({
+                "Scenario":                 _spec["label"],
+                "Source":                   _src_natcap,
+                "Validation":               _val_natcap,
+                "Temperature":              _t_str,
+                "Carbon stock":             _c_str,
+                "Carbon Value $ (derived)": _cv_str,
+                "Cooling Energy $":         "—",
+                "Nature Access %":          "—",
+                "Food (M lbs)":             "—",
+                "MH cases":                 "—",
+                "Cost $M":                  "—",
+            })
+
+    # ── 2. Current scenario row ──
+    # Provenance detection mirrors the Brief #3 main-panel header at
+    # _scen_provenance below. (Re-derived locally here because tab2 runs on
+    # every rerun regardless of which tab is visible — we need a fresh read
+    # from results / session_state each time.)
+    if results['pct_converted'] == 0:
+        _cur_prov = eib.PROVENANCE_BASELINE
+        _cur_label = f"▶ Current — Baseline ({selected_city})"
+    elif st.session_state.get("applied_from_optimizer"):
+        _cur_prov = eib.PROVENANCE_OPTIMIZER
+        _cur_label = f"▶ Current — Optimizer suggestion · {results['scenario_name']}"
+    else:
+        _cur_prov = eib.PROVENANCE_EXPLORER
+        _cur_label = f"▶ Current — {results['scenario_name']}"
+    _cs_cur_src = _cs_source_validation(_cur_prov)[0]
+    _cs_rows.append({
+        "Scenario":   _cur_label,
+        "Source":     _cs_cur_src,
+        "Validation": _cs_short_validation(_cur_prov),
+        **_cs_row_metrics(results),
+    })
+
+    # ── 3. Saved scenarios for this city ──
+    for _saved in _saved_for_city:
+        _prov = _saved.get("provenance")
+        if _prov is None:
+            # Backfill for older in-memory saves predating Brief #5: best-
+            # effort guess from the scenario fields. The applied-from-
+            # optimizer flag was an in-memory state at save time, so we can't
+            # recover OPTIMIZER for older saves — they read as EXPLORER /
+            # BASELINE, which is the safer underclaim.
+            _prov = (eib.PROVENANCE_BASELINE if _saved.get("pct_converted", 0) == 0
+                     else eib.PROVENANCE_EXPLORER)
+        _src = _cs_source_validation(_prov)[0]
+        _label = _saved.get("display_name") or _saved.get("scenario_name") or "(unnamed save)"
+        _cs_rows.append({
+            "Scenario":   _label,
+            "Source":     _src,
+            "Validation": _cs_short_validation(_prov),
+            **_cs_row_metrics(_saved),
+        })
+
+    # Full Brief #3 wording lives in a column-header tooltip so the cells
+    # can stay compact. Source/Validation cell labels are the short form;
+    # hover the column header for the source-to-validation mapping.
+    _validation_help = (
+        "Each source has a different validation context:\n\n"
+        "• **NatCap reference** — displayed from NatCap published output; exact scenario raster / aggregation not available.\n\n"
+        "• **Baseline** — engine verified vs canonical InVEST; absolute NatCap citywide figures not reproduced.\n\n"
+        "• **Explorer-generated** — canonical engine verified; scenario itself not NatCap-published.\n\n"
+        "• **Surrogate-suggested** — engine-validated; full-raster evaluated — exploratory candidate for further validation."
+    )
+    st.dataframe(
+        pd.DataFrame(_cs_rows),
+        width='stretch',
+        hide_index=True,
+        column_config={
+            "Scenario":   st.column_config.TextColumn("Scenario", width="medium"),
+            "Source":     st.column_config.TextColumn(
+                "Source",
+                width="medium",
+                help="What kind of scenario this row represents. See the Validation column for how that source is grounded.",
+            ),
+            "Validation": st.column_config.TextColumn(
+                "Validation",
+                width="medium",
+                help=_validation_help,
+            ),
+        },
+    )
+    st.caption(
+        "Notes: **every row** in the Temperature, Carbon stock, and Carbon Value $ "
+        "columns is Δ-vs-baseline (NatCap rows use NatCap's baseline; prototype rows "
+        "use the prototype's baseline). The NatCap baseline row reads \"baseline\" in "
+        "those columns — its absolute citywide anchors live in the *NatCap published "
+        "reference scenarios* view on the Scenario tab, not mixed into this "
+        "Δ-basis table. **Flood is intentionally excluded** (different derivations "
+        "between baseline and NatCap alternatives — the per-scenario flood card on "
+        "the Scenario tab is the right place for that). **Carbon Value $** is derived "
+        f"from carbon × EPA SC-CO2 (${EPA_SOCIAL_COST_CARBON}/t CO2e, EPA 2023, 2 % "
+        "discount, 2030) on every row — not itself a NatCap-published dollar value."
+    )
+    st.divider()
+
     st.subheader("Tradeoff Space")
     st.caption("Each point is a scenario. Better outcomes are toward the top-right — more cooling and greater flood-risk reduction. Bubble size shows food production for saved and optimized scenarios.")
     st.plotly_chart(plot_tradeoff(
@@ -5439,6 +5625,18 @@ with tab2:
             saved["cost_per_acft"]      = _ce['cost_per_acft']
             saved["cost_per_degf"]      = _ce['cost_per_degf']
             saved["cost_per_1k_people"] = _ce['cost_per_1k_people']
+            # Brief #5 — record the scenario's provenance so the cross-source
+            # comparison table can read it back later. Uses the same detection
+            # as the Brief #3 main-panel header / Brief #4 D1 export branch.
+            # Older in-memory saves predating this brief get an explicit None
+            # backfill in the table itself, so this is safe to add without a
+            # schema bump.
+            if results['pct_converted'] == 0:
+                saved["provenance"] = eib.PROVENANCE_BASELINE
+            elif st.session_state.get("applied_from_optimizer"):
+                saved["provenance"] = eib.PROVENANCE_OPTIMIZER
+            else:
+                saved["provenance"] = eib.PROVENANCE_EXPLORER
             st.session_state.saved_scenarios.append(saved)
             st.session_state.show_save_input = False
             st.success(f"Saved: {scenario_name_input}")

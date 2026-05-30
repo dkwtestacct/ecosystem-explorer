@@ -2178,6 +2178,104 @@ recorded the scenario as `PROVENANCE_EXPLORER`.
   predictions" caption pre-existed; #4 only added the matching post-Apply
   provenance + framing story.
 
+## Brief #5 — Cross-source comparison table (2026-05-29)
+
+**Goal.** A single comparison surface that puts NatCap's published references,
+the active Explorer/baseline/optimizer scenario, and any saved scenarios side
+by side — with explicit **Source** and **Validation** columns that make the
+provenance/validation difference unmissable. Extends the B2-revised
+NatCap-anchors-only comparison (which lived inside the fixed-scenario reference
+view) into the main Explorer dashboard.
+
+**Architecture decision — Option A.** Three options considered in Phase 0:
+(A) NatCap anchors always-available + `saved_scenarios` for the rest; (B) new
+`compare_set` state separate from `saved_scenarios`; (C) repurpose
+`saved_scenarios` as "pinned for comparison" + auto-include NatCap. Picked **A**
+because it reuses the existing Save mechanism (no new UX), aligns with how the
+user already thinks about scenario persistence, and requires only a single
+new field on each saved dict (`provenance`).
+
+**Placement.** Top of the **Tradeoff Analysis tab**, co-located with the
+scatter (the natural "comparing scenarios" surface), not inside the *Saved
+Scenarios* expander (which is a list view, not a side-by-side). The new
+section renders before `#### Tradeoff Space`.
+
+**Provenance recording at save time.** The Save handler now records
+`saved["provenance"]` using the same detection as Brief #3's main-panel header
+and Brief #4's D1 export branch: BASELINE (pct_converted == 0) / OPTIMIZER
+(`applied_from_optimizer` flag set) / EXPLORER (else). Older in-memory saves
+predating this brief carry no `provenance` field; the table backfills them by
+best-effort guess from `pct_converted` (BASELINE vs EXPLORER). The flag's
+in-memory state isn't recoverable at re-read time, so older saves can't be
+upgraded to OPTIMIZER — the safer underclaim.
+
+**Row composition.**
+
+1. **NatCap fixed anchors** (SA-only — always prepended): one row per scenario
+   in `SA_NATCAP_FIXED_SCENARIOS`. Temp / Carbon / Carbon-$ from
+   `natcap_validation.published_delta` formatted as **Δ-vs-baseline on every
+   non-baseline row**; the baseline row itself reads `"baseline"` in those
+   three columns (NatCap's absolute citywide anchors live in the Tab-4 fixed-
+   scenario reference view, not mixed into this Δ-basis table). All other
+   metrics `—` (compound-gated). For MN this section is skipped — the
+   structure makes "switchable later" trivial (drop the `startswith("San
+   Antonio")` gate).
+2. **Current scenario row** (always — marked `▶ Current — …`): provenance
+   re-derived locally from `results` + session_state on each rerun (the same
+   detection as Brief #3's main-panel header); metrics from live `results`.
+   Acts as the empty-state filler — the table is never blank.
+3. **Saved scenarios for the active city**: provenance from `saved["provenance"]`
+   with the backfill above; metrics from each saved dict.
+
+**Columns.** Scenario · **Source** · **Validation** · Temperature · Carbon stock
+· Carbon Value $ (derived) · Cooling Energy $ · Nature Access % · Food (M lbs)
+· MH cases · Cost $M. Source / Validation use the exact Brief #3 wording from
+`_PROVENANCE_HEADER_INFO` — one source of truth across the scenario header and
+the table. Carbon-$ is labeled `(derived)` on every row because it's the
+prototype's own NatCap-carbon × EPA SC-CO2 multiplication, never a NatCap-
+published dollar value (the same constraint B2-revised's inner table carries).
+
+**Honest-display invariants.**
+- **Unified Δ-basis across the three NatCap-shared columns** (Temperature,
+  Carbon stock, Carbon Value $). Every row in those columns is a delta — NatCap
+  rows use NatCap's baseline (via `published_delta`); prototype rows use the
+  prototype's baseline (via `evaluate_scenario`'s already-delta outputs:
+  `hm_to_temp_change_f` does `mean_hm − baseline_hm`,
+  `_compute_carbon_four_pool` does `scen_total − base_total`, `carbon_value_usd
+  = carbon_tons_co2 × SC-CO2`). The single-basis rule is enforced at the cell
+  level — the NatCap baseline row reads `"baseline"` in these columns rather
+  than its absolute 90.08 °F / 107.32M t CO2e / $20.39B (which would mix Δ and
+  absolute and produce misleading row-to-row comparisons like
+  `+148M next to +0.5M`). The absolute anchors are surfaced separately in the
+  Tab-4 fixed-scenario reference view.
+- **Validation column tooltip via `column_config`.** Source / Validation cells
+  use short labels (`displayed (NatCap)` / `engine verified` / `engine +
+  full-raster`); the full Brief #3 source-to-validation mapping lives in the
+  column-header `help=` tooltip on `st.dataframe`. Cell widths are `medium` for
+  Source / Validation / Scenario to keep cells from being truncated; the
+  remaining (Δ-metric) columns split the remaining space.
+- `—` for unavailable cells is driven by **row provenance**, not hardcoded.
+  NatCap rows get `—` because compound inputs are gated (and that's where the
+  honest claim sits); Explorer/Optimizer/Saved rows get the actual computed
+  value (including 0 — distinguished from missing).
+- **Flood is intentionally excluded** from this table. Baseline flood uses
+  the compound→NLCD×tree reduction; NatCap alternatives use the native
+  NLCD×tree raster — different derivations, not directly comparable, and
+  SA flood is ~scenario-invariant under the design storm anyway. The
+  per-scenario flood card on the Scenario tab is the right place for that.
+- Source / Validation columns are mandatory — they're the load-bearing piece
+  of the honesty story. The brief's guardrail "never ship the table without
+  them" is enforced structurally (no code path emits a row without them).
+
+**Not in scope.**
+- No new validation logic; no new metric computations; no per-card badge
+  changes; no schema bump.
+- No MN NatCap anchors. The MN branch shows only Current + saved rows; flagged
+  for revisit when (if) NatCap MN scenarios exist.
+- The B2-revised NatCap-only side-by-side table *inside* the fixed-scenario
+  reference view is kept unchanged — it's a different surface for a different
+  mode (fixed-view st.stops before tab2 ever renders).
+
 ## Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed
