@@ -130,6 +130,29 @@ reference the project-shared tables in `data/flood/` and
 multi-city support possible (Mpls Full, then SA); the parameterized
 signature is now the steady state.
 
+### `validate_scenarios.py` diagnostic (retired 2026-05-30)
+
+A standalone diagnostic at `diagnostics/validate_scenarios.py` that ran
+five canonical MN scenarios and verified ten directional expectations
+(FF carbon > baseline, GI flood < baseline, HD nature ≤ baseline, etc.).
+Surfaced during the `docs/` + `validation/diagnostics/scripts.data/`
+migration as silently broken: its hand-rolled `_SessionStateStub` had a
+stale attribute surface that pre-dated app's adoption of
+`session_state.pop()` (Brief A.2) and `session_state.saved_scenarios`
+(Brief #5), so module-level `import app` crashed on the first relevant
+attribute access. Restored to working state in `ddd60e3` by reusing
+`compare_una_invest._StubSt`, then retired immediately after.
+
+Reasoning: the script had been dormant unnoticed since at least
+Brief A.2 — the multiple accumulated rot points proved the
+directional-sanity coverage wasn't load-bearing. The same
+directional invariants are implicitly enforced by
+`verify_baselines.py` (40 scenario × strategy snapshots, exact-value
+regression). Removing the duplicate coverage simplifies `diagnostics/`
+and removes one of the standalone stubs that drift out of sync (a
+separate refactor will consolidate the remaining stub copies into a
+single shared module).
+
 ---
 
 ## Completed-workstream specifics
