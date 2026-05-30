@@ -1,5 +1,13 @@
 # UNA Methodology Cross-Check
 
+**Audience:** Research
+**Status:** Research — concluded (led to the Nature Quality Score removal)
+**Use this for:** The UNA investigation record behind that decision
+**Do not use this for:** Current UNA methodology (→ REFERENCE.md) or the decision itself (→ HISTORY.md)
+**Historical record of:** the UNA methodology cross-check
+
+---
+
 Diagnostic verification of the Phase 1 UNA reconciliation result (commit
 5c7a6a4): on a common modelable-extent population base, the prototype reports
 **100 % with access** vs InVEST's **9.5 % with adequate per-capita supply**. A

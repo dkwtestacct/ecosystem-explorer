@@ -1,5 +1,13 @@
 # Ecosystem Explorer — UI Reference
 
+**Audience:** External
+**Status:** Current methodology reference
+**Use this for:** Explaining visible app metrics, data sources, caveats, and InVEST/NatCap alignment
+**Do not use this for:** Internal task tracking, meeting prep, or historical decisions
+**Source of truth for:** What the dashboard numbers mean
+
+---
+
 Every visible element in the app, what it means, and how it is computed.
 
 ---

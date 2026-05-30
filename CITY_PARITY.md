@@ -1,5 +1,13 @@
 # City Parity
 
+**Audience:** Internal
+**Status:** Current
+**Use this for:** The per-city parameter-parity matrix — how closely each city's configured inputs match NatCap's published configuration
+**Do not use this for:** Overall validation status or the validated/displayed/exploratory framing (→ NATCAP_ALIGNMENT.md)
+**Source of truth for:** Per-city parameter parity
+
+---
+
 **Purpose:** Track how closely the prototype's per-city parameters and methodology match NatCap's published configurations for each city. The unit of comparison is *the city*, not the methodology — answering "how aligned is the prototype with NatCap on Minneapolis?" rather than "is the prototype's UCM canonical?"
 
 **Audience:** Daniel and future Claude sessions. Not shared with NatCap.

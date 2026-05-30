@@ -1,5 +1,13 @@
 # STRATEGY.md — Ecosystem Explorer
 
+**Audience:** Internal
+**Status:** Current source of truth
+**Use this for:** Big-picture framing, prioritization, value ladder, validation/exploration narrative
+**Do not use this for:** Metric definitions, data file paths, or implementation details
+**Source of truth for:** What Ecosystem Explorer is trying to be
+
+---
+
 *Strategic framing, prioritization, and working principles. Captured 2026-05-29; revised 2026-05-29 after the B2 validation investigation (see §4, §8).*
 
 This document captures the conceptual scaffolding that the operational docs (CLAUDE.md, DESIGN_NOTES.md, NATCAP_ALIGNMENT.md, HISTORY.md) reference but don't themselves articulate. If you're a future Claude or a future Deborah picking this up cold, read this first.

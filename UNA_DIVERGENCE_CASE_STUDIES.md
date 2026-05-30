@@ -1,5 +1,13 @@
 # UNA Divergence — Spatial Case Study Material
 
+**Audience:** Research
+**Status:** Research — concluded (led to the Nature Quality Score removal)
+**Use this for:** The UNA investigation record behind that decision
+**Do not use this for:** Current UNA methodology (→ REFERENCE.md) or the decision itself (→ HISTORY.md)
+**Historical record of:** UNA divergence case studies
+
+---
+
 Raw analytical material for `UNA_METRIC_COMPARISON.md`. Identifies specific
 Minneapolis locations where the prototype's reachability proxy and canonical
 InVEST 2SFCA diverge most, with thorough per-location characterization. **This

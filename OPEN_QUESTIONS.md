@@ -1,5 +1,15 @@
 # Open Questions
 
+**Audience:** Internal
+**Status:** Current
+**Use this for:** Durable, unresolved questions and external blockers — only
+**Do not use this for:** Meeting prep (→ DEMO_AND_COLLABORATION.md), code/UI tasks (→ GitHub issues), or decided design questions (→ DESIGN_NOTES.md)
+**Source of truth for:** What still truly blocks progress
+
+> Only durable, unresolved questions and external blockers belong here. Meeting prep → DEMO_AND_COLLABORATION.md. Code/UI tasks → GitHub issues. Design questions, once decided → DESIGN_NOTES.md.
+
+---
+
 Outstanding asks, parked decisions, and external dependencies. Nothing here has
 been sent or actioned externally — these are captured so the context isn't lost.
 

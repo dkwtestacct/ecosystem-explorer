@@ -1,5 +1,13 @@
 # Ecosystem Explorer — CLAUDE.md
 
+**Audience:** Developer (Claude sessions)
+**Status:** Current
+**Use this for:** How Claude should operate here — coding conventions, working principles, current constants and paths
+**Do not use this for:** Per-decision rationale (→ DESIGN_NOTES.md) or retired/historical detail (→ HISTORY.md)
+**Source of truth for:** How Claude works on this project
+
+---
+
 ## What the app does
 
 Streamlit app that lets users explore tradeoffs between converting developed urban land into

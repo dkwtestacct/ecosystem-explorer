@@ -1,5 +1,13 @@
 # InVEST Placement Methodology Research
 
+**Audience:** Research
+**Status:** Research — findings absorbed
+**Use this for:** Per-InVEST-model analysis of placement-strategy effects (the investigation record)
+**Do not use this for:** Current placement behavior — that lives in DESIGN_NOTES.md / the code
+**Historical record of:** Per-model placement-strategy analysis
+
+---
+
 A research note investigating how each InVEST model the app builds on
 handles spatial placement of land use changes. Informs future
 implementation of placement strategies in the Ecosystem Explorer's

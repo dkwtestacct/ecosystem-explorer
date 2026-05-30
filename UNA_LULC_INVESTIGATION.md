@@ -1,5 +1,13 @@
 # UNA LULC Investigation
 
+**Audience:** Research
+**Status:** Research — concluded (led to the Nature Quality Score removal)
+**Use this for:** The UNA investigation record behind that decision
+**Do not use this for:** Current UNA methodology (→ REFERENCE.md) or the decision itself (→ HISTORY.md)
+**Historical record of:** the UNA LULC investigation
+
+---
+
 Comparison of the prototype's existing cooling LULC and the InVEST UNA
 sample LULC (for MN), as input to the canonical InVEST UNA implementation.
 Determines whether the choice of LULC raster materially affects the UNA

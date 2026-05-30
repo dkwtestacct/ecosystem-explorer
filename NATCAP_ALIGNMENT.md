@@ -1,5 +1,13 @@
 # NatCap Alignment
 
+**Audience:** Internal
+**Status:** Current
+**Use this for:** How aligned the engine is with canonical InVEST (validated) and how NatCap's published values are surfaced (displayed, not reproduced) — per metric, with validation status and caveats
+**Do not use this for:** Per-city parameter tables (→ CITY_PARITY.md) or the collaboration narrative (→ NATCAP_COLLABORATION.md)
+**Source of truth for:** Model/metric alignment and validation status
+
+---
+
 This document tracks how the Ecosystem Explorer prototype aligns with
 NatCap (Stanford / Natural Capital Project) recommendations,
 methodologies, and research directions across 5 dimensions. Useful for

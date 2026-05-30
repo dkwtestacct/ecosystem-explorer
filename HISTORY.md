@@ -1,5 +1,13 @@
 # HISTORY.md — Durable historical context
 
+**Audience:** Archive
+**Status:** Historical (durable — still appended)
+**Use this for:** Schema-version history, retired infrastructure, completed-workstream specifics
+**Do not use this for:** Current conventions (→ CLAUDE.md), per-brief reasoning (→ DESIGN_NOTES.md), commit detail (→ git log)
+**Source of truth for:** What changed and what was retired, over time
+
+---
+
 Content extracted from CLAUDE.md during the post-Brief-31 trim
 (2026-05-25) when CLAUDE.md exceeded its 40k-char recommended size.
 

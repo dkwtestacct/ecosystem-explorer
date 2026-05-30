@@ -1,5 +1,13 @@
 # Contributing notes
 
+**Audience:** Developer
+**Status:** Current
+**Use this for:** Environment setup and running the canonical-InVEST validation harness (the two-env pattern, PROJ_DATA/GDAL_DATA)
+**Do not use this for:** Architecture overview (→ ARCHITECTURE.md) or metric methodology (→ REFERENCE.md)
+**Source of truth for:** How to set up and validate the project
+
+---
+
 ## Canonical-InVEST validation environments
 
 The prototype reimplements several InVEST models in numpy (Urban Cooling,

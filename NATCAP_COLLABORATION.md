@@ -1,5 +1,13 @@
 # NatCap Collaboration
 
+**Audience:** Internal
+**Status:** Current (living log)
+**Use this for:** The collaboration record — what NatCap asked, implied, sent, or decided, over time
+**Do not use this for:** Current alignment status (→ NATCAP_ALIGNMENT.md) or the live ask list (→ OPEN_QUESTIONS.md)
+**Source of truth for:** The history of the NatCap collaboration
+
+---
+
 **Purpose:** Track what NatCap is asking for, what they probably want (read between the lines), and where the prototype's current state diverges from either.
 
 **Audience:** Daniel and future Claude sessions. Not shared with NatCap.

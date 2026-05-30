@@ -1,5 +1,13 @@
 # Nature Quality Score Scenario Sensitivity at MN
 
+**Audience:** Research
+**Status:** Research — concluded (led to the Nature Quality Score removal)
+**Use this for:** The UNA investigation record behind that decision
+**Do not use this for:** Current UNA methodology (→ REFERENCE.md) or the decision itself (→ HISTORY.md)
+**Historical record of:** Nature Quality Score sensitivity testing
+
+---
+
 Empirical test of whether Nature Quality Score varies meaningfully across
 scenarios in MN downtown, or whether — like Nature Access — it is structurally
 insensitive at this AOI scale.

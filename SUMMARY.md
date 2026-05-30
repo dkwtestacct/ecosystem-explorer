@@ -1,5 +1,13 @@
 # Ecosystem Explorer — One-Page Summary
 
+**Audience:** Archive
+**Status:** Superseded
+**Use this for:** Historical snapshot of the project summary as of 2026-05 only
+**Do not use this for:** Anything current — it's stale (lists retired cards, dormant cities)
+**Superseded by:** README.md + DEMO_AND_COLLABORATION.md
+
+---
+
 ## What it does
 
 The Ecosystem Explorer simulates how reallocating developed urban land across three land-use types (green infrastructure, food forest, high-density development) affects a basket of ecological, social, and economic outcomes simultaneously. Built for early-stage planning conversations and tradeoff exploration — not for precise prediction or final investment decisions.

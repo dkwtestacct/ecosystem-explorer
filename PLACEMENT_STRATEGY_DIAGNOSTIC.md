@@ -1,5 +1,13 @@
 # Placement Strategy Diagnostic
 
+**Audience:** Research
+**Status:** Research — findings absorbed
+**Use this for:** Empirical measurements of placement-strategy effect sizes (Briefs 6/9)
+**Do not use this for:** Current behavior — findings live in DESIGN_NOTES.md / the code
+**Historical record of:** Placement-strategy effect-size measurements
+
+---
+
 **Date:** 2026-05-23 (re-run after Brief 9 strategy reformulation)
 **Question:** Do the placement strategies do anything?
 **Status:** complete; supersedes the 2026-05-23-pre-Brief-9 measurement

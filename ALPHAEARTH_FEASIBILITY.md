@@ -1,5 +1,13 @@
 # AlphaEarth Foundations Feasibility Research
 
+**Audience:** Research
+**Status:** Research — forward-looking, not acted on
+**Use this for:** The feasibility assessment of AlphaEarth embeddings as a future LULC source; agenda for the Yingjie conversation
+**Do not use this for:** Current data the app uses (→ DATA_INVENTORY.md) — AlphaEarth is not integrated
+**Source of truth for:** AlphaEarth feasibility findings
+
+---
+
 A research note investigating Google DeepMind's AlphaEarth Foundations
 satellite embeddings as a potential future data source for the Ecosystem
 Explorer. Informs (but does not commit to) future integration work.

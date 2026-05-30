@@ -1,5 +1,13 @@
 # Urban Ecosystem Tradeoff Explorer
 
+**Audience:** External
+**Status:** Current
+**Use this for:** First stop — what the app is, the live link, how to run it, where to read more
+**Do not use this for:** Methodology detail (→ REFERENCE.md) or internal direction (→ docs/internal/)
+**Source of truth for:** The public entry point and documentation index
+
+---
+
 A Streamlit prototype for exploring tradeoffs in urban land-use scenarios — how different allocations across green infrastructure, food forests, and high-density development affect flood risk, cooling, food production, mental health, carbon, and cost.
 
 Built in collaboration with NatCap (Stanford). Currently supports Minneapolis (downtown) and San Antonio.

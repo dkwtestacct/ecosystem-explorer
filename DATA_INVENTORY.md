@@ -1,5 +1,13 @@
 # Data Inventory
 
+**Audience:** Internal
+**Status:** Current
+**Use this for:** Every external data source the app consumes — per-city, per-category, with provenance and producing script
+**Do not use this for:** How metrics are computed (→ REFERENCE.md) or model alignment (→ NATCAP_ALIGNMENT.md)
+**Source of truth for:** What data exists and where it comes from
+
+---
+
 **Purpose:** A canonical reference for every data source the Urban Ecosystem Tradeoff Explorer prototype consumes. Covers both supported cities (Minneapolis, San Antonio) and the dormant Minneapolis Full configuration, organized by data category rather than by city. The goal is that any future session can read this file and understand what data exists, where it lives, what it's for, and what's pending — without re-discovering the same context from scratch.
 
 **Status:** v1 finalized 2026-05-24. v2 audited 2026-05-26 against the live repo (post-Brief 33) — reconciled with Briefs 14 (SA UHI), 23 (per-city rainfall), 27 (compound LULC), 28b (compound UCM), 29 (compound UNA), 30 (four-pool Carbon), 31 (ACS block groups), 33 (Flood Volume Reduction reframe). Maintained alongside `REFERENCE.md`, `DESIGN_NOTES.md`, and `NATCAP_ALIGNMENT.md`.

@@ -1,5 +1,13 @@
 # Architecture
 
+**Audience:** Internal
+**Status:** Current
+**Use this for:** How the system is built — the three layers (raster sims → lookup → surrogate), CRS handling, how validation works
+**Do not use this for:** Metric meanings (→ REFERENCE.md) or per-decision rationale (→ DESIGN_NOTES.md)
+**Source of truth for:** How the system works
+
+---
+
 **Purpose:** A high-level map of how the Urban Ecosystem Tradeoff Explorer is built. For someone who needs to understand the system before reading code, or who wants to know where to look for a specific concern.
 
 **Audience:** Anyone — Daniel, future Claude sessions, NatCap collaborators, anyone picking up the project after a break.

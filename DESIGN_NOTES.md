@@ -1,5 +1,13 @@
 # Design Notes
 
+**Audience:** Internal
+**Status:** Current (append-only log)
+**Use this for:** Why a given brief/design decision was made — the chronological reasoning record
+**Do not use this for:** Current-state summaries (later entries may supersede earlier ones — cross-check) or metric definitions
+**Source of truth for:** Why each design decision was made
+
+---
+
 **Purpose:** Internal design decisions for the Urban Ecosystem Tradeoff Explorer. Records what options were considered, what was chosen, and why — for decisions that don't surface to users or to NatCap collaborators.
 
 **Audience:** Future Claude sessions and Daniel-six-months-from-now. Not user-facing; not part of the NatCap collaboration log.

@@ -1,5 +1,13 @@
 # Ecosystem Explorer — Design Specification
 
+**Audience:** Archive
+**Status:** Historical (original spec)
+**Use this for:** The original design specification, kept for provenance
+**Do not use this for:** Current design (→ ARCHITECTURE.md, DESIGN_NOTES.md)
+**Historical record of:** The project's original specification
+
+---
+
 ## Purpose
 
 The Ecosystem Explorer is a Streamlit-based decision-support tool for exploring how reallocating developed urban land across three land use types — green infrastructure (constructed wetlands), food forest, and high-density development — affects three ecosystem services simultaneously: stormwater management, urban cooling, and food production.

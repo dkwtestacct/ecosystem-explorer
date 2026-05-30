@@ -1,5 +1,13 @@
 # SA NatCap Data Integration Plan
 
+**Audience:** Archive
+**Status:** Superseded (executed)
+**Use this for:** The historical plan for adopting NatCap's SA dataset (Briefs 27+)
+**Do not use this for:** Current SA integration state — the decisions that landed are in DESIGN_NOTES.md
+**Superseded by:** DESIGN_NOTES.md (the SA compound-LULC entries)
+
+---
+
 **Purpose:** Plan the multi-brief integration of NatCap's curated SA dataset
 into the prototype. Establishes three foundational decisions (CRS/extent,
 conversion-target mapping, sequence), enumerates the brief sequence with
