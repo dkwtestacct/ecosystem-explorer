@@ -14,69 +14,13 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+sys.path.insert(0, str(_REPO_ROOT / "validation"))
 
+import compare_una_invest as cui  # reuse the shared Streamlit stub (validation/)
 
-# ── Stub streamlit so importing app.py doesn't try to render UI ───────────────
-class _SessionStateStub:
-    def get(self, key, default=None): return default
-    def __getattr__(self, name):       return None
-    def __getitem__(self, key):        return None
-    def __setitem__(self, key, value): pass
-    def __setattr__(self, name, value): pass
-    def __contains__(self, key):       return False
-
-
-class _StubSt:
-    def __getattr__(self, name):
-        if name in ("cache_data", "cache_resource"):
-            return self._cache
-        if name == "columns":
-            return self._columns
-        if name == "tabs":
-            return self._tabs
-        if name == "selectbox":
-            return lambda label, options, **kw: options[0] if options else None
-        if name == "radio":
-            return lambda label, options, **kw: options[0] if options else None
-        if name == "multiselect":
-            return lambda label, options=(), default=None, **kw: list(default or [])
-        if name == "slider":
-            return lambda *a, **kw: kw.get("value", a[3] if len(a) >= 4 else 0)
-        if name == "number_input":
-            return lambda *a, **kw: kw.get("value", a[3] if len(a) >= 4 else 0)
-        if name == "text_input" or name == "text_area":
-            return lambda *a, **kw: kw.get("value", "")
-        if name in ("toggle", "checkbox", "button"):
-            return lambda *a, **kw: False
-        if name == "session_state":
-            return _SessionStateStub()
-        return self
-
-    def _cache(self, *a, **kw):
-        if a and callable(a[0]) and len(a) == 1 and not kw:
-            return a[0]
-        return lambda f: f
-
-    def _columns(self, spec, *a, **kw):
-        n = spec if isinstance(spec, int) else len(spec)
-        return tuple(_StubSt() for _ in range(n))
-
-    def _tabs(self, labels, *a, **kw):
-        return tuple(_StubSt() for _ in labels)
-
-    def __call__(self, *a, **kw):  return self
-    def __enter__(self):           return self
-    def __exit__(self, *exc):      return False
-    def __getitem__(self, key):    return self
-    def __setitem__(self, key, value): pass
-    def __setattr__(self, name, value): pass
-    def __contains__(self, key):   return False
-    def __iter__(self):            return iter([])
-    def __bool__(self):            return True
-
-
-sys.modules["streamlit"] = _StubSt()
+sys.modules["streamlit"] = cui._StubSt()
 
 
 # ── Import app and run scenarios ──────────────────────────────────────────────
