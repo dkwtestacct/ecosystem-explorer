@@ -24,7 +24,7 @@ It can:
 3. Use surrogate optimization to identify additional scenarios worth testing in future stakeholder conversations
 4. Export selected scenarios as runnable canonical InVEST input bundles for full-resolution validation
 
-**Tagline:** *Validated scenario exploration for urban ecosystem tradeoffs* — where "validated" means the engine is checked against canonical InVEST per-pixel (§4), not that the prototype reproduces NatCap's published citywide numbers.
+**Tagline:** *Validated scenario exploration for urban ecosystem tradeoffs* — where "validated" means the engine matches canonical InVEST per-pixel (MAE≈0; §4), not that the prototype reproduces NatCap's published citywide numbers.
 
 **Four-line narrative:**
 > NatCap scenarios establish trust.
@@ -54,7 +54,7 @@ Level 3 — **Explorer**: Modify scenario assumptions and see tradeoffs.
 Level 4 — **Scenario discovery engine**: Use surrogate search to identify promising alternatives.
 Level 5 — **Workflow layer**: Feed selected candidates back into full InVEST runs, ROOT, stakeholder review.
 
-The prototype is currently between Levels 3 and 4. Brief D1 (Export for InVEST) makes Level 5 partly real rather than aspirational.
+The prototype now spans Levels 2–5: the cross-source comparison table makes L2 concrete, scenario provenance is surfaced throughout (L3), the optimizer is framed and plumbed as the L4 scenario-discovery engine, and Brief D1 (Export for InVEST) makes L5 partly real. Center of gravity: L4.
 
 ---
 
@@ -133,6 +133,9 @@ Tracks and their dependency order. Strikethrough = completed.
 **Track B — Keystone**
 - ~~B1: NatCap fixed scenarios as first-class inputs~~ — **landed partial** (436bffd): loader + provenance taxonomy (`PROVENANCE_BASELINE`/`_NATCAP_FIXED`/`_EXPLORER`/`_OPTIMIZER`) + pure `flood_reduction_from_nlcd_tree` helper. Carbon/temp reproduction for the six fixed alternatives is gated (compound scenario inputs unavailable — NatCap built them as unsaved pipeline intermediates; see `OPEN_QUESTIONS.md`).
 - ~~B2: Per-metric validation markers in dashboard~~ — **landed as B2-revised** (conservative floor; see `DESIGN_NOTES.md` "Brief B2 (revised)"). Three-state badges wired across all 16 cards, an SA fixed-scenario reference view, a cross-scenario comparison table, and a plain-line baseline validation claim. The original Match/Diverged design stays deferred — gated on the same unavailable compound inputs.
+- ~~B2a: In-app validation-status note~~ — **landed** (b9d6600). Plain-language "validated vs displayed vs exploratory" note surfaced in the app; C1 recorded as frozen in CLAUDE.md.
+- ~~B2b: Scenario provenance header~~ — **landed** (9fca481). Every scenario shows a Source + Validation header driven by the `PROVENANCE_*` taxonomy, wired into the main dashboard and the fixed-scenario reference view.
+- ~~B2c: Cross-source comparison table~~ — **landed** (0dc4726). NatCap anchors + current + saved scenarios side by side at the top of the Tradeoff Analysis tab; mandatory Source/Validation columns, uniform Δ-vs-baseline basis, "—" for compound-gated NatCap cells.
 - B3: Canonical flood-volume output for SA alongside index (needs investigation pass first).
 
 **Track C — Payoff**
@@ -140,6 +143,7 @@ Tracks and their dependency order. Strikethrough = completed.
 
 **Track D — Strategic addition**
 - ~~D1: Export for InVEST workflow~~ — **landed**. Phase 3 verification passed: all five InVEST 3.19.0 urban models (UCM/UNA/UFR/Carbon/UMH) execute cleanly on the SA baseline bundle. Baseline / Explorer / Optimizer export the full five-model bundle (the prototype builds the compound raster internally via `evaluate_scenario`); the NatCap fixed alternatives export flood-only (compound inputs gated). Per-model `args.json`, polymorphic metadata block.
+- ~~D2: Optimizer as scenario discovery~~ — **landed** (faa6d4d). "Find Best Scenario" reframed as discovery; an applied optimizer suggestion is labeled as such in the scenario header and records `optimizer_suggested` provenance in its InVEST export bundle. Verified end-to-end via Playwright.
 
 **Track E — Optional**
 - E1: NDR for fixed scenarios. Inputs concrete (ndr_biophysical_parameters_vNLCDTree_SA.csv, etc.). Only run for baseline + 20ac + 40ac, not arbitrary slider scenarios.
