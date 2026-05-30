@@ -191,7 +191,7 @@ separate cache entries via the path parameters.
 
 All three numeric baselines are dynamically recomputed at module load (the hardcoded values in `CITIES[city]['baseline_*']` are documentation only — the live overrides keep them in sync with the current pipeline).
 
-> **Cross-city `BASELINE_HM` caveat:** SA's HM is *higher* than both Minneapolis values despite SA being the hotter city — driven by shade-side factors (forest/woody-wetland pixel fraction + tree-canopy variation on developed land) rather than absolute ET. When comparing scenario impact across cities, prefer **CC deltas** over absolute CC values. Full breakdown in REFERENCE.md "Cross-city Cooling Capacity comparison".
+> **Cross-city `BASELINE_HM` caveat:** SA's HM is *higher* than both Minneapolis values despite SA being the hotter city — driven by shade-side factors (forest/woody-wetland pixel fraction + tree-canopy variation on developed land) rather than absolute ET. When comparing scenario impact across cities, prefer **CC deltas** over absolute CC values. Full breakdown in REFERENCE.md "Cross-city Heat Mitigation Index comparison".
 | `BASELINE_RUNOFF_ACRE_FEET` | computed | Runoff from baseline CN over the city's design storm (per-city `DESIGN_STORM_INCHES`); used for cost-effectiveness ratios |
 
 ### Cost defaults ($/acre, adjustable via sidebar sliders)
