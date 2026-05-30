@@ -324,7 +324,7 @@ Four distinct triggers:
 1. **City switch** — evicts `CityState` (the only `max_entries=1` cache); other caches survive.
 2. **`Model quality` mode switch** — rebuilds `_cached_train_surrogate`; `compute_scenario_grid` / `compute_lookup_table` already-cached entries survive (the new mode just selects which entry feeds the surrogate).
 3. **`SCENARIO_SCHEMA_VERSION` bump** — invalidates `compute_scenario_grid` + `compute_lookup_table` across all cities (schema_version is a cache key).
-4. **Slider edit** — no cache invalidation; the live-overwrite path (§5 Layer 2) recomputes ~12 fields.
+4. **Slider edit** — no cache invalidation; the live-overwrite path (§5 Layer 2) recomputes 10 fields.
 
 ### Three caching tiers
 
