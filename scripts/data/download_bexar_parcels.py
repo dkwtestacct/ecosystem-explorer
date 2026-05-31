@@ -453,7 +453,9 @@ def classify_and_rasterize() -> None:
     with rasterio.open(REF_RASTER) as src:
         ref_shape = src.shape
         ref_transform = src.transform
-        ref_crs = src.crs
+    # Write the runtime raster with explicit EPSG:5070 — the reference
+    # GeoTIFF carries the CRS as a `LOCAL_CS` WKT string (not canonical
+    # EPSG), which the app's `_assert_raster_crs` correctly rejects.
     codes = np.where(out["is_public"].values & out["is_vacant"].values, 3,
             np.where(out["is_public"].values, 1,
             np.where(out["is_vacant"].values, 2, 0))).astype(np.int8)
@@ -465,7 +467,7 @@ def classify_and_rasterize() -> None:
     with rasterio.open(
         RASTER_OUT, "w",
         driver="GTiff", height=ref_shape[0], width=ref_shape[1],
-        count=1, dtype=np.int8, crs=ref_crs,
+        count=1, dtype=np.int8, crs="EPSG:5070",
         transform=ref_transform, nodata=-1, compress="deflate",
     ) as dst:
         dst.write(raster, 1)
