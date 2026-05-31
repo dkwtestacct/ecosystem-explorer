@@ -5545,13 +5545,15 @@ if _region_local:
     _rl_df = pd.DataFrame(_rl_rows, columns=["Metric", f"Region ({_rs_label})", "Citywide"])
     st.dataframe(_rl_df, use_container_width=True, hide_index=True)
 
-    # Locked caveats from REGION_LOCAL_METRICS_SPEC.md. Both are verbatim from
-    # the spec's Commit 2 section; render only when at least one displayed
-    # metric carries the corresponding caveat type.
+    # Locked caveats from REGION_LOCAL_METRICS_SPEC.md.
     st.caption(
-        "**Flood routing caveat.** The flood metrics above sum per-pixel runoff "
-        "retention — they are not routed hydrology, so they don't measure flood "
-        "protection *delivered to* the region."
+        "**Flood routing caveat.** The flood metrics are a closed-form "
+        "SCS-CN volume derived from the region's mean curve number scaled to "
+        "its developed area — they are a regional rate, NOT a per-pixel sum, "
+        "and NOT routed hydrology. The region values legitimately differ from "
+        "citywide because the mean CN and developed area are computed over a "
+        "smaller pixel set; they don't measure flood protection *delivered to* "
+        "the region."
     )
     st.caption(
         "**Reach-effect caveat.** Cooling, nature access, and mental-health "

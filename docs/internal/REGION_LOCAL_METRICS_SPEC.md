@@ -33,7 +33,7 @@ Key subtlety: metrics clip differently. Most are per-pixel quantities clipped to
 | Carbon | Clip to region pixels. Clean — no caveat. |
 | Food production | Clip to converted pixels in region. Clean. |
 | Cost | Clip to converted pixels in region. Clean. |
-| Flood / runoff | Clip to region pixels + **routing caveat**: this sums per-pixel runoff retention, it is not routed hydrology, so it's not flood protection *delivered to* the region. |
+| Flood / runoff | Region-mean-CN-derived volume scaled to region developed area (a closed-form SCS-CN application, NOT a per-pixel sum) + **routing caveat**: not routed hydrology, so it's not flood protection *delivered to* the region. The region value legitimately differs from citywide because both the regional mean CN and the regional developed area differ from their citywide counterparts — that's the rate/ratio shape, not an aggregation bug. |
 | Cooling (UCM, ~600 m) | Clip to region pixels + **spillover caveat**. |
 | Nature access (UNA, ~800 m) | Clip to **population** inside region + cross-boundary caveat (supply/access can cross the edge). |
 | Mental health (UMH, ~300 m) | Clip to **population** inside region + exposure-kernel caveat. |
