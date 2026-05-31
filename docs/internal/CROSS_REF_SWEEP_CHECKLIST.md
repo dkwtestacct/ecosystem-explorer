@@ -101,6 +101,18 @@ All inbound cites to ALIGNMENT §2 / §3 / §4 / §5 / §6 / §7 by number resol
 
 DESIGN_NOTES inbound cites to ALIGNMENT (DESIGN_NOTES.md:11, :414, :516) all resolve correctly with the new structure.
 
+### 3.5 CLAUDE.md trim — broken inbound cite + orphan content
+
+The CLAUDE.md trim (710 → 121 lines, 59,782 → 12,255 bytes) deleted the `## Blocked / pending work` section. One inbound cite breaks:
+
+| Source | Line | Cite | Action |
+|---|---|---|---|
+| `docs/internal/DESIGN_NOTES.md` | :804 | `../../CLAUDE.md "Blocked / pending work"` for the Stratified Impervious Siting proposal | (a) drop the inline cite (it's the last clause of a tail-section bullet — the bullet still reads), OR (b) absorb the full proposal text from `git show 8f0f675:CLAUDE.md` into DESIGN_NOTES §11 as a proper deferred-alternative entry, OR (c) create `docs/research/STRATIFIED_IMPERVIOUS_SITING.md`. Recommended: (b) — the proposal is detailed enough to warrant a §11 entry, fits the deferred-alternatives section. |
+
+All four anchor-named cites from `app.py` (lines 1232, 1958, 2209, 2575) resolve correctly — `"Pure-variant helpers"`, `"Interface changes require auditing all consumers"`, `"Buildings — typing"` are all preserved as `###` headings in the trimmed CLAUDE.md.
+
+**Per the user's sweep instruction** ("Since the CLAUDE.md trim shifts its line numbers, resolve CLAUDE.md checklist items by cite content, not the logged line numbers."), DESIGN_NOTES:804 may shift if DESIGN_NOTES sees further edits before the sweep — locate by cite content (`Stratified Impervious Siting` + `Blocked / pending work` quote) rather than line number.
+
 ## 4. Forward-looking — items expected to land here during the remaining rewrites
 
 Items added as rewrites surface them. The standing categories:
