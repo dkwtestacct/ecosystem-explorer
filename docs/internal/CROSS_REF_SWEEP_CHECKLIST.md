@@ -72,6 +72,35 @@ The NatCap-trio refactor explicitly retains the CITY_PARITY content through Comm
 
 Note: the original Commit-2 framing referenced "ALIGNMENT → DATA_INVENTORY", but the structural inventory actually lives in CITY_PARITY, not ALIGNMENT. ALIGNMENT only carries a 1-row Table 2 entry (line 122) referencing the compound LULC raster.
 
+### 3.3 Dual-home cross-references at OPEN_QUESTIONS + DATA_INVENTORY refreshes
+
+The same underlying question can legitimately live in three docs at once, with **distinct framings**:
+
+- **NATCAP_COLLABORATION §6 (Open questions to raise)** — ask-framing: how to phrase the question for a NatCap conversation. Logbook copy.
+- **OPEN_QUESTIONS** — blocker-framing: status / owner / impact / ask fields, dashboard form. Live state.
+- **DATA_INVENTORY §15 (Open questions)** — data-availability framing: which file is missing or which dataset hasn't been received.
+
+**At the OPEN_QUESTIONS refresh:** when importing the five live questions identified in the trio map (Q1 MN-current, Q5 SA NDR DEM, Q6 per-capita-only undersupply, Q11 UNA edge handling, items 4a + 4b per-crop SA yield + MN Carbon four-pool), each entry should carry an explicit `see COLLABORATION §6 #N for the conversation framing` pointer so the two homes stay aligned. The COLLABORATION logbook copy stays — they serve different purposes.
+
+**At the DATA_INVENTORY refresh:** when §15 mentions a missing dataset that's also tracked in COLLABORATION/OPEN_QUESTIONS as a question, add a cross-ref pointer in the same direction (`see OPEN_QUESTIONS dashboard for status, COLLABORATION §6 #N for the NatCap framing`).
+
+**Question-numbering schemes are independent.** COLLABORATION uses Q1/Q4a/Q4b/Q5/Q6/Q7/Q8/Q9/Q10/Q11 (gaps + chronological original numbers). OPEN_QUESTIONS will get its own dashboard-form numbering at the refresh. DATA_INVENTORY §15 numbers from 1. Don't conflate the three schemes — each home owns its own numbering, and cross-refs use the source doc's number explicitly (e.g. "COLLABORATION Q5").
+
+### 3.4 ALIGNMENT trim — inbound cites broken by the §1–§7 restructure
+
+The Commit 4 trim deleted four sub-sections and one labeled "Table 1" reference. Four inbound cites surface as stale; one (REFERENCE.md:366) was already in the original [VERIFY] 5 inventory.
+
+| Source | Line | Cite | Retarget to |
+|---|---|---|---|
+| `REFERENCE.md` | :366 | `NATCAP_ALIGNMENT.md Table 1` | NATCAP_ALIGNMENT.md §3 (per-metric fidelity table is now §3's content; "Table 1" label is gone) |
+| `docs/internal/DATA_INVENTORY.md` | :460 | `Per-surface alignment status with NatCap recommendations. Six tables.` | Update to reflect new structure: badge taxonomy (§2) + per-metric fidelity (§3) + methodological divergences (§5) + export-bundle validation (§6) — 4 tables, not 6. Or remove the table count and just describe the doc. |
+| `docs/archive/HISTORY.md` | :336 | `NATCAP_ALIGNMENT.md "SA UNA / biophysical extent" for the parity-claim implication` | The old `### SA UNA / biophysical extent — investigation (Brief A2, 2026-05-29)` sub-heading is gone. Retarget either to (a) `../research/una/` (the Brief-A2 single home per DESIGN_NOTES routing), or (b) CITY_PARITY's "SA biophysical extent vs ACS block-group polygons" callout (which now holds the IoU + pop-overlap numbers). |
+| `docs/internal/STRATEGY.md` | :130 | same `NATCAP_ALIGNMENT.md "SA UNA / biophysical extent"` anchor | Same retarget as HISTORY:336. |
+
+All inbound cites to ALIGNMENT §2 / §3 / §4 / §5 / §6 / §7 by number resolve correctly (the new structure preserves these numbered sections; the content differs but the headings exist). Anchor cite `"Validated reference outputs (SA)"` from CLAUDE.md:86 preserved as the §2 sub-heading at NATCAP_ALIGNMENT.md line 38.
+
+DESIGN_NOTES inbound cites to ALIGNMENT (DESIGN_NOTES.md:11, :414, :516) all resolve correctly with the new structure.
+
 ## 4. Forward-looking — items expected to land here during the remaining rewrites
 
 Items added as rewrites surface them. The standing categories:

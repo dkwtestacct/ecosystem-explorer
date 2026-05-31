@@ -3,78 +3,27 @@
 **Audience:** Internal
 **Status:** Current
 **Use this for:** How aligned the engine is with canonical InVEST (validated) and how NatCap's published values are surfaced (displayed, not reproduced) — per metric, with validation status and caveats
-**Do not use this for:** Per-city parameter tables (→ CITY_PARITY.md) or the collaboration narrative (→ NATCAP_COLLABORATION.md)
-**Source of truth for:** Model/metric alignment and validation status
+**Do not use this for:** Per-city parameter values or per-city data parity (→ CITY_PARITY.md), per-city collaboration narrative (→ NATCAP_COLLABORATION.md), or per-decision rationale (→ DESIGN_NOTES.md)
+**Source of truth for:** Model/metric alignment and validation status (organized by model/metric)
 
 ---
 
-This document tracks how the Ecosystem Explorer prototype aligns with
-NatCap (Stanford / Natural Capital Project) recommendations,
-methodologies, and research directions across 5 dimensions. Useful for
-collaboration conversations and for honest framing of the prototype's
-positioning.
+## 1. Alignment summary
 
-When a commit changes anything tracked here, update the relevant table.
-Same discipline as `WHATS_NEW` and `verify_baselines.py`.
+This document covers the prototype's alignment with canonical InVEST organized **by model/metric**. The validation story sits at two levels, and they are not interchangeable:
 
-## 1. Metric Methodology Fidelity
+- **Per-pixel parity against canonical InVEST** — the prototype reimplements UCM / UFR / UNA / UMH / Carbon in numpy and validates each against `natcap.invest.*.execute()` on matched inputs (`compare_*_invest.py` harnesses). HMI MAE = 0.0000 / r = 1.0000 (UCM, Brief 28b); UMH MAE ≈ 0 / r = 1.000000 on aligned input (Brief B). This is the prototype's anchored reproduction claim.
+- **Citywide-absolute reproduction of NatCap's published values** — **NOT established.** NatCap's SA UCM `args.json` isn't in the drive pull, and `tot_c_cur.tif` doesn't aggregate to NatCap's published 107.32 M t CO2e by any standard interpretation. The published numbers came from runs whose inputs (UCM args + carbon aggregation script) weren't shared. See OPEN_QUESTIONS.md "Per-scenario compound LULC inputs."
 
-The parity table — how close each app metric is to its canonical InVEST
-implementation. Moved here from `../../REFERENCE.md`; the per-model gap notes
-(UFR, UCM, UNA, UMH, Carbon, Crop) remain in `../../REFERENCE.md`'s "Official
-InVEST alignment" section.
+The result: the prototype reproduces **canonical InVEST per-pixel**, uses canonical InVEST methodology, and **surfaces NatCap's own published scenario outcomes** as reference. It does *not* claim independent reproduction of NatCap's citywide aggregates.
 
-| App metric | Current implementation | InVEST analogue | Parity | Confidence |
-|---|---|---|---|---|
-| Flood Retention | CN-based area-weighted index (`100 − mean_CN`) | Urban Flood Risk Mitigation (retention index) | Implemented | High |
-| Runoff Volume | SCS CN per-pixel runoff × developed acreage, per-city design storm (MN: 100 mm / 3.94"; SA: 157 mm / 6.18" per NatCap projects, Brief 23) | Urban Flood Risk Mitigation (Q_mm, flood_vol) | Implemented | High |
-| Flood Damage Avoided | `total_potential_damage × runoff_reduction_fraction` | Urban Flood Risk Mitigation (serv_blt indicator) | Approximate | Medium |
-| Temperature Change | Canonical HMI = `max(CC_local, CC_park)`, `ΔHMI × UHI_MAX_C × 1.8` | Urban Cooling (HMI → T_air → anomaly) | Implemented | High |
-| Cooling Energy Savings | `consumption_rate × ΔHMI × UHI_MAX_C × pixel_area × $/kWh`, applied per pixel | Urban Cooling (energy module: `consumption × ΔT_air × $/kWh` per building) | Approximate | Medium |
-| Nature Access | Canonical InVEST UNA via 2SFCA — `urban_nature_supply_percapita ≥ urban_nature_demand`, share of modelable-extent population. Numpy implementation, validated against `natcap.invest.urban_nature_access.execute()` at MAE ≈ 0. **Per-city parameters** (Brief 22): MN uses 250 m²/capita demand, 1000 m radius, exponential decay (MN-project canonical). SA uses 16.7, 800, dichotomy (SA-project canonical). See `DESIGN_NOTES.md`. | Urban Nature Access (2SFCA supply/demand/balance) | Implemented | Medium |
-| Nature Quality Score | **Removed from the dashboard 2026-05-21.** Earlier population-weighted mean of the 0-1 proxy access score; the proxy itself was retired when canonical 2SFCA was implemented. Quality Score had no canonical InVEST analog. | Urban Nature Access (SUP_DEMadm_cap) | N/A | — |
-| Preventable MH Cases | `(1 − RR) × BIR × pop`; NE = edge-corrected **buffer-mean** of synthetic NDVI over a flat disk (the canonical InVEST UMH kernel). **Validated against `natcap.invest.urban_mental_health.execute()` v3.19.0** (`compare_umh_invest.py`) at **MAE ≈ 0, Pearson r = 1.0** (MN directly; SA to MAE ≈ 0 on canonical's aligned input — the harness's 0.14 % was large-grid feeding-alignment noise). Validation is on the synthetic NDVI proxy, not satellite NDVI. | Urban Mental Health v3.19.0 (same PC formula + NE kernel) | Implemented | High |
-| Avoided MH Costs | Preventable cases × per-case cost-of-illness (inherits the Preventable MH Cases validation above — linear in cases) | Urban Mental Health (cost module) | Implemented | High |
-| Carbon Sequestration / Storage Change | **San Antonio**: InVEST four-pool stock framework (above-ground + below-ground + soil + dead) × compound LULC delta × 44/12, per NatCap's Vibrant Land (Guerry et al. 2023) methodology — one-time stock change in t CO2. **Minneapolis**: single aggregate annual rate per cover class × converted area (proxy). | Carbon Storage and Sequestration (4-pool storage snapshot) | SA: Implemented (Brief 30); MN: Proxy | SA: Medium / MN: Prototype |
-| Carbon Storage Value (SA) / Avoided Carbon Cost (MN) | Carbon × `EPA_SOCIAL_COST_CARBON = $190/t` (EPA 2023 final rule, 2 % discount). Methodology matches Vibrant Land's stock × SC-CO2 framing; SC-CO2 vintage differs (Vibrant Land cited IWG 2021 $53/t @ 3 %). | Carbon (has its own NPV valuation with discount rate) | Inspired-by | Medium |
-| Food Production | Food-forest yield benchmark × area (11,500 lbs/acre MN, 8,500 SA per NatCap SA Urban Agriculture report) | Crop Production (climate-binned staple-crop yields) | N/A | Prototype |
-| NDVI | Synthetic per-NLCD-class proxy lookup | (not a standalone InVEST model) | N/A | Prototype |
+**This file is organized by model/metric.** For per-city parameter values and per-city data parity, see CITY_PARITY.md. For the collaboration record (asks, decisions, gaps), see NATCAP_COLLABORATION.md. For per-decision rationale, see DESIGN_NOTES.md.
 
-**Parity taxonomy:**
-- **Implemented** — App calculation follows InVEST methodology directly.
-- **Approximate** — Math is in the spirit of InVEST but takes documented shortcuts (named in the per-model gap notes in `../../REFERENCE.md`).
-- **Proxy** — Output is in the same family as InVEST but the method is fundamentally different.
-- **Inspired-by** — Uses InVEST framing but the underlying calculation isn't from any InVEST model.
-- **N/A** — No meaningful InVEST counterpart.
+---
 
-Parity status is about *methodological fidelity*. Confidence tier (per the in-app badges) is about *output quality*. A metric can be Approximate-parity and High-confidence (math is solid even if it shortcuts InVEST), or Proxy-parity and Medium-confidence (output is trustworthy for planning even though the method diverges).
+## 2. Validation badge taxonomy
 
-## Validated reference outputs (SA)
-
-`data/sa/natcap_reference_outputs.csv` is the source of truth for *what NatCap
-publishes* for the SA project scenarios (baseline + FF/UA × 20ac/40ac/MAX),
-extracted from `nootenboom_results/citywide_results_UPDATED.xlsx` by
-`extract_natcap_reference_outputs.py` (re-runnable — the script is the
-provenance). Long format, one row per prototype-metric × scenario (49 rows),
-absolute values + explicit baseline rows. Three `validation_status` states:
-
-- **`natcap_published`** (directly comparable, with tolerance): **temp_change_f**
-  (NatCap `avg_temp_f`, °F; tol 5 % / 0.1 °F) and **carbon_tons_co2** (NatCap
-  `c_sequestration` tons C × 44/12; tol 1 %). Compared as **deltas**
-  (scenario − baseline), since the prototype reports these as deltas.
-- **`aligned_method`** (canonical method, no clean citywide comparison, no
-  tolerance check): **nature_access_pct** (NatCap `ntr_bal_avg` is a
-  per-block-group balance aggregate ≈ 107 — a *different statistic*; see "SA UNA
-  / biophysical extent" and Track C per-block-group aggregation),
-  **cooling_energy_savings_usd** (NatCap citywide all-buildings spend vs
-  prototype typed-OSM ~29 % coverage), **flood_reduction** (canonical UFR, no
-  NatCap published value), **preventable_mh_cases** (canonical UMH at MAE≈0 per
-  Brief B, but UMH wasn't in NatCap's SA project).
-- **`prototype`** (no canonical analog): **food_mln_lbs**.
-
-Read via `natcap_validation.py` (`load_reference_outputs` / `lookup_reference` /
-`compare_to_reference` — delta-aware for the published metrics). Surfaced in the
-dashboard via per-metric validation badges (Brief B2 revised, 2026-05-29):
+The dashboard surfaces alignment status on each metric card via a four-state badge vocabulary. This section is the **authoritative spec** — app code is ground truth above it; REFERENCE §4 / ARCHITECTURE §6 / DESIGN_NOTES §8 cross-reference here and don't restate.
 
 | Badge | Meaning | What it claims | What it does not claim |
 |---|---|---|---|
@@ -86,216 +35,101 @@ dashboard via per-metric validation badges (Brief B2 revised, 2026-05-29):
 1. **Per-metric evidence varies within "≈ NatCap method."** Temperature can cite measured per-pixel parity (HMI MAE ≈ 0, Brief 28b); carbon is four-pool methodology adoption (Brief 30) with no per-pixel parity measurement — do not imply parity for carbon. The per-card tooltip surfaces this nuance.
 2. **Badges are per-metric × per-context.** A `natcap_published` metric shows **"NatCap published value"** *only* in the fixed-scenario reference view; in baseline / Explorer / optimizer contexts the same metric shows **"≈ NatCap method"** (the prototype computed it). This is what prevents an Explorer-scenario number from reading as a NatCap-published one.
 
-**A3 status — comparison-READY, never executed.** The CSV stores NatCap's
-published values and `compare_to_reference` implements the delta tolerance
-check, but **no end-to-end `evaluate_scenario → compare_to_reference` pipeline
-has ever run** — the only `natcap_published` metrics (`temp_change_f`,
-`carbon_tons_co2`) are exactly those gated by the unavailable compound scenario
-inputs (see `OPEN_QUESTIONS.md`). The only callers of `compare_to_reference` are
-the four-line `__main__` smoke test with hardcoded values, exercising the
-match/diverged/no_reference branches against synthesized inputs.
+### Validated reference outputs (SA)
 
-**Validation story (if per-scenario compound inputs never arrive):** "the prototype
-reproduces **canonical InVEST per-pixel** (HMI MAE 0.0000 — Brief 28b; UMH MAE ≈ 0
-— Brief B), uses canonical InVEST methodology, and surfaces NatCap's own published
-scenario outcomes" — see `OPEN_QUESTIONS.md` → "Per-scenario compound LULC inputs"
-→ "Impact if … never obtained". Note: per the Brief B2 (revised) investigation,
-NatCap's published *citywide absolutes* are NOT reproducible from disk (their UCM
-args and carbon aggregation script aren't shipped); the reproduction claim sits
-at per-pixel parity, not citywide absolute.
+`data/sa/natcap_reference_outputs.csv` is the source of truth for *what NatCap publishes* for the SA project scenarios (baseline + FF/UA × 20ac/40ac/MAX), extracted from `nootenboom_results/citywide_results_UPDATED.xlsx` by `extract_natcap_reference_outputs.py` (re-runnable — the script is the provenance). Long format, one row per prototype-metric × scenario (49 rows), absolute values + explicit baseline rows. Three `validation_status` states:
 
-**Per-model validation state travels with the InVEST export bundle (Brief D1).**
-The bundle's `metadata.json → validation` block records each model's status
-(`validated` / `methodology_aligned`) + reference InVEST version + a per-model
-notes string sourced from this section. A downstream user opening an exported
-bundle can read the validation context without re-deriving it from these docs.
+- **`natcap_published`** (directly comparable, with tolerance): **temp_change_f** (NatCap `avg_temp_f`, °F; tol 5 % / 0.1 °F) and **carbon_tons_co2** (NatCap `c_sequestration` tons C × 44/12; tol 1 %). Compared as **deltas** (scenario − baseline), since the prototype reports these as deltas.
+- **`aligned_method`** (canonical method, no clean citywide comparison, no tolerance check): **nature_access_pct** (NatCap `ntr_bal_avg` is a per-block-group balance aggregate ≈ 107 — a *different statistic*; see Track C per-block-group aggregation), **cooling_energy_savings_usd** (NatCap citywide all-buildings spend vs prototype typed-OSM ~29 % coverage), **flood_reduction** (canonical UFR, no NatCap published value), **preventable_mh_cases** (canonical UMH at MAE ≈ 0 per Brief B, but UMH wasn't in NatCap's SA project).
+- **`prototype`** (no canonical analog): **food_mln_lbs**.
 
-## 2. Data Source Alignment
+Read via `natcap_validation.py` (`load_reference_outputs` / `lookup_reference` / `compare_to_reference` — delta-aware for the published metrics). Surfaced in the dashboard via per-metric validation badges per the §2 taxonomy above.
 
-Tracks alignment between the prototype's data inputs and NatCap-curated /
-recommended equivalents.
+---
 
-| Data type | Current source | NatCap recommendation | Status |
-|---|---|---|---|
-| LULC (Minneapolis) | `data/cooling/land_use_2021.tif` — byte-identical to InVEST UNA sample LULC (`LULC_NLCD_2021.tif`) | InVEST UNA sample data | ✅ Aligned |
-| LULC (San Antonio) | NatCap compound NLCD×NLUD×tree-canopy LULC (`data/sa/flood/land_use_compound_sa.tif`); reprojected EPSG:3857 → EPSG:5070 with nearest-neighbor, clipped to prototype's 1984×1713 grid. UCM (Brief 28b), UNA (Brief 29), and Carbon (Brief 30) all index the compound raster directly via their compound-keyed biophysical tables; the NLCD crosswalk reduction is now used only for the spatial-map / non-UCM/UNA/Carbon consumers | NatCap-shipped `lulc_overlay_3857.tif` + `lulc_crosswalk.csv` (`data/sa/natcap_2024/`) | ✅ Adopted 2026-05-24 (Brief 27); all SA biophysical models now compound-keyed per Briefs 28b/29/30 |
-| Population (Minneapolis) | US Census 2020 block-level (P1_001N, Hennepin County) | Standard NLCD-grid rasterization | ✅ Aligned |
-| Population (San Antonio) | US Census 2020 block-level (P1_001N, Bexar County) | Standard NLCD-grid rasterization | ✅ Aligned |
-| UNA biophysical table | MN: InVEST sample `LULC_attribute_table_UNA.csv` (NLCD-keyed). SA: NatCap compound NLCD×NLUD×tree-canopy table (`data/sa/natcap_2024/una__nlcd_nlud_tree.csv`, 1,984 rows; `urban_nature` ∈ {0.0, 0.5, 1.0} at 960/48/976 row counts; indexed by the compound LULC raster) | NatCap-published canonical table | ✅ Aligned (MN + SA, 2026-05-24 Brief 29 — SA borrowed-from-MN per-NLCD table retired; SA UNA consumes compound view directly) |
-| UCM biophysical table | MN: InVEST UCM sample values; SA: NatCap compound NLCD×NLUD×tree-canopy table (`data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv`, 1,984 rows keyed on the compound LULC raster) | NatCap-published canonical table | ✅ Aligned (MN + SA, 2026-05-24 Brief 28b — Köppen-BSh per-NLCD tuning retired; SA UCM consumes compound view directly) |
-| Building footprints (Minneapolis) | Split-config — Geofabrik OSM footprints (~113k, city-wide) feed the placement mask (`mask_buildings_file`); the InVEST UFR sample shapefile (`buildings_file`) drives the typed $-metric raster | Comprehensive OSM building footprints | ✅ Aligned |
-| Road network (Minneapolis) | Geofabrik OSM (Minnesota extract, Option B class filter), rasterized into the non-convertible mask | Geofabrik OSM extracts, recommended | ✅ Aligned |
-| Buildings + roads (San Antonio) | Geofabrik OSM (Texas extract) — `buildings_sa.gpkg` (345,900 polygons), `roads_sa.geojson` (55,553 segments) | Geofabrik OSM extracts, recommended | ✅ Aligned |
-| NatCap MN production config (UNA) | Adopted 2026-05-24 (Brief 22): demand=250 m²/capita, radius=1000 m, decay=exponential per `data/invest/mn_sample_data_natcap_2026/UrbanNatureAccess_sample_data_MN/invest_urban_nature_access_args_MN.json` | NatCap's MN-specific UNA configuration | ✅ Aligned |
-| NatCap SA production config (UNA, UCM, UFR) | Pending access to NatCap SA folder | NatCap's SA Urban Agriculture project data | ⏸️ Pending data access |
+## 3. Metric methodology fidelity
 
-**Split-config buildings (Minneapolis).** Placement-constraint inputs and
-model inputs serve different purposes, so they are sourced separately. The
-non-convertible *placement mask* unions comprehensive Geofabrik OSM building
-footprints (`mask_buildings_file`, ~113k city-wide); the *typed $-metric
-raster* — Cooling Energy Savings, Flood Damage Avoided — stays on the InVEST
-UFR sample shapefile (`buildings_file`), which carries the per-building InVEST
-type codes those metrics require. NatCap's framing explicitly separates
-placement-constraint data (where OSM is recommended) from model-input data
-(where typed sample data is canonical), so the split is an alignment, not a
-compromise.
+How close each app metric is to its canonical InVEST implementation. Per-model gap notes (UFR, UCM, UNA, UMH, Carbon, Crop) live in REFERENCE.md "Official InVEST alignment." Per-city parameter *values* live in CITY_PARITY.md.
 
-## 3. Parameter Alignment
+| App metric | Current implementation | InVEST analogue | Parity | Confidence |
+|---|---|---|---|---|
+| Flood Retention | CN-based area-weighted index (`100 − mean_CN`) | Urban Flood Risk Mitigation (retention index) | Implemented | High |
+| Runoff Volume | SCS CN per-pixel runoff × developed acreage at the per-city design storm | Urban Flood Risk Mitigation (`Q_mm.tif`, `flood_vol`) | Implemented | High |
+| Flood Damage Avoided | `total_potential_damage × runoff_reduction_fraction` | Urban Flood Risk Mitigation (`serv_blt` indicator) | Approximate | Medium |
+| Temperature Change | Canonical HMI = `max(CC_local, CC_park)`, `ΔHMI × UHI_MAX_C × 1.8` | Urban Cooling (HMI → T_air → anomaly) | Implemented | High |
+| Cooling Energy Savings | `consumption_rate × ΔHMI × UHI_MAX_C × pixel_area × $/kWh`, applied per pixel | Urban Cooling (energy module: `consumption × ΔT_air × $/kWh` per building) | Approximate | Medium |
+| Nature Access | Canonical InVEST UNA via 2SFCA — `urban_nature_supply_percapita ≥ urban_nature_demand`, share of modelable-extent population. Numpy implementation, validated against `natcap.invest.urban_nature_access.execute()` at MAE ≈ 0. Per-city parameters per CITY_PARITY UNA tables; rationale in DESIGN_NOTES §2.2. | Urban Nature Access (2SFCA supply/demand/balance) | Implemented | Medium |
+| Preventable MH Cases | `(1 − RR) × BIR × pop`; NE = edge-corrected **buffer-mean** of synthetic NDVI over a flat disk (the canonical InVEST UMH kernel). **Validated against `natcap.invest.urban_mental_health.execute()` v3.19.0** at MAE ≈ 0 / r = 1.0 (MN; SA on canonical's aligned input). Validation is on the synthetic NDVI proxy, not satellite NDVI. | Urban Mental Health v3.19.0 (same PC formula + NE kernel) | Implemented | High |
+| Avoided MH Costs | Preventable cases × per-case cost-of-illness (inherits the Preventable MH Cases validation above — linear in cases) | Urban Mental Health (cost module) | Implemented | High |
+| Carbon Sequestration / Storage Change | Per-city framework. **SA**: InVEST four-pool stock framework (above-ground + below-ground + soil + dead) × compound LULC delta × 44/12, per NatCap's Vibrant Land (Guerry et al. 2023) methodology — one-time stock change in t CO2. **MN**: single aggregate annual rate per cover class × converted area (proxy). Per-city methodology in CITY_PARITY Carbon rows; rationale in DESIGN_NOTES §6.4. | Carbon Storage and Sequestration (4-pool storage snapshot) | SA: Implemented; MN: Proxy | SA: Medium / MN: Prototype |
+| Carbon Storage Value (SA) / Avoided Carbon Cost (MN) | Carbon × `EPA_SOCIAL_COST_CARBON = $190/t` (EPA 2023 final rule, 2 % discount). Methodology matches Vibrant Land's stock × SC-CO2 framing; SC-CO2 vintage differs (Vibrant Land cited IWG 2021 $53/t @ 3 %). | Carbon (has its own NPV valuation with discount rate) | Inspired-by | Medium |
+| Food Production | Food-forest yield benchmark × area (per-city benchmarks in CITY_PARITY Food Forest rows) | Crop Production (climate-binned staple-crop yields) | N/A | Prototype |
+| NDVI | Synthetic per-NLCD-class proxy lookup | (not a standalone InVEST model) | N/A | Prototype |
 
-Tracks alignment between the prototype's parameter choices and
-NatCap-validated values. See `DESIGN_NOTES.md` for the rationale per
-parameter.
+**Parity taxonomy:**
 
-| Parameter | Current value | NatCap-validated value | Status |
-|---|---|---|---|
-| UNA `urban_nature_demand` | MN: 250 m²/capita (NatCap MN args.json); SA: 16.7 m²/capita (NatCap SA README) | Per-city NatCap project values | ✅ Aligned (per-city, Brief 22) |
-| UNA `search_radius_mode` | `'uniform radius'` (both cities) | `'uniform radius'` (both NatCap projects) | ✅ Aligned |
-| UNA `search_radius` | MN: 1000 m (NatCap MN); SA: 800 m (NatCap SA) | Per-city NatCap project values | ✅ Aligned (per-city, Brief 22) |
-| UNA `decay_function` | MN: `'exponential'` (NatCap MN); SA: `'dichotomy'` (NatCap SA) | Per-city NatCap project values | ✅ Aligned (per-city, Brief 22) |
-| UCM Heat Mitigation Index | Canonical `max(CC_local, CC_park)` | Same — InVEST canonical | ✅ Aligned (validated MAE ≈ 0) |
-| UCM `UHI_MAX_C` | MN: 2.05 °C (InVEST UCM args JSON); SA: 11 °C (NatCap canonical, heat-wave-day scenario per `data/sa/natcap_2024/README_San_Antonio_InVEST_model_inputs.docx`) | MN: InVEST args JSON value; SA: NatCap-published README | ✅ Aligned (MN + SA, 2026-05-24 Brief 14) |
-| UMH RR per 0.1 NDVI | 0.96 (depression) / 0.97 (anxiety), from Liu et al. 2023 | InVEST UMH effect sizes (same source family) | ✅ Aligned |
-| UMH baseline prevalence | 0.21 / 0.19, uniform national (CDC 2023) | InVEST UMH takes per-administrative-unit BIR from a vector input | ⚠️ Improvised — uniform national rates, not per-admin |
-| Carbon sequestration rate | MN: single per-class annual rate (proxy). SA: InVEST four-pool stock (above-ground / below-ground / soil / dead) via NatCap compound table, Brief 30 | InVEST Carbon 4-pool model | ✅ Aligned (SA, Brief 30); ⚠️ Simplified (MN) |
-| Carbon biophysical table | SA: NatCap compound NLCD×NLUD×tree-canopy table (`data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv`, 1,984 rows × 27 cols, four pools keyed on compound `lucode`) | NatCap-published canonical table | ✅ Aligned (SA, Brief 30) |
-| NDVI source | Synthetic proxy from NLCD lookup | Satellite-derived (e.g., AlphaEarth) recommended | ⚠️ Improvised |
+- **Implemented** — App calculation follows InVEST methodology directly.
+- **Approximate** — Math is in the spirit of InVEST but takes documented shortcuts (named in the per-model gap notes in REFERENCE.md).
+- **Proxy** — Output is in the same family as InVEST but the method is fundamentally different.
+- **Inspired-by** — Uses InVEST framing but the underlying calculation isn't from any InVEST model.
+- **N/A** — No meaningful InVEST counterpart.
 
-## 4. Spatial Fidelity
+Parity is *methodological fidelity*. Confidence tier (per the in-app badges) is *output quality*. A metric can be Approximate-parity and High-confidence (math is solid even if it shortcuts InVEST), or Proxy-parity and Medium-confidence (output is trustworthy for planning even though the method diverges).
 
-Tracks the prototype's spatial representation vs NatCap recommendations.
+---
 
-| Aspect | Current state | NatCap recommendation | Status |
-|---|---|---|---|
-| AOI extent (MN) | Downtown + near-neighborhoods, ~123 km², ~154k residents (InVEST UFR sample AOI) | NatCap's MN study extent | ✅ Aligned (uses NatCap-provided AOI) |
-| AOI extent (SA) | Biophysical models (UNA, UCM, Carbon, UFR) run over the **SA LULC raster's valid-pixel footprint** = the Bexar County bbox (~3,059 km², 1.91 M pop). NatCap's ACS block-group polygons (`data/sa/natcap_2024/acs_block_groups_3857.gpkg`, 1,124 polygons, City of SA, ~2,519 km², 1.88 M pop) are a strict **subset** of that footprint and feed only per-block-group reporting (compute_per_tract_summary). See "SA UNA / biophysical extent" below. | NatCap's SA Urban Agriculture study extent (block-group polygons, Vibrant Land Figure 10) | ⚠️ Population-aligned (98.6 %); biophysical extent is a bbox **superset** — block groups ⊂ bbox, +27,457 exurban people (1.4 %). Per-pixel supply identical; aggregate per block group for project-scenario validation (Track C). |
-| Placement constraints | Three-layer non-convertible mask: buildings + roads excluded via the rasterized mask; existing nature never a candidate (pool is developed NLCD 21–24 only). Random or strategy-weighted selection within the remaining pool. | 3-layer mask: buildings + roads + existing nature | ✅ Aligned |
-| Building footprint coverage | Placement mask uses comprehensive OSM footprints city-wide for every city; the typed $-metrics use the InVEST UFR sample for MN (downtown core, where its per-building type codes are valid) | Comprehensive OSM building footprints | ✅ Aligned |
-| Road network coverage | OSM road network rasterized into the non-convertible mask, all cities | OSM road network | ✅ Aligned |
-| LULC resolution | 30 m / pixel (NLCD standard) | 30 m / pixel | ✅ Aligned |
+## 4. Computed vs displayed
 
-### SA UNA / biophysical extent — investigation (Brief A2, 2026-05-29)
+The prototype distinguishes between two kinds of values that appear on screen:
 
-NatCap's SA project reports UNA per ACS block group
-(`acs_block_groups_3857.gpkg`). The prototype computes UNA — and every SA
-biophysical model — over the SA LULC raster's valid-pixel footprint, which is
-the **Bexar County bounding box**, not the block groups. Measured comparison
-(LULC-valid mask vs the block groups rasterised onto the 30 m EPSG:5070 grid):
+- **Computed** — the prototype's own numpy pipeline produces the number for the active scenario. This covers everything in §3 above; the §2 badge taxonomy classifies the resulting confidence.
+- **Displayed** — the value is surfaced directly from a NatCap reference output (no prototype computation). Only `natcap_published`-class metrics shown in the fixed-scenario reference view fall here; everywhere else (baseline / Explorer / optimizer) the same metric is *computed*.
 
-- Prototype UNA extent: 3,398,592 px ≈ **3,059 km²**, **1,906,325** people.
-- NatCap block groups: 2,799,438 px ≈ **2,519 km²**, **1,878,866** people.
-- The block groups are a **strict subset** of the prototype extent
-  (intersection = block-group coverage). **Area IoU = 0.824.**
-- Population overlap = **98.6 %**: only **27,457 people (1.4 %)** sit in the
-  prototype's extent but outside the block groups — sparse exurban/rural Bexar
-  County land.
+This is what the per-context switch in §2 enforces: a `natcap_published` metric shows **"NatCap published value"** (Green) in the fixed-scenario view (displayed) but **"≈ NatCap method"** (Blue) anywhere else (computed).
 
-**Why this is not an AOI misalignment to "fix."** UNA's per-pixel
-`urban_nature_supply_percapita` is computed identically regardless of which
-pixels are later aggregated — the only difference is the *citywide denominator*
-of the population-weighted headline metric, which differs by ≤1.4 %. The
-prototype's UNA path is **raster-only** (no AOI vector — see DESIGN_NOTES.md
-"Brief A2"), so matching NatCap's extent would mean masking the UNA computation
-to the block groups: a real code change (coupling the polygons into the
-biophysical path) + a full SA baseline/dense-CSV regen, for a sub-1 % effect.
-**For NatCap project-scenario validation (Track C), aggregate the prototype's
-supply raster per block group** rather than comparing the citywide headline;
-that handles the extent difference exactly with no AOI change. Decision: document
-(Brief A2), don't mask.
+**A3 status — comparison-READY, never executed.** The CSV stores NatCap's published values and `natcap_validation.compare_to_reference` implements the delta tolerance check, but **no end-to-end `evaluate_scenario → compare_to_reference` pipeline has ever run** — the only `natcap_published` metrics (`temp_change_f`, `carbon_tons_co2`) are exactly those gated by the unavailable compound scenario inputs (OPEN_QUESTIONS). The only callers of `compare_to_reference` are the four-line `__main__` smoke test with hardcoded values.
 
-## Research-direction synthesis
+**SA UNA / biophysical extent.** The prototype's per-pixel `urban_nature_supply_percapita` is computed identically regardless of which polygons aggregate it. NatCap's ACS block-group polygons are a strict subset of the prototype's biophysical extent (Bexar County bbox); area IoU = 0.824, population overlap = 98.6 % (per-pixel detail + numbers in CITY_PARITY SA UNA section; investigation note at `../research/una/`). For NatCap project-scenario validation (Track C), aggregate the prototype's supply raster per block group rather than comparing the citywide headline.
 
-NatCap collaborator notes (see `data/sa/natcap_2024/Ecosystem_Explorer_-_Meeting_Note.docx`)
-point toward three broad directions:
+---
 
-1. **Multi-model integration** — bring multiple urban InVEST models into a single
-   decision-support context, not one model in isolation.
-2. **Spatially realistic scenario generation** — encode where interventions
-   can plausibly happen, not just how much area changes.
-3. **Optimization and cost-effectiveness** — surface tradeoffs and efficient
-   scenarios, not just per-scenario metrics.
+## 5. Known methodological divergences
 
-How the current prototype addresses each — see the per-direction status
-table below for granular tracking:
+Where the prototype's canonical-method implementation takes documented shortcuts. None of these is hidden — every one surfaces on the user-facing card via tooltip, caption, or the §2 badge.
 
-- **Multi-model integration.** Five InVEST urban models are live (UCM, UFR,
-  UNA, UMH, Carbon) for both cities. NDR is pending — blocked on SA DEM +
-  watersheds from NatCap. See "Official InVEST alignment" in `../../REFERENCE.md`.
-- **Spatially realistic scenario generation.** Roads, buildings, and existing
-  nature are unioned into a non-convertible placement mask. For San Antonio
-  the prototype additionally preserves each pixel's (NLUD, tree-canopy)
-  context through conversion using NatCap's compound crosswalk. See
-  `../../REFERENCE.md` "Land-use alignment".
-- **Optimization and cost-effectiveness.** A Random Forest surrogate trained
-  on a precomputed scenario grid drives Pareto search in "Find Best Scenario".
-  Cost-effectiveness ratios (dollars per unit benefit) are reported alongside
-  biophysical metrics in the dashboard's Cost Effectiveness card group. See
-  `../../REFERENCE.md` "Division of labor" for the architectural split.
+| Divergence | Why | Documented in |
+|---|---|---|
+| **UMH baseline prevalence** is uniform national CDC rates (0.21 / 0.19), not per-administrative-unit `risk_rate` vectors. | Per-tract MH-prevalence data not available for MN / SA. | MH card tooltip; DESIGN_NOTES §6.3. |
+| **NDVI source** is a synthetic per-NLCD-class proxy lookup, not satellite-derived (e.g. AlphaEarth). | Satellite NDVI integration is a future workstream; feasibility researched in `../research/ALPHAEARTH_FEASIBILITY.md`. | NDVI card tooltip; flagged on MH card help. |
+| **Cooling Energy Savings** is per-pixel aggregation, not per-building T_air sampling over the 600 m blending radius. | Methodology shortcut; affects only the dollar metric, not Temperature Change. | REFERENCE.md UCM section; CITY_PARITY UCM summary. |
+| **Flood Damage Avoided** produces dollar values; InVEST UFR's `serv_blt` is officially an indicator only (currency · m³ units). | Documented divergence — the prototype scales to dollars for usability. | REFERENCE.md Flood Damage Avoided card; tooltip. |
+| **MN Carbon** uses a single per-NLCD-class annual rate (proxy), not the four-pool InVEST framework. | No NatCap MN four-pool data exists in the shared Drive; per-city framing keeps each city on its own published methodology. | DESIGN_NOTES §6.4; CITY_PARITY MN Carbon row; pending NatCap data per NATCAP_COLLABORATION. |
+| **Carbon Storage Value SC-CO2 vintage** uses EPA 2023 ($190/t, 2 % discount) — more current than Vibrant Land's IWG 2021 ($53/t, 3 %). Methodology matches; vintage intentionally differs. | EPA 2023 final rule is the more current US-government standard. | DESIGN_NOTES §6.4; NATCAP_COLLABORATION decisions log. |
+| **Food Production** uses a single per-city yield benchmark; NatCap's framework is InVEST Crop Production with per-crop parameterization (`CoSA_Crop_production_ESModeling`). | Per-crop data not yet obtained from NatCap. | NATCAP_COLLABORATION open ask 4a. |
 
-**Main pending work** (also tracked per-row in the Research Direction Status
-table below): NDR for SA (pending NatCap DEM + watersheds), per-crop CoSA
-yields (pending NatCap data), MN Carbon four-pool bundle (pending NatCap
-data), AlphaEarth NDVI replacement (feasibility researched, integration
-deferred), land-ownership constraints (not pursued), ROOT comparison
-(mentioned in NatCap docs, not currently pursued), and more formal
-land-use-change simulators (PLUS, CLUE, LCM) considered and deferred.
+For deferred alternative *approaches* (PLUS / CLUE / LCM land-use simulators, ROOT optimization), see DESIGN_NOTES §11.
 
-## 5. Research Direction Status
+---
 
-Tracks the directions NatCap has identified for future work and the
-prototype's status on each.
+## 6. Export-to-InVEST validation boundary
 
-| Direction | NatCap mention | Current status | Notes |
-|---|---|---|---|
-| OSM buildings + roads as placement constraints | "Simpler approaches" in NatCap document | ✅ Implemented | Roads + comprehensive OSM building footprints unioned into the non-convertible mask for every city (MN via the split-config `mask_buildings_file`). See `DESIGN_NOTES.md` placement strategy section. |
-| Wallpaper approach | "Simpler approaches" in NatCap document | ⏸️ Interpretation unclear; to discuss with NatCap | See `DESIGN_NOTES.md` |
-| PLUS land-use simulation | "Existing models" in NatCap document | 🔵 Considered, deferred | C++/Qt app, integration heavy; see `DESIGN_NOTES.md` |
-| CLUE land-use simulation | "Existing models" in NatCap document | 🔵 Considered, deferred | Java-based; same constraints as PLUS |
-| LCM (Land Change Modeler) | "Existing models" in NatCap document | 🔵 Not pursued — proprietary | Can't ship in an open-source prototype |
-| AlphaEarth satellite embeddings (NDVI replacement) | Identified as future direction | 🔵 Feasibility researched, not implemented | See `../research/ALPHAEARTH_FEASIBILITY.md` |
-| Land ownership layer | "Future consideration" in NatCap document | 🔵 Not pursued | Out of scope for current prototype |
-| San Antonio as full pilot | Active NatCap research direction | 🔄 In progress | Pending SA data folder access |
-| Carbon Storage and Sequestration model (deeper) | Listed as additional model for consideration | 🔵 Not pursued | Current single-rate approach simpler |
-| Urban Mental Health model (already integrated) | Listed as additional model for consideration | ✅ Implemented | InVEST UMH v3.19.0 |
-| ROOT (Restoration Opportunities Optimization Tool) | Mentioned in NatCap document | 🔵 Not pursued | Different optimization framework |
+The InVEST export bundle (DESIGN_NOTES §9; ARCHITECTURE §7) is the bridge for users who want canonical InVEST results on the prototype's inputs. The bundle's `metadata.json → validation` block records each model's state using a **two-state taxonomy distinct from the §2 per-card badge's four states**:
 
-## 6. Vocabulary and Reporting Alignment
+| Bundle state | Meaning | Emitted for |
+|---|---|---|
+| **`validated`** | Per-pixel parity measured against canonical `natcap.invest.*.execute()` | UCM, UNA, UMH |
+| **`methodology_aligned`** | Canonical method, no per-pixel parity check | UFR, Carbon |
 
-Tracks how the prototype's user-facing vocabulary (metric card names, tooltips, axis labels, prose) aligns with InVEST canonical terminology. Surfaced by the 2026-05-23 vocabulary audit.
+Each entry includes the reference InVEST version (3.19.0) and a per-model notes string sourced from this file. The two-state taxonomy answers a yes/no question per model (does the prototype's output match canonical?), while the §2 four-state badge captures per-metric methodology nuance (e.g. temperature can cite measured parity while carbon is methodology adoption). They are distinct surfaces for distinct audiences.
 
-| Surface | Current wording | InVEST canonical | Status |
-|---|---|---|---|
-| Temperature Change card underlying quantity | Heat Mitigation Index (HMI) | `hm.tif`, `mean(HMI)` | ✅ Aligned (renamed from "Cooling Capacity / CC" 2026-05-23) |
-| Tradeoff plot Y axis | Heat Mitigation Index | `hm` | ✅ Aligned (renamed 2026-05-23) |
-| Temperature assumption tab kernel description | exponential decay at d_cool, eq. 118 | exponential decay | ✅ Aligned (corrected from "Gaussian" 2026-05-23) |
-| Flood Retention card | App's `100 − mean_CN` index, with explicit pointer to InVEST UFR `rnf_rt_idx = mean(1 − Q/P)` | `rnf_rt_idx` | ⚠️ Documented divergence — the app's index is monotone but not identical to UFR's canonical retention index. |
-| Flood Damage Avoided card | App's dollar-scaled formula, with explicit pointer to InVEST UFR `serv_blt` indicator caveats | `serv_blt` (indicator only, currency·m³ units) | ⚠️ Documented divergence — the app produces dollars; InVEST itself treats `serv_blt` as an indicator only. |
-| Nature Access card | `pct_pop_supply_ge_demand`, canonical UNA 2SFCA | `Pund_adm` / `Povr_adm` framing | ✅ Aligned (uses canonical UNA quantity) |
-| Preventable MH Cases card | InVEST UMH formula | `preventable_cases.tif` | ✅ Aligned |
-| Avoided MH Costs card | InVEST UMH formula with cross-reference to canonical "preventable_cost" naming | `preventable_cost.tif` | ✅ Aligned (cross-reference added 2026-05-23) |
-| Cost-Effectiveness section | App-level synthesis, no InVEST analog, with pointer to ROOT | (no InVEST analog) | ⚠️ App-specific — explicit. |
-| Balanced placement strategy | App-specific heuristic, with pointer to ROOT | (no InVEST analog) | ⚠️ App-specific — explicit. |
-| Smart Scenario Search / surrogate optimizer | App-specific, with pointer to ROOT for true LP optimization | ROOT (LP, Pareto, agreement maps) | ⚠️ App-specific — explicit. |
-| `undersupply-focused` placement strategy (renamed from `equity-focused`) | `max(0, urban_nature_demand − urban_nature_supply_percapita)` per pixel — canonical UNA per-capita supply deficit, no population multiplier | InVEST UNA's `urban_nature_balance_percapita` framing | ✅ Aligned 2026-05-23 (Brief 9). Saved scenarios with legacy `equity-focused` key are routed via shim. |
-| `flood-focused` placement strategy | Per-pixel runoff `Q_{p,i}` from SCS-CN equation at the per-city design storm — matches InVEST UFR `Q_mm.tif`. Brief 23 made the storm depth per-city. | InVEST UFR's per-pixel `Q_{p,i}` runoff (eq. 127) | ✅ Aligned 2026-05-23 (Brief 9, refreshed Brief 23). |
-| `cooling-focused` placement strategy | `(1 − baseline_HMI) × (1 / (1 + distance_to_buildings_px))` — canonical HMI + distance transform on `BUILDINGS_RASTER` | Canonical HMI + true building-proximity raster | ✅ Aligned 2026-05-23 (Brief 9). Previously used bare CC sub-component + NLCD-intensity three-value proxy. |
+**Export ≠ already-validated.** The bundle records the prototype's own measured parity against canonical InVEST per model. Running canonical `execute()` on the bundle produces fresh canonical outputs which the user can then compare against the prototype's reported card values. Validation travels with the bundle; the bundle isn't itself a validation result.
 
-## Status legend
+**Phase 3 verification (Brief D1, 2026-05-29):** all five InVEST 3.19.0 urban models execute cleanly on the SA baseline bundle (UCM ✓, UNA ✓, UFR ✓, Carbon ✓, UMH-depression ✓, UMH-anxiety ✓).
 
-- ✅ **Aligned** — current state matches NatCap recommendation
-- ⚠️ **Improvised** — current state differs from or substitutes for NatCap recommendation
-- ⏸️ **Pending** — alignment pending data access, decisions, or external input
-- 🔄 **In progress** — actively working toward alignment
-- 🔵 **Considered, deferred** — option evaluated, not currently pursued (with rationale)
+---
 
-## How to update this document
+## 7. Link to city parity
 
-When a commit changes any of:
-- A metric's implementation status (Table 1)
-- A data source (Table 2)
-- A parameter value (Table 3)
-- An AOI, placement constraint, or coverage area (Table 4)
-- A research direction's status (Table 5)
-- A user-facing vocabulary surface (Table 6)
+This file covers alignment by model/metric. The per-city parameter values, per-city data inputs (paths, MD5, source provenance), and the per-city × per-model at-a-glance status matrix live in **CITY_PARITY.md**. NatCap-collaboration narrative (asks, decisions, shared data) lives in **NATCAP_COLLABORATION.md**. Per-decision rationale lives in **DESIGN_NOTES.md**.
 
-...update the relevant table row(s) as part of the commit. Same
-discipline as `WHATS_NEW` updates.
+When a commit changes anything tracked here, update the §3 Metric methodology fidelity row or the §5 Known methodological divergences row as part of the commit.
