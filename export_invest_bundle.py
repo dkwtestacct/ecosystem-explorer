@@ -130,6 +130,20 @@ class BundleSpec:
     compound_models_available: bool = True
     fixed_alt_source_raster_path: Optional[str] = None
 
+    # Region Selection Phase 1 — the structured region_selection block carried
+    # in evaluate_scenario's result dict. None for citywide scenarios; for
+    # region-selected Explorer scenarios it carries {mode, layer, selected_ids
+    # (label values, not positional), selected_area_acres,
+    # eligible_pixels_in_region}. Flows into metadata.json's scenario block
+    # verbatim. Per-model validation states are NOT affected — region narrows
+    # placement only; the engine is unchanged.
+    region_selection: Optional[dict] = None
+    # The complete Source-line string the dashboard renders (e.g.
+    # 'Explorer-generated · selected-region placement'). Caller-computed from
+    # app.py's `_PROVENANCE_HEADER_INFO` so this module stays Streamlit-
+    # agnostic and doesn't need to reach into app.py's provenance table.
+    source_label: Optional[str] = None
+
     # args constants (per-city)
     uhi_max_c: float = 11.0
     t_ref_c: float = 35.0
@@ -346,6 +360,14 @@ def _build_metadata(s: BundleSpec, args_files: dict) -> dict:
             "label": s.scenario_label,
             "provenance": s.provenance,
             "description": s.scenario_description,
+            # Region Selection Phase 1 — `source_label` is the augmented Source
+            # line as the dashboard renders it (e.g. 'Explorer-generated ·
+            # selected-region placement'), passed in pre-composed by the
+            # caller. `region_selection` is the structured carrier (mode /
+            # layer / selected_ids / selected_area_acres /
+            # eligible_pixels_in_region). Both are None for citywide scenarios.
+            "source_label": s.source_label,
+            "region_selection": s.region_selection,
         },
         "scenario_rasters": _scenario_rasters_block(s),
         "generator": dict(s.generator, type=s.generator.get("type", s.provenance)),

@@ -3500,7 +3500,8 @@ _PROVENANCE_HEADER_INFO = {
 
 def _render_scenario_provenance_header(provenance, scenario_label=None,
                                        scenario_id=None,
-                                       trailing_caption=None):
+                                       trailing_caption=None,
+                                       source_suffix=""):
     """Render a prominent Source + Validation header for the active scenario.
 
     `provenance` is one of `eib.PROVENANCE_*`. `scenario_label` is the
@@ -3509,12 +3510,15 @@ def _render_scenario_provenance_header(provenance, scenario_label=None,
     scenarios) and shown inline in the Source line. `trailing_caption` is an
     optional small caption rendered just below the badge (used by the
     fixed-scenario reference view to keep the "flip to Explorer" hint).
+    `source_suffix` augments the Source line text (used by Region Selection
+    Phase 1 to render 'Explorer-generated · selected-region placement').
     """
     info = _PROVENANCE_HEADER_INFO.get(
         provenance,
         ("Unknown", "provenance not recorded", "gray"),
     )
     source, validation, color_key = info
+    source = f"{source}{source_suffix}"
     color = _VALIDATION_BADGE_COLOR_HEX.get(color_key, "#6e7681")
     id_caption = f" · <code>scenario_id={scenario_id}</code>" if scenario_id else ""
     if scenario_label:
@@ -4122,7 +4126,13 @@ with st.sidebar.container(border=True):
             "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
         )
 
-    if st.button("Optimize"):
+    # Region Selection Phase 1 (Commit 5) — optimizer guard. The optimizer
+    # leans on the citywide lookup (which Commit 2 already bypasses when a
+    # region is active) and its citywide-discovery framing doesn't cohere
+    # with region-diluted metrics. Region-constrained optimization is a
+    # feature, not a guard — deferred to Phase 2.
+    _optimizer_blocked_by_region = st.session_state.get('selected_region_mask') is not None
+    if st.button("Optimize", disabled=_optimizer_blocked_by_region):
         with st.spinner("Searching for most efficient tradeoff scenarios..."):
             st.session_state.optimized_results = optimize_scenario(
                 surrogate, min_flood, min_cool, min_food, max_runoff,
@@ -4135,6 +4145,12 @@ with st.sidebar.container(border=True):
         else:
             st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
             st.session_state.just_optimized = True
+    if _optimizer_blocked_by_region:
+        st.caption(
+            "The optimizer explores the entire analysis area. "
+            "Clear the region selection to use it. "
+            "*(Region-constrained optimization is a Phase 2 follow-on.)*"
+        )
 
 st.sidebar.divider()
 
@@ -4371,6 +4387,20 @@ def _build_invest_bundle_for_current_scenario():
     except Exception:
         git_commit = "unknown"
 
+    # Region Selection Phase 1 (Commit 5) — propagate the structured
+    # region_selection block from results into the bundle metadata, and
+    # build the augmented Source-line string for metadata.json. Same
+    # augmentation as the main panel header so downstream readers see the
+    # identical string.
+    _bundle_region_selection = (
+        results.get('region_selection')
+        if (results.get('region_selection') or {}).get('mode') == 'selected_regions'
+        else None
+    )
+    _bundle_source = _PROVENANCE_HEADER_INFO.get(provenance, ("Unknown",))[0]
+    if _bundle_region_selection is not None and provenance == eib.PROVENANCE_EXPLORER:
+        _bundle_source = f"{_bundle_source} · selected-region placement"
+
     spec = eib.BundleSpec(
         city_name=selected_city, city_slug="san_antonio_tx",
         crs=city_cfg['crs'], pixel_size_m=30,
@@ -4379,6 +4409,8 @@ def _build_invest_bundle_for_current_scenario():
         provenance=provenance, generator=generator,
         git_commit=git_commit, scenario_schema_version=SCENARIO_SCHEMA_VERSION,
         is_sa=True, raster_profile=profile,
+        region_selection=_bundle_region_selection,
+        source_label=_bundle_source,
         scenario_lulc_compound=scen_compound,
         baseline_lulc_compound=base_compound,
         scenario_lulc_nlcdtree=scen_nlcdtree,
@@ -4570,7 +4602,17 @@ elif st.session_state.get("applied_from_optimizer"):
 else:
     _scen_provenance = eib.PROVENANCE_EXPLORER
     _scen_label = f"Explorer scenario · {results['scenario_name']}"
-_render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label)
+# Region Selection Phase 1 (Commit 5) — augment the Source line text when an
+# Explorer scenario is region-constrained. Baseline (pct=0) with a region
+# selected reads just 'Baseline' per the spec — don't augment.
+# Optimizer can't be region-active (Optimize button is disabled — see below).
+_region_active = (
+    _scen_provenance == eib.PROVENANCE_EXPLORER
+    and st.session_state.get('selected_region_mask') is not None
+)
+_source_suffix = " · selected-region placement" if _region_active else ""
+_render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
+                                    source_suffix=_source_suffix)
 
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
@@ -5658,6 +5700,14 @@ with tab2:
         _cur_prov = eib.PROVENANCE_EXPLORER
         _cur_label = f"▶ Current — {results['scenario_name']}"
     _cs_cur_src = _cs_source_validation(_cur_prov)[0]
+    # Region Selection Phase 1 (Commit 5) — augment the Source column when an
+    # Explorer scenario is region-constrained. Same suffix the main panel
+    # header and the export bundle metadata use. Baseline (pct=0) reads just
+    # 'Baseline' — don't augment. Optimizer can't be region-active (Optimize
+    # is disabled when a region is selected).
+    if (_cur_prov == eib.PROVENANCE_EXPLORER
+            and (results.get('region_selection') or {}).get('mode') == 'selected_regions'):
+        _cs_cur_src = f"{_cs_cur_src} · selected-region placement"
     _cs_rows.append({
         "Scenario":   _cur_label,
         "Source":     _cs_cur_src,
@@ -5677,6 +5727,13 @@ with tab2:
             _prov = (eib.PROVENANCE_BASELINE if _saved.get("pct_converted", 0) == 0
                      else eib.PROVENANCE_EXPLORER)
         _src = _cs_source_validation(_prov)[0]
+        # Region Selection Phase 1 (Commit 5) — augment Source for saved
+        # Explorer scenarios that carry a region_selection block. The save
+        # handler preserves the full results dict (sans scenario_lulc), so
+        # _saved['region_selection'] flows through automatically.
+        if (_prov == eib.PROVENANCE_EXPLORER
+                and (_saved.get('region_selection') or {}).get('mode') == 'selected_regions'):
+            _src = f"{_src} · selected-region placement"
         _label = _saved.get("display_name") or _saved.get("scenario_name") or "(unnamed save)"
         _cs_rows.append({
             "Scenario":   _label,
