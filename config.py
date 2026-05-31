@@ -240,6 +240,14 @@ CITIES = {
                 'display_name': 'Census tract',
             },
         },
+        # Ownership Integration Commit 0.5 (`OWNERSHIP_INTEGRATION_SPEC.md`) —
+        # int8 raster on the SA grid carrying public/vacant codes derived from
+        # BCAD parcels. Code-to-mode mapping is module-level (`OWNERSHIP_MODES`
+        # in app.py); the config only declares the source path. SA-only —
+        # BCAD is Bexar-specific.
+        'ownership_layer':      {
+            'path': 'data/sa/sa_public_vacant_30m.tif',
+        },
         'damage_table_file':    None,   # SA project deliverables — TODO
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
         'et_file':              'data/sa/cooling/et_annual_sa.tif',

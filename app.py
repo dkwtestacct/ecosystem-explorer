@@ -38,6 +38,16 @@ CODE_FOOD_FOREST  = 41
 CODE_HIGH_DENSITY = 24
 NODATA            = -128
 
+# Ownership Integration (`OWNERSHIP_INTEGRATION_SPEC.md`) — locked code-to-mode
+# mapping for `data/sa/sa_public_vacant_30m.tif` (codes -1/0/1/2/3). The UI
+# selectbox surfaces `label`s; the caller composes a boolean mask via
+# `np.isin(ownership_raster, codes)`. SA-only.
+OWNERSHIP_MODES = {
+    'public':        {'label': 'Publicly-owned land',         'codes': (1, 3)},
+    'vacant':        {'label': 'Vacant land',                 'codes': (2, 3)},
+    'vacant_public': {'label': 'Vacant publicly-owned land',  'codes': (3,)},
+}
+
 # ── Metric translation constants ───────────────────────────────────────────────
 # SCS design storm depth — per-city, set after city_cfg is built (see
 # "── City-derived constants ──" below alongside UHI_MAX_C and FOOD_FOREST_LBS_ACRE).
@@ -447,6 +457,12 @@ class CityState(NamedTuple):
     region_rasters: dict
     region_layer_labels: dict
     region_layer_display_names: dict
+    # Ownership Integration — the BCAD-derived public/vacant codes raster
+    # (int8, codes -1/0/1/2/3 per the rasterization scheme in
+    # `PHASE_0_INVESTIGATION.md`). None for cities without an `ownership_layer`
+    # config (MN). The caller derives boolean masks via
+    # `np.isin(ownership_raster, OWNERSHIP_MODES[mode]['codes'])`.
+    ownership_raster: Optional[np.ndarray]
     # Baseline rasters
     baseline_hm_raster: np.ndarray
     baseline_ne_raster: np.ndarray
@@ -2033,7 +2049,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 28  # bumped: Region Selection Phase 1 — evaluate_scenario's return dict gains the `region_selection` block (mode / layer / selected_ids / selected_area_acres / eligible_pixels_in_region). Citywide path is byte-identical to schema 27; verify_baselines 40/40 pass against the schema-27 snapshots (re-tag, not re-baseline). Pre-28 saved scenarios load gracefully — missing region_selection reads as None / entire_aoi via the .get() patterns in consumers. Full per-bump rationale in docs/archive/HISTORY.md "Schema version log". (27 was the UMH buffer-mean kernel.)
+SCENARIO_SCHEMA_VERSION = 29  # bumped: Ownership Integration Commit 1 — results dict gains the `ownership_filter` key (stamped by the caller; None for citywide / ownership-inactive, mode string e.g. 'vacant_public' when active). Citywide path is byte-identical to schema 28 — session_state defaults None so the stamp always writes None until the Commit 2 UI lands. verify_baselines 40/40 pass against schema-28 snapshots (re-tag, not re-baseline). Pre-29 saved scenarios load gracefully — `.get('ownership_filter')` reads as None. Full per-bump rationale in docs/archive/HISTORY.md "Schema version log". (28 was Region Selection Phase 1's region_selection block.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -2653,6 +2669,29 @@ def _load_city_runtime_state(city_key: str) -> CityState:
                 f"({exc!r}); skipping."
             )
 
+    # ── Phase 12c: Ownership raster (Ownership Integration Commit 1) ─────────
+    # int8 raster (codes -1/0/1/2/3) on the active grid, derived from BCAD
+    # parcels via `scripts/data/download_bexar_parcels.py`. None for cities
+    # without an `ownership_layer` config (MN). The CRS assertion is the same
+    # safety net used at every other rasterio.open in the loader.
+    ownership_raster: Optional[np.ndarray] = None
+    _ownership_cfg = cfg.get("ownership_layer")
+    if _ownership_cfg is not None:
+        try:
+            _own_path = _ownership_cfg["path"]
+            with rasterio.open(_own_path) as _own_src:
+                _assert_raster_crs(_own_src, cfg["crs"], _own_path)
+                ownership_raster = _own_src.read(1)
+            if ownership_raster.shape != ref_shape:
+                print(
+                    f"  WARN: ownership raster shape {ownership_raster.shape} != "
+                    f"ref_shape {ref_shape}; ownership disabled for this city."
+                )
+                ownership_raster = None
+        except Exception as exc:
+            print(f"  WARN: ownership raster failed to load ({exc!r}); skipping.")
+            ownership_raster = None
+
     # ── Phase 13: Baseline rasters (use *_pure helpers because module aliases
     # haven't been rebound to this state's arrays yet — we're inside the
     # cache_resource call that produces the state). ─────────────────────────
@@ -2752,6 +2791,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         region_rasters=region_rasters,
         region_layer_labels=region_layer_labels,
         region_layer_display_names=region_layer_display_names,
+        ownership_raster=ownership_raster,
         baseline_hm_raster=baseline_hm_raster,
         baseline_ne_raster=baseline_ne_raster,
         baseline_una_supply_percapita_raster=baseline_una_supply_percapita_raster,
@@ -3976,6 +4016,11 @@ _apply_within = st.sidebar.radio(
 st.session_state['selected_region_mask']  = None
 st.session_state['selected_region_layer'] = None
 st.session_state['selected_region_ids']   = None
+# Ownership Integration Commit 1 — default reset; the Commit 2 UI block will
+# set these conditionally when the user picks a non-default ownership filter.
+# Until that lands, both stay None and the citywide path is byte-identical.
+st.session_state['selected_ownership_mask'] = None
+st.session_state['selected_ownership_mode'] = None
 
 if _apply_within == "Selected regions" and _region_layers_available:
     _layer_keys = list(_CURRENT_CITY_STATE.region_rasters.keys())
@@ -4141,13 +4186,17 @@ with st.sidebar.container(border=True):
             "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
         )
 
-    # Region Selection Phase 1 (Commit 5) — optimizer guard. The optimizer
-    # leans on the citywide lookup (which Commit 2 already bypasses when a
-    # region is active) and its citywide-discovery framing doesn't cohere
-    # with region-diluted metrics. Region-constrained optimization is a
-    # feature, not a guard — deferred to Phase 2.
-    _optimizer_blocked_by_region = st.session_state.get('selected_region_mask') is not None
-    if st.button("Optimize", disabled=_optimizer_blocked_by_region):
+    # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 1 —
+    # optimizer guard. The optimizer leans on the citywide lookup and its
+    # citywide-discovery framing doesn't cohere with placement-diluted
+    # metrics, so we block when either a region OR an ownership filter is
+    # active. Placement-constrained optimization is a feature, not a guard —
+    # deferred to Phase 2.
+    _optimizer_blocked_by_placement = (
+        st.session_state.get('selected_region_mask') is not None
+        or st.session_state.get('selected_ownership_mask') is not None
+    )
+    if st.button("Optimize", disabled=_optimizer_blocked_by_placement):
         with st.spinner("Searching for most efficient tradeoff scenarios..."):
             st.session_state.optimized_results = optimize_scenario(
                 surrogate, min_flood, min_cool, min_food, max_runoff,
@@ -4160,11 +4209,11 @@ with st.sidebar.container(border=True):
         else:
             st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
             st.session_state.just_optimized = True
-    if _optimizer_blocked_by_region:
+    if _optimizer_blocked_by_placement:
         st.caption(
             "The optimizer explores the entire analysis area. "
-            "Clear the region selection to use it. "
-            "*(Region-constrained optimization is a Phase 2 follow-on.)*"
+            "Clear the region selection and/or ownership filter to use it. "
+            "*(Placement-constrained optimization is a Phase 2 follow-on.)*"
         )
 
 st.sidebar.divider()
@@ -4275,9 +4324,19 @@ lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
 # would be incorrect for the region-relative scenario. Off-grid scenarios
 # are an advanced feature; the live cost is acceptable.
 _selected_region_mask = st.session_state.get('selected_region_mask')
+_selected_ownership_mask = st.session_state.get('selected_ownership_mask')
+# Ownership Integration Commit 1 — `evaluate_scenario` takes a single
+# placement-constraint mask. Compose `region ∩ ownership` here so the engine
+# is unchanged. Either or both may be None.
+if _selected_region_mask is not None and _selected_ownership_mask is not None:
+    _combined_mask = _selected_region_mask & _selected_ownership_mask
+elif _selected_ownership_mask is not None:
+    _combined_mask = _selected_ownership_mask
+else:
+    _combined_mask = _selected_region_mask
 if (lookup_key in lookup_table
         and placement_strategy == 'random'
-        and _selected_region_mask is None):
+        and _combined_mask is None):
     # Lookup table was computed with random placement — only use it in random mode
     results = lookup_table[lookup_key].copy()
     _fresh = evaluate_scenario(
@@ -4313,7 +4372,7 @@ else:
         placement_strategy=placement_strategy, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
         carbon_rate_ff=st.session_state.carbon_rate_ff,
         carbon_rate_gi=st.session_state.carbon_rate_gi,
-        selected_region_mask=_selected_region_mask,
+        selected_region_mask=_combined_mask,
     )
     # Region Selection Phase 1 — caller stamps the descriptive fields onto
     # results['region_selection']. The mask was built upstream from
@@ -4323,6 +4382,11 @@ else:
     if _selected_region_mask is not None:
         results['region_selection']['layer'] = st.session_state.get('selected_region_layer')
         results['region_selection']['selected_ids'] = st.session_state.get('selected_region_ids') or []
+
+# Ownership Integration Commit 1 — caller stamps ownership_filter onto
+# results. None for citywide / ownership-inactive scenarios; mode string
+# (e.g. 'vacant_public') when active.
+results['ownership_filter'] = st.session_state.get('selected_ownership_mode')
 
 
 # ── Sidebar: Export for InVEST (Brief D1) ─────────────────────────────────────
