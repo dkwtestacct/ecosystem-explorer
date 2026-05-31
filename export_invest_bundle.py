@@ -143,6 +143,13 @@ class BundleSpec:
     # inactive. Same disposition as region_selection: lands in metadata.json's
     # scenario block; per-model validation states unchanged.
     ownership_filter: Optional[str] = None
+    # Region-Local Metrics Commit 3 — region-clipped per-metric values for
+    # region scenarios; None for citywide. Carries the locked boundary
+    # treatment (option (b) from the spec) and the per-model treatment table
+    # (clip / caveat / reach_m) so downstream readers see how each metric
+    # decomposes. None for non-region scenarios.
+    region_local: Optional[dict] = None
+    region_local_treatment: Optional[dict] = None
     # The complete Source-line string the dashboard renders (e.g.
     # 'Explorer-generated · selected-region placement · vacant publicly-owned
     # land'). Caller-computed from app.py's `_PROVENANCE_HEADER_INFO` so this
@@ -374,6 +381,12 @@ def _build_metadata(s: BundleSpec, args_files: dict) -> dict:
             "source_label": s.source_label,
             "region_selection": s.region_selection,
             "ownership_filter": s.ownership_filter,
+            "region_local": s.region_local,
+            "region_local_treatment": s.region_local_treatment,
+            "boundary_treatment": (
+                "option_b_clip_with_spillover_caveat"
+                if s.region_local is not None else None
+            ),
         },
         "scenario_rasters": _scenario_rasters_block(s),
         "generator": dict(s.generator, type=s.generator.get("type", s.provenance)),

@@ -4749,6 +4749,8 @@ def _build_invest_bundle_for_current_scenario():
         is_sa=True, raster_profile=profile,
         region_selection=_bundle_region_selection,
         ownership_filter=_bundle_ownership_filter,
+        region_local=results.get('region_local'),
+        region_local_treatment=(_REGION_LOCAL_METRICS if results.get('region_local') else None),
         source_label=_bundle_source,
         scenario_lulc_compound=scen_compound,
         baseline_lulc_compound=base_compound,
