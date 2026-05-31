@@ -3925,6 +3925,87 @@ placement_strategy = st.sidebar.radio(
 use_heat_priority = (placement_strategy == 'cooling-focused')
 
 st.sidebar.divider()
+
+# ── Region Selection (Phase 1) ────────────────────────────────────────────────
+# Placed between Placement Strategy and Discover scenarios so a planner picks
+# WHERE conversions can land (region) → HOW conversions are placed within
+# (strategy) → optionally search for promising mixes. The order matches the
+# configure-then-optimize sidebar flow.
+st.sidebar.subheader("Region Selection")
+_region_layers_available = bool(_CURRENT_CITY_STATE.region_rasters)
+_apply_within = st.sidebar.radio(
+    "Apply changes within",
+    options=["Entire analysis area", "Selected regions"],
+    index=0,
+    help=(
+        "Constrain conversions to inside selected polygons (council districts "
+        "or census tracts), instead of citywide. The per-pixel engine is the "
+        "same validated math; the where is planner-chosen."
+    ),
+    disabled=not _region_layers_available,
+    key="region_apply_within",
+)
+
+# Default: clear any active region state. Set below only if both the mode is
+# 'Selected regions' and at least one polygon is chosen.
+st.session_state['selected_region_mask']  = None
+st.session_state['selected_region_layer'] = None
+st.session_state['selected_region_ids']   = None
+
+if _apply_within == "Selected regions" and _region_layers_available:
+    _layer_keys = list(_CURRENT_CITY_STATE.region_rasters.keys())
+    _layer_key = st.sidebar.selectbox(
+        "Region layer",
+        options=_layer_keys,
+        format_func=lambda k: _CURRENT_CITY_STATE.region_layer_display_names.get(k, k),
+        index=0,
+        key="region_layer",
+        help="Pick a polygon layer to select from.",
+    )
+    _labels = _CURRENT_CITY_STATE.region_layer_labels[_layer_key]
+    _display = _CURRENT_CITY_STATE.region_layer_display_names[_layer_key]
+    _selected_labels = st.sidebar.multiselect(
+        f"{_display}s",
+        options=_labels,
+        default=[],
+        key=f"region_labels_{_layer_key}",
+        help=f"Select one or more {_display.lower()}s to constrain placement.",
+    )
+    if _selected_labels:
+        # Build mask via positional indices (the locked contract: the raster
+        # carries positional indices internally; label values are what the
+        # user, the metadata, and session_state see).
+        _pos_indices = [_labels.index(lbl) for lbl in _selected_labels]
+        _raster = _CURRENT_CITY_STATE.region_rasters[_layer_key]
+        _region_mask = np.isin(_raster, _pos_indices)
+        # Live placement denominator — convertible ∩ region. The spec
+        # specifies eligible_pixels_in_region (convertible subset), NOT
+        # selected_area_acres (total region polygon area).
+        _cp = _CURRENT_CITY_STATE.convertible_pixels
+        _eligible_count = int(_region_mask[_cp[:, 0], _cp[:, 1]].sum())
+        _eligible_acres = _eligible_count * PIXEL_AREA_ACRES
+        _plural = "s" if len(_selected_labels) > 1 else ""
+        st.sidebar.caption(
+            f"**Eligible for placement:** {_eligible_count:,} pixels "
+            f"(~{_eligible_acres:,.0f} acres) inside the selected "
+            f"{_display.lower()}{_plural}."
+        )
+        st.sidebar.caption(
+            "Conversions will be placed only inside the selected region, "
+            "after excluding roads, buildings, and existing natural land. "
+            "**Metrics show citywide impact.**"
+        )
+        # Push to session_state for Commit 2's lookup bypass and Commit 1's
+        # caller-stamping of results['region_selection'].
+        st.session_state['selected_region_mask']  = _region_mask
+        st.session_state['selected_region_layer'] = _layer_key
+        st.session_state['selected_region_ids']   = list(_selected_labels)  # label values, not positional
+    else:
+        st.sidebar.caption(f"Pick one or more {_display.lower()}s above.")
+elif _apply_within == "Selected regions" and not _region_layers_available:
+    st.sidebar.info("No region layers configured for this city.")
+
+st.sidebar.divider()
 st.sidebar.subheader("Discover scenarios to validate")
 
 st.sidebar.caption(
