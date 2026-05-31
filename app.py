@@ -5488,6 +5488,75 @@ econ5.metric(
 )
 _render_validation_caption(econ5, "carbon_value_usd", _validation_scenario_context, explicit_status="natcap_published" if _CARBON_IS_STOCK else "prototype")
 
+# ── Region-Local View (Region-Local Metrics Commit 2) ─────────────────────────
+# Region-clipped readings paired with the existing citywide cards above. Only
+# renders for region scenarios — the citywide cards are sufficient on their own
+# when no region is selected. Honesty contract from REGION_LOCAL_METRICS_SPEC.md:
+# never show a region-local number without its citywide companion — that's
+# what the side-by-side rows enforce.
+_region_local = results.get('region_local')
+if _region_local:
+    st.divider()
+    _rs = results.get('region_selection') or {}
+    _rs_layer = _rs.get('layer')
+    _rs_ids = _rs.get('selected_ids') or []
+    _rs_display = (
+        _CURRENT_CITY_STATE.region_layer_display_names.get(_rs_layer, "region")
+        if _rs_layer else "selected region"
+    )
+    _rs_plural = "s" if len(_rs_ids) != 1 else ""
+    _rs_label = f"{_rs_display}{_rs_plural} {', '.join(_rs_ids)}" if _rs_ids else _rs_display
+    st.markdown(f"#### Region-local view — {_rs_label}")
+    st.caption(
+        f"What the scenario does **inside the selected {_rs_display.lower()}{_rs_plural}** "
+        "specifically — paired with the citywide reading so the pairing keeps it honest. "
+        "Citywide cards above are the system-level reading; this is the within-region complement."
+    )
+
+    # Locked per-metric display rows. Each row pulls citywide from `results`,
+    # region from `_region_local`, and formats both with the same helpers the
+    # citywide cards use so the numbers are apples-to-apples. Order matches the
+    # Ecological → Human & Social → Economic flow above.
+    def _fmt_co2(t):  return f"{t:+,.0f} t CO2e" if t is not None else "—"
+    def _fmt_money(d): return f"${d:,.0f}" if d is not None else "—"
+    def _fmt_pct(p):   return f"{p:.1f}%" if p is not None else "—"
+    def _fmt_pp(n):    return f"{int(n):,} people" if n is not None else "—"
+    def _fmt_cases(n): return f"{n:.0f} cases" if n is not None else "—"
+    def _fmt_cost(m):  return f"${m:.1f}M" if m is not None else "—"
+
+    _rl_rows = [
+        ("Flood Retention",          f"{_region_local['flood_reduction']:.1f}",                       f"{results['flood_reduction']:.1f}"),
+        ("Temperature Change",       _fmt_temp_change(_region_local['temp_change_f']),                _fmt_temp_change(results['temp_change_f'])),
+        ("Runoff Volume",            _fmt_runoff(_region_local['runoff_acre_feet']),                  _fmt_runoff(results['runoff_acre_feet'])),
+        ("Mean NDVI",                f"{_region_local['mean_ndvi']:.3f}",                             f"{results['mean_ndvi']:.3f}"),
+        ("Carbon Storage Change",    _fmt_co2(_region_local['carbon_tons_co2']),                      _fmt_co2(results['carbon_tons_co2'])),
+        ("Food Production",          _fmt_food(_region_local['food_mln_lbs']),                       _fmt_food(results['food_mln_lbs'])),
+        ("Cost",                     _fmt_cost(_region_local['total_cost_mln']),                      _fmt_cost(results['total_cost_mln'])),
+        ("Cooling Energy Savings",   _fmt_money(_region_local['cooling_energy_savings_usd']),        _fmt_money(results['cooling_energy_savings_usd'])),
+        ("Flood Damage Avoided",     _fmt_money(_region_local['flood_damage_avoided_usd']),          _fmt_money(results['flood_damage_avoided_usd'])),
+        ("Nature Access",            _fmt_pct(_region_local['nature_access_pct']),                   _fmt_pct(results['nature_access_pct'])),
+        ("People with Nature Access", _fmt_pp(_region_local['people_with_nature_access']),           _fmt_pp(results['people_with_nature_access'])),
+        ("Preventable MH Cases",     _fmt_cases(_region_local['preventable_mh_cases']),              _fmt_cases(results['preventable_mh_cases'])),
+        ("Avoided MH Cost",          _fmt_money(_region_local['avoided_mh_cost_usd']),               _fmt_money(results['avoided_mh_cost_usd'])),
+    ]
+    _rl_df = pd.DataFrame(_rl_rows, columns=["Metric", f"Region ({_rs_label})", "Citywide"])
+    st.dataframe(_rl_df, use_container_width=True, hide_index=True)
+
+    # Locked caveats from REGION_LOCAL_METRICS_SPEC.md. Both are verbatim from
+    # the spec's Commit 2 section; render only when at least one displayed
+    # metric carries the corresponding caveat type.
+    st.caption(
+        "**Flood routing caveat.** The flood metrics above sum per-pixel runoff "
+        "retention — they are not routed hydrology, so they don't measure flood "
+        "protection *delivered to* the region."
+    )
+    st.caption(
+        "**Reach-effect caveat.** Cooling, nature access, and mental-health "
+        "exposure effects can extend beyond the selected boundary. The region-local "
+        "column summarizes people/pixels inside the selected area; spillover "
+        "effects outside the boundary are reflected in the citywide column."
+    )
+
 st.divider()
 
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
