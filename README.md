@@ -1,4 +1,4 @@
-# Urban Ecosystem Tradeoff Explorer
+# Ecosystem Explorer
 
 **Audience:** External
 **Status:** Current
@@ -76,8 +76,12 @@ config.py                Per-city configuration (paths, scalars)
 surrogate.py             Random-forest surrogate + optimizer
 precompute_scenarios.py  Lookup-table generation
 verify_baselines.py      Regression test gate
+validation/              Canonical-InVEST parity comparators
+diagnostics/             Standalone investigation + diagnostic scripts
+scripts/                 Data-pipeline and utility scripts
 docs/                    Documentation (see map above)
 data/                    Source rasters, biophysical tables, config
+CLAUDE.md                Operating manual for Claude sessions (repo root)
 ```
 
 ---
