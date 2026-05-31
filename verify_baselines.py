@@ -429,12 +429,80 @@ def main(update: bool) -> int:
                     print(f"    run with --update to create it")
                     total_diffs += 1
 
+    # ── Region Selection Phase 1 targeted assertion ─────────────────────────
+    # Per the spec / DESIGN_NOTES discipline: don't snapshot the region_selection
+    # block generically (it's a dict; _SNAPSHOT_SKIP_KEYS skips it). Instead,
+    # confirm that for one known region per city, the eligible_pixels_in_region
+    # scalar returned by evaluate_scenario matches an independent recompute
+    # (raster intersection of region mask with convertible pool). Self-checking:
+    # if the per-city region rasters drift, the independent count drifts with
+    # them and the assertion still passes only if the *math* is right.
     print(f"\n{'=' * 60}")
-    if total_diffs == 0:
+    print("Region Selection — targeted eligible_pixels_in_region assertion")
+    print(f"{'=' * 60}")
+    REGION_TARGETS = {
+        # city → (layer_key, region_label_to_select)
+        "San Antonio, TX": ("council_districts", "5"),
+        "Minneapolis, MN": ("downtown_tracts", None),  # first label, see below
+    }
+    region_diffs = 0
+    for city_name in active_cities:
+        if city_name not in REGION_TARGETS:
+            print(f"  {city_name}: no region target configured; skip")
+            continue
+        layer_key, label = REGION_TARGETS[city_name]
+        try:
+            _rebind_city(app, city_name)
+            state = app._CURRENT_CITY_STATE
+            if layer_key not in state.region_rasters:
+                print(f"  {city_name}: layer {layer_key!r} not configured; skip")
+                continue
+            labels_for_layer = state.region_layer_labels[layer_key]
+            if label is None:
+                label = labels_for_layer[0]
+            if label not in labels_for_layer:
+                print(f"  {city_name}: label {label!r} not in {layer_key}; skip")
+                continue
+            pos_idx = labels_for_layer.index(label)
+            raster = state.region_rasters[layer_key]
+            mask = (raster == pos_idx)
+            cp = state.convertible_pixels
+            independent_count = int(mask[cp[:, 0], cp[:, 1]].sum())
+            results = app.evaluate_scenario(
+                pct_converted=10, green_infrastructure_pct=50, food_forest_pct=50,
+                seed=42, placement_strategy="random",
+                selected_region_mask=mask,
+            )
+            reported = int(results["region_selection"]["eligible_pixels_in_region"])
+            label_str = f"{city_name} / {layer_key} / {label!r}"
+            if reported == independent_count:
+                print(f"  OK  {label_str}: eligible_pixels_in_region = {reported:,}")
+            else:
+                print(f"  FAIL {label_str}: reported {reported:,} != independent {independent_count:,}")
+                region_diffs += 1
+            # Verify the structured block carries the locked contract: label
+            # value (string), not positional index.
+            stamped_ids = results["region_selection"].get("selected_ids")
+            assert stamped_ids in (None, []), (
+                f"caller-stamped fields should be untouched by evaluate_scenario; "
+                f"got selected_ids={stamped_ids!r}"
+            )
+        except Exception as e:
+            print(f"  ERROR {city_name}: {e}")
+            import traceback; traceback.print_exc()
+            region_diffs += 1
+
+    print(f"\n{'=' * 60}")
+    grand_total = total_diffs + region_diffs
+    if grand_total == 0:
         print("All baselines match.")
         return 0
     else:
-        print(f"{total_diffs} total divergence(s). If intentional, rerun with --update.")
+        if total_diffs:
+            print(f"{total_diffs} citywide divergence(s). "
+                  "If intentional, rerun with --update.")
+        if region_diffs:
+            print(f"{region_diffs} region-assertion divergence(s).")
         return 1
 
 

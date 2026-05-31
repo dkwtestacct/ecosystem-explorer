@@ -218,7 +218,8 @@ for i, (pct, gi, ff) in enumerate(combos, start=1):
     # data and ~7-line CSV rows from the embedded newlines.
     row = {k: v for k, v in result.items()
            if k not in ("scenario_lulc", "scenario_lulc_ucm",
-                        "scenario_lulc_una", "scenario_lulc_carbon")}
+                        "scenario_lulc_una", "scenario_lulc_carbon",
+                        "region_selection")}
     # Brief 30: MN re-normalises to default annual-rate proxy via
     # `_compute_carbon`; SA's four-pool stock value from
     # `evaluate_scenario` is already canonical (no rate sliders apply —

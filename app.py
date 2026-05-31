@@ -63,20 +63,17 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
-    "A single comparison table on the Tradeoff Analysis tab now puts NatCap's published scenarios, the current scenario, and any you've saved side by side — each row labeled with its source and how it's validated, so you can compare different kinds of scenarios honestly. (San Antonio shows NatCap anchors; Minneapolis shows your current and saved scenarios.)",
-    "The scenario optimizer is now framed as scenario discovery, and an applied optimizer suggestion is labeled as such — in the scenario header and in its exported InVEST bundle — instead of being indistinguishable from a manually built scenario.",
-    "Every scenario now shows its source and validation status at the top — NatCap published reference, baseline, engine-validated Explorer scenario, or surrogate-suggested optimizer suggestion — so it's always clear how grounded a given scenario is.",
-    "San Antonio now has a sidebar option to load NatCap's project scenarios (baseline + the six food-forest and urban-agriculture alternatives) alongside Explorer scenarios. Every metric card carries a validation badge — \"NatCap published value\" where the number is sourced from NatCap directly, \"≈ NatCap method\" or \"≈ Aligned method\" for prototype computations using NatCap-aligned methodology, and \"Prototype\" for exploratory metrics.",
+    "**Region Selection** — constrain conversions to a selected council district (San Antonio) or census tract (Minneapolis); metrics still show citywide impact.",
+    "A single comparison table on the Tradeoff Analysis tab puts NatCap's published scenarios, the current scenario, and any you've saved side by side — each row labeled with its source and how it's validated.",
+    "Every scenario shows its source and validation status at the top — NatCap published reference, baseline, engine-validated Explorer scenario, or surrogate-suggested optimizer suggestion.",
+    "San Antonio: load NatCap's project scenarios from the sidebar (baseline + the six food-forest and urban-agriculture alternatives). Per-metric validation badges on every card.",
     "You can now download the current scenario as a runnable input bundle for canonical InVEST 3.19.0 — rasters, AOIs, biophysical tables, and per-model args files for all five urban models. San Antonio only for v1.",
-    "Mental-health estimates (preventable cases and avoided healthcare costs) are now validated against NatCap's InVEST Urban Mental Health model and shown at higher confidence.",
-    "San Antonio flood estimates now use NatCap's San Antonio Curve Numbers instead of Minneapolis values. Under SA's design-storm conditions, Green Infrastructure scenarios show minimal flood mitigation — GI's primary benefits in SA are heat, nature access, and carbon. (NatCap, 2023.)",
+    "San Antonio flood estimates now use NatCap's San Antonio Curve Numbers instead of Minneapolis values. (NatCap, 2023.)",
     "San Antonio land cover now uses NatCap's San Antonio data.",
     "San Antonio carbon now uses NatCap's four-pool storage framework — reported as one-time storage value rather than annual rate.",
 ]
 
-UNDERWAY_ENTRIES = [
-    "**Region Selection** — choose *where* in the city scenario changes are placed (from existing council districts, census tracts, or similar polygon layers), instead of relying solely on automatic placement strategies.",
-]
+UNDERWAY_ENTRIES = []
 
 ON_THE_RADAR = """\
 - **AlphaEarth Foundations satellite embeddings** as a future land-cover source — [feasibility research here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md).
@@ -2036,7 +2033,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 27  # bumped: UMH neighborhood-exposure kernel changed from Gaussian to canonical buffer-mean (InVEST 3.19.0 per-pixel parity) — `preventable_mh_cases` / `avoided_mh_cost_usd` shift for every conversion scenario. Full per-bump rationale in docs/archive/HISTORY.md "Schema version log". (26 added the per-target fallback-pixel diagnostic fields.)
+SCENARIO_SCHEMA_VERSION = 28  # bumped: Region Selection Phase 1 — evaluate_scenario's return dict gains the `region_selection` block (mode / layer / selected_ids / selected_area_acres / eligible_pixels_in_region). Citywide path is byte-identical to schema 27; verify_baselines 40/40 pass against the schema-27 snapshots (re-tag, not re-baseline). Pre-28 saved scenarios load gracefully — missing region_selection reads as None / entire_aoi via the .get() patterns in consumers. Full per-bump rationale in docs/archive/HISTORY.md "Schema version log". (27 was the UMH buffer-mean kernel.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -2137,7 +2134,8 @@ def compute_scenario_grid(_state, city_key, data_dir_flood, data_dir_cooling,
                     # Brief 30: same logic for `scenario_lulc_carbon`.
                     row = {k: v for k, v in result.items()
                            if k not in ('scenario_lulc', 'scenario_lulc_ucm',
-                                        'scenario_lulc_una', 'scenario_lulc_carbon')}
+                                        'scenario_lulc_una', 'scenario_lulc_carbon',
+                                        'region_selection')}
                     # Explicit recomputation guarantees the surrogate-target
                     # columns exist regardless of evaluate_scenario's return.
                     # Brief 30: MN re-normalises to `_compute_carbon` defaults
@@ -2197,7 +2195,8 @@ def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, sch
                     # `compute_scenario_grid` — see comment there).
                     entry = {k: v for k, v in result.items()
                              if k not in ('scenario_lulc', 'scenario_lulc_ucm',
-                                          'scenario_lulc_una', 'scenario_lulc_carbon')}
+                                          'scenario_lulc_una', 'scenario_lulc_carbon',
+                                          'region_selection')}
                     # Brief 30: MN re-normalises to defaults; SA's four-pool
                     # stock value is already canonical (see
                     # `compute_scenario_grid` comment).
@@ -4011,18 +4010,34 @@ if _apply_within == "Selected regions" and _region_layers_available:
         _eligible_count = int(_region_mask[_cp[:, 0], _cp[:, 1]].sum())
         _eligible_acres = _eligible_count * PIXEL_AREA_ACRES
         _plural = "s" if len(_selected_labels) > 1 else ""
-        st.sidebar.caption(
-            f"**Eligible for placement:** {_eligible_count:,} pixels "
-            f"(~{_eligible_acres:,.0f} acres) inside the selected "
-            f"{_display.lower()}{_plural}."
-        )
-        st.sidebar.caption(
-            "Conversions will be placed only inside the selected region, "
-            "after excluding roads, buildings, and existing natural land. "
-            "**Metrics show citywide impact.**"
-        )
+        if _eligible_count == 0:
+            # Region Selection Phase 1 (Commit 6) — zero-convertible edge case.
+            # The region has no convertible pixels (e.g. all buildings + roads
+            # + existing nature inside the selected polygon). n_convert would
+            # be 0 → no conversion → metrics == baseline; surface that
+            # explicitly so the user understands the dashboard isn't broken.
+            st.sidebar.warning(
+                f"No convertible pixels inside the selected "
+                f"{_display.lower()}{_plural} — conversions can't land here. "
+                f"Try a larger region, a different layer, or clear the "
+                f"selection."
+            )
+        else:
+            st.sidebar.caption(
+                f"**Eligible for placement:** {_eligible_count:,} pixels "
+                f"(~{_eligible_acres:,.0f} acres) inside the selected "
+                f"{_display.lower()}{_plural}."
+            )
+            st.sidebar.caption(
+                "Conversions will be placed only inside the selected region, "
+                "after excluding roads, buildings, and existing natural land. "
+                "**Metrics show citywide impact.**"
+            )
         # Push to session_state for Commit 2's lookup bypass and Commit 1's
-        # caller-stamping of results['region_selection'].
+        # caller-stamping of results['region_selection']. Note: even with
+        # _eligible_count == 0 we still set the mask — evaluate_scenario
+        # degrades gracefully (n_convert == 0 → no-op conversion → metrics
+        # equal baseline), and the provenance label still augments correctly.
         st.session_state['selected_region_mask']  = _region_mask
         st.session_state['selected_region_layer'] = _layer_key
         st.session_state['selected_region_ids']   = list(_selected_labels)  # label values, not positional
