@@ -58,7 +58,7 @@ The §1–11 template restructure renamed most anchors (chronology stripped, dat
 
 Strip `"(Brief B2 revised, 2026-05-29)"` chronology from the lead-in sentence at NATCAP_ALIGNMENT.md line 77: *"Surfaced in the dashboard via per-metric validation badges (Brief B2 revised, 2026-05-29):"* → *"Surfaced in the dashboard via per-metric validation badges:"*. The §2 badge taxonomy is the authoritative current-state spec; the brief-number prefix belongs in HISTORY chronology, not in the spec lead-in. Catch as part of the trim's chronology pass.
 
-### 3.2 SA compound-LULC structural inventory — CITY_PARITY → DATA_INVENTORY **consolidation** (not raw move)
+### 3.2 SA compound-LULC structural inventory — CITY_PARITY → DATA_INVENTORY **consolidation** (RESOLVED)
 
 Currently CITY_PARITY lines 222+ (`### SA Compound LULC Framework (structural inventory)` — the 1,984×27 `lulc_crosswalk` + ucm/una/carbon table column counts + `urban_nature` distribution 976/48/960 + four-pool max values + LULC raster comparison + integration implications).
 
@@ -71,6 +71,8 @@ What CITY_PARITY's structural inventory adds that §2 doesn't yet have: per-tabl
 The NatCap-trio refactor explicitly retains the CITY_PARITY content through Commit 4 (ALIGNMENT trim); the DATA_INVENTORY refresh consolidates afterward.
 
 Note: the original Commit-2 framing referenced "ALIGNMENT → DATA_INVENTORY", but the structural inventory actually lives in CITY_PARITY, not ALIGNMENT. ALIGNMENT only carries a 1-row Table 2 entry (line 122) referencing the compound LULC raster.
+
+**Resolved in the DI-2 commit (paired DATA_INVENTORY + CITY_PARITY).** DATA_INVENTORY §2 absorbed (a) the 16 × 31 × 4 = 1,984 framing with the `tree_canopy_cover` bins, (b) the `code`-not-positional / `lucode`-is-join-key finding, (c) the prototype-vs-NatCap LULC side-by-side comparison table, and (d) the `is_realistic_to_create` / `is_realistic_to_paint` realism-flag breadcrumb on the `lulc_crosswalk.csv` row. §9.4 Carbon row absorbed the per-pool max values (`c_above` 105.7, `c_below` 8.0, `c_soil` 259.0 dominant, `c_dead` 14.4). CITY_PARITY dropped the `### SA Compound LULC Framework (structural inventory)` subsection and added a one-line breadcrumb pointer to DATA_INVENTORY §2 + §9 before the `### San Antonio summary`. Methodology "integration implications" prose stayed routed at DESIGN_NOTES §3.3 + §3.4.
 
 ### 3.3 Dual-home cross-references at OPEN_QUESTIONS + DATA_INVENTORY refreshes
 

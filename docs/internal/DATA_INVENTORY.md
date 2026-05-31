@@ -115,7 +115,26 @@ All four rasters share the same 2106 × 2218 grid at 34.5 m pixel size, EPSG:385
 | Source NLUD layer | `data/sa/natcap_2024/nlud_3857.tif` | Local-only | National Land Use Database, USGS. Full provenance pending — likely documented in `Notes on NASA Urban parameterization QA.docx`. |
 | Source tree canopy layer | `data/sa/natcap_2024/tree_3857.tif` | Local-only | NLCD 2021 tree canopy product. |
 
-The compound `lulc_overlay_3857.tif` encodes a **Cartesian product lucode space**: 16 NLCD codes × 31 NLUD classes × 4 tree-canopy levels = **1,984 distinct lucodes**. The biophysical tables (UCM / UNA / Carbon) are keyed on this compound lucode — see §9. Per-decision rationale for the compound-LULC adoption: `DESIGN_NOTES.md` §3.3.
+The compound `lulc_overlay_3857.tif` encodes a **Cartesian product lucode space**: **16** distinct NLCD codes × **31** distinct NLUD simple codes × **4** tree-canopy bins (`tree_canopy_cover` ∈ {`none`, `low`, `medium`, `high`}; `tree` codes 0–3) = **1,984 distinct lucodes**, fully exhaustive (not curated). The biophysical tables (UCM / UNA / Carbon) are keyed on this compound lucode — see §9. Per-decision rationale for the compound-LULC adoption: `DESIGN_NOTES.md` §3.3.
+
+The compound `code` column (4–6-digit IDs) does **not** follow a clean positional encoding — the obvious hypothesis `nlcd*100 + nlud*10 + tree` matches only 8 of 1,984 rows. The serial **`lucode`** column (0–1983) is the actual join key the biophysical tables use; the `code` encoding scheme is undocumented in the data and would need NatCap clarification if it matters for integration.
+
+### Prototype vs NatCap LULC raster — side-by-side
+
+The live `land_use_compound_sa.tif` (Derived row above) is produced by reprojecting NatCap's `lulc_overlay_3857.tif` onto the prototype's existing SA grid. For reference / audit, the side-by-side dimensions of the prototype's NLCD-only SA raster and NatCap's compound source:
+
+| Property | Prototype NLCD-only (`land_use_2021_sa.tif`) | NatCap compound (`lulc_overlay_3857.tif`) |
+|---|---|---|
+| CRS | EPSG:5070 (NAD83 / Conus Albers) | EPSG:3857 (Web Mercator) |
+| Dimensions | 1984 × 1713 | 2106 × 2218 |
+| Resolution | 30 m | 34.5 m |
+| Lucode dtype | `uint8` (NLCD only) | `int16` (compound codes) |
+| Lucode range | 11–95 (15 unique codes) | 0–1913 (820 unique of 1,984 possible; ~41 %) |
+| NoData | 0 | −1 |
+| Extent (lat/lon) | 98°48′54″W–98°11′17″W, 29°12′–29°38′58″N | 98°50′48″W–98°11′38″W, 29°9′32″–29°45′27″N |
+| File size | 4.2 MB | 9.4 MB |
+
+**Extent difference.** NatCap extends ~6 minutes farther north, ~3 farther south, ~2 farther west; same east edge. Both centered on San Antonio. The reprojection that produces `land_use_compound_sa.tif` clips to the prototype's existing 1984 × 1713 EPSG:5070 grid; ~1 % nodata coverage on the reprojected output reflects this clip. Methodology implications of the compound adoption (per-pixel ag/maintenance signals, Köppen-BSh tuning retirement, etc.) live in `DESIGN_NOTES.md` §3.3 + §3.4.
 
 ### Committed files in `data/sa/natcap_2024/`
 
@@ -127,10 +146,10 @@ The small CSVs + doc files that live alongside the gitignored rasters.
 | `Notes_on_NASA_Urban_parameterization_QA.docx` + `.txt` | Committed | NASA Urban project parameterization QA notes. Documents the canopy-weighted parameter framework (paras 123–138). |
 | `README_San_Antonio_InVEST_model_inputs.docx` + `.txt` | Committed | NatCap's per-InVEST-model SA input recipe — args.json-equivalent values for UCM / Carbon / UNA / UFR / NDR. |
 | `Ecosystem_Explorer_-_Meeting_Note.docx` + `.txt` | Committed | NatCap meeting note: Symposium 2026 dates, six-model SA scope. |
-| `ucm__nlcd_nlud_tree.csv` | Local-only | NatCap SA Urban Cooling biophysical table — 1,984-row compound NLCD × NLUD × tree-canopy lookup. Live as SA's UCM biophysical table. |
-| `una__nlcd_nlud_tree.csv` | Local-only | NatCap SA Urban Nature Access — 1,984-row categorical `urban_nature` score per compound lucode. Live as SA's UNA biophysical table. |
-| `carbon__nlcd_nlud_tree.csv` | Local-only | NatCap SA Carbon — 1,984-row four-pool (c_above / c_below / c_soil / c_dead). Live as SA's Carbon biophysical table. |
-| `lulc_crosswalk.csv` | Committed | NLCD × NLUD × tree-canopy → compound-lucode lookup; the join key for the three biophysical tables above. |
+| `ucm__nlcd_nlud_tree.csv` | Committed | NatCap SA Urban Cooling biophysical table — 1,984-row compound NLCD × NLUD × tree-canopy lookup. Live as SA's UCM biophysical table. |
+| `una__nlcd_nlud_tree.csv` | Committed | NatCap SA Urban Nature Access — 1,984-row categorical `urban_nature` score per compound lucode. Live as SA's UNA biophysical table. |
+| `carbon__nlcd_nlud_tree.csv` | Committed | NatCap SA Carbon — 1,984-row four-pool (c_above / c_below / c_soil / c_dead). Live as SA's Carbon biophysical table. |
+| `lulc_crosswalk.csv` | Committed | NLCD × NLUD × tree-canopy → compound-lucode lookup; the join key for the three biophysical tables above. Also carries per-row realism flags — **`is_realistic_to_create`** (populated; gates which compound classes a scenario can meaningfully produce — load-bearing for SA conversion + future region-selection placement work) and **`is_realistic_to_paint`** (all NaN in current data; reserved column). Conversion-target lookup logic in `DESIGN_NOTES.md` §4.1. |
 | `acs_block_group_equity_data.csv` | Committed | Census ACS demographic + equity data joined to SA block groups. |
 | `acs_block_groups_3857.gpkg` | Committed | SA Census block group polygons (EPSG:3857; reprojected to EPSG:5070 at load time). 1,124 polygons covering the City of San Antonio. Live as SA's `tracts_file`. |
 | `classification_structure_qaqc.xlsx` | Committed | NatCap's methodology QA/QC for the compound LULC framework. Binary file. |
@@ -252,7 +271,7 @@ NatCap's compound biophysical bundle does **not** ship a Curve Number table; SA 
 | City | Path | Status | Lookup key / Notes |
 |---|---|---|---|
 | MN (both) | `data/cooling/biophysical_table_urban_cooling_MN.csv` | Committed | NLCD lucode. From InVEST UCM args JSON. |
-| SA (live) | `data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv` | Local-only | Compound lucode (NLCD × NLUD × tree-canopy). 1,984 rows × 27 cols. Tree canopy is a dominant signal (high-canopy pixels get shade ≈ 0.66 regardless of NLCD). |
+| SA (live) | `data/sa/natcap_2024/ucm__nlcd_nlud_tree.csv` | Committed | Compound lucode (NLCD × NLUD × tree-canopy). 1,984 rows × 27 cols. Tree canopy is a dominant signal (high-canopy pixels get shade ≈ 0.66 regardless of NLCD). |
 | SA (retired) | `data/sa/cooling/biophysical_table_urban_cooling_SA.csv` | Retired | Köppen BSh-tuned NLCD-keyed table. Kept on disk for reference; per-class rationale in `data/sa/cooling/biophysical_table_sources.md`. |
 
 ### 9.3 Urban Nature Access biophysical
@@ -260,7 +279,7 @@ NatCap's compound biophysical bundle does **not** ship a Curve Number table; SA 
 | City | Path | Status | Lookup key / Notes |
 |---|---|---|---|
 | MN (both) | `data/invest/nature_access/UrbanNatureAccess_sample_data_MN/LULC_attribute_table_UNA.csv` | Committed | NLCD lucode. Per-class `urban_nature` score + per-class `search_radius_m`. |
-| SA | `data/sa/natcap_2024/una__nlcd_nlud_tree.csv` | Local-only | Compound lucode. 1,984 rows × 21 cols. Per-pixel `urban_nature` ∈ {0.0, 0.5, 1.0} (distribution: 976 / 48 / 960). The 0.5 score appears only for Conservation-class NLUD pixels. |
+| SA | `data/sa/natcap_2024/una__nlcd_nlud_tree.csv` | Committed | Compound lucode. 1,984 rows × 21 cols. Per-pixel `urban_nature` ∈ {0.0, 0.5, 1.0} (distribution: 976 / 48 / 960). The 0.5 score appears only for Conservation-class NLUD pixels. |
 
 Per-city `urban_nature_demand_per_capita`, `search_radius_m`, and `decay_function` values live in `CITY_PARITY.md` under each city's `### UNA` table. The SA NatCap table's `search_radius_m` column is all zeros — the radius is an args-level scalar, not a per-row table value. Partial confirmation 2026-05-24: NatCap's intermediate `kernel_800.0.tif` confirms SA used 800 m. SA UNA demand parameter: NatCap's `urban_nature_demand.tif` output may encode the runtime value; reading its single non-zero value would resolve it (full args.json not present).
 
@@ -269,7 +288,7 @@ Per-city `urban_nature_demand_per_capita`, `search_radius_m`, and `decay_functio
 | City | Path | Status | Lookup key / Methodology |
 |---|---|---|---|
 | MN (both) | per-cover-class rates embedded in `app.py` / `config.py` | Committed | NLCD lucode → single sequestration rate (tons CO₂e/ha/yr). Annual flow methodology. User-overridable via Advanced Settings sliders. |
-| SA | `data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv` | Local-only | Compound lucode. 1,984 rows × 27 cols. Four pools `c_above` / `c_below` / `c_soil` / `c_dead` (tons C/ha). One-time stock-change methodology (Vibrant Land precedent). Three additional columns (`c_embedded_storage`, `c_embedded_emissions`, `c_annual_emissions`) describe urban-accounting flows the prototype doesn't use. |
+| SA | `data/sa/natcap_2024/carbon__nlcd_nlud_tree.csv` | Committed | Compound lucode. 1,984 rows × 27 cols. Four pools `c_above` (max 105.7), `c_below` (max 8.0), `c_soil` (max 259.0 — dominant pool), `c_dead` (max 14.4) — all in tons C/ha. One-time stock-change methodology (Vibrant Land precedent). Three additional columns (`c_embedded_storage`, `c_embedded_emissions`, `c_annual_emissions`) describe urban-accounting flows the prototype doesn't use. |
 
 The unified return-dict key `carbon_tons_co2` carries either framing; the city-conditional `_CARBON_IS_STOCK` flag drives dashboard card labels and unit suffixes. Per-decision rationale: `DESIGN_NOTES.md` §6.4.
 

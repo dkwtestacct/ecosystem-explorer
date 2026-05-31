@@ -219,55 +219,7 @@ At-a-glance per-city × per-model status. Detail in the per-city sections below.
 |---|---|---|---|
 | `FOOD_FOREST_LBS_ACRE` | 8,500 (placeholder, hot semi-arid estimate) | Per-crop via `CoSA_Crop_production_ESModeling` (referenced in meeting note) | ⚠️ Methodology simplification (single benchmark vs per-crop) |
 
-### SA Compound LULC Framework (structural inventory)
-
-NatCap's SA data uses a compound LULC framework that overlays three signals: NLCD land cover, NLUD land use, and tree canopy cover. The compound lucode encodes all three; the biophysical tables (UCM/UNA/Carbon) are keyed on it.
-
-**Cross-reference table (`lulc_crosswalk.csv`):**
-
-- **1,984 rows × 15 columns**, fully exhaustive across the combinatorial space.
-- Distinct NLCD codes: **16** (`{11, 12, 21, 22, 23, 24, 31, 41, 42, 43, 52, 71, 81, 82, 90, 95}` — legacy NLCD 21-class).
-- Distinct NLUD simple codes: **31** (1, 2, 3, 4, 11, 12, 13, 14, 15, 20, 30, 41, 42, 51, 52, 53, 60, 70, 80, 90, 100, 110, 120, 131, 132, 133, 134, 140, 151, 152, 153).
-- Distinct tree-canopy bins: **4** (`tree_canopy_cover` = `none`, `low`, `medium`, `high`; corresponding `tree` codes 0, 1, 2, 3).
-- Total combinations: 16 × 31 × 4 = **1,984** — exactly the row count, fully exhaustive (not curated).
-- Compound `code` column is a 4–6-digit ID that does **not** follow a clean positional encoding (the obvious hypothesis `nlcd*100 + nlud*10 + tree` matches only 8 of 1,984 rows). The serial `lucode` column (0..1983) is the actual join key the biophysical tables use; NatCap's encoding for `code` isn't documented in the data and would need NatCap clarification if it matters for integration.
-- Frequency columns (`frequency`, `frequency bins`) flag how common each combo is in the AOI. Practicality flags (`is_realistic_to_create`, `is_realistic_to_paint`) indicate which compound classes are physically meaningful to assign in a scenario.
-
-**UCM biophysical (`ucm__nlcd_nlud_tree.csv`):**
-- 1,984 rows × 27 columns.
-- Keys: `lucode, code, nlcd, lulc_desc, nlud_simple, nlud_simple_class, nlud_simple_subclass, tree, tree_canopy_percentage, tree_canopy_cover, tree_canopy_colors`.
-- Context: `bioregion` (`NA28 Southern Mixed Forests & Blackland Prairies` for SA), `notes`.
-- Per-pixel maintenance/use signals: `fertilizer, pesticide, irrigation, planting_diversity, mowing, public_access, green_space, building_type`.
-- Model parameters: `shade` (0–1), `kc` (0–1.1), `albedo` (0.056–0.80), `green_area` (0–1), `building_intensity` (0–1).
-
-**UNA biophysical (`una__nlcd_nlud_tree.csv`):**
-- 1,984 rows × 21 columns.
-- Keys + maintenance signals same as UCM (minus `bioregion` / `notes` / `building_intensity`).
-- Model parameters: `urban_nature` (categorical 0/0.5/1.0 — 976 / 960 / 48 rows respectively) and `search_radius_m` (all zero — the radius is an args-level scalar, not a per-class table value).
-
-**Carbon biophysical (`carbon__nlcd_nlud_tree.csv`):**
-- 1,984 rows × 27 columns.
-- Keys + maintenance signals same shape.
-- Four-pool model parameters (tons C/ha): `c_above` (max 105.7), `c_below` (max 8.0), `c_soil` (max 259.0 — dominant pool), `c_dead` (max 14.4).
-- Three urban-accounting columns not used in this project's parameterization: `c_embedded_storage`, `c_embedded_emissions`, `c_annual_emissions`.
-
-**LULC raster comparison:**
-
-| | Prototype | NatCap |
-|---|---|---|
-| Path | `data/sa/flood/land_use_2021_sa.tif` | `data/sa/natcap_2024/lulc_overlay_3857.tif` |
-| Dimensions | 1984 × 1713 | 2106 × 2218 |
-| CRS | EPSG:5070 (NAD83 / Conus Albers) | EPSG:3857 (Web Mercator) |
-| Resolution | 30 m | 34.5 m |
-| Lucode dtype | `uint8` (NLCD only) | `int16` (compound codes) |
-| Lucode range | 11–95 (15 unique codes) | 0–1913 (820 unique compound codes; ~41% of 1,984 theoretical) |
-| NoData | 0 | -1 |
-| Extent (lat/lon) | 98°48'54"W to 98°11'17"W, 29°12' to 29°38'58"N | 98°50'48"W to 98°11'38"W, 29°9'32" to 29°45'27"N |
-| File size | 4.2 MB | 9.4 MB |
-
-**Extent difference flag:** the rasters cover substantially overlapping but not identical geographic areas. NatCap extends ~6 minutes farther north, ~3 farther south, ~2 farther west; same east edge. Both centered on San Antonio. Integration will need to either clip both to a common extent or accept a coverage shift.
-
-**Integration implications.** The compound LULC framework is not a parameter swap — it's a methodology adoption. Adopting it means: (1) the SA LULC raster changes from NLCD-only (15 unique codes, 30 m, EPSG:5070) to compound (820 unique codes used out of 1,984 possible, 34.5 m, EPSG:3857) — requires reprojection or migrating the whole SA stack to 3857; (2) the three biophysical tables (UCM/UNA/Carbon) all change to compound-keyed lookups; (3) the prototype's SA-specific Köppen-BSh tuning becomes obsolete (NatCap's tables capture climate-relevant variation via the tree-canopy and NLUD signals); (4) per-pixel ag/maintenance signals (fertilizer, irrigation, mowing, etc.) become available as new inputs the prototype doesn't currently use. Likely multi-brief workstream.
+**SA compound-LULC structural inventory** (1,984-lucode space, per-table column counts, four-pool max values, prototype-vs-NatCap raster comparison) → `DATA_INVENTORY.md` §2 + §9. Moved out as part of the single-home dedup contract.
 
 ### San Antonio summary
 
