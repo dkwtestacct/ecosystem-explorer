@@ -754,7 +754,29 @@ NatCap's project document lists "wallpaper" alongside the three-layer mask as a 
 
 **Revisit if.** A future workstream needs true LP-based Pareto frontiers or agreement maps — at which point ROOT becomes a candidate for an offline analyst-mode export, not an in-app replacement.
 
-### 11.4 B2 — per-scenario Match / Diverged validation badges
+### 11.4 Stratified Impervious Siting (per-NLCD-intensity placement control)
+
+**Considered.** A sidebar control exposing per-NLCD-class placement targeting — NLCD 21 (≥ 20 % impervious, open-space dominant), NLCD 22/23 (low–medium intensity), NLCD 24 (≥ 80 % impervious, depaving / high-intensity mitigation). The current stochastic placement step samples uniformly from the building/road-filtered NLCD 21–24 pool, treating all impervious-intensity classes as equivalent for siting; stratification would expose the choice to the user.
+
+**Why considered.**
+- Depaving-focused scenarios that target high-impervious pixels (NLCD 24) where the cooling / runoff leverage per converted acre is highest.
+- "Neighborhood green-space" scenarios that target open-space-dominant pixels (NLCD 21).
+- Empirical question — does stratified placement resolve the Nature Access saturation issue noted in REFERENCE.md (validate before claiming)?
+
+**Why deferred.** Three open scoping questions:
+1. UI shape — mutually-exclusive radio buttons vs multi-select vs per-tier weight sliders.
+2. Whether to dynamically clamp the conversion-percentage slider max based on the selected tier's available acreage.
+3. Empirical validation that stratification actually resolves the saturation question — must be measured, not claimed.
+
+Optional micro-siting refinement via `scipy.ndimage.distance_transform_edt` against `BUILDINGS_RASTER` ("open lot" vs "private yard" at 15 m / 30 m distance thresholds) is a secondary refinement to scope separately.
+
+**Framing constraint.** Strictly impervious-intensity stratification, not policy / ownership tiering — NLCD classes correlate with but do not equal ownership. The user-facing label must not imply parcel-level knowledge.
+
+**Revisit if.** Phase-3+ region-selection work makes per-region placement controls the natural surface for stratification; the two features compose. Or a user-facing study question (NA saturation, depaving leverage) explicitly requires per-class targeting.
+
+**Source.** Iterated proposal (Gemini-3 v3 after Claude critique) — v3 is the version to scope from. Originally captured in CLAUDE.md "Blocked / pending work" (pre-trim); absorbed here so the proposal has a durable home.
+
+### 11.5 B2 — per-scenario Match / Diverged validation badges
 
 **Considered.** The original B2 design: per-metric validation badges with ✓ NatCap match / × Diverged X% states, driven by a prototype value *computed for a NatCap fixed scenario* against NatCap's published value. The five-state badge taxonomy was ✓ NatCap match / × Diverged X% / ≈ Aligned method / Prototype / interim "NatCap published".
 
@@ -792,7 +814,7 @@ Net per fixed scenario: ~4–5 cards carry a value; ~11 are "not available." Thi
 
 **Revisit if.** Compound LULC inputs for the NatCap fixed alternatives arrive (OPEN_QUESTIONS) — the gating constraint lifts and the Match / Diverged states become re-implementable. The likely shape would be a **reworked, smaller surface** (baseline reproduction + a NatCap reference comparison table) rather than the original per-card per-scenario badge design.
 
-### 11.5 Topics not yet documented
+### 11.6 Topics not yet documented
 
 Sections that might land here when the relevant work happens. Listed so future sessions know this doc is the right home:
 
@@ -801,5 +823,4 @@ Sections that might land here when the relevant work happens. Listed so future s
 - Population data — Census 2020 block vs ACS block-group
 - Surrogate model architecture and hyperparameters
 - Real CDC / ATSDR Heat Vulnerability Index integration (replacing the development-intensity proxy)
-- Stratified Impervious Siting (per-NLCD-intensity placement control — see ../../CLAUDE.md "Blocked / pending work")
 - Mental health parameters (RR per 0.1 NDVI, cost-of-illness)

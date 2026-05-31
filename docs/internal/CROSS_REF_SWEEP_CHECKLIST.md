@@ -101,17 +101,22 @@ All inbound cites to ALIGNMENT §2 / §3 / §4 / §5 / §6 / §7 by number resol
 
 DESIGN_NOTES inbound cites to ALIGNMENT (DESIGN_NOTES.md:11, :414, :516) all resolve correctly with the new structure.
 
-### 3.5 CLAUDE.md trim — broken inbound cite + orphan content
+### 3.5 CLAUDE.md trim — inbound-cite + orphan resolution (RESOLVED before push)
 
-The CLAUDE.md trim (710 → 121 lines, 59,782 → 12,255 bytes) deleted the `## Blocked / pending work` section. One inbound cite breaks:
+The CLAUDE.md trim (710 → 121 lines, 59,782 → 12,255 bytes) deleted the `## Blocked / pending work` section. Pre-push fixes applied (`<commit-tbd>`):
 
-| Source | Line | Cite | Action |
-|---|---|---|---|
-| `docs/internal/DESIGN_NOTES.md` | :804 | `../../CLAUDE.md "Blocked / pending work"` for the Stratified Impervious Siting proposal | (a) drop the inline cite (it's the last clause of a tail-section bullet — the bullet still reads), OR (b) absorb the full proposal text from `git show 8f0f675:CLAUDE.md` into DESIGN_NOTES §11 as a proper deferred-alternative entry, OR (c) create `docs/research/STRATIFIED_IMPERVIOUS_SITING.md`. Recommended: (b) — the proposal is detailed enough to warrant a §11 entry, fits the deferred-alternatives section. |
+| Item | Status |
+|---|---|
+| `docs/internal/DESIGN_NOTES.md` Stratified Impervious Siting bullet cite to CLAUDE.md "Blocked / pending work" | **Resolved (option b — absorb)**: full proposal absorbed into DESIGN_NOTES §11.4 as a proper deferred-alternative entry; §11.5 → §11.6 renumbered; the broken-cite bullet in the tail "Topics not yet documented" list removed (the topic now has its own entry) |
+| Track C1 frozen content | **Already homed**: STRATEGY.md §7 Track C row + §8. No action needed. |
+| Heat Vulnerability Index pending | **Already homed**: DESIGN_NOTES §11.6 (Topics tail), ARCHITECTURE §11, REFERENCE §7, NATCAP_COLLABORATION methodology gaps, app.py:902 TODO + app.py:5845 UI tooltip. No action needed. |
+| Minneapolis Full hidden, `load_data` parameterization | **Already homed**: HISTORY "Full Minneapolis extent" + "load_data parameterization (2026-05-09)". No action needed. |
+| SA flood damage Path C + SA flood biophysical integrated | **Already homed**: DESIGN_NOTES §6.5 + CITY_PARITY + NATCAP_COLLABORATION Q12. No action needed. |
+| SA-as-default-test-bed memory-fit | **Already homed**: HISTORY "Streamlit Cloud memory-fit workstream". No action needed. |
 
 All four anchor-named cites from `app.py` (lines 1232, 1958, 2209, 2575) resolve correctly — `"Pure-variant helpers"`, `"Interface changes require auditing all consumers"`, `"Buildings — typing"` are all preserved as `###` headings in the trimmed CLAUDE.md.
 
-**Per the user's sweep instruction** ("Since the CLAUDE.md trim shifts its line numbers, resolve CLAUDE.md checklist items by cite content, not the logged line numbers."), DESIGN_NOTES:804 may shift if DESIGN_NOTES sees further edits before the sweep — locate by cite content (`Stratified Impervious Siting` + `Blocked / pending work` quote) rather than line number.
+**Residual sweep work:** STRATEGY.md §7 line 136 references *"C1 recorded as frozen in `../../CLAUDE.md`"* — that reference no longer resolves to a CLAUDE.md section. Retarget at sweep time to point at DESIGN_NOTES (or just rephrase to "recorded as frozen in STRATEGY.md §7 + §8" since the home is already self-referential).
 
 ## 4. Forward-looking — items expected to land here during the remaining rewrites
 
