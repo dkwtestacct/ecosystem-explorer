@@ -3121,7 +3121,8 @@ def _downsample_for_plot(arr, order):
 
 def plot_spatial_map(scenario_lulc, baseline_lulc,
                      heat_overlay=None, overlay_alpha=0.0,
-                     tract_value=None, tract_alpha=0.0):
+                     tract_value=None, tract_alpha=0.0,
+                     selected_region_mask=None):
     # Downsample once, then build all layers from the downsampled rasters.
     # Doing this after layer construction would defeat the memory savings.
     scenario_lulc = _downsample_for_plot(scenario_lulc, order=0)
@@ -3191,6 +3192,27 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
             legend_handles.append(
                 Patch(facecolor=(0.0, 0.6, 0.0, 0.6),
                       label="Neighborhood improvement (green = better)")
+            )
+
+    # Region Selection Phase 1 (Commit 4) — display-only outline of the
+    # selected region(s) on the existing map. Read-only highlight; no click
+    # handling. Drawn last so it sits above the LULC + heat + tract layers.
+    # Color choice: matplotlib default blue (#1f77b4) — doesn't collide with
+    # GI/FF green, HD red, or the heat-overlay orange.
+    if selected_region_mask is not None:
+        region_mask_ds = _downsample_for_plot(
+            selected_region_mask.astype(np.uint8), order=0
+        ).astype(bool)
+        if region_mask_ds.any():
+            ax.contour(
+                region_mask_ds.astype(np.uint8),
+                levels=[0.5],
+                colors=['#1f77b4'],
+                linewidths=1.8,
+            )
+            legend_handles.append(
+                Patch(facecolor='none', edgecolor='#1f77b4', linewidth=1.8,
+                      label="Selected region")
             )
 
     ax.axis('off')
@@ -6055,6 +6077,7 @@ with tab3:
     render_matplotlib(plot_spatial_map(
         results['scenario_lulc'], cooling_lulc,
         heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
+        selected_region_mask=st.session_state.get('selected_region_mask'),
     ))
     st.caption(
         "Gray = unchanged developed land. Colors show where conversions occur. "
