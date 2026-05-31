@@ -112,6 +112,7 @@ CHANGE_COLORS = {
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
 WHATS_NEW_ENTRIES = [
+    "**Region-local view** — for region scenarios, a paired table shows the change *inside* the selected region next to the citywide reading, with locked flood-routing and reach-effect caveats for honest reading.",
     "**Ownership Filter (San Antonio)** — narrow conversions to publicly-owned, vacant, or vacant-and-publicly-owned parcels; composes with Region Selection. (Parcel data: Bexar County GIS / BCAD, 2026-05-31 pull.)",
     "**Region Selection** — constrain conversions to a selected council district (San Antonio) or census tract (Minneapolis); metrics still show citywide impact.",
     "A single comparison table on the Tradeoff Analysis tab puts NatCap's published scenarios, the current scenario, and any you've saved side by side — each row labeled with its source and how it's validated.",

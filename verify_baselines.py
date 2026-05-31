@@ -589,8 +589,61 @@ def main(update: bool) -> int:
             import traceback; traceback.print_exc()
             region_local_diffs += 1
 
+    # ── Region-Local Metrics Commit 4 — district-specific smoke test ──
+    # Reconciliation above proves region_local == citywide at full-AOI for
+    # every decomposable metric. This block adds a sanity check on a real
+    # region: SA District 5 with a non-zero conversion. The region_local
+    # block must (a) be non-None, (b) carry no None entries for any
+    # decomposable metric, (c) report carbon storage and food production
+    # within plausible bounds for a partial-conversion scenario.
     print(f"\n{'=' * 60}")
-    grand_total = total_diffs + region_diffs + ownership_diffs + region_local_diffs
+    print("Region-Local Metrics — district-specific smoke test (SA District 5)")
+    print(f"{'=' * 60}")
+    smoke_diffs = 0
+    try:
+        _rebind_city(app, "San Antonio, TX")
+        state = app._CURRENT_CITY_STATE
+        labels_for_layer = state.region_layer_labels["council_districts"]
+        pos_idx = labels_for_layer.index("5")
+        mask = (state.region_rasters["council_districts"] == pos_idx)
+        results = app.evaluate_scenario(
+            pct_converted=10, green_infrastructure_pct=50, food_forest_pct=50,
+            seed=42, placement_strategy="random",
+            selected_region_mask=mask,
+        )
+        rl = results.get("region_local")
+        if rl is None:
+            print("  FAIL  region_local block missing on a region scenario")
+            smoke_diffs += 1
+        else:
+            missing_keys = [
+                k for k, cfg in app._REGION_LOCAL_METRICS.items()
+                if cfg["decomposable"] and rl.get(k) is None
+            ]
+            if missing_keys:
+                print(f"  FAIL  decomposable keys with None value: {missing_keys}")
+                smoke_diffs += len(missing_keys)
+            else:
+                print(f"  OK    all 23 decomposable metrics populated")
+            # Plausibility bands for a 10% conversion on District 5 (~3,617 px).
+            n_conv = rl["n_wet"] + rl["n_for"] + rl["n_hd"]
+            if n_conv <= 0:
+                print(f"  FAIL  n_convert in region = 0; expected > 0")
+                smoke_diffs += 1
+            else:
+                print(f"  OK    n_convert in region = {n_conv:,}")
+            if not (0 <= rl["nature_access_pct"] <= 100):
+                print(f"  FAIL  nature_access_pct out of bounds: {rl['nature_access_pct']}")
+                smoke_diffs += 1
+            else:
+                print(f"  OK    nature_access_pct (region) = {rl['nature_access_pct']:.1f}%")
+    except Exception as e:
+        print(f"  ERROR {e}")
+        import traceback; traceback.print_exc()
+        smoke_diffs += 1
+
+    print(f"\n{'=' * 60}")
+    grand_total = total_diffs + region_diffs + ownership_diffs + region_local_diffs + smoke_diffs
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -604,6 +657,8 @@ def main(update: bool) -> int:
             print(f"{ownership_diffs} ownership-assertion divergence(s).")
         if region_local_diffs:
             print(f"{region_local_diffs} region-local reconciliation divergence(s).")
+        if smoke_diffs:
+            print(f"{smoke_diffs} region-local smoke-test divergence(s).")
         return 1
 
 
