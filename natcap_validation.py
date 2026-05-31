@@ -226,8 +226,8 @@ def render_validation_badge(metric_name: str, scenario_context: str,
 
     `explicit_status` lets the caller override the CSV lookup with a hand-
     curated status — used for non-CSV cards (runoff, NDVI, cost-effectiveness,
-    carbon-$ on SA, etc.). See `docs/internal/DESIGN_NOTES.md` → "Brief B2 (revised)" for
-    the per-card map.
+    carbon-$ on SA, etc.). See `docs/internal/DESIGN_NOTES.md` §8.1 "Two-surface
+    validation vocabulary — locked" for the curated non-CSV-card status map.
     """
     if scenario_context not in ALL_SCENARIO_CONTEXTS:
         raise ValueError(

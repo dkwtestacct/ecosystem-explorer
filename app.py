@@ -1422,7 +1422,7 @@ UMH_SEARCH_RADIUS_M          = 300   # Li et al. 2025; ~10 px at 30 m NLCD
 # correction, i.e. pygeoprocessing.convolve_2d(ignore_nodata_and_edges=True).
 # Validated to per-pixel parity (MAE ≈ 0, Pearson r ≈ 1.0) against
 # `natcap.invest.urban_mental_health.execute()` via compare_umh_invest.py — see
-# docs/internal/DESIGN_NOTES.md "Brief B — UMH NE kernel: Gaussian → buffer-mean".
+# docs/internal/DESIGN_NOTES.md §6.3 "UMH validation against canonical InVEST 3.19.0".
 # (Brief A's Gaussian σ=radius kernel diverged per-pixel; Brief B switched it.)
 _UMH_RADIUS_PX = UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M     # = 10.0 at 30 m / 300 m
 _UMH_APOTHEM   = int(np.floor(_UMH_RADIUS_PX))
@@ -3301,7 +3301,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 #  - blue  ≈ Aligned method   — aligned_method metric (canonical InVEST, no
 #    directly-comparable NatCap citywide reference).
 #  - gray  Prototype          — exploratory metric, no canonical InVEST analog.
-# See docs/internal/DESIGN_NOTES.md "Brief B2 (revised)" for the non-CSV-card curated map.
+# See docs/internal/DESIGN_NOTES.md §8.1 "Two-surface validation vocabulary — locked" for the non-CSV-card curated map.
 
 _VALIDATION_BADGE_COLOR_HEX = {
     "green": "#1a7f37",

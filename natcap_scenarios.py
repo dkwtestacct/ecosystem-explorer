@@ -20,7 +20,7 @@ lucode 901 = Perennial Ice/Snow), so feeding these rasters into those tables
 yields silent garbage. Carbon/temperature reproduction is therefore GATED pending
 NatCap's compound scenario inputs (requested separately). A local content-
 signature hunt (2026-05-29) found only baseline compound rasters on disk — no
-scenario variants. Full record: docs/internal/DESIGN_NOTES.md "Brief B1".
+scenario variants. Full record: docs/archive/HISTORY.md "Brief B1 (2026-05-29) — NatCap fixed scenarios as first-class inputs"; durable design lives in docs/internal/DESIGN_NOTES.md §11.5.
 """
 from __future__ import annotations
 import os
@@ -89,7 +89,7 @@ SA_NATCAP_FIXED_SCENARIOS = {
 # exists so a machine without the drive pull raises a clear error rather than
 # silently mis-resolving. When B2 wires this into the deployed app, the chosen
 # scenarios should be vendored + pre-reprojected into the repo for deploy-safety
-# (Streamlit Cloud has no ~/Desktop) — flagged in DESIGN_NOTES "Brief B1".
+# (Streamlit Cloud has no ~/Desktop) — flagged in HISTORY.md "Brief B1 (2026-05-29)".
 _SA_SCENARIO_SOURCE_DIRS = (
     "data/sa/natcap_scenarios",  # in-repo vendored location (preferred once it exists)
     os.path.expanduser("~/Desktop/natcap_drive_pull/drive_download_misc"),

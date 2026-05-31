@@ -363,7 +363,7 @@ The Ecosystem Explorer combines NatCap-curated data, InVEST-aligned biophysical 
 
 ### Official InVEST alignment
 
-Per-metric alignment status is maintained in [`docs/internal/NATCAP_ALIGNMENT.md`](docs/internal/NATCAP_ALIGNMENT.md) Table 1. The per-model sub-anchors below preserve the cross-reference targets used elsewhere in the repo and in the in-app help.
+Per-metric alignment status is maintained in [`docs/internal/NATCAP_ALIGNMENT.md`](docs/internal/NATCAP_ALIGNMENT.md) §3 "Metric methodology fidelity". The per-model sub-anchors below preserve the cross-reference targets used elsewhere in the repo and in the in-app help.
 
 The five urban InVEST models and the Carbon model each have their own alignment narrative — see §6 alongside the corresponding metric card (Temperature Change → Official InVEST alignment — UCM; Nature Access → Official InVEST alignment — UNA; Preventable MH Cases → Official InVEST alignment — UMH). Carbon and UFR alignment are folded into their §6 metric mini-templates (Validation status field).
 
