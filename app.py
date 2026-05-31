@@ -5545,6 +5545,19 @@ if _region_local:
     _rl_df = pd.DataFrame(_rl_rows, columns=["Metric", f"Region ({_rs_label})", "Citywide"])
     st.dataframe(_rl_df, use_container_width=True, hide_index=True)
 
+    # Honesty-Surface Pass Commit 1 — make the validation-state inheritance
+    # explicit. The Region-Local table has no per-row validation badge
+    # because region-local is a second aggregation of the same per-pixel
+    # outputs; each row's validation state is identical to the per-metric
+    # badge on the citywide card above. State the inheritance so users
+    # don't read the absence as "no validation state set".
+    st.caption(
+        "Validation states for these rows inherit from the per-metric badges "
+        "on the citywide cards above — region-local doesn't change the engine, "
+        "only the aggregation scope. The pairing keeps it honest: never read a "
+        "region-local number without its citywide companion."
+    )
+
     # Locked caveats from REGION_LOCAL_METRICS_SPEC.md.
     st.caption(
         "**Flood routing caveat.** The flood metrics are a closed-form "
