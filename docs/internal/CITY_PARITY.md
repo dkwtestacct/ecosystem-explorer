@@ -17,7 +17,25 @@
 - ✅ **Aligned** — prototype value matches NatCap project value
 - ⚠️ **Diverges** — prototype value differs; documented or expected
 - ❌ **Not implemented** — model or metric exists in NatCap setup but not in prototype
+- ⏸️ **Deferred** — alignment pending data, decisions, or city dormancy
 - ❓ **Unknown** — NatCap value not yet observed; prototype value is independent or unverified
+
+---
+
+## City × Model parity matrix
+
+At-a-glance per-city × per-model status. Detail in the per-city sections below.
+
+| Model | Minneapolis downtown | Minneapolis Full (dormant) | San Antonio |
+|---|---|---|---|
+| UCM (Urban Cooling) | ✅ | ⏸️ | ✅ |
+| UFR (Urban Flood Risk) | ✅ | ⏸️ | ⚠️ methodology divergence |
+| UNA (Urban Nature Access) | ✅ ⚠️ pop vintage (2020 vs 2010) | ⏸️ | ✅ |
+| Carbon | ⚠️ single-rate proxy (no MN four-pool bundle) | ⏸️ | ✅ four-pool |
+| UMH (Urban Mental Health) | ✅ ⚠️ uniform-national BIR | ⏸️ | ✅ |
+| NDR (Nutrient Delivery Ratio) | ❌ not implemented | ⏸️ | ❌ not implemented |
+| Food Forest yield | ✅ single benchmark | ⏸️ | ⚠️ single benchmark vs per-crop CoSA |
+| Export-for-InVEST bundle | ⏸️ (SA-only in v1) | ⏸️ | ✅ all 5 InVEST 3.19.0 urban models PASS on baseline bundle |
 
 ---
 
@@ -58,6 +76,8 @@
 | AOI watersheds | `data/invest/flood/UFR_sample_data_MN/admin_boundaries_census_tracts.shp` (declared as `tracts_file` in `config.py`) | `admin_boundaries_census_tracts.shp` | ✅ MD5 verified identical 2026-05-24 (`acbd9a8d28892dd4dfaf003b896235b4` on `.shp`; `.dbf` and `.prj` also identical). Same file from same InVEST UFR sample bundle. |
 
 **UFR summary:** Same data sources as NatCap; rainfall depth aligned to MN-project canonical 2026-05-24 (Brief 23). CN biophysical and damage loss tables verified identical.
+
+**Split-config buildings (MN — NatCap framing).** Placement-constraint inputs and model inputs serve different purposes, so they are sourced separately. The non-convertible **placement mask** unions comprehensive Geofabrik OSM building footprints (`mask_buildings_file`, ~113k city-wide); the **typed $-metric raster** — Cooling Energy Savings, Flood Damage Avoided — stays on the InVEST UFR sample shapefile (`buildings_file`), which carries the per-building InVEST type codes those metrics require. NatCap's framing explicitly separates placement-constraint data (where comprehensive OSM is recommended) from model-input data (where typed sample data is canonical), so the split is an alignment, not a compromise.
 
 ### UNA (Urban Nature Access)
 
@@ -166,6 +186,8 @@
 | AOI | `data/sa/natcap_2024/acs_block_groups_3857.gpkg` (NatCap ACS block-group polygons, 1,124 polygons covering the City of San Antonio); feeds only per-block-group reporting in `compute_per_tract_summary`, not the modelable extent (LULC raster's valid-pixel mask defines that) | `acs_block_groups_3857.gpkg` | ✅ Aligned (Brief 31, 2026-05-25); replaces the prior Bexar County tracts shapefile. Brief 31 confirmed no biophysical metric depends on the polygon file. |
 
 **UNA summary:** Fully aligned on args (Brief 22), biophysical table + LULC (Brief 29), and AOI (Brief 31). Only the population source still diverges (TIGER 2020 blocks vs. NatCap's population_per_pixel raster per Brief 24's inventory). The Brief 29 table swap shifted SA baseline `nature_access_pct` from 89.7 → 94.2 (+5.0%) — the compound table credits per-pixel NLUD + tree-canopy variation on developed land (urban_nature ∈ {0.0, 0.5, 1.0} rather than the per-NLCD borrowed-from-MN bucketing), with the new ~1,024 nonzero compound lucodes recognising urban-nature contributions the prior table missed.
+
+**SA biophysical extent vs ACS block-group polygons.** The biophysical models (UCM, UNA, Carbon, UFR) run over the SA LULC raster's valid-pixel footprint — the **Bexar County bbox**, ~3,059 km², ~1.91 M people. NatCap's ACS block-group polygons (~2,519 km², ~1.88 M people) are a strict **subset** of that footprint — **area IoU = 0.824**, but **population overlap = 98.6 %**: only **27,457 people (1.4 %)** sit in the bbox but outside the block groups (sparse exurban Bexar County). Per-pixel `urban_nature_supply_percapita` is computed identically regardless of which polygons aggregate it; matching NatCap's extent would mean coupling the polygons into the biophysical path (UNA is currently raster-only) for a sub-1 % effect. **Decision: document, don't mask** (Brief A2). For NatCap project-scenario validation (Track C), aggregate the prototype's supply raster per block group rather than comparing the citywide headline. See `../research/una/`.
 
 ### Carbon
 

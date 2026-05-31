@@ -52,9 +52,21 @@ The §1–11 template restructure renamed most anchors (chronology stripped, dat
 
 ---
 
-## 3. Forward-looking — items expected to land here during the remaining rewrites
+## 3. NatCap trio — items accumulating
 
-Empty for now. Items added as rewrites surface them. The standing categories:
+### 3.1 ALIGNMENT chronology strip — Commit 4 (trim)
+
+Strip `"(Brief B2 revised, 2026-05-29)"` chronology from the lead-in sentence at NATCAP_ALIGNMENT.md line 77: *"Surfaced in the dashboard via per-metric validation badges (Brief B2 revised, 2026-05-29):"* → *"Surfaced in the dashboard via per-metric validation badges:"*. The §2 badge taxonomy is the authoritative current-state spec; the brief-number prefix belongs in HISTORY chronology, not in the spec lead-in. Catch as part of the trim's chronology pass.
+
+### 3.2 SA compound-LULC structural inventory — CITY_PARITY → DATA_INVENTORY move
+
+Currently CITY_PARITY lines 200–248 (`### SA Compound LULC Framework (structural inventory)` — the 1,984×27 lulc_crosswalk + ucm/una/carbon table internals + LULC raster comparison + integration implications). Per the single-home matrix, this is DATA_INVENTORY territory. The NatCap-trio refactor explicitly retains it in CITY_PARITY through Commit 4 (ALIGNMENT trim); the DATA_INVENTORY refresh later absorbs it and CITY_PARITY drops it with a one-line pointer.
+
+Note: the user's Commit-2 framing said "ALIGNMENT→DATA_INVENTORY" but the structural inventory actually lives in CITY_PARITY, not ALIGNMENT. ALIGNMENT only carries a 1-row Table 2 entry (line 122) referencing the compound LULC raster.
+
+## 4. Forward-looking — items expected to land here during the remaining rewrites
+
+Items added as rewrites surface them. The standing categories:
 
 - **Inbound anchor cites** that break when a rewrite renames anchors (the §1 pattern).
 - **Cross-doc factual reconcile items** like §2.1 — claims in one doc contradicted by current code or by another doc's authoritative section.
