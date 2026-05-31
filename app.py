@@ -74,7 +74,9 @@ WHATS_NEW_ENTRIES = [
     "San Antonio carbon now uses NatCap's four-pool storage framework — reported as one-time storage value rather than annual rate.",
 ]
 
-UNDERWAY_ENTRIES = []
+UNDERWAY_ENTRIES = [
+    "**Region Selection** — choose *where* in the city scenario changes are placed (from existing council districts, census tracts, or similar polygon layers), instead of relying solely on automatic placement strategies.",
+]
 
 ON_THE_RADAR = """\
 - **AlphaEarth Foundations satellite embeddings** as a future land-cover source — [feasibility research here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md).
@@ -500,31 +502,45 @@ with st.expander("How this prototype works", expanded=False):
         f"adjust $/acre sliders in sidebar."
     )
     st.markdown(
-        "**Confidence tiers** — each metric card displays one of three badges "
-        "under its value:  \n"
+        "**Each scenario shows two validation surfaces.** A *Source / Validation* "
+        "header above the metric cards describes the scenario as a whole; each "
+        "individual metric card has a small badge under its value.  \n"
         "  \n"
-        "- **High confidence** — Direct raster outputs grounded in published "
-        "methodology (USDA SCS curve numbers, InVEST UCM Heat Mitigation Index). "
-        "Numerical value reflects pixel-level simulation; uncertainty is in "
-        "the input data, not the method.  \n"
+        "**Scenario provenance header** — one of four sources:  \n"
         "  \n"
-        "- **Medium confidence** — Model-based estimates or order-of-magnitude "
-        "calculations with empirical grounding. Includes InVEST UMH "
-        "preventable cases (peer-reviewed effect sizes, synthetic NDVI input), "
-        "canonical InVEST Urban Nature Access (2SFCA), and $-valued cards backed by "
-        "per-building or per-acre lookup tables. Use for directional planning; "
-        "verify with locally calibrated data for final decisions.  \n"
+        "- **Baseline** — the unmodified city LULC; engine verified vs canonical InVEST.  \n"
+        "- **NatCap published reference** — the value is displayed directly from "
+        "NatCap's published outputs (fixed-scenario reference view).  \n"
+        "- **Explorer-generated** — a slider-built scenario; engine-validated; "
+        "scenario not NatCap-published.  \n"
+        "- **Surrogate-suggested** — an applied optimizer suggestion; "
+        "engine-validated; full-raster evaluated; exploratory candidate.  \n"
         "  \n"
-        "- **Prototype** — Synthetic proxies or unvalidated assumptions. "
-        "Includes the NDVI raster (assigned per NLCD class, not "
-        "satellite-derived), carbon sequestration rates (regional benchmarks, "
-        "not site-calibrated), and food forest yield (benchmark for mature "
-        "managed systems). Treat as directional only; not suitable for "
-        "site-specific or quantitative decisions.  \n"
+        "**Per-card badge** — one of four states:  \n"
         "  \n"
-        "A tier reflects the *method's* confidence, not whether the number is "
-        "large or small. A Prototype-badged card showing a precise number is "
-        "still a prototype number."
+        "- **`NatCap published value`** (green) — fires only in the fixed-scenario "
+        "reference view for metrics with NatCap-published values. *Displays "
+        "NatCap's number*; not a reproduction claim.  \n"
+        "- **`≈ NatCap method`** (blue) — prototype's own computation using "
+        "NatCap-aligned methodology. The per-card tooltip surfaces per-metric "
+        "nuance: temperature can cite measured per-pixel parity (HMI MAE ≈ 0); "
+        "carbon is four-pool methodology adoption with no per-pixel parity "
+        "measurement.  \n"
+        "- **`≈ Aligned method`** (blue) — canonical InVEST methodology with no "
+        "directly-comparable NatCap citywide reference (runoff, flood damage, "
+        "cooling energy savings, MH costs).  \n"
+        "- **`Prototype`** (gray) — no canonical InVEST analog (synthetic NDVI "
+        "proxy, food yield benchmark, implementation-cost sliders, "
+        "cost-effectiveness ratios).  \n"
+        "  \n"
+        "**Context-switch rule.** A `NatCap published value`-class metric shows "
+        "the green badge *only* in the fixed-scenario reference view; in "
+        "Baseline / Explorer / Optimizer scenarios it shows `≈ NatCap method` "
+        "because the prototype computed it.  \n"
+        "  \n"
+        "The badges describe the *method's* trustworthiness, not whether the "
+        "number is large or small. A `Prototype`-badged card showing a precise "
+        "number is still a prototype number."
     )
 
 with st.expander("Validation status", expanded=False):
