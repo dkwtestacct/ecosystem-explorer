@@ -48,6 +48,52 @@ OWNERSHIP_MODES = {
     'vacant_public': {'label': 'Vacant publicly-owned land',  'codes': (3,)},
 }
 
+# Region-Local Metrics (`REGION_LOCAL_METRICS_SPEC.md`) — per-metric
+# decomposability table. For decomposable metrics, evaluate_scenario emits a
+# region-clipped value under results['region_local'][key] whenever a region
+# mask is active; for non-decomposable metrics the slot is None and the UI
+# falls back to "citywide only" (with the reason from this table).
+#
+# `reach_m` is the model's per-pixel spatial reach (UNA ~800 m, UCM ~600 m,
+# UMH ~300 m, local-pixel models 0). Drives the Commit 2 spillover caveat,
+# which must NAME every displayed reach model — never abbreviate to "the
+# longest two." Local-pixel models clip cleanly; reach models clip but
+# under-count effects that this region's conversions push just beyond the
+# boundary (the locked option-(b) honesty surface).
+_REGION_LOCAL_METRICS = {
+    # Local-pixel / additive — clip cleanly, no spillover.
+    'n_wet':                {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'n_for':                {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'n_hd':                 {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'ff_fellback_pixels':   {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'gi_fellback_pixels':   {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'hd_fellback_pixels':   {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'mean_cn':              {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'flood_reduction':      {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'runoff_acre_feet':     {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'food_mln_lbs':         {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'people_fed':           {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'carbon_tons_co2':      {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'carbon_value_usd':     {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'total_cost_mln':       {'decomposable': True,  'reach_m': 0,   'reason': None},
+    'mean_ndvi':            {'decomposable': True,  'reach_m': 0,   'reason': None},
+    # Reach-model means — clip works but the displayed value misses spillover
+    # to pixels just beyond the region boundary. Spillover caveat (Commit 2)
+    # names UCM ~600 m.
+    'mean_hm':              {'decomposable': True,  'reach_m': 600, 'reason': None},
+    'temp_change_f':        {'decomposable': True,  'reach_m': 600, 'reason': None},
+    # Non-decomposable — Commit 1 omits these; the UI shows "citywide only"
+    # plus the reason. Several are decomposable in principle but require
+    # per-pixel UNA / per-building / per-tract plumbing that the existing
+    # citywide aggregations don't return; deferred to a follow-up brief.
+    'nature_access_pct':    {'decomposable': False, 'reach_m': 800, 'reason': 'population-weighted citywide ratio; a region version requires a different denominator (region population) which changes the metric semantics'},
+    'people_with_nature_access': {'decomposable': False, 'reach_m': 800, 'reason': 'requires per-pixel UNA access raster from calculate_nature_access; deferred to a follow-up brief'},
+    'cooling_energy_savings_usd': {'decomposable': False, 'reach_m': 600, 'reason': 'per-building integration with the HMI raster; requires per-building spatial filtering — deferred to a follow-up brief'},
+    'flood_damage_avoided_usd': {'decomposable': False, 'reach_m': 0,   'reason': 'per-building damage from UFR; requires per-building spatial filtering — deferred to a follow-up brief'},
+    'preventable_mh_cases': {'decomposable': False, 'reach_m': 300, 'reason': 'per-tract UMH aggregation; requires per-tract region intersection — deferred to a follow-up brief'},
+    'avoided_mh_cost_usd':  {'decomposable': False, 'reach_m': 300, 'reason': 'derived from preventable_mh_cases — deferred together'},
+}
+
 # ── Metric translation constants ───────────────────────────────────────────────
 # SCS design storm depth — per-city, set after city_cfg is built (see
 # "── City-derived constants ──" below alongside UHI_MAX_C and FOOD_FOREST_LBS_ACRE).
@@ -1954,6 +2000,93 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         ndvi_raster=scenario_ndvi,
     )
 
+    # ── Region-Local Metrics (REGION_LOCAL_METRICS_SPEC.md) ──────────────────
+    # Region-clipped values for the decomposable subset of `_REGION_LOCAL_METRICS`.
+    # None for citywide / non-region scenarios. Non-decomposable slots get
+    # `None` here; the UI (Commit 2) reads `_REGION_LOCAL_METRICS[key]['reason']`
+    # to render the "citywide only" label. The verify_baselines reconciliation
+    # assertion guarantees: for any key marked decomposable, computing
+    # region_local over the entire AOI must equal the citywide value.
+    if selected_region_mask is not None:
+        rm = selected_region_mask
+        # Region developed-acre denominator for the runoff closed form (mirrors
+        # how citywide uses `total_developed_acres`).
+        _rl_developed = np.zeros_like(rm, dtype=bool)
+        _rl_developed[developed_pixels[:, 0], developed_pixels[:, 1]] = True
+        _rl_developed_in_region = _rl_developed & rm
+        _rl_developed_acres = float(_rl_developed_in_region.sum()) * PIXEL_AREA_ACRES
+
+        # Means — same per-pixel arrays as the citywide aggregations, just
+        # masked. Empty intersections fall back to the citywide scalar.
+        _rl_cn_valid = (cn_scenario > 0) & rm
+        _rl_mean_cn = float(cn_scenario[_rl_cn_valid].mean().round(2)) if _rl_cn_valid.any() else mean_cn
+        _rl_hm_valid = (~np.isnan(hmi_map)) & (scenario_lulc != NODATA) & rm
+        _rl_mean_hm = float(hmi_map[_rl_hm_valid].mean().round(4)) if _rl_hm_valid.any() else mean_hm
+        _rl_ndvi_valid = (scenario_lulc != NODATA) & rm
+        _rl_mean_ndvi = float(round(scenario_ndvi[_rl_ndvi_valid].mean(), 4)) if _rl_ndvi_valid.any() else mean_ndvi
+
+        # Closed-form derivations off the region means.
+        _rl_flood_reduction = round(100 - _rl_mean_cn, 2)
+        _rl_runoff_acft = cn_to_runoff_acre_feet(_rl_mean_cn, _rl_developed_acres)
+        _rl_temp_change_f = hm_to_temp_change_f(_rl_mean_hm)
+
+        # Sums / counts — `pixels_to_convert` was already filtered to
+        # region_convertible_pixels at the top of evaluate_scenario (when a
+        # mask is active), so n_wet / n_for / n_hd / food / cost / fellback
+        # are already region-local in the citywide block. Mirror them.
+        _rl_food_mln_lbs = food_mln_lbs
+        _rl_people_fed = food_to_people_fed(_rl_food_mln_lbs)
+        _rl_total_cost_mln = total_cost_mln
+
+        # Carbon — recompute the region-clipped four-pool stock delta for SA;
+        # for MN the per-conversion-type analytical value is already region-
+        # local (n_wet/n_for/n_hd are).
+        if c_above_arr is not None:
+            _rl_c_valid = ((scenario_lulc_carbon >= 0) & (cooling_lulc_compound >= 0) & rm)
+            _n_c = len(c_above_arr)
+            _scen_safe = np.clip(scenario_lulc_carbon, 0, _n_c - 1)
+            _base_safe = np.clip(cooling_lulc_compound, 0, _n_c - 1)
+            _scen_total = (c_above_arr[_scen_safe] + c_below_arr[_scen_safe]
+                           + c_soil_arr[_scen_safe] + c_dead_arr[_scen_safe])
+            _base_total = (c_above_arr[_base_safe] + c_below_arr[_base_safe]
+                           + c_soil_arr[_base_safe] + c_dead_arr[_base_safe])
+            _rl_delta = np.where(_rl_c_valid, _scen_total - _base_total, 0.0)
+            _rl_carbon_tons_co2 = round(float(_rl_delta.sum()) * PIXEL_AREA_HA * (44.0 / 12.0), 1)
+        else:
+            _rl_carbon_tons_co2 = carbon_tons_co2
+        _rl_carbon_value_usd = round(_rl_carbon_tons_co2 * EPA_SOCIAL_COST_CARBON, 0)
+
+        region_local = {
+            'mean_cn':              _rl_mean_cn,
+            'flood_reduction':      _rl_flood_reduction,
+            'runoff_acre_feet':     _rl_runoff_acft,
+            'mean_hm':              _rl_mean_hm,
+            'temp_change_f':        _rl_temp_change_f,
+            'mean_ndvi':            _rl_mean_ndvi,
+            'n_wet':                n_wet,
+            'n_for':                n_for,
+            'n_hd':                 n_hd,
+            'ff_fellback_pixels':   ff_fellback_pixels,
+            'gi_fellback_pixels':   gi_fellback_pixels,
+            'hd_fellback_pixels':   hd_fellback_pixels,
+            'food_mln_lbs':         _rl_food_mln_lbs,
+            'people_fed':           _rl_people_fed,
+            'total_cost_mln':       _rl_total_cost_mln,
+            'carbon_tons_co2':      _rl_carbon_tons_co2,
+            'carbon_value_usd':     _rl_carbon_value_usd,
+            # Non-decomposable slots (the UI consults _REGION_LOCAL_METRICS
+            # for the reason). Kept as explicit None entries so the dict
+            # shape is stable across metric keys.
+            'nature_access_pct':            None,
+            'people_with_nature_access':    None,
+            'cooling_energy_savings_usd':   None,
+            'flood_damage_avoided_usd':     None,
+            'preventable_mh_cases':         None,
+            'avoided_mh_cost_usd':          None,
+        }
+    else:
+        region_local = None
+
     return {
         'pct_converted':            pct_converted,
         'green_infrastructure_pct': green_infrastructure_pct,
@@ -2044,13 +2177,21 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
             'layer':        None,  # caller stamps with layer_key (e.g. 'council_districts')
             'selected_ids': None,  # caller stamps with label list (e.g. ['5', '7']) — NOT positional indices
         },
+        # Region-Local Metrics (REGION_LOCAL_METRICS_SPEC.md) — region-clipped
+        # per-metric values when a region mask is active, None otherwise.
+        # Decomposable slots carry numeric values; non-decomposable slots are
+        # explicit None (the UI consults `_REGION_LOCAL_METRICS` for reasons).
+        # `verify_baselines._snapshot_from_results` whitelist-skips this key;
+        # the reconciliation assertion in verify_baselines is the
+        # baseline-safety guard.
+        'region_local': region_local,
     }
 
 
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 29  # bumped: Ownership Integration Commit 1 — results dict gains the `ownership_filter` key (stamped by the caller; None for citywide / ownership-inactive, mode string e.g. 'vacant_public' when active). Citywide path is byte-identical to schema 28 — session_state defaults None so the stamp always writes None until the Commit 2 UI lands. verify_baselines 40/40 pass against schema-28 snapshots (re-tag, not re-baseline). Pre-29 saved scenarios load gracefully — `.get('ownership_filter')` reads as None. Full per-bump rationale in docs/archive/HISTORY.md "Schema version log". (28 was Region Selection Phase 1's region_selection block.)
+SCENARIO_SCHEMA_VERSION = 30  # bumped: Region-Local Metrics Commit 1 — results dict gains the `region_local` block (per-metric region-clipped values when a region mask is active; None otherwise). Citywide path is byte-identical to schema 29 — region_local is None for citywide scenarios, so the existing verify_baselines snapshots reproduce. The new reconciliation assertion (region-local-over-entire-AOI == citywide for decomposable metrics) is the baseline-safety guard. Pre-30 saved scenarios load gracefully — `.get('region_local')` reads as None. (29 was Ownership Integration's ownership_filter key.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -2152,7 +2293,7 @@ def compute_scenario_grid(_state, city_key, data_dir_flood, data_dir_cooling,
                     row = {k: v for k, v in result.items()
                            if k not in ('scenario_lulc', 'scenario_lulc_ucm',
                                         'scenario_lulc_una', 'scenario_lulc_carbon',
-                                        'region_selection')}
+                                        'region_selection', 'region_local')}
                     # Explicit recomputation guarantees the surrogate-target
                     # columns exist regardless of evaluate_scenario's return.
                     # Brief 30: MN re-normalises to `_compute_carbon` defaults
@@ -2213,7 +2354,7 @@ def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, sch
                     entry = {k: v for k, v in result.items()
                              if k not in ('scenario_lulc', 'scenario_lulc_ucm',
                                           'scenario_lulc_una', 'scenario_lulc_carbon',
-                                          'region_selection')}
+                                          'region_selection', 'region_local')}
                     # Brief 30: MN re-normalises to defaults; SA's four-pool
                     # stock value is already canonical (see
                     # `compute_scenario_grid` comment).

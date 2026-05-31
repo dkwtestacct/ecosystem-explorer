@@ -58,7 +58,7 @@ def _slug(s: str) -> str:
 # metadata — too structural to scalar-snapshot. Its load-bearing scalar
 # `eligible_pixels_in_region` is regression-tested via a targeted assertion in
 # the region-selected baseline (Commit 6), not via the generic snapshot path.
-_SNAPSHOT_SKIP_KEYS = {"region_selection"}
+_SNAPSHOT_SKIP_KEYS = {"region_selection", "region_local"}
 
 
 def _snapshot_from_results(results: dict) -> dict:
@@ -537,8 +537,60 @@ def main(update: bool) -> int:
             import traceback; traceback.print_exc()
             ownership_diffs += 1
 
+    # ── Region-Local Metrics Commit 1 — reconciliation assertion ──
+    # For any metric flagged decomposable in `_REGION_LOCAL_METRICS`,
+    # `region_local[key]` computed over the entire AOI must equal the
+    # citywide `results[key]` (since clipping to "all pixels" is the
+    # citywide aggregate). A wrongly-marked decomposable metric trips
+    # this — the dangerous direction is machine-guarded. The safe
+    # direction (wrongly-marked non-decomposable) is harmless; the UI
+    # just falls back to "citywide only" conservatively.
     print(f"\n{'=' * 60}")
-    grand_total = total_diffs + region_diffs + ownership_diffs
+    print("Region-Local Metrics — full-AOI reconciliation assertion")
+    print(f"{'=' * 60}")
+    region_local_diffs = 0
+    _RECON_TOL = 1e-3  # round-tolerance; means/sums are rounded at compute time
+    for city_name in active_cities:
+        try:
+            _rebind_city(app, city_name)
+            state = app._CURRENT_CITY_STATE
+            # Everything-mask: clip becomes the citywide aggregate.
+            full_mask = np.ones(state.ref_shape, dtype=bool)
+            results = app.evaluate_scenario(
+                pct_converted=10, green_infrastructure_pct=50, food_forest_pct=50,
+                seed=42, placement_strategy="random",
+                selected_region_mask=full_mask,
+            )
+            region_local = results.get("region_local") or {}
+            mismatches = []
+            for key, cfg in app._REGION_LOCAL_METRICS.items():
+                if not cfg["decomposable"]:
+                    continue
+                citywide = results.get(key)
+                rl = region_local.get(key)
+                if citywide is None or rl is None:
+                    mismatches.append((key, citywide, rl, "missing"))
+                    continue
+                if abs(float(rl) - float(citywide)) > _RECON_TOL:
+                    mismatches.append((key, citywide, rl, "diff"))
+            label_str = f"{city_name}"
+            if not mismatches:
+                n_decomp = sum(1 for c in app._REGION_LOCAL_METRICS.values()
+                               if c["decomposable"])
+                print(f"  OK  {label_str}: {n_decomp} decomposable metrics reconcile "
+                      f"(region_local over entire AOI == citywide)")
+            else:
+                for key, citywide, rl, kind in mismatches:
+                    print(f"  FAIL {label_str} / {key}: citywide={citywide} "
+                          f"region_local={rl} ({kind})")
+                region_local_diffs += len(mismatches)
+        except Exception as e:
+            print(f"  ERROR {city_name}: {e}")
+            import traceback; traceback.print_exc()
+            region_local_diffs += 1
+
+    print(f"\n{'=' * 60}")
+    grand_total = total_diffs + region_diffs + ownership_diffs + region_local_diffs
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -548,6 +600,10 @@ def main(update: bool) -> int:
                   "If intentional, rerun with --update.")
         if region_diffs:
             print(f"{region_diffs} region-assertion divergence(s).")
+        if ownership_diffs:
+            print(f"{ownership_diffs} ownership-assertion divergence(s).")
+        if region_local_diffs:
+            print(f"{region_local_diffs} region-local reconciliation divergence(s).")
         return 1
 
 
