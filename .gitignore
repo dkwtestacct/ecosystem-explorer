@@ -93,3 +93,10 @@ data/invest/mn_sample_data_natcap_2026/**/*.cpg
 data/invest/mn_sample_data_natcap_2026/**/*.shp.xml
 data/invest/mn_sample_data_natcap_2026/**/*.tif.ovr
 data/invest/mn_sample_data_natcap_2026/**/*.tif.xml
+
+# Bexar parcel polygons (281 MB) — too heavy for Streamlit Cloud deploy weight.
+# The runtime artifact is `data/sa/sa_public_vacant_30m.tif` (~396 KB, tracked).
+# The polygon GeoPackage is the 710 K-record audit trail; archived outside the
+# repo. Re-pull from BCAD + classify via `scripts/data/download_bexar_parcels.py`
+# (~12 min wall + the classify/rasterize step).
+data/sa/sa_ownership.gpkg
