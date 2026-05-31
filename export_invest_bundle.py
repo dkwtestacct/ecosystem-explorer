@@ -247,6 +247,10 @@ class BundleSpec:
     # decomposes. None for non-region scenarios.
     region_local: Optional[dict] = None
     region_local_treatment: Optional[dict] = None
+    # Honesty-Surface Pass Commit 3 — generator params: the slider values
+    # and other inputs that produced this scenario, so a downstream consumer
+    # can reconstruct it. Caller fills from results + sidebar state.
+    generator_params: Optional[dict] = None
     # The complete Source-line string the dashboard renders (e.g.
     # 'Explorer-generated · selected-region placement · vacant publicly-owned
     # land'). Caller-computed from app.py's `_PROVENANCE_HEADER_INFO` so this
@@ -450,6 +454,82 @@ def _umh_args(s: BundleSpec, condition: str) -> dict:
     }
 
 
+def _raster_lineage_for_city(s: BundleSpec) -> dict:
+    """Per-raster lineage (source / vintage or pull-date / methodology) for the
+    inputs the bundle was built on. Not a catalog — that lives in
+    `docs/internal/DATA_INVENTORY.md`. This surfaces the rasters whose
+    provenance carries honest-disclosure weight at export time (Honesty-
+    Surface Pass Commit 3).
+    """
+    if s.is_sa:
+        return {
+            "lulc_compound": {
+                "source": "NatCap (Stanford Natural Capital Project), Vibrant Land for SA project",
+                "vintage": "2024-08",
+                "methodology": (
+                    "Compound NLCD x NLUD x tree-canopy 4-digit code (1,984 "
+                    "classes); see docs/internal/CITY_PARITY.md SA LULC."
+                ),
+            },
+            "nlcd_2021": {
+                "source": "MRLC NLCD 2021 (legacy product)",
+                "vintage": "2021",
+                "methodology": (
+                    "21-class national land-cover dataset; used for the "
+                    "NLCD-reduced views consumed by UFR / food / NDVI."
+                ),
+            },
+            "ownership_public_vacant_30m": {
+                "source": "Bexar County GIS / BCAD — https://maps.bexar.org/arcgis/rest/services/Parcels/MapServer/0",
+                "pull_date": "2026-05-31",
+                "methodology": (
+                    "Full-county pull (710,772 parcels, EOD-confirmed). "
+                    "is_public = government-owned (city/county/state/federal/"
+                    "ISD/river_auth). is_vacant = State_cd C* OR (NOT EX-X* "
+                    "exempt AND ImprVal == 0) — empirically grounded in the "
+                    "per-token cluster analysis in "
+                    "docs/research/ownership/PHASE_0_INVESTIGATION.md."
+                ),
+                "license": "not explicitly stated; Bexar County GIS / BCAD; attribution cited",
+            },
+            "council_districts": {
+                "source": "City of San Antonio Open Data Portal — Redistricted Council Districts 2022",
+                "vintage": "2022 (boundaries effective for May 2023 municipal election)",
+                "license": "not explicitly stated; City of San Antonio Open Data Portal; attribution cited",
+            },
+            "acs_block_groups": {
+                "source": "NatCap-curated ACS block groups for SA (Vibrant Land equity framing)",
+                "vintage": "2024-08",
+                "methodology": (
+                    "1,124 polygons covering the City of San Antonio; finer "
+                    "granularity than TIGER 2020 Bexar tracts."
+                ),
+            },
+        }
+    return {
+        "lulc": {
+            "source": "InVEST UFR / UNA sample bundle for MN downtown",
+            "vintage": "NLCD 2021 (legacy product)",
+            "methodology": (
+                "21-class national land-cover; identical raster for "
+                "cooling/UNA and a separate-but-same-content raster for UFR."
+            ),
+        },
+        "buildings_typed": {
+            "source": "InVEST UFR sample shapefile (MN)",
+            "methodology": (
+                "Pre-typed building footprints (commercial/residential/"
+                "industrial); 447 building pixels at 96% typing coverage."
+            ),
+        },
+        "tracts": {
+            "source": "TIGER 2020 census tracts (downtown subset)",
+            "vintage": "2020",
+            "methodology": "27 tracts intersecting the InVEST sample AOI.",
+        },
+    }
+
+
 def _build_metadata(s: BundleSpec, args_files: dict) -> dict:
     return {
         "schema_version": EXPORT_SCHEMA_VERSION,
@@ -490,7 +570,18 @@ def _build_metadata(s: BundleSpec, args_files: dict) -> dict:
             "known_divergences": KNOWN_DIVERGENCES,
         },
         "scenario_rasters": _scenario_rasters_block(s),
-        "generator": dict(s.generator, type=s.generator.get("type", s.provenance)),
+        "generator": dict(
+            s.generator,
+            type=s.generator.get("type", s.provenance),
+            # Honesty-Surface Pass Commit 3 — generator params that produced
+            # this scenario, so a downstream consumer can reconstruct it.
+            params=(s.generator_params or {}),
+        ),
+        # Honesty-Surface Pass Commit 3 — per-raster lineage (source / pull
+        # date / methodology) for the inputs this bundle was built on. Lives
+        # at the top of metadata.json so a downstream reviewer can audit
+        # provenance without scanning the scenario block.
+        "raster_lineage": _raster_lineage_for_city(s),
         "aoi": {
             "prototype_extent": {
                 "path": _P_AOI_EXTENT,
