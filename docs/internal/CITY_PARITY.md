@@ -30,7 +30,7 @@ At-a-glance per-city × per-model status. Detail in the per-city sections below.
 |---|---|---|---|
 | UCM (Urban Cooling) | ✅ | ⏸️ | ✅ |
 | UFR (Urban Flood Risk) | ✅ | ⏸️ | ⚠️ methodology divergence |
-| UNA (Urban Nature Access) | ✅ ⚠️ pop vintage (2020 vs 2010) | ⏸️ | ✅ |
+| UNA (Urban Nature Access) | ✅ ⚠️ pop vintage (2020 vs 2010) | ⏸️ | ✅ ⚠️ pop source (TIGER blocks vs NatCap's `population_per_pixel`) |
 | Carbon | ⚠️ single-rate proxy (no MN four-pool bundle) | ⏸️ | ✅ four-pool |
 | UMH (Urban Mental Health) | ✅ ⚠️ uniform-national BIR | ⏸️ | ✅ |
 | NDR (Nutrient Delivery Ratio) | ❌ not implemented | ⏸️ | ❌ not implemented |

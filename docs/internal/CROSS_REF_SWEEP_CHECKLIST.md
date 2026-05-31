@@ -58,11 +58,19 @@ The §1–11 template restructure renamed most anchors (chronology stripped, dat
 
 Strip `"(Brief B2 revised, 2026-05-29)"` chronology from the lead-in sentence at NATCAP_ALIGNMENT.md line 77: *"Surfaced in the dashboard via per-metric validation badges (Brief B2 revised, 2026-05-29):"* → *"Surfaced in the dashboard via per-metric validation badges:"*. The §2 badge taxonomy is the authoritative current-state spec; the brief-number prefix belongs in HISTORY chronology, not in the spec lead-in. Catch as part of the trim's chronology pass.
 
-### 3.2 SA compound-LULC structural inventory — CITY_PARITY → DATA_INVENTORY move
+### 3.2 SA compound-LULC structural inventory — CITY_PARITY → DATA_INVENTORY **consolidation** (not raw move)
 
-Currently CITY_PARITY lines 200–248 (`### SA Compound LULC Framework (structural inventory)` — the 1,984×27 lulc_crosswalk + ucm/una/carbon table internals + LULC raster comparison + integration implications). Per the single-home matrix, this is DATA_INVENTORY territory. The NatCap-trio refactor explicitly retains it in CITY_PARITY through Commit 4 (ALIGNMENT trim); the DATA_INVENTORY refresh later absorbs it and CITY_PARITY drops it with a one-line pointer.
+Currently CITY_PARITY lines 222+ (`### SA Compound LULC Framework (structural inventory)` — the 1,984×27 `lulc_crosswalk` + ucm/una/carbon table column counts + `urban_nature` distribution 976/48/960 + four-pool max values + LULC raster comparison + integration implications).
 
-Note: the user's Commit-2 framing said "ALIGNMENT→DATA_INVENTORY" but the structural inventory actually lives in CITY_PARITY, not ALIGNMENT. ALIGNMENT only carries a 1-row Table 2 entry (line 122) referencing the compound LULC raster.
+**The DATA_INVENTORY refresh must consolidate this with §2 Land cover and land use, not append a duplicate.** DATA_INVENTORY §2 already holds substantial compound-LULC catalog content (`land_use_compound_sa.tif` entry at line 108; the raw NatCap-curated source rasters table at lines 113–121 including `lulc_overlay_3857.tif` + the NLCD/NLUD/tree component layers; the 1,984-lucode space described at line 124; the committed `data/sa/natcap_2024/` files inventory at lines 126–141 listing the three biophysical tables + `lulc_crosswalk.csv` + the canopy-QA docs).
+
+What CITY_PARITY's structural inventory adds that §2 doesn't yet have: per-table column counts (27/21/27), the `urban_nature` distribution (976 / 48 / 960 rows), the per-pool max values (c_above 105.7, c_below 8.0, c_soil 259.0, c_dead 14.4), and the parity-style LULC raster comparison table (prototype 1984×1713 EPSG:5070 vs NatCap 2106×2218 EPSG:3857).
+
+**Refresh action:** merge those specifics into the existing §2 entries (per-table rows in the committed-files table; per-pool maxes into a Carbon biophysical detail; LULC raster comparison into the SA dual-raster pipeline narrative); CITY_PARITY drops its structural-inventory section, replaced with a one-line pointer to DATA_INVENTORY §2.
+
+The NatCap-trio refactor explicitly retains the CITY_PARITY content through Commit 4 (ALIGNMENT trim); the DATA_INVENTORY refresh consolidates afterward.
+
+Note: the original Commit-2 framing referenced "ALIGNMENT → DATA_INVENTORY", but the structural inventory actually lives in CITY_PARITY, not ALIGNMENT. ALIGNMENT only carries a 1-row Table 2 entry (line 122) referencing the compound LULC raster.
 
 ## 4. Forward-looking — items expected to land here during the remaining rewrites
 
