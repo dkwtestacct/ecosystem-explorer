@@ -53,9 +53,19 @@ def _slug(s: str) -> str:
     return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", s.lower())).strip("_")
 
 
+# Fields the snapshot deliberately does not generically capture. The dict-valued
+# `region_selection` block (Region Selection Phase 1) is JSON-shaped for export
+# metadata — too structural to scalar-snapshot. Its load-bearing scalar
+# `eligible_pixels_in_region` is regression-tested via a targeted assertion in
+# the region-selected baseline (Commit 6), not via the generic snapshot path.
+_SNAPSHOT_SKIP_KEYS = {"region_selection"}
+
+
 def _snapshot_from_results(results: dict) -> dict:
     snap = {}
     for k, v in sorted(results.items()):
+        if k in _SNAPSHOT_SKIP_KEYS:
+            continue
         if isinstance(v, np.ndarray):
             snap[f"{k}__md5"] = hashlib.md5(v.tobytes()).hexdigest()
         elif isinstance(v, (np.integer,)):

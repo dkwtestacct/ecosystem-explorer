@@ -28,6 +28,14 @@ CITIES = {
         'roads_file':           'data/osm/minneapolis_roads.geojson',
         'dense_scenarios_file': 'data/scenarios_dense_mpls.csv',
         'buildings_file':       'data/invest/flood/UFR_sample_data_MN/buildings.shp',
+        # Region Selection Phase 1 — see SA config for the layer schema.
+        'region_layers':        {
+            'downtown_tracts': {
+                'path':         'data/invest/nature_access/UrbanNatureAccess_sample_data_MN/AOI_admin_boundaries_census_tracts.shp',
+                'label_field':  'GEOID10',
+                'display_name': 'Downtown census tract',
+            },
+        },
         # Comprehensive Geofabrik OSM building footprints (~113k city-wide).
         # Unioned into the placement non-convertible mask only; the typed
         # buildings_type_raster that drives the $ metrics still comes from
@@ -212,6 +220,26 @@ CITIES = {
         'roads_file':           'data/sa/roads_sa.geojson',
         'dense_scenarios_file': 'data/scenarios_dense_sa.csv',  # built by precompute_scenarios.py
         'buildings_file':       'data/sa/buildings_sa.gpkg',
+        # Region Selection Phase 1 — placement-constraint polygon layers
+        # consumed by `evaluate_scenario`'s `selected_region_mask`. Each
+        # layer rasterizes to an int32 raster at the active grid using
+        # positional indices (mirrors the existing tracts rasterize pattern at
+        # `_load_city_runtime_state`). `label_field` drives the UI dropdown
+        # labels; `display_name` is the singular noun used in captions.
+        # ACS block groups (1,124) are intentionally not exposed as a
+        # selection layer — too granular for a multiselect.
+        'region_layers':        {
+            'council_districts': {
+                'path':         'data/sa/sa_council_districts.gpkg',
+                'label_field':  'District',
+                'display_name': 'Council district',
+            },
+            'bexar_tracts': {
+                'path':         'data/sa/tracts_bexar.shp',
+                'label_field':  'NAMELSAD',
+                'display_name': 'Census tract',
+            },
+        },
         'damage_table_file':    None,   # SA project deliverables — TODO
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',
         'et_file':              'data/sa/cooling/et_annual_sa.tif',

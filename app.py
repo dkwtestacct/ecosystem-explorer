@@ -424,6 +424,32 @@ class CityState(NamedTuple):
     tracts: pd.DataFrame
     tract_id_raster: np.ndarray
     tracts_data_available: bool
+    # Region Selection Phase 1 — per-city region-layer artifacts. Each layer
+    # key (e.g. 'council_districts', 'bexar_tracts') maps to:
+    #   region_rasters[key]:        int32 raster with positional indices
+    #                               (0..N-1) and -1 fill, on the active grid
+    #   region_layer_labels[key]:   list[str] of labels (label_field values)
+    #                               indexed by raster value
+    #   region_layer_display_names[key]: singular noun for UI captions
+    #
+    # **Contract — positional vs label.**
+    #   - Positional indices (0..N-1) are INTERNAL: only the raster carries
+    #     them, only the mask-build site references them.
+    #   - Everything USER-FACING and METADATA-FACING uses the real label_field
+    #     values via region_layer_labels — the UI selects "District 5", the
+    #     `region_selection['selected_ids']` block in `results` carries
+    #     ["5"] (label values), the export bundle's metadata.json carries
+    #     ["5"]. Positional indices never leak past the mask-construction
+    #     chokepoint.
+    #
+    # See `REGION_SELECTION_PHASE1_SPEC.md`. The selected_region_mask
+    # consumed by evaluate_scenario is built at the caller by translating
+    # label-strings -> positional indices via
+    # `[labels.index(lbl) for lbl in selected_labels]`, then
+    # `np.isin(region_rasters[key], positional_indices)`.
+    region_rasters: dict
+    region_layer_labels: dict
+    region_layer_display_names: dict
     # Baseline rasters
     baseline_hm_raster: np.ndarray
     baseline_ne_raster: np.ndarray
@@ -1726,7 +1752,8 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
                       cost_ff=DEFAULT_COST_FF,
                       cost_hd=DEFAULT_COST_HD,
                       carbon_rate_ff=None,
-                      carbon_rate_gi=None):
+                      carbon_rate_gi=None,
+                      selected_region_mask=None):
     """
     Convert a sample of developed pixels to the specified land use mix,
     then compute flood risk, urban cooling, food production, and cost.
@@ -1754,14 +1781,30 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     # vacant land) rather than on top of existing structures. Total developed
     # acreage for runoff baseline scaling still uses the full developed_pixels
     # array — buildings still produce runoff.
-    n_convert = int(len(CONVERTIBLE_PIXELS) * pct_converted / 100)
+    #
+    # Region Selection Phase 1 — when `selected_region_mask` is provided,
+    # filter the convertible pool to only pixels inside the mask. The
+    # suitability machinery (`_compute_suitability_weights` /
+    # `_select_pixels_for_conversion`) ranks within whatever (N, 2) array of
+    # (row, col) pairs it's given, so swapping in `region_convertible_pixels`
+    # ranks within the masked set with no changes to the strategy code.
+    # `selected_region_mask=None` is byte-identical to prior behavior.
+    if selected_region_mask is not None:
+        _cp_rows = CONVERTIBLE_PIXELS[:, 0]
+        _cp_cols = CONVERTIBLE_PIXELS[:, 1]
+        _in_region = selected_region_mask[_cp_rows, _cp_cols]
+        region_convertible_pixels = CONVERTIBLE_PIXELS[_in_region]
+    else:
+        region_convertible_pixels = CONVERTIBLE_PIXELS
+
+    n_convert = int(len(region_convertible_pixels) * pct_converted / 100)
 
     rng = np.random.default_rng(seed)
 
     chosen_idx = _select_pixels_for_conversion(
-        CONVERTIBLE_PIXELS, n_convert, placement_strategy, rng)
+        region_convertible_pixels, n_convert, placement_strategy, rng)
 
-    pixels_to_convert = CONVERTIBLE_PIXELS[chosen_idx]
+    pixels_to_convert = region_convertible_pixels[chosen_idx]
 
     n_wet = int(n_convert * green_infrastructure_pct / 100)
     n_for = int(n_convert * food_forest_pct / 100)
@@ -1957,6 +2000,36 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         # `compute_lookup_table`, `precompute_scenarios.py`) — see
         # CLAUDE.md "Interface changes require auditing all consumers".
         'scenario_lulc_carbon':     scenario_lulc_carbon,
+        # Region Selection Phase 1 — structured block carrying the
+        # mask-derivable fields. The descriptive fields (`layer`,
+        # `selected_ids`) are stamped onto results['region_selection'] by the
+        # caller (the chokepoint that built the mask from a (layer, ids)
+        # selection). The block is complete by the time `results` leaves the
+        # call site.
+        #
+        # **Contract — `selected_ids` carries LABEL VALUES, not positional
+        # indices.** The caller translates labels → positional indices to
+        # build the mask, then stamps the LABEL list onto `selected_ids`. So
+        # downstream readers (export metadata.json, saved scenarios, the
+        # provenance header in Commit 5) see ["5", "7"] for "District 5 and
+        # District 7", not [4, 6]. Positional indices stay internal.
+        #
+        # `verify_baselines._snapshot_from_results` whitelist-skips this key
+        # (the load-bearing scalar `eligible_pixels_in_region` gets a
+        # targeted assertion in Commit 6's region baseline).
+        'region_selection': {
+            'mode': (
+                'selected_regions' if selected_region_mask is not None
+                else 'entire_aoi'
+            ),
+            'eligible_pixels_in_region': int(len(region_convertible_pixels)),
+            'selected_area_acres': (
+                float(int(selected_region_mask.sum()) * PIXEL_AREA_ACRES)
+                if selected_region_mask is not None else None
+            ),
+            'layer':        None,  # caller stamps with layer_key (e.g. 'council_districts')
+            'selected_ids': None,  # caller stamps with label list (e.g. ['5', '7']) — NOT positional indices
+        },
     }
 
 
@@ -2550,6 +2623,37 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         tract_id_raster = np.full(l_cooling_lulc.shape, -1, dtype=np.int32)
         tracts_data_available = False
 
+    # ── Phase 12b: Region-selection polygon layers (Phase 1) ─────────────────
+    # For each declared region layer, rasterize the polygons to an int32 raster
+    # carrying positional indices (0..N-1) with -1 fill, mirroring the tracts
+    # rasterize above. Caller-side mask construction:
+    #     mask = np.isin(region_rasters[layer_key], selected_positional_indices)
+    # See REGION_SELECTION_PHASE1_SPEC.md.
+    region_rasters = {}
+    region_layer_labels = {}
+    region_layer_display_names = {}
+    for _layer_key, _layer_cfg in (cfg.get("region_layers") or {}).items():
+        try:
+            _layer_gdf = _gpd.read_file(_layer_cfg["path"])
+            if _layer_gdf.crs is None or str(_layer_gdf.crs) != cfg["crs"]:
+                _layer_gdf = _layer_gdf.to_crs(cfg["crs"])
+            _layer_gdf = _layer_gdf.reset_index(drop=True)
+            _region_raster = _rasterize(
+                ((g, i) for i, g in enumerate(_layer_gdf.geometry)),
+                out_shape=ref_shape, transform=ref_transform,
+                fill=-1, dtype=np.int32,
+            )
+            region_rasters[_layer_key] = _region_raster
+            region_layer_labels[_layer_key] = (
+                _layer_gdf[_layer_cfg["label_field"]].astype(str).tolist()
+            )
+            region_layer_display_names[_layer_key] = _layer_cfg["display_name"]
+        except Exception as exc:
+            print(
+                f"  WARN: region layer {_layer_key!r} failed to load "
+                f"({exc!r}); skipping."
+            )
+
     # ── Phase 13: Baseline rasters (use *_pure helpers because module aliases
     # haven't been rebound to this state's arrays yet — we're inside the
     # cache_resource call that produces the state). ─────────────────────────
@@ -2646,6 +2750,9 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         convertible_pixels=convertible_pixels,
         tracts=tracts, tract_id_raster=tract_id_raster,
         tracts_data_available=tracts_data_available,
+        region_rasters=region_rasters,
+        region_layer_labels=region_layer_labels,
+        region_layer_display_names=region_layer_display_names,
         baseline_hm_raster=baseline_hm_raster,
         baseline_ne_raster=baseline_ne_raster,
         baseline_una_supply_percapita_raster=baseline_una_supply_percapita_raster,
