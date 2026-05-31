@@ -130,6 +130,33 @@ reference the project-shared tables in `data/flood/` and
 multi-city support possible (Mpls Full, then SA); the parameterized
 signature is now the steady state.
 
+### Global 2.0″ design storm default (retired 2026-05-24, Brief 23)
+
+The earlier `DESIGN_STORM_INCHES = 2.0` global default (introduced
+April 2026 as "typical minor storm") was replaced with per-city
+NatCap-canonical values: MN gets 3.94″ (100 mm per NatCap MN
+args.json), SA gets 6.18″ (157 mm per NatCap SA README). The 2-inch
+default wasn't anchored in any NatCap or InVEST canonical source —
+it was a plausibility-level prototype default. Per-city values
+better reflect each city's climate (SA's heavier convective storms
+vs MN's lighter regional events).
+
+Two non-obvious cascades fell out at retirement:
+- SCS-CN nonlinearity in P (`Q = (P − 0.2S)² / (P + 0.8S)`) is not
+  linear; doubling P more than doubles Q. The regeneration ratios
+  in runoff metrics were ~4–5×, not the 2× MN / 3× SA rainfall
+  ratio.
+- The `flood-focused` placement weight reads per-pixel Q at the
+  design storm; when rainfall changed the weights shifted, and
+  flood-focused / balanced scenarios show <5 % cascades on
+  downstream UNA / UMH / cooling / NDVI metrics. Intended behavior
+  per the §5.2 placement formulas, not a bug. Random /
+  cooling-focused / undersupply-focused cells are unaffected
+  because their weights don't depend on rainfall.
+
+See `../internal/DESIGN_NOTES.md` §2.4 for the per-city
+design-storm decision in current-state form.
+
 ### `validate_scenarios.py` diagnostic (retired 2026-05-30)
 
 A standalone diagnostic at `diagnostics/validate_scenarios.py` that ran
@@ -193,6 +220,313 @@ rapid switching. `max_entries=1` forces eviction of the previously-
 cached city on switch. Trade-off: every city switch becomes a cold
 load (~minute wait) rather than an instant cache hit; reliability
 preferred over speed for the second-switch case.
+
+---
+
+### Brief narrative chronology (2026-05-28 — 2026-05-30)
+
+Per-brief chronological narrative for the Brief 1 / 2 / 4 / 5 / B / A2
+/ B1 / D1 / B2-revised / #3 / #4 / #5 work. The durable methodology
+decisions from each brief live in `../internal/DESIGN_NOTES.md` in
+template form; this section is the chronological narrative — what
+shipped, when, what magnitudes — for context.
+
+**Brief 1 (2026-05-28) — Signed metric cards label-flip rule.** Three
+"dollar/count" metric cards (Preventable MH Cases, Avoided MH Costs,
+Carbon Storage Value) can render negative values for scenarios that
+make things worse. Each was hand-rolled inline (no shared renderer):
+positive → benefit label + green delta; negative → harm/loss label
+with positive magnitude + red `delta_color="inverse"`. Negative-case
+labels: "Preventable MH Cases" → "Additional MH Cases"; "Avoided MH
+Costs" → "Added MH Costs"; "Carbon Storage Value" → "Carbon Storage
+Loss" (SA) / "Avoided Carbon Cost" → "Added Carbon Cost" (MN). Brief
+1 also aligned Carbon Storage Value's negative color with the MH
+cards — it previously used neutral `"off"` for negatives while MH
+used red `"inverse"`. Decision rationale → `../internal/DESIGN_NOTES.md` §10.2.
+
+**Brief 2 (2026-05-28) — Naming and labels for correctness.**
+Display-only label cleanup; no metric computation changed, baselines
+unaffected. "Flood Risk Reduction" → "Flood Retention" on the lead
+Ecological card / tradeoff-plot x-axis / optimizer slider help /
+comparison table; the SA Economic card's "Flood Damage Avoided" later
+became "Flood Volume Reduction" (Brief 7's Approach B differentiate).
+SA carbon confidence badge "Prototype" → "Four-pool stock (NatCap
+framework)" (city-conditional via a new `_CONFIDENCE_BADGES` key —
+methodology descriptor, not confidence tier). Cost-effectiveness
+labels: "Cost / °F Cooling" → "Cost / Citywide °F Cooling"; "Cost /
+Acre-Foot Prevented" → "Cost / Acre-Foot Runoff Prevented". Map
+legend/caption ↔ slider sync — all three now read "Development-
+intensity heat proxy." Brief 2 also landed the Carbon Storage Change
+*quantity* card's negative-case bespoke render (Approach Y) — the SA
+four-pool stock branch flips to "Carbon Storage Loss" with a positive
+magnitude and a red ↑ delta when conversions reduce stored carbon.
+Decision rationale → `../internal/DESIGN_NOTES.md` §10.3, §10.2.
+
+**Brief 4 (2026-05-28) — `cooling_f` → `temp_change_f` sign-convention
+refactor.** Cooling metric renamed and sign-flipped to the universal
+physical ΔT convention (`positive = WARMER`, `negative = cooler`,
+`= −old cooling_f`). Producer renamed `hm_to_fahrenheit_cooling` →
+`hm_to_temp_change_f`. Display layer (`_fmt_temp_change`) always
+renders natural language so users never see the bare signed number.
+The optimizer was untouched — `surrogate.py` searches and ranks on
+`mean_hm`, never on `cooling_f`. Per-tract breakdown flipped to match.
+`cost_per_degf` divides cost by `−temp_change_f` and is defined only
+when the scenario cools. Serialized artifacts regenerated: all 40
+baseline snapshots, both dense CSVs (`scenarios_dense_mpls.csv`,
+`scenarios_dense_sa.csv`). No `SCENARIO_SCHEMA_VERSION` bump (field
+set unchanged in count). **Known-stale artifact:**
+`data/scenarios_dense_mpls_full.csv` (hidden city) still carries the
+old `cooling_f` column; regenerate when Mpls Full is activated.
+Decision rationale → `../internal/DESIGN_NOTES.md` §10.1.
+
+**Brief 5 (2026-05-28) — Sidebar reorganization + tooltips.** Sidebar
+order: City → Land Use Scenario → Conversion Mix → **Placement
+Strategy** → **Find Best Scenario** → Implementation Costs → Advanced
+Settings. Placement Strategy previously sat *below* Find Best
+Scenario, which inverted the intuitive flow. Find Best Scenario text
+trimmed — one-line inline caption + "How this works" expander, with
+prose corrected for accuracy (the surrogate explores conversion
+percentage and conversion mix only; placement strategy and cost are
+NOT part of the surrogate — the earlier draft text was wrong). Nature
+Access tooltip gained an explicit AOI line (city-conditional) and a
+saturation explanation. Decision rationale → `../internal/DESIGN_NOTES.md` §10.4.
+
+**Brief B (2026-05-29) — UMH NE kernel Gaussian → buffer-mean.** The
+UMH neighborhood-exposure kernel was switched from a Gaussian (σ =
+search_radius / pixel) to the canonical InVEST UMH 3.19.0
+buffer-mean (edge-corrected flat disk, 317-pixel disk at 30 m /
+300 m), via the existing `_convolve_edge_corrected` helper.
+`scipy.ndimage.gaussian_filter` and `_UMH_SIGMA_PX` removed. Probed
+canonical's emitted `kernel.tif` (21×21 binary disk, sum 317) and
+confirmed edge-correction via an all-ones NDVI test; an independent
+random-NDVI probe matched the candidate to MAE 1e-8. Validation
+result: **MN exact** (MAE ≈ 1e-9, r = 1.000000); **SA MAE ≈ 0** on
+aligned input (the harness's 0.14 % residual on SA's 1713 × 1984
+grid was empirically shown to be large-grid feeding-alignment + FFT
+noise in the comparison, not a kernel divergence). Read-only
+baseline diff confirmed drift isolated to `preventable_mh_cases` +
+`avoided_mh_cost_usd` (60 divergences across 30 conversion
+scenarios; ~1.5–3 % shifts). All 40 baselines + both dense CSVs
+regenerated. **Schema bump 26 → 27.** MH card confidence Medium →
+High. Harness latent bug fixed: `compare_umh_invest.py`'s export
+step had an inline Gaussian copy from Brief A that didn't track the
+kernel change — now calls `app._umh_neighborhood_exposure`.
+Decision rationale → `../internal/DESIGN_NOTES.md` §6.3.
+
+**Brief A2 (2026-05-29) — SA UNA AOI investigation (document-only).**
+Question: Yingjie's roadmap said NatCap's SA UNA uses
+`acs_block_group.gpkg` as the AOI; the prototype was thought to use
+a City-of-SA clipped extent. Finding: prototype's UNA extent is the
+Bexar County bbox (3,059 km², 1,906,325 people); NatCap's block
+groups are a strict subset (2,519 km², 1,878,866 people). **Area
+IoU = 0.824, population overlap = 98.6 %** — only 27,457 people
+(1.4 %) are in the bbox but outside the block groups (sparse exurban
+Bexar County). Architectural insight (the reason this isn't a config
+swap): the prototype's UNA path is raster-only —
+`calculate_nature_access(scenario_lulc, pop_count_raster)` takes no
+AOI vector; the modelable extent is wherever the LULC/population
+rasters have valid data. The `acs_block_groups_3857.gpkg` in the
+repo feeds **only** `compute_per_tract_summary`, not any biophysical
+model. **Decision: document, don't change.** Per-pixel
+`urban_nature_supply_percapita` is computed identically regardless
+of aggregation extent; the real validation need (matching NatCap's
+per-block-group `ntr_bal_avg`) is met by aggregating the prototype's
+supply raster per block group, which is a Track C concern. No code,
+no baseline, no schema change. Investigation note also lives in
+`../research/una/`. See NATCAP_ALIGNMENT.md "SA UNA / biophysical
+extent" for the parity-claim implication.
+
+**Brief B1 (2026-05-29) — NatCap fixed scenarios as first-class inputs
+(partial).** Goal: make NatCap's seven SA project scenarios
+(baseline, FF_20ac, FF_40ac, FF_MAX, UA_20ac, UA_40ac, UA_MAX)
+loadable as first-class scenarios. **Investigate-first finding —
+scenario rasters are flood-encoded, not compound.** NatCap shipped
+the SA scenario LULCs only in the NLCD × tree-canopy 3-tier
+encoding (211/212/213 = NLCD 21 × low/med/high; 998 = food forest;
+999 = garden), at 10 m in a WGS84-datum Albers CRS. That matches
+the prototype's SA flood CN table directly but does NOT match the
+compound NLCD × NLUD × tree (0–1983) encoding the Carbon / UCM /
+UNA tables are keyed on. The reference CSV's only two
+`natcap_published` metrics (`temp_change_f`, `carbon_tons_co2`) are
+both compound-keyed, so carbon/temperature reproduction is gated
+pending NatCap's compound scenario inputs. **Local hunt for
+compound scenario rasters — empty.** A content-signature search
+across `~/Desktop`, `~/Downloads`, `~/Documents`, `/Volumes`, the
+Google Drive sync root, and the `_zip_archive` zips found every
+compound-signature raster on disk to be a baseline (five distinct
+contents, duplicated 17× across pulls + GDrive mirror); there are
+no scenario-suffixed inputs. NatCap built the per-scenario compound
+LULCs as unsaved pipeline intermediates. NatCap data request to
+unblock the gate is **parked (not sent)** in OPEN_QUESTIONS →
+"Per-scenario compound LULC inputs". **What landed (scope A —
+standalone scaffolding):** `natcap_scenarios.py` (Streamlit-
+agnostic) with the four `PROVENANCE_*` constants,
+`SA_NATCAP_FIXED_SCENARIOS` metadata, `load_natcap_fixed_scenario()`
+(reproject + `Resampling.mode` majority-rule onto 30 m EPSG:5070,
+`lru_cache`d), and `flood_reduction_from_nlcd_tree()` pure helper.
+Dashboard wiring deferred to B2 (Phase 0 D invasive-change gate).
+Smoke-test: `mean_cn ≈ 81.4`, `flood_reduction ≈ 18.5–18.6` across
+the six alternative scenarios — matches NatCap's documented SA
+flood-invariance under design-storm saturation. Flagged divergence
+for B2: the prototype's own SA baseline is `mean_cn 76.54` / flood
+23.5 (~5-pt CN gap from the scenarios), pointing to the
+compound→NLCD×tree reduction path producing a different canopy-tier
+mix than NatCap's native raster. Tracked as OPEN_QUESTIONS → "Native
+NLCD×tree baseline flood raster".
+
+**Brief D1 (2026-05-29) — Export for InVEST workflow.** Goal: a
+single sidebar button that packages the currently-displayed
+scenario as a runnable canonical InVEST 3.19.0 input zip — rasters
++ AOIs + biophysical tables + per-model `args.json` for UCM / UNA /
+UFR / Carbon / UMH + a `metadata.json` recording provenance,
+generator parameters, and per-model validation state. SA-only for
+v1. Architecture: new `export_invest_bundle.py` Streamlit-agnostic
+(`BundleSpec` dataclass + `build_invest_bundle(spec) → bytes`); the
+zip is built in memory (Streamlit-Cloud-safe). Two-step sidebar
+**Prepare → Download** flow avoids rebuilding the ~20 MB bundle on
+every rerun. AOIs: synthesized bounding-box polygon for UCM / UFR
+(watersheds) / UMH; NatCap's ACS block-group polygons for UNA
+(framing NatCap uses for SA equity analysis per Vibrant Land).
+Per-model args choices (Phase 0 introspection of InVEST 3.19.0
+`ModelSpec`): UCM `cc_method="factors"` with 0.6 / 0.2 / 0.2 weights;
+`do_energy_valuation=False` (biophysical-cooling only). UNA
+`decay_function="dichotomy"`, `search_radius_mode="uniform radius"`,
+`search_radius=800`, `urban_nature_demand=16.7`. UFR uses NatCap's
+NLCD × tree CN table directly; damage valuation omitted (no SA
+damage table — Path C). Carbon `do_valuation=False`. UMH
+`model_option="ndvi"` + synthesized polygon
+`baseline_prevalence_vector` carrying CDC ever-diagnosed BIRs; two
+args files (depression, anxiety) since UMH's `effect_size` is
+per-condition. **Phase 3 verification — all 5 models PASS on the
+baseline bundle** (UCM ✓, UNA ✓, UFR ✓, Carbon ✓, UMH-depression ✓,
+UMH-anxiety ✓). Brief amendment had marked UMH best-effort /
+unverified; it ran cleanly, so the hedge dropped and UMH recorded
+`validated`. **Nodata sentinel rule surfaced by Phase 3 UFR
+failure-then-fix:** initial export wrote the NLCD × tree-reduced
+raster with `nodata=0`, leaving 35,973 −128 pixels unmasked; InVEST
+UFR `_lu_to_cn_op` raised `ValueError` (with a misleading empty `[]`
+lucode list — known display bug). Fixed by writing `nodata=-128` for
+both NLCD × tree rasters; all five models then pass. General truth,
+not specific to UFR. Decision rationale → `../internal/DESIGN_NOTES.md` §9.
+
+**Brief B2-revised (2026-05-29) — Validation badges + NatCap fixed-
+scenario reference view.** Context: the original B2 (per-metric
+Match/Diverged badges) was deferred earlier this session — Match /
+Diverged requires prototype reproduction for the six NatCap fixed
+alternatives, which is gated on the unavailable compound scenario
+inputs. The revised brief expanded scope: keep Match/Diverged out,
+deliver the ungated symposium core (three-state taxonomy as badges,
+a dedicated fixed-scenario reference view routing around the
+monolithic `evaluate_scenario`, side-by-side comparison surface,
+baseline reproduction posture, flood reconcile). **Conservative-
+floor decision (this session).** The investigation pass under the
+"no parameter fitting" guardrail established that NatCap's published
+citywide absolute baselines aren't reproducible from disk:
+- **Temperature.** No SA UCM `args.json` ships in the drive pull;
+  the `T_ref` / `uhi_max` NatCap used for `avg_temp_f = 90.08 °F`
+  are not documented or recoverable. `T_air_nomix.tif` exists;
+  back-solving from it crosses the no-fit guardrail.
+- **Carbon.** NatCap's `tot_c_cur.tif` (EPSG:3857, ~34.5 m nominal
+  pixel, 5,283 km² extent, mean 17.2) does not aggregate to the
+  published 107.32M t CO2e by any standard interpretation (per-ha →
+  25–33M depending on the cos²(lat) area choice; per-pixel-total →
+  280M). The published number is a separate aggregation script that
+  wasn't shipped. The prototype's own Bexar-bbox four-pool sum is
+  147.96M.
+- **A3 status.** `natcap_published` is "comparison-READY, never
+  executed." The only callers of `compare_to_reference` are the
+  four-line `__main__` smoke test with hardcoded values. No
+  `evaluate_scenario → compare_to_reference` pipeline has ever run,
+  because the only `natcap_published` metrics are exactly those gated
+  by the unavailable compound inputs.
+
+Net: a clean citywide-absolute reproduction match is not achievable
+from what's on disk. The demonstrable reproduction claim, in order
+of strength, is per-pixel parity vs canonical InVEST (HMI MAE 0,
+Brief 28b; UMH MAE ≈ 0, Brief B), then four-pool methodology
+adoption (Brief 30 — a methodology choice, not a parity
+measurement). The badge taxonomy was tightened to match. The four-
+state taxonomy locked here (`NatCap published value` / `≈ NatCap
+method` / `≈ Aligned method` / `Prototype`) survives as the standing
+contract. Decision rationale → `../internal/DESIGN_NOTES.md` §8.
+
+**Brief #3 (2026-05-29) — Scenario provenance + validation header
+badge.** Single helper `_render_scenario_provenance_header` driving
+off the `PROVENANCE_*` constants re-exported from
+`natcap_scenarios.py`. Five-row `_PROVENANCE_HEADER_INFO` mapping
+(Baseline / NatCap published reference / Explorer-generated /
+Surrogate-suggested) — the Validation strings come straight from
+STRATEGY.md §4's honest-claims language. Two render paths wired:
+fixed-scenario reference view (folds the previous standalone `##
+label` + scenario_id/provenance caption into the unified header)
+and main Explorer dashboard (above `#### Ecological`).
+OPTIMIZER provenance not yet detected at runtime — the helper
+accepts `PROVENANCE_OPTIMIZER` but the main panel doesn't
+distinguish "applied from optimizer" from generic Explorer state;
+Brief #4 plumbs the flag. Visual treatment: bordered colored block
+with `Source:` / `Validation:` labels, using
+`_VALIDATION_BADGE_COLOR_HEX` (same green / blue / gray palette as
+per-card badges). Decision rationale → `../internal/DESIGN_NOTES.md` §8.2.
+
+**Brief #4 (2026-05-29) — Optimizer as trustworthy scenario
+discovery.** The Apply seam pre-#4: the optimizer's surrogate-
+prediction table labeled itself "These are surrogate model
+predictions. Click Apply to run a full pixel-level simulation."
+Apply set `_pending_pct/gi/ff` + `applied_suggestion` +
+`_show_apply_toast`, then `st.rerun()`. On rerun, pending became
+slider values, full-raster `evaluate_scenario` ran, but nothing
+signaled "this just came from the optimizer." Cards looked
+identical to any Explorer rendering; the D1 export silently
+recorded the scenario as `PROVENANCE_EXPLORER`. Changes (single
+commit): (1) `applied_from_optimizer` flag + `_applied_optimizer_values
+= (pct, gi, ff)` recording the just-Applied scenario's slider state;
+auto-cleared at the top of every rerun if the current slider state
+diverges (manual edit, preset, Best-by-Goal Apply, city change). (2)
+OPTIMIZER provenance detection plumbed into both the main-panel
+scenario header and the D1 export helper; detection order:
+`pct_converted == 0` → BASELINE; else `applied_from_optimizer` →
+OPTIMIZER; else EXPLORER. The header label flips to "Optimizer
+suggestion · {scenario_name}"; the export records
+`PROVENANCE_OPTIMIZER` with an `optimizer_suggested` generator block
+carrying slider params + a note "Applied from Optimizer suggestion;
+full-raster evaluated by the prototype engine before export." (3)
+OPTIMIZER validation line updated from #3's placeholder
+"engine-validated; exploratory" to "engine-validated; full-raster
+evaluated — exploratory candidate for further validation." (4)
+Entry-text reframe: sidebar subheader changed from "Find Best
+Scenario" (verdict framing) to "Discover scenarios to validate"
+(discovery framing). Best-Scenarios-by-Goal Apply is NOT classified
+as OPTIMIZER — those come from the precomputed scenario grid.
+Decision rationale → `../internal/DESIGN_NOTES.md` §7.2.
+
+**Brief #5 (2026-05-29 → 2026-05-30 visual re-verify) — Cross-
+source comparison table.** A single comparison surface that puts
+NatCap's published references, the active Explorer/baseline/optimizer
+scenario, and any saved scenarios side by side. Architecture: Option
+A (NatCap anchors always-available + `saved_scenarios` for the rest)
+chosen over Option B (new `compare_set` state) and Option C
+(repurpose `saved_scenarios` as "pinned for comparison" + auto-
+include NatCap) — reuses the existing Save mechanism, requires only
+a single new `provenance` field on each saved dict. Placement: top
+of Tradeoff Analysis tab, before `#### Tradeoff Space`. Row
+composition: NatCap fixed anchors (SA only) → current scenario
+(always, marked `▶ Current — …`) → saved scenarios for the active
+city. Columns: Scenario · Source · Validation · Temperature · Carbon
+stock · Carbon Value $ (derived) · Cooling Energy $ · Nature Access
+% · Food (M lbs) · MH cases · Cost $M. **Honest-display invariants:**
+unified Δ-basis across the three NatCap-shared columns (Temperature,
+Carbon stock, Carbon Value $) — every row is a delta; NatCap baseline
+row reads `"baseline"` rather than its absolute citywide value to
+prevent misleading row-to-row comparisons like `+148M next to +0.5M`
+(visual re-verify on 2026-05-30 caught the absolute-value drift
+post-rebuild; fixed at the cell level). Validation column tooltip via
+`column_config`. `—` for unavailable cells driven by row provenance,
+not hardcoded. Flood intentionally excluded — different derivations
+between baseline (compound→NLCD×tree reduction) and alternatives
+(native NLCD×tree raster); the per-scenario flood card handles that.
+Source / Validation columns are mandatory — the load-bearing piece
+of the honesty story; enforced structurally. Decision rationale →
+`../internal/DESIGN_NOTES.md` §8.3.
 
 ---
 
