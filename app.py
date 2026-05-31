@@ -2220,7 +2220,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 30  # bumped: Region-Local Metrics Commit 1 — results dict gains the `region_local` block (per-metric region-clipped values when a region mask is active; None otherwise). Citywide path is byte-identical to schema 29 — region_local is None for citywide scenarios, so the existing verify_baselines snapshots reproduce. The new reconciliation assertion (region-local-over-entire-AOI == citywide for decomposable metrics) is the baseline-safety guard. Pre-30 saved scenarios load gracefully — `.get('region_local')` reads as None. (29 was Ownership Integration's ownership_filter key.)
+SCENARIO_SCHEMA_VERSION = 31  # bumped: Honesty-Surface Pass Commits 2+3 — bundle metadata gains `known_divergences` (6-entry locked seed list with completeness assertion in verify_baselines), `raster_lineage` (per-raster source/vintage/methodology), `generator.params` (the slider values that produced the scenario). Results dict shape is UNCHANGED — the bump signals the metadata schema change + invalidates any caches that captured pre-31 metadata. Pre-31 saved scenarios load gracefully (no new results keys). (30 was Region-Local Metrics' region_local block.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking

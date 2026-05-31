@@ -642,8 +642,63 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         smoke_diffs += 1
 
+    # ── Honesty-Surface Pass Commit 4 — completeness assertion ──
+    # Every id in the locked KNOWN_DIVERGENCES seed list must appear in the
+    # metadata.json the bundle builder emits. Guards against silent drops
+    # in a later refactor — the disclosure surface is the gateless
+    # mechanism's only enforcement, so this assertion is load-bearing.
     print(f"\n{'=' * 60}")
-    grand_total = total_diffs + region_diffs + ownership_diffs + region_local_diffs + smoke_diffs
+    print("Honesty-Surface Pass — known-divergences completeness assertion")
+    print(f"{'=' * 60}")
+    disclosure_diffs = 0
+    try:
+        import export_invest_bundle as eib
+        # Minimal BundleSpec — _build_metadata only needs identity + raster
+        # paths for the args files and is_sa for the lineage branch.
+        fake_spec = eib.BundleSpec(
+            city_name="Test City", city_slug="test",
+            crs="EPSG:5070", pixel_size_m=30,
+            scenario_id="completeness_check", scenario_label="completeness_check",
+            scenario_description="verify_baselines completeness assertion",
+            provenance=eib.PROVENANCE_EXPLORER,
+            generator={"type": "explorer_generated"},
+            git_commit="unknown", scenario_schema_version=app.SCENARIO_SCHEMA_VERSION,
+            is_sa=True, raster_profile={"height": 1, "width": 1,
+                                        "crs": "EPSG:5070",
+                                        "transform": None},
+        )
+        metadata = eib._build_metadata(fake_spec, args_files={})
+        emitted = metadata["scenario"]["known_divergences"]
+        emitted_ids = {d["id"] for d in emitted}
+        expected_ids = {d["id"] for d in eib.KNOWN_DIVERGENCES}
+        missing = expected_ids - emitted_ids
+        extra = emitted_ids - expected_ids
+        if missing:
+            print(f"  FAIL missing divergence ids: {sorted(missing)}")
+            disclosure_diffs += len(missing)
+        if extra:
+            print(f"  FAIL unexpected divergence ids: {sorted(extra)}")
+            disclosure_diffs += len(extra)
+        if not (missing or extra):
+            print(f"  OK   {len(expected_ids)} locked divergences all present "
+                  "in metadata.json")
+        # Audit-fix hold check (Commit 1): the validation-state inheritance
+        # caption must remain in app.py so the Region-Local table doesn't
+        # silently drift back to unbadged rows.
+        with open("app.py", "r") as f:
+            app_source = f.read()
+        if "Validation states for these rows inherit from the per-metric badges" not in app_source:
+            print("  FAIL Region-Local validation-inheritance caption missing from app.py")
+            disclosure_diffs += 1
+        else:
+            print("  OK   Region-Local inheritance caption holds")
+    except Exception as e:
+        print(f"  ERROR {e}")
+        import traceback; traceback.print_exc()
+        disclosure_diffs += 1
+
+    print(f"\n{'=' * 60}")
+    grand_total = total_diffs + region_diffs + ownership_diffs + region_local_diffs + smoke_diffs + disclosure_diffs
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -659,6 +714,8 @@ def main(update: bool) -> int:
             print(f"{region_local_diffs} region-local reconciliation divergence(s).")
         if smoke_diffs:
             print(f"{smoke_diffs} region-local smoke-test divergence(s).")
+        if disclosure_diffs:
+            print(f"{disclosure_diffs} honesty-surface disclosure divergence(s).")
         return 1
 
 
