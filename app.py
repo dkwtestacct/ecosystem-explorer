@@ -49,49 +49,42 @@ OWNERSHIP_MODES = {
 }
 
 # Region-Local Metrics (`REGION_LOCAL_METRICS_SPEC.md`) — per-metric
-# decomposability table. For decomposable metrics, evaluate_scenario emits a
-# region-clipped value under results['region_local'][key] whenever a region
-# mask is active; for non-decomposable metrics the slot is None and the UI
-# falls back to "citywide only" (with the reason from this table).
-#
-# `reach_m` is the model's per-pixel spatial reach (UNA ~800 m, UCM ~600 m,
-# UMH ~300 m, local-pixel models 0). Drives the Commit 2 spillover caveat,
-# which must NAME every displayed reach model — never abbreviate to "the
-# longest two." Local-pixel models clip cleanly; reach models clip but
-# under-count effects that this region's conversions push just beyond the
-# boundary (the locked option-(b) honesty surface).
+# treatment table. Every entry is decomposable under the locked per-model
+# treatment from the spec; the field `clip` records which clip (pixel vs
+# population) is used, and `caveat` carries the locked honesty caption type
+# (`spillover` for UCM reach effects, `routing` for the flood routing
+# disclaimer, `cross_boundary` for UNA, `exposure_kernel` for UMH, None
+# for clean clips). Reconciliation assertion: for every entry, computing
+# region_local over the entire AOI must equal citywide.
 _REGION_LOCAL_METRICS = {
-    # Local-pixel / additive — clip cleanly, no spillover.
-    'n_wet':                {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'n_for':                {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'n_hd':                 {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'ff_fellback_pixels':   {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'gi_fellback_pixels':   {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'hd_fellback_pixels':   {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'mean_cn':              {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'flood_reduction':      {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'runoff_acre_feet':     {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'food_mln_lbs':         {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'people_fed':           {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'carbon_tons_co2':      {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'carbon_value_usd':     {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'total_cost_mln':       {'decomposable': True,  'reach_m': 0,   'reason': None},
-    'mean_ndvi':            {'decomposable': True,  'reach_m': 0,   'reason': None},
-    # Reach-model means — clip works but the displayed value misses spillover
-    # to pixels just beyond the region boundary. Spillover caveat (Commit 2)
-    # names UCM ~600 m.
-    'mean_hm':              {'decomposable': True,  'reach_m': 600, 'reason': None},
-    'temp_change_f':        {'decomposable': True,  'reach_m': 600, 'reason': None},
-    # Non-decomposable — Commit 1 omits these; the UI shows "citywide only"
-    # plus the reason. Several are decomposable in principle but require
-    # per-pixel UNA / per-building / per-tract plumbing that the existing
-    # citywide aggregations don't return; deferred to a follow-up brief.
-    'nature_access_pct':    {'decomposable': False, 'reach_m': 800, 'reason': 'population-weighted citywide ratio; a region version requires a different denominator (region population) which changes the metric semantics'},
-    'people_with_nature_access': {'decomposable': False, 'reach_m': 800, 'reason': 'requires per-pixel UNA access raster from calculate_nature_access; deferred to a follow-up brief'},
-    'cooling_energy_savings_usd': {'decomposable': False, 'reach_m': 600, 'reason': 'per-building integration with the HMI raster; requires per-building spatial filtering — deferred to a follow-up brief'},
-    'flood_damage_avoided_usd': {'decomposable': False, 'reach_m': 0,   'reason': 'per-building damage from UFR; requires per-building spatial filtering — deferred to a follow-up brief'},
-    'preventable_mh_cases': {'decomposable': False, 'reach_m': 300, 'reason': 'per-tract UMH aggregation; requires per-tract region intersection — deferred to a follow-up brief'},
-    'avoided_mh_cost_usd':  {'decomposable': False, 'reach_m': 300, 'reason': 'derived from preventable_mh_cases — deferred together'},
+    # Pixel-clip, clean (carbon / food / cost / conversions).
+    'n_wet':                {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'n_for':                {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'n_hd':                 {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'ff_fellback_pixels':   {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'gi_fellback_pixels':   {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'hd_fellback_pixels':   {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'food_mln_lbs':         {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'people_fed':           {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'carbon_tons_co2':      {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'carbon_value_usd':     {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'total_cost_mln':       {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    'mean_ndvi':            {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
+    # Pixel-clip + flood routing caveat (per-pixel runoff retention, not routed hydrology).
+    'mean_cn':              {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
+    'flood_reduction':      {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
+    'runoff_acre_feet':     {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
+    'flood_damage_avoided_usd': {'decomposable': True,  'clip': 'pixel',  'reach_m': 0,   'caveat': 'routing'},
+    # Pixel-clip + UCM spillover caveat (~600 m reach).
+    'mean_hm':              {'decomposable': True,  'clip': 'pixel',      'reach_m': 600, 'caveat': 'spillover'},
+    'temp_change_f':        {'decomposable': True,  'clip': 'pixel',      'reach_m': 600, 'caveat': 'spillover'},
+    'cooling_energy_savings_usd': {'decomposable': True, 'clip': 'pixel', 'reach_m': 600, 'caveat': 'spillover'},
+    # Population-clip + UNA cross-boundary caveat (~800 m reach; supply/access can cross the edge).
+    'nature_access_pct':    {'decomposable': True,  'clip': 'population', 'reach_m': 800, 'caveat': 'cross_boundary'},
+    'people_with_nature_access': {'decomposable': True, 'clip': 'population', 'reach_m': 800, 'caveat': 'cross_boundary'},
+    # Population-clip + UMH exposure-kernel caveat (~300 m reach).
+    'preventable_mh_cases': {'decomposable': True,  'clip': 'population', 'reach_m': 300, 'caveat': 'exposure_kernel'},
+    'avoided_mh_cost_usd':  {'decomposable': True,  'clip': 'population', 'reach_m': 300, 'caveat': 'exposure_kernel'},
 }
 
 # ── Metric translation constants ───────────────────────────────────────────────
@@ -1370,16 +1363,24 @@ def _una_supply_percapita(scenario_lulc, pop_count_raster):
         scenario_lulc, pop_count_raster, urban_nature_arr)
 
 
-def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster):
+def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster, mask=None):
     """Headline UNA metric: the share of the modelable-extent population whose
     per-capita urban-nature supply meets `UNA_DEMAND_M2_PER_CAPITA`.
 
     Returns `(pct, modelable_pop, people_supplied)`. The modelable extent is the
     population on valid-LULC pixels; InVEST cannot model supply for residents on
-    LULC nodata (a large share of the prototype's downtown MN AOI)."""
+    LULC nodata (a large share of the prototype's downtown MN AOI).
+
+    `mask` (Region-Local Metrics Commit 1) intersects with the valid filter so
+    the returned numbers are population-clipped to the masked pixels — the
+    locked UNA region-local treatment is "clip to population inside region".
+    `mask=None` reproduces the citywide behavior exactly.
+    """
     supply_percapita, valid = _una_supply_percapita(
         scenario_lulc, pop_count_raster)
     pop = np.asarray(pop_count_raster, dtype=np.float64)
+    if mask is not None:
+        valid = valid & mask
     modelable_pop = float(pop[valid].sum())
     if modelable_pop <= 0:
         return 0.0, 0.0, 0.0
@@ -1388,7 +1389,7 @@ def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster):
     return 100.0 * people_supplied / modelable_pop, modelable_pop, people_supplied
 
 
-def calculate_nature_access(scenario_lulc, pop_count_raster):
+def calculate_nature_access(scenario_lulc, pop_count_raster, mask=None):
     """Canonical InVEST Urban Nature Access for the given scenario LULC.
 
     Re-implements `natcap.invest.urban_nature_access` (uniform search
@@ -1400,16 +1401,16 @@ def calculate_nature_access(scenario_lulc, pop_count_raster):
 
     `pop_count_raster` must be per-pixel population **counts** (not density).
 
-    Returns a 3-tuple `(access_pct, _legacy_slot, people_with_access)`:
+    `mask` (Region-Local Metrics Commit 1) — when provided, the returned
+    pct + people_with_access are population-clipped to the masked pixels
+    (denominator = population at mask ∩ valid; numerator = population at
+    mask ∩ valid ∩ supply-adequate). Per the locked UNA treatment, this is
+    a population-clip not a pixel-clip. `mask=None` reproduces citywide.
 
-    - `access_pct` — pct_pop_supply_ge_demand, 0-100, rounded to 0.1.
-    - `_legacy_slot` — always 0.0. Formerly the Nature Quality Score (removed);
-      the slot is retained so existing three-value call sites are unaffected.
-    - `people_with_access` — integer headcount, access_pct/100 × modelable-
-      extent population.
+    Returns a 3-tuple `(access_pct, _legacy_slot, people_with_access)`.
     """
     pct, _modelable_pop, people_supplied = _invest_una_pct_pop_supply_ge_demand(
-        scenario_lulc, pop_count_raster
+        scenario_lulc, pop_count_raster, mask=mask
     )
     return round(float(pct), 1), 0.0, int(round(people_supplied))
 
@@ -1531,7 +1532,7 @@ def _umh_neighborhood_exposure(ndvi_raster):
         ndvi_raster.astype(np.float64), _UMH_KERNEL, valid, 1.0)
 
 
-def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count, ndvi_raster=None):
+def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count, ndvi_raster=None, mask=None):
     """Return (preventable_mh_cases, avoided_mh_cost_usd) for the scenario.
 
     `baseline_ne_raster` is the buffer-mean NE raster for the unmodified LULC
@@ -1543,7 +1544,11 @@ def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count,
 
     Pass `ndvi_raster=` to reuse a precomputed scenario NDVI raster (saves
     one full-AOI allocation when `evaluate_scenario` already built one for
-    `compute_mean_ndvi`)."""
+    `compute_mean_ndvi`).
+
+    `mask` (Region-Local Metrics Commit 1) — when provided, the sum runs only
+    over masked pixels (population-clip per the locked UMH treatment).
+    `mask=None` reproduces the citywide sum."""
     if not POPULATION_DATA_AVAILABLE:
         return 0.0, 0.0
     if ndvi_raster is None:
@@ -1558,11 +1563,18 @@ def calculate_mental_health_impact(scenario_lulc, baseline_ne_raster, pop_count,
 
     pc_dep = pf_dep * BIR_DEPRESSION * pop_count
     pc_anx = pf_anx * BIR_ANXIETY    * pop_count
-    total_pc = float((pc_dep + pc_anx).sum())
-    avoided_cost = float((
-        pc_dep * COST_PER_DEPRESSION_CASE_USD
-        + pc_anx * COST_PER_ANXIETY_CASE_USD
-    ).sum())
+    if mask is None:
+        total_pc = float((pc_dep + pc_anx).sum())
+        avoided_cost = float((
+            pc_dep * COST_PER_DEPRESSION_CASE_USD
+            + pc_anx * COST_PER_ANXIETY_CASE_USD
+        ).sum())
+    else:
+        total_pc = float((pc_dep + pc_anx)[mask].sum())
+        avoided_cost = float((
+            pc_dep * COST_PER_DEPRESSION_CASE_USD
+            + pc_anx * COST_PER_ANXIETY_CASE_USD
+        )[mask].sum())
     return round(total_pc, 1), round(avoided_cost, 0)
 
 
@@ -2001,12 +2013,11 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     )
 
     # ── Region-Local Metrics (REGION_LOCAL_METRICS_SPEC.md) ──────────────────
-    # Region-clipped values for the decomposable subset of `_REGION_LOCAL_METRICS`.
-    # None for citywide / non-region scenarios. Non-decomposable slots get
-    # `None` here; the UI (Commit 2) reads `_REGION_LOCAL_METRICS[key]['reason']`
-    # to render the "citywide only" label. The verify_baselines reconciliation
-    # assertion guarantees: for any key marked decomposable, computing
-    # region_local over the entire AOI must equal the citywide value.
+    # Region-clipped values for every metric in `_REGION_LOCAL_METRICS`, using
+    # the locked per-model treatment from the spec (pixel-clip vs population-
+    # clip). None for citywide / non-region scenarios. The verify_baselines
+    # reconciliation assertion guarantees: for any key, region_local over the
+    # entire AOI must equal the citywide value.
     if selected_region_mask is not None:
         rm = selected_region_mask
         # Region developed-acre denominator for the runoff closed form (mirrors
@@ -2025,22 +2036,42 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         _rl_ndvi_valid = (scenario_lulc != NODATA) & rm
         _rl_mean_ndvi = float(round(scenario_ndvi[_rl_ndvi_valid].mean(), 4)) if _rl_ndvi_valid.any() else mean_ndvi
 
-        # Closed-form derivations off the region means.
+        # Region baseline HM for the temp_change_f delta — hm_to_temp_change_f
+        # uses _CURRENT_CITY_STATE.baseline_hm (citywide scalar), which gives
+        # a mixed reading when the scenario mean is regional. Compute the
+        # region baseline mean directly so the region delta is fully regional.
+        _rl_base_hm_raster = _CURRENT_CITY_STATE.baseline_hm_raster
+        _rl_base_hm_valid = (~np.isnan(_rl_base_hm_raster)) & rm
+        _rl_base_mean_hm = float(_rl_base_hm_raster[_rl_base_hm_valid].mean().round(4)) if _rl_base_hm_valid.any() else float(_CURRENT_CITY_STATE.baseline_hm)
+        _rl_delta_hm = _rl_mean_hm - _rl_base_mean_hm
+        _rl_temp_change_f = round(-_rl_delta_hm * HM_TO_FAHRENHEIT, 1)
+
+        # Closed-form runoff + derived flood_reduction.
         _rl_flood_reduction = round(100 - _rl_mean_cn, 2)
         _rl_runoff_acft = cn_to_runoff_acre_feet(_rl_mean_cn, _rl_developed_acres)
-        _rl_temp_change_f = hm_to_temp_change_f(_rl_mean_hm)
+        _rl_flood_damage_avoided_usd = compute_flood_damage_avoided(_rl_runoff_acft)
 
-        # Sums / counts — `pixels_to_convert` was already filtered to
-        # region_convertible_pixels at the top of evaluate_scenario (when a
-        # mask is active), so n_wet / n_for / n_hd / food / cost / fellback
-        # are already region-local in the citywide block. Mirror them.
+        # Cooling energy savings — per-pixel kWh × $/kWh sum, masked.
+        _rl_cooling_energy_savings_usd = compute_cooling_energy_savings(hmi_map, mask=rm)
+
+        # UNA population-clip + UMH population-clip.
+        _rl_nat_pct, _, _rl_nat_people = calculate_nature_access(
+            scenario_lulc_una, pop_count_raster, mask=rm,
+        )
+        _rl_preventable_mh_cases, _rl_avoided_mh_cost_usd = calculate_mental_health_impact(
+            scenario_lulc, _BASELINE_NE_RASTER, pop_count_raster,
+            ndvi_raster=scenario_ndvi, mask=rm,
+        )
+
+        # Sums / counts — pixels_to_convert was filtered to region_convertible_pixels
+        # at the top of evaluate_scenario, so n_wet / n_for / n_hd / food / cost /
+        # fellback are already region-local. Mirror them.
         _rl_food_mln_lbs = food_mln_lbs
         _rl_people_fed = food_to_people_fed(_rl_food_mln_lbs)
         _rl_total_cost_mln = total_cost_mln
 
         # Carbon — recompute the region-clipped four-pool stock delta for SA;
-        # for MN the per-conversion-type analytical value is already region-
-        # local (n_wet/n_for/n_hd are).
+        # for MN the per-conversion-type analytical value is already region-local.
         if c_above_arr is not None:
             _rl_c_valid = ((scenario_lulc_carbon >= 0) & (cooling_lulc_compound >= 0) & rm)
             _n_c = len(c_above_arr)
@@ -2060,8 +2091,10 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
             'mean_cn':              _rl_mean_cn,
             'flood_reduction':      _rl_flood_reduction,
             'runoff_acre_feet':     _rl_runoff_acft,
+            'flood_damage_avoided_usd': _rl_flood_damage_avoided_usd,
             'mean_hm':              _rl_mean_hm,
             'temp_change_f':        _rl_temp_change_f,
+            'cooling_energy_savings_usd': _rl_cooling_energy_savings_usd,
             'mean_ndvi':            _rl_mean_ndvi,
             'n_wet':                n_wet,
             'n_for':                n_for,
@@ -2074,15 +2107,10 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
             'total_cost_mln':       _rl_total_cost_mln,
             'carbon_tons_co2':      _rl_carbon_tons_co2,
             'carbon_value_usd':     _rl_carbon_value_usd,
-            # Non-decomposable slots (the UI consults _REGION_LOCAL_METRICS
-            # for the reason). Kept as explicit None entries so the dict
-            # shape is stable across metric keys.
-            'nature_access_pct':            None,
-            'people_with_nature_access':    None,
-            'cooling_energy_savings_usd':   None,
-            'flood_damage_avoided_usd':     None,
-            'preventable_mh_cases':         None,
-            'avoided_mh_cost_usd':          None,
+            'nature_access_pct':            _rl_nat_pct,
+            'people_with_nature_access':    _rl_nat_people,
+            'preventable_mh_cases':         _rl_preventable_mh_cases,
+            'avoided_mh_cost_usd':          _rl_avoided_mh_cost_usd,
         }
     else:
         region_local = None
@@ -2393,7 +2421,7 @@ def compute_lookup_table(_state, city_key, data_dir_flood, data_dir_cooling, sch
 PIXEL_AREA_M2 = 30 * 30
 
 
-def compute_cooling_energy_savings(scenario_hmi_raster):
+def compute_cooling_energy_savings(scenario_hmi_raster, mask=None):
     """Annual avoided AC cost ($/yr) for buildings under the active scenario,
     using the canonical InVEST UCM energy-valuation formula.
 
@@ -2404,6 +2432,9 @@ def compute_cooling_energy_savings(scenario_hmi_raster):
     clamped to zero — we only credit cooling, not penalise warming. Sums over
     building pixels and returns $0 when buildings, the energy table, or the
     ET raster are unavailable.
+
+    `mask` (Region-Local Metrics Commit 1) — when provided, the sum runs only
+    over masked building pixels. `mask=None` reproduces the citywide sum.
 
     See `data/invest/cooling/UCM_AUDIT.md` for the divergence-from-canonical
     log: we still apply this per-pixel rather than per-building (no 600 m
@@ -2426,6 +2457,8 @@ def compute_cooling_energy_savings(scenario_hmi_raster):
     np.multiply(buf, PIXEL_AREA_M2, out=buf)              # buf = kwh saved
     np.multiply(buf, COST_PER_KWH_USD, out=buf)           # buf = usd per pixel
     valid = (BUILDINGS_TYPE_RASTER >= 0) & np.isfinite(buf)
+    if mask is not None:
+        valid = valid & mask
     return round(float(buf[valid].sum()), 0)
 
 

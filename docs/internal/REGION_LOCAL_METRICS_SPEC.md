@@ -26,15 +26,27 @@ Spatial-reach models bleed across the region boundary: UNA ~800 m, UCM ~600 m, U
 
 The models already produce per-pixel scenario and baseline rasters citywide. Region-local = aggregate the **per-pixel delta (scenario − baseline) over the existing region mask** (the same `selected_region_mask` Phase 1 builds), using each model's native aggregation. No change to model computation — this is a second aggregation of results already computed.
 
-Key subtlety: not every citywide metric is **region-decomposable**. Additive per-pixel quantities (carbon storage, cooling, flood retention volume) clip-and-sum cleanly. A citywide ratio or a population-weighted access score may not decompose to a sub-area without redefinition. So the first step determines, per model, whether region-local is even well-defined.
+Key subtlety: metrics clip differently. Most are per-pixel quantities clipped to region pixels; the population-based ones (nature access, mental health) clip to the *population* inside the region, not pixels — which naturally follows region residents even when the greenspace they use sits outside the boundary. The locked per-model treatment:
+
+| Metric | Region-local treatment |
+| --- | --- |
+| Carbon | Clip to region pixels. Clean — no caveat. |
+| Food production | Clip to converted pixels in region. Clean. |
+| Cost | Clip to converted pixels in region. Clean. |
+| Flood / runoff | Clip to region pixels + **routing caveat**: this sums per-pixel runoff retention, it is not routed hydrology, so it's not flood protection *delivered to* the region. |
+| Cooling (UCM, ~600 m) | Clip to region pixels + **spillover caveat**. |
+| Nature access (UNA, ~800 m) | Clip to **population** inside region + cross-boundary caveat (supply/access can cross the edge). |
+| Mental health (UMH, ~300 m) | Clip to **population** inside region + exposure-kernel caveat. |
+
+Every treatment reconciles at full-AOI (clip-to-everything == citywide), so the decomposability is machine-guarded by the assertion below regardless of pixel- vs population-clipping.
 
 ## Build sequence + gate tiers (zero gates)
 
 The one judgment that used to want a gate — *which models are region-decomposable* — converts to an **automated assertion** instead, so no human stop is needed. The invariant: for any model marked decomposable, region-local computed over the **entire AOI** (region = everything) must equal that model's citywide value, because clipping to "all pixels" is the citywide sum. A model wrongly marked decomposable fails this reconciliation and trips the assertion like a 40/40 failure. The only error the assertion *doesn't* catch — a model wrongly marked *non*-decomposable — is harmless (it just shows "citywide only" conservatively). So the dangerous direction is machine-guarded and the safe direction costs nothing.
 
-**Commit 1 — decomposability + aggregation (batch).** Build the per-model decomposability table (`{decomposable; method; notes}`, mostly derivable from the model definitions), and for decomposable models compute the region-clipped delta into `results['region_local']`. Non-decomposable models store `region_local: null` + reason. Add the **full-AOI reconciliation assertion** to verify_baselines (decomposable models: region-local-over-everything == citywide). 40/40 unaffected (non-region scenarios never populate this).
+**Commit 1 — aggregation (batch).** Implement the locked per-model treatment table above (pixel-clip vs population-clip per metric); compute region-clipped values into `results['region_local']`. Add the **full-AOI reconciliation assertion** to verify_baselines (every treated model: region-local-over-everything == citywide). 40/40 unaffected (non-region scenarios never populate this).
 
-**Commit 2 — display (batch).** For region scenarios, show region-local next to citywide per model. Reach models carry the spillover caveat naming every displayed reach model; non-decomposable models show "citywide only" with a one-line why. Keep the existing "metrics show citywide impact" caption on the citywide column.
+**Commit 2 — display (batch).** For region scenarios, show region-local next to citywide per model, with the locked caveats: the flood routing caveat, and one reach caveat naming all three reach models — "Cooling, nature access, and mental-health exposure effects can extend beyond the selected boundary. The region-local column summarizes people/pixels inside the selected area; spillover effects outside the boundary are reflected in the citywide column." Keep the existing "metrics show citywide impact" caption on the citywide column.
 
 **Commit 3 — provenance + metadata (batch).** region-local values into `metadata.json`, labeled, with the boundary-treatment note (option (b) + the per-model decomposability flags). Reuses the existing provenance pattern.
 
