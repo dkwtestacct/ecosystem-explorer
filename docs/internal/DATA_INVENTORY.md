@@ -233,6 +233,16 @@ For per-tract neighborhood-improvement reporting overlay on the Map View tab.
 
 ACS equity CSV (`data/sa/natcap_2024/acs_block_group_equity_data.csv`) includes bivariate color-scheme fields for plotting; not yet wired into the dashboard.
 
+### Region-selection polygon layers (Phase 1)
+
+Polygon layers wired for the Region Selection feature (`docs/internal/REGION_SELECTION_PHASE1_SPEC.md`). These are placement-constraint polygons (region-mask source), distinct from the per-tract reporting use above. The SA primary layer is council districts; Bexar tracts are the fallback. ACS block groups (1,124) are intentionally not exposed as a selection layer — too granular for a multiselect.
+
+| City | Path | Status | Count / Notes |
+|---|---|---|---|
+| SA primary — council districts | `data/sa/sa_council_districts.gpkg` | Committed | EPSG:5070; 10 polygons covering the City of San Antonio. Source: City of San Antonio Open Data Portal — "Redistricted Council Districts 2022" (boundaries effective for the May 2023 municipal election). **License: not explicitly stated; City of San Antonio Open Data Portal; attribution cited.** Rebuild command: `python scripts/data/download_sa_council_districts.py`. Source GeoJSON declares EPSG:4326 but geometry is actually EPSG:3857; the script force-overrides the declared CRS before reprojecting (see the module docstring for the portal quirk). |
+| SA fallback — Bexar tracts | `data/sa/tracts_bexar.shp` | Committed | Already cataloged in the table above (375 TIGER 2020 Bexar tracts). Listed here as a reminder that the region-selection UI exposes it as a fallback layer when council-district granularity is too coarse. |
+| MN primary — downtown census tracts | `data/invest/nature_access/UrbanNatureAccess_sample_data_MN/AOI_admin_boundaries_census_tracts.shp` | Committed | Already cataloged above (27 tracts in the InVEST sample AOI). Selection-layer use case is additive to the per-tract reporting use case. |
+
 ---
 
 ## 8. Reference evapotranspiration (ET₀)
