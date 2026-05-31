@@ -492,8 +492,53 @@ def main(update: bool) -> int:
             import traceback; traceback.print_exc()
             region_diffs += 1
 
+    # ── Ownership Integration Commit 4 — targeted ownership assertion ──
+    # Mirror of the region assertion above. Build the boolean ownership
+    # mask for SA's 'vacant_public' mode (the actionable headline) directly
+    # from the CityState raster + OWNERSHIP_MODES, then check the eligible
+    # count reported by evaluate_scenario against the independent recompute.
     print(f"\n{'=' * 60}")
-    grand_total = total_diffs + region_diffs
+    print("Ownership Integration — targeted eligible_pixels_in_region assertion")
+    print(f"{'=' * 60}")
+    OWNERSHIP_TARGETS = {
+        # city → ownership_mode_key
+        "San Antonio, TX": "vacant_public",
+    }
+    ownership_diffs = 0
+    for city_name in active_cities:
+        if city_name not in OWNERSHIP_TARGETS:
+            print(f"  {city_name}: no ownership target configured; skip")
+            continue
+        mode = OWNERSHIP_TARGETS[city_name]
+        try:
+            _rebind_city(app, city_name)
+            state = app._CURRENT_CITY_STATE
+            if state.ownership_raster is None:
+                print(f"  {city_name}: ownership_raster not loaded; skip")
+                continue
+            codes = app.OWNERSHIP_MODES[mode]["codes"]
+            mask = np.isin(state.ownership_raster, codes)
+            cp = state.convertible_pixels
+            independent_count = int(mask[cp[:, 0], cp[:, 1]].sum())
+            results = app.evaluate_scenario(
+                pct_converted=10, green_infrastructure_pct=50, food_forest_pct=50,
+                seed=42, placement_strategy="random",
+                selected_region_mask=mask,
+            )
+            reported = int(results["region_selection"]["eligible_pixels_in_region"])
+            label_str = f"{city_name} / ownership={mode}"
+            if reported == independent_count:
+                print(f"  OK  {label_str}: eligible_pixels_in_region = {reported:,}")
+            else:
+                print(f"  FAIL {label_str}: reported {reported:,} != independent {independent_count:,}")
+                ownership_diffs += 1
+        except Exception as e:
+            print(f"  ERROR {city_name}: {e}")
+            import traceback; traceback.print_exc()
+            ownership_diffs += 1
+
+    print(f"\n{'=' * 60}")
+    grand_total = total_diffs + region_diffs + ownership_diffs
     if grand_total == 0:
         print("All baselines match.")
         return 0
