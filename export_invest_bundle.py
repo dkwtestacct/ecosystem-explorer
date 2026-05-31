@@ -87,6 +87,103 @@ _VALIDATION = {
 }
 
 
+# Honesty-Surface Pass Commit 2 — locked seed list of known divergences from
+# canonical / published values. Every exported bundle's metadata.json carries
+# the full list verbatim under scenario.known_divergences. Commit 4's
+# assertion enforces completeness: an exported bundle missing any of these
+# IDs fails the gate, so the pre-vetted disclosures can't be silently dropped
+# in a later refactor. New divergences added to this list become asserted
+# automatically — that's the mechanism, rather than relying on anyone to
+# re-notice them. Source: docs/internal/HONESTY_SURFACE_PASS_SPEC.md.
+KNOWN_DIVERGENCES = [
+    {
+        "id": "sa_citywide_not_reproduced",
+        "summary": "Citywide San Antonio NatCap figures not reproduced as absolute values",
+        "detail": (
+            "NatCap's published San Antonio citywide outputs cannot be matched "
+            "exactly. The per-scenario LULC rasters NatCap used were unsaved "
+            "intermediates; the prototype's engine is validated against canonical "
+            "InVEST 3.19.0 at MAE near 0 for UCM / UNA / UMH, but reproducing "
+            "NatCap's specific scenario aggregations requires their LULC inputs. "
+            "Surfaced as 'absolute NatCap citywide figures not reproduced' on "
+            "the Source line + 'NatCap published reference' badge on values "
+            "that come directly from NatCap output."
+        ),
+    },
+    {
+        "id": "ownership_coarseness_30m",
+        "summary": "Ownership filter is approximate at 30 m resolution",
+        "detail": (
+            "Empirically 69.6 percent of Bexar County parcels are sub-pixel at "
+            "30 m (median 0.172 acres vs the 0.222-acre pixel; see "
+            "docs/research/ownership/PHASE_0_INVESTIGATION.md). The ownership "
+            "mask is reliable for large tracts (parks, civic campuses, school "
+            "districts, military installations) and pixelated for residential "
+            "subdivisions. Ownership-constrained placement is exploratory, not "
+            "parcel-perfect; the sidebar caption when the filter is active "
+            "names this caveat."
+        ),
+    },
+    {
+        "id": "ownership_vacancy_exempt_keyed",
+        "summary": "Vacancy keys on the EX-X total-exemption flag, not a canonical 'vacant land' definition",
+        "detail": (
+            "The naive 'State_cd C* OR ImprVal == 0' union over-catches "
+            "tax-exempt civic / church / university built parcels because "
+            "EX-X*-flagged improvements are unassessed (not absent). The "
+            "locked rule is 'State_cd C* OR (NOT EX-X*-exempt AND "
+            "ImprVal == 0)' — a deliberate methodology choice empirically "
+            "supported by the per-token cluster analysis in "
+            "docs/research/ownership/PHASE_0_INVESTIGATION.md (EX-X* tokens "
+            "land at 15-30 percent built-but-zero; partial-exemption tokens "
+            "below 0.5 percent), NOT a canonical 'vacant land' definition "
+            "from BCAD."
+        ),
+    },
+    {
+        "id": "region_local_spillover_reach_models",
+        "summary": "Region-local readings undercount reach-model spillover",
+        "detail": (
+            "For region-constrained scenarios, the region-local column clips "
+            "three reach models — UCM cooling (~600 m), UNA nature access "
+            "(~800 m), UMH mental-health exposure (~300 m) — to pixels or "
+            "population inside the selected boundary. Effects produced by "
+            "in-region conversions that propagate just outside the boundary "
+            "are reflected in the citywide column but NOT in the region-local "
+            "column. Boundary treatment 'option (b)' per "
+            "docs/internal/REGION_LOCAL_METRICS_SPEC.md."
+        ),
+    },
+    {
+        "id": "compound_uncertainty_region_ownership",
+        "summary": "Region-local + ownership-filtered scenarios stack reach + coarseness uncertainties",
+        "detail": (
+            "When a scenario is BOTH region-constrained and ownership-filtered, "
+            "the region-local readings inherit the reach-model spillover "
+            "(UCM / UNA / UMH) AND the 30 m ownership coarseness. Neither "
+            "feature's own caption captures the stack — the compound is "
+            "surfaced as a divergence to keep the disclosure honest. "
+            "Read region-local numbers under this compound as exploratory "
+            "lower bounds; the parcel-level ownership mask is only reliable "
+            "for large tracts inside the region."
+        ),
+    },
+    {
+        "id": "displayed_validated_exploratory_taxonomy",
+        "summary": "The displayed / validated / exploratory taxonomy itself is a divergence",
+        "detail": (
+            "Each metric carries one of four validation states — 'NatCap "
+            "published value', 'approx NatCap method', 'approx Aligned "
+            "method', 'Prototype' — drawn from the locked 4-state vocabulary "
+            "in docs/internal/NATCAP_ALIGNMENT.md. The taxonomy is the "
+            "prototype's framing for honest re-use of NatCap and InVEST "
+            "outputs; canonical InVEST does NOT categorize its outputs this "
+            "way. The per-metric mapping lives in NATCAP_ALIGNMENT.md."
+        ),
+    },
+]
+
+
 @dataclass
 class BundleSpec:
     """Everything the bundle assembler needs. The app.py caller fills this from
@@ -387,6 +484,10 @@ def _build_metadata(s: BundleSpec, args_files: dict) -> dict:
                 "option_b_clip_with_spillover_caveat"
                 if s.region_local is not None else None
             ),
+            # Honesty-Surface Pass Commit 2 — the locked seed list of
+            # known divergences travels with every bundle. Commit 4's
+            # completeness assertion guarantees no entry is silently dropped.
+            "known_divergences": KNOWN_DIVERGENCES,
         },
         "scenario_rasters": _scenario_rasters_block(s),
         "generator": dict(s.generator, type=s.generator.get("type", s.provenance)),
