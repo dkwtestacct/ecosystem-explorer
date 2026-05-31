@@ -76,16 +76,15 @@ Read via `natcap_validation.py` (`load_reference_outputs` / `lookup_reference` /
 `compare_to_reference` — delta-aware for the published metrics). Surfaced in the
 dashboard via per-metric validation badges (Brief B2 revised, 2026-05-29):
 
-- **Green "NatCap published value"** — fixed-scenario reference view only; the
-  card surfaces NatCap's number from the reference CSV directly. No reproduction
-  claim.
-- **Blue "≈ NatCap method"** — `natcap_published`-class metric anywhere else
-  (baseline / Explorer / Optimizer). The displayed value is the prototype's own
-  computation, methodology-aligned. Per-metric tooltip: temperature CAN cite
-  measured per-pixel HMI parity (Brief 28b); carbon must NOT (Brief 30 is
-  four-pool methodology adoption, not a per-pixel parity measurement).
-- **Blue "≈ Aligned method"** — `aligned_method` metrics regardless of scenario.
-- **Gray "Prototype"** — `prototype` metrics regardless of scenario.
+| Badge | Meaning | What it claims | What it does not claim |
+|---|---|---|---|
+| **Green "NatCap published value"** | Displayed directly from NatCap reference output | This is NatCap's published number | Not independently reproduced |
+| **Blue "≈ NatCap method"** | Computed with NatCap-aligned project method/data | Methodologically aligned | Not necessarily matched to a published scenario |
+| **Blue "≈ Aligned method"** | InVEST-style/canonical method, no project-specific anchor | Comparable methodology | Not NatCap project-specific |
+| **Gray "Prototype"** | Exploratory proxy or assumption | Useful for exploration | Not a final quantitative result |
+
+1. **Per-metric evidence varies within "≈ NatCap method."** Temperature can cite measured per-pixel parity (HMI MAE ≈ 0, Brief 28b); carbon is four-pool methodology adoption (Brief 30) with no per-pixel parity measurement — do not imply parity for carbon. The per-card tooltip surfaces this nuance.
+2. **Badges are per-metric × per-context.** A `natcap_published` metric shows **"NatCap published value"** *only* in the fixed-scenario reference view; in baseline / Explorer / optimizer contexts the same metric shows **"≈ NatCap method"** (the prototype computed it). This is what prevents an Explorer-scenario number from reading as a NatCap-published one.
 
 **A3 status — comparison-READY, never executed.** The CSV stores NatCap's
 published values and `compare_to_reference` implements the delta tolerance
