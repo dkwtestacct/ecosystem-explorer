@@ -4091,6 +4091,68 @@ if _apply_within == "Selected regions" and _region_layers_available:
 elif _apply_within == "Selected regions" and not _region_layers_available:
     st.sidebar.info("No region layers configured for this city.")
 
+# ── Ownership Filter (Ownership Integration Commit 2) ─────────────────────────
+# SA-only. Lives below Region Selection so the user picks region (where) first,
+# then optionally narrows to publicly-owned / vacant parcels (what land) — and
+# the two compose. When both are active the combined eligible denominator
+# reflects `region ∩ ownership ∩ convertible`.
+_ownership_available = _CURRENT_CITY_STATE.ownership_raster is not None
+if _ownership_available:
+    st.sidebar.subheader("Ownership Filter")
+    _own_mode_labels = ["No filter"] + [OWNERSHIP_MODES[k]['label']
+                                        for k in OWNERSHIP_MODES]
+    _own_choice = st.sidebar.selectbox(
+        "Restrict to",
+        options=_own_mode_labels,
+        index=0,
+        key="ownership_filter_choice",
+        help=(
+            "Constrain conversions to publicly-owned, vacant, or vacant-and-"
+            "publicly-owned parcels. Composes with Region Selection above; the "
+            "per-pixel engine is unchanged."
+        ),
+    )
+    if _own_choice != "No filter":
+        # Resolve the choice label back to its mode key, then build the mask.
+        _own_mode = next(k for k, v in OWNERSHIP_MODES.items()
+                         if v['label'] == _own_choice)
+        _own_codes = OWNERSHIP_MODES[_own_mode]['codes']
+        _own_mask = np.isin(_CURRENT_CITY_STATE.ownership_raster, _own_codes)
+        # Eligible-under-all-constraints denominator. If the region UI above
+        # already set a mask, intersect; otherwise use ownership alone.
+        _region_mask_active = st.session_state.get('selected_region_mask')
+        _combined_for_eligible = (
+            _own_mask & _region_mask_active
+            if _region_mask_active is not None else _own_mask
+        )
+        _cp = _CURRENT_CITY_STATE.convertible_pixels
+        _own_eligible_count = int(
+            _combined_for_eligible[_cp[:, 0], _cp[:, 1]].sum()
+        )
+        _own_eligible_acres = _own_eligible_count * PIXEL_AREA_ACRES
+        _own_combined_label = (
+            "within the selected region(s) AND on " if _region_mask_active is not None
+            else "on "
+        ) + _own_choice.lower()
+        if _own_eligible_count == 0:
+            st.sidebar.warning(
+                f"No convertible pixels {_own_combined_label} — conversions "
+                f"can't land here. Try a broader filter or clear the "
+                f"region/ownership selection."
+            )
+        else:
+            st.sidebar.caption(
+                f"**Eligible for placement:** {_own_eligible_count:,} pixels "
+                f"(~{_own_eligible_acres:,.0f} acres) {_own_combined_label}."
+            )
+        st.sidebar.caption(
+            "Ownership is derived from parcel records and approximate at "
+            "30 m resolution — reliable for large parcels (parks, civic "
+            "campuses, big public tracts), pixelated for small lots."
+        )
+        st.session_state['selected_ownership_mask'] = _own_mask
+        st.session_state['selected_ownership_mode'] = _own_mode
+
 st.sidebar.divider()
 st.sidebar.subheader("Discover scenarios to validate")
 
