@@ -3537,6 +3537,23 @@ _PROVENANCE_HEADER_INFO = {
 }
 
 
+def _ownership_source_suffix(results_or_saved) -> str:
+    """Return ' · <mode label>' when an Explorer scenario carries an active
+    ownership_filter, else ''. Lowercased for sentence-flow consistency with
+    the region suffix ' · selected-region placement'.
+
+    Reads `ownership_filter` from a results dict OR a saved-scenario dict
+    (both expose the field after Commit 1 — pre-29 saves return None safely
+    via .get()). Used at the main panel header, the export bundle source
+    label, and the comparison-table Source column.
+    """
+    if not results_or_saved:
+        return ""
+    mode = results_or_saved.get('ownership_filter')
+    cfg = OWNERSHIP_MODES.get(mode) if mode else None
+    return f" · {cfg['label'].lower()}" if cfg else ""
+
+
 def _render_scenario_provenance_header(provenance, scenario_label=None,
                                        scenario_id=None,
                                        trailing_caption=None,
@@ -4528,19 +4545,24 @@ def _build_invest_bundle_for_current_scenario():
     except Exception:
         git_commit = "unknown"
 
-    # Region Selection Phase 1 (Commit 5) — propagate the structured
-    # region_selection block from results into the bundle metadata, and
-    # build the augmented Source-line string for metadata.json. Same
-    # augmentation as the main panel header so downstream readers see the
-    # identical string.
+    # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3 —
+    # propagate the structured region_selection / ownership_filter from
+    # results into the bundle metadata, and build the augmented Source-line
+    # string for metadata.json. Same augmentation as the main panel header
+    # so downstream readers see the identical string. Use the layer-present
+    # signal (not mode=='selected_regions') because the combined mask makes
+    # mode='selected_regions' even when only ownership is active.
     _bundle_region_selection = (
         results.get('region_selection')
-        if (results.get('region_selection') or {}).get('mode') == 'selected_regions'
+        if (results.get('region_selection') or {}).get('layer') is not None
         else None
     )
+    _bundle_ownership_filter = results.get('ownership_filter')
     _bundle_source = _PROVENANCE_HEADER_INFO.get(provenance, ("Unknown",))[0]
-    if _bundle_region_selection is not None and provenance == eib.PROVENANCE_EXPLORER:
-        _bundle_source = f"{_bundle_source} · selected-region placement"
+    if provenance == eib.PROVENANCE_EXPLORER:
+        if _bundle_region_selection is not None:
+            _bundle_source = f"{_bundle_source} · selected-region placement"
+        _bundle_source = f"{_bundle_source}{_ownership_source_suffix(results)}"
 
     spec = eib.BundleSpec(
         city_name=selected_city, city_slug="san_antonio_tx",
@@ -4551,6 +4573,7 @@ def _build_invest_bundle_for_current_scenario():
         git_commit=git_commit, scenario_schema_version=SCENARIO_SCHEMA_VERSION,
         is_sa=True, raster_profile=profile,
         region_selection=_bundle_region_selection,
+        ownership_filter=_bundle_ownership_filter,
         source_label=_bundle_source,
         scenario_lulc_compound=scen_compound,
         baseline_lulc_compound=base_compound,
@@ -4743,15 +4766,19 @@ elif st.session_state.get("applied_from_optimizer"):
 else:
     _scen_provenance = eib.PROVENANCE_EXPLORER
     _scen_label = f"Explorer scenario · {results['scenario_name']}"
-# Region Selection Phase 1 (Commit 5) — augment the Source line text when an
-# Explorer scenario is region-constrained. Baseline (pct=0) with a region
-# selected reads just 'Baseline' per the spec — don't augment.
-# Optimizer can't be region-active (Optimize button is disabled — see below).
+# Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3 —
+# augment the Source line text when an Explorer scenario is region- and/or
+# ownership-constrained. Baseline (pct=0) reads just 'Baseline' — don't
+# augment. Optimizer can't be placement-active (Optimize is disabled when
+# either constraint is set — see optimizer guard).
 _region_active = (
     _scen_provenance == eib.PROVENANCE_EXPLORER
     and st.session_state.get('selected_region_mask') is not None
 )
-_source_suffix = " · selected-region placement" if _region_active else ""
+_source_suffix = (
+    (" · selected-region placement" if _region_active else "")
+    + (_ownership_source_suffix(results) if _scen_provenance == eib.PROVENANCE_EXPLORER else "")
+)
 _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
                                     source_suffix=_source_suffix)
 
@@ -5841,14 +5868,18 @@ with tab2:
         _cur_prov = eib.PROVENANCE_EXPLORER
         _cur_label = f"▶ Current — {results['scenario_name']}"
     _cs_cur_src = _cs_source_validation(_cur_prov)[0]
-    # Region Selection Phase 1 (Commit 5) — augment the Source column when an
-    # Explorer scenario is region-constrained. Same suffix the main panel
-    # header and the export bundle metadata use. Baseline (pct=0) reads just
-    # 'Baseline' — don't augment. Optimizer can't be region-active (Optimize
-    # is disabled when a region is selected).
-    if (_cur_prov == eib.PROVENANCE_EXPLORER
-            and (results.get('region_selection') or {}).get('mode') == 'selected_regions'):
-        _cs_cur_src = f"{_cs_cur_src} · selected-region placement"
+    # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3 —
+    # augment the Source column when an Explorer scenario is region- and/or
+    # ownership-constrained. Same suffixes the main panel header + export
+    # bundle metadata use. Baseline (pct=0) reads just 'Baseline' — don't
+    # augment. Optimizer can't be placement-active (Optimize is disabled
+    # when either constraint is set). Use the layer-present signal instead
+    # of mode=='selected_regions' so ownership-only doesn't false-trigger
+    # the region suffix.
+    if _cur_prov == eib.PROVENANCE_EXPLORER:
+        if (results.get('region_selection') or {}).get('layer') is not None:
+            _cs_cur_src = f"{_cs_cur_src} · selected-region placement"
+        _cs_cur_src = f"{_cs_cur_src}{_ownership_source_suffix(results)}"
     _cs_rows.append({
         "Scenario":   _cur_label,
         "Source":     _cs_cur_src,
@@ -5868,13 +5899,15 @@ with tab2:
             _prov = (eib.PROVENANCE_BASELINE if _saved.get("pct_converted", 0) == 0
                      else eib.PROVENANCE_EXPLORER)
         _src = _cs_source_validation(_prov)[0]
-        # Region Selection Phase 1 (Commit 5) — augment Source for saved
-        # Explorer scenarios that carry a region_selection block. The save
-        # handler preserves the full results dict (sans scenario_lulc), so
-        # _saved['region_selection'] flows through automatically.
-        if (_prov == eib.PROVENANCE_EXPLORER
-                and (_saved.get('region_selection') or {}).get('mode') == 'selected_regions'):
-            _src = f"{_src} · selected-region placement"
+        # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3
+        # — augment Source for saved Explorer scenarios that carry a region
+        # and/or ownership selection. The save handler preserves the full
+        # results dict (sans scenario_lulc), so both blocks flow through
+        # automatically. Pre-29 saves return None safely via .get().
+        if _prov == eib.PROVENANCE_EXPLORER:
+            if (_saved.get('region_selection') or {}).get('layer') is not None:
+                _src = f"{_src} · selected-region placement"
+            _src = f"{_src}{_ownership_source_suffix(_saved)}"
         _label = _saved.get("display_name") or _saved.get("scenario_name") or "(unnamed save)"
         _cs_rows.append({
             "Scenario":   _label,

@@ -138,10 +138,15 @@ class BundleSpec:
     # verbatim. Per-model validation states are NOT affected — region narrows
     # placement only; the engine is unchanged.
     region_selection: Optional[dict] = None
+    # Ownership Integration Commit 3 — active ownership mode string (one of
+    # 'public' / 'vacant' / 'vacant_public') or None for citywide / filter-
+    # inactive. Same disposition as region_selection: lands in metadata.json's
+    # scenario block; per-model validation states unchanged.
+    ownership_filter: Optional[str] = None
     # The complete Source-line string the dashboard renders (e.g.
-    # 'Explorer-generated · selected-region placement'). Caller-computed from
-    # app.py's `_PROVENANCE_HEADER_INFO` so this module stays Streamlit-
-    # agnostic and doesn't need to reach into app.py's provenance table.
+    # 'Explorer-generated · selected-region placement · vacant publicly-owned
+    # land'). Caller-computed from app.py's `_PROVENANCE_HEADER_INFO` so this
+    # module stays Streamlit-agnostic.
     source_label: Optional[str] = None
 
     # args constants (per-city)
@@ -368,6 +373,7 @@ def _build_metadata(s: BundleSpec, args_files: dict) -> dict:
             # eligible_pixels_in_region). Both are None for citywide scenarios.
             "source_label": s.source_label,
             "region_selection": s.region_selection,
+            "ownership_filter": s.ownership_filter,
         },
         "scenario_rasters": _scenario_rasters_block(s),
         "generator": dict(s.generator, type=s.generator.get("type", s.provenance)),
