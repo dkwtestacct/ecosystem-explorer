@@ -528,6 +528,142 @@ Source / Validation columns are mandatory — the load-bearing piece
 of the honesty story; enforced structurally. Decision rationale →
 `../internal/DESIGN_NOTES.md` §8.3.
 
+### SA flood-CN investigation (Q12, resolved 2026-05-29)
+
+After integrating NatCap's SA-specific flood biophysical table
+(`biophys_floodmitig_sa.csv`) into the prototype's flood CN lookup,
+baseline regen showed unexpected behavior: Green Infrastructure
+scenarios (which convert pixels to NLCD 90 / Woody Wetlands) slightly
+*increased* modeled runoff rather than decreasing it. Investigation
+revealed that NatCap's SA biophysical table uses CN values that diverge
+systematically and substantially from standard NRCS TR-55 reference
+values.
+
+**Per-class comparison (tier 1 / "no canopy" baseline, HSG A):**
+
+| NLCD | Class | NatCap CN_A | NRCS TR-55 CN_A | Δ |
+|---|---|---|---|---|
+| 11 | Open Water | 100 | 100 | 0 |
+| 21 | Developed Open Space | 49 | 49 | 0 |
+| 22 | Developed Low Intensity | 77 | 51 | **+26** |
+| 23 | Developed Med Intensity | 89 | 61 | **+28** |
+| 24 | Developed High Intensity | 98 | 89 | +9 |
+| 31 | Barren | 77 | 77 | 0 |
+| 41 | Deciduous Forest | 32 | 36 | −4 |
+| 42 | Evergreen Forest | 39 | 36 | +3 |
+| 43 | Mixed Forest | 46 | 36 | +10 |
+| 52 | Shrub/Scrub | 49 | 35 | +14 |
+| 71 | Grassland | 64 | 39 | **+25** |
+| 81 | Pasture | 44 | 49 | −5 |
+| 82 | Cultivated Crops | 68 | 67 | +2 |
+| 90 | Woody Wetlands | 88 | 30 | **+58** |
+| 95 | Emergent Herbaceous Wetlands | 89 | 30 | **+59** |
+
+NRCS reference: TR-55, Second Edition (1986); WikiWatershed/tr-55
+canonical Python implementation.
+
+**Anomalous vs NRCS-consistent.** Anomalous (large positive Δ):
+wetlands (+58/+59), low/med-developed (+26/+28), grassland (+25),
+shrub/scrub (+14). NRCS-consistent (Δ ≈ 0): water, developed-open,
+developed-high, barren, forests, pasture, cultivated crops.
+
+**Internally coherent under a "wet OR impervious → high runoff" logic
+— but not NRCS TR-55.** Water (100), wetlands (88-92), developed-high
+(98), and developed-med (89) all rank as high-runoff surfaces; forests,
+pasture, and developed-open as low-runoff. This is *a* defensible
+hydrologic framework (treating saturated wetland soils similarly to
+impervious surfaces), but it directly contradicts the InVEST UFR
+documentation's stated intent that "the ranking between different land
+uses is generally well captured" with natural infrastructure ranking as
+lower-runoff.
+
+**Mechanical consequence pre-resolution.** Under the staged table, the
+prototype's Green Infrastructure scenarios — which convert developed
+pixels to NLCD 90 (Woody Wetlands) — slightly increased modeled runoff
+for SA (e.g., +43 % in some scenarios). The MN-placeholder it replaced
+had wetlands at CN=1 (unphysically low), which is also wrong but in the
+opposite direction.
+
+**What we couldn't verify locally at the time of the deferral.**
+- **NatCap's own SA UFR run outputs** — not present in the `InVEST
+  Results/` staging tree (only UCM, UNA, Carbon were delivered). Without
+  these we couldn't see whether NatCap's published SA flood scenario
+  comparisons exhibited the same GI-increases-runoff behavior.
+- **Documentation of the CN framework choice** — the `Notes on NASA
+  Urban parameterization QA.docx` contained zero flood/CN/runoff
+  content. The README pointed to `Ben NDR and Flood Mar_2023.pptx` for
+  flood methodology; that pptx was not in the delivery.
+
+**Resolution (2026-05-29) via `Ben NDR and Flood Mar_2023.pptx`.** The
+pptx referenced in the README was located after the deferral commit
+(`27d7be3`). Slide 7 explicitly addresses the flood-mitigation finding:
+
+> "From a flooding standpoint, there is essentially no difference
+> between garden, food forest, park, or vacant vegetated space. During
+> large storms, rainfall rates greatly exceed infiltration capacity of
+> soils and interception by trees, so topography and blue-gray
+> infrastructure (e.g., pipe size, reservoir placement) tend to be
+> very important. Urban ag scenarios investigated here are likely
+> mostly swapping one greenspace for another, without changes to
+> underlying soil or water storage capacity."
+
+NatCap's CN values for SA reflect a **design-storm-saturation
+framework**: under the 24-hour 100-year storm (6.98″ adjusted for SA),
+soil infiltration capacity is exceeded across most vegetated surfaces
+on SA's clay-rich D-soils, so even wetlands and forests rank as
+runoff-generating. Wetland CN of 88-92 is internally consistent with
+this framework.
+
+NatCap's own modeled food-forest scenarios show +0.1 % to +1.1 %
+increase in flood volume vs baseline — matching the prototype's
+behavior when wired to the staged biophysical table. The integration
+was correct; deferral was the conservative move while uncertainty
+existed, but the uncertainty is now resolved.
+
+Re-activated 2026-05-29 (the follow-up commit reverses the deferral in
+`27d7be3`). Summary + the canopy-tier-mapping resolution + the
+canopy-weighted-parameter methodology note all live in
+`../internal/NATCAP_COLLABORATION.md` "Closed / resolved"; this entry
+preserves the per-class CN comparison detail.
+
+### Vocabulary alignment audit (2026-05-23, Briefs 8 + 9)
+
+The 2026-05-23 vocabulary audit aligned the prototype's user-facing
+labels with InVEST canonical terminology. The durable per-metric
+alignment lives in `../internal/NATCAP_ALIGNMENT.md` §3 (folded in
+during the trim commit); this entry preserves the rename chronology:
+
+- **Temperature Change underlying quantity** — renamed `Cooling
+  Capacity / CC` → `Heat Mitigation Index / HMI` (Brief 8). Reported
+  value was already canonical HMI; the label was stale.
+- **Tradeoff plot Y-axis** — renamed `Cooling Capacity` → `Heat
+  Mitigation Index` (Brief 8).
+- **Temperature-assumption tab kernel description** — corrected from
+  `Gaussian` → `exponential decay at d_cool, eq. 118` (Brief 8). The
+  decay kernel was always exponential per the canonical InVEST UCM
+  formula; the description was wrong.
+- **`equity-focused` placement strategy** — renamed to
+  `undersupply-focused` (Brief 9). InVEST UNA reserves "equity" for
+  demographic-group stratification (age, income, race); using it for
+  generic per-capita undersupply crossed NatCap vocabulary. Saved
+  scenarios with the legacy `equity-focused` key route via shim.
+- **`flood-focused` placement** — formula switched from raw CN to
+  per-pixel runoff `Q_{p,i}` from the SCS-CN equation at the design
+  storm, matching InVEST UFR `Q_mm.tif` (Brief 9).
+- **`cooling-focused` placement** — formula switched from `(1 −
+  baseline_CC) × NLCD_intensity_proxy` to `(1 − baseline_HMI) × 1 / (1 +
+  distance_to_buildings_px)` with `BUILDINGS_RASTER` distance transform
+  (Brief 9). Bare CC sub-component → canonical HMI; NLCD-intensity
+  three-value proxy → real building-proximity raster.
+- **Avoided MH Costs card** — cross-reference to canonical InVEST UMH
+  `preventable_cost.tif` naming added (Brief 8).
+- **Cost-Effectiveness, Balanced placement, Smart Scenario Search** —
+  flagged as app-specific (no InVEST analog) with explicit pointer to
+  ROOT for LP-based multi-objective optimization (Brief 8).
+
+These renames are display-only; no metric computation changed,
+baselines unaffected.
+
 ---
 
 ## WHATS_NEW entries pruned 2026-05-29
