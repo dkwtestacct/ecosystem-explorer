@@ -4135,7 +4135,15 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
 #   surrogate-target fields — bump SCENARIO_SCHEMA_VERSION instead. Full
 #   contract in docs/internal/DESIGN_NOTES.md "Lookup-overlay safety contract".
 lookup_key = (pct_converted, green_infrastructure_pct, food_forest_pct)
-if lookup_key in lookup_table and placement_strategy == 'random':
+# Region Selection Phase 1 (Commit 2): region-selected scenarios bypass the
+# lookup table and run live. The lookup encodes citywide-convertible-pool
+# math; a region mask shrinks that pool, so the cached citywide aggregates
+# would be incorrect for the region-relative scenario. Off-grid scenarios
+# are an advanced feature; the live cost is acceptable.
+_selected_region_mask = st.session_state.get('selected_region_mask')
+if (lookup_key in lookup_table
+        and placement_strategy == 'random'
+        and _selected_region_mask is None):
     # Lookup table was computed with random placement — only use it in random mode
     results = lookup_table[lookup_key].copy()
     _fresh = evaluate_scenario(
@@ -4171,7 +4179,16 @@ else:
         placement_strategy=placement_strategy, cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
         carbon_rate_ff=st.session_state.carbon_rate_ff,
         carbon_rate_gi=st.session_state.carbon_rate_gi,
+        selected_region_mask=_selected_region_mask,
     )
+    # Region Selection Phase 1 — caller stamps the descriptive fields onto
+    # results['region_selection']. The mask was built upstream from
+    # (layer_key, selected_labels); we have both here. selected_ids carries
+    # LABEL VALUES (e.g. ['5']), not positional indices. See the contract
+    # in evaluate_scenario's return block.
+    if _selected_region_mask is not None:
+        results['region_selection']['layer'] = st.session_state.get('selected_region_layer')
+        results['region_selection']['selected_ids'] = st.session_state.get('selected_region_ids') or []
 
 
 # ── Sidebar: Export for InVEST (Brief D1) ─────────────────────────────────────
