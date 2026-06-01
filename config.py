@@ -245,8 +245,14 @@ CITIES = {
         # BCAD parcels. Code-to-mode mapping is module-level (`OWNERSHIP_MODES`
         # in app.py); the config only declares the source path. SA-only —
         # BCAD is Bexar-specific.
+        #
+        # Scenario Record Pass — `source` + `data_date` make the export bundle
+        # self-describing. The writer composes the rich ownership block in
+        # metadata.json from these + OWNERSHIP_MODES.
         'ownership_layer':      {
-            'path': 'data/sa/sa_public_vacant_30m.tif',
+            'path':      'data/sa/sa_public_vacant_30m.tif',
+            'source':    'Bexar County GIS (BCAD parcels)',
+            'data_date': '2026-05-31',
         },
         'damage_table_file':    None,   # SA project deliverables — TODO
         'energy_table_file':    'data/invest/cooling/UrbanCooling_sample_data/UrbanCooling/energy_consumption.csv',

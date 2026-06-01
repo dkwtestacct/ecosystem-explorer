@@ -235,11 +235,15 @@ class BundleSpec:
     # verbatim. Per-model validation states are NOT affected — region narrows
     # placement only; the engine is unchanged.
     region_selection: Optional[dict] = None
-    # Ownership Integration Commit 3 — active ownership mode string (one of
-    # 'public' / 'vacant' / 'vacant_public') or None for citywide / filter-
-    # inactive. Same disposition as region_selection: lands in metadata.json's
-    # scenario block; per-model validation states unchanged.
-    ownership_filter: Optional[str] = None
+    # Ownership Integration Commit 3 + Scenario Record Pass — structured
+    # ownership block composed by the caller from the bare mode string
+    # (results['ownership_filter']) + OWNERSHIP_MODES + CITIES config. Shape:
+    # {mode, label, allowed_classes (list[int] of raster codes), source,
+    # data_date}, or None for citywide / filter-inactive. The in-memory
+    # results dict still carries the bare mode string for all existing
+    # consumers; the rich shape lives only in the export bundle so
+    # metadata.json is self-describing. Per-model validation states unchanged.
+    ownership_filter: Optional[dict] = None
     # Region-Local Metrics Commit 3 — region-clipped per-metric values for
     # region scenarios; None for citywide. Carries the locked boundary
     # treatment (option (b) from the spec) and the per-model treatment table

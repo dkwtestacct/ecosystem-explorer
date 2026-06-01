@@ -2212,6 +2212,12 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
                 float(int(selected_region_mask.sum()) * PIXEL_AREA_ACRES)
                 if selected_region_mask is not None else None
             ),
+            # Scenario Record Pass — converted_acres is the third leg of the
+            # placement-funnel trio (selected_area / eligible / converted).
+            # Citywide scenarios carry it too (eligible_pixels_in_region is
+            # already populated to the citywide convertible count), so the
+            # field is uniformly shaped across both modes.
+            'converted_acres': float((n_wet + n_for + n_hd) * PIXEL_AREA_ACRES),
             'layer':        None,  # caller stamps with layer_key (e.g. 'council_districts')
             'selected_ids': None,  # caller stamps with label list (e.g. ['5', '7']) — NOT positional indices
         },
@@ -2229,7 +2235,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 31  # bumped: Honesty-Surface Pass Commits 2+3 — bundle metadata gains `known_divergences` (6-entry locked seed list with completeness assertion in verify_baselines), `raster_lineage` (per-raster source/vintage/methodology), `generator.params` (the slider values that produced the scenario). Results dict shape is UNCHANGED — the bump signals the metadata schema change + invalidates any caches that captured pre-31 metadata. Pre-31 saved scenarios load gracefully (no new results keys). (30 was Region-Local Metrics' region_local block.)
+SCENARIO_SCHEMA_VERSION = 32  # bumped: Scenario Record Pass — metadata.json's ownership_filter is now a structured dict {mode, label, allowed_classes, source, data_date} (was a bare mode string); region_selection block gains converted_acres so the placement-funnel trio (selected_area / eligible / converted) is uniformly shaped. In-memory results['ownership_filter'] still carries the bare mode string — only the export writer composes the rich shape, so no all-consumer audit. Results dict picks up region_selection.converted_acres (additive; verify_baselines skips region_selection in the snapshot path, so 40/40 stays byte-identical). (31 was Honesty-Surface Pass Commits 2+3.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -4797,7 +4803,25 @@ def _build_invest_bundle_for_current_scenario():
         if (results.get('region_selection') or {}).get('layer') is not None
         else None
     )
-    _bundle_ownership_filter = results.get('ownership_filter')
+    # Scenario Record Pass — enrich the export's ownership block with
+    # source / data_date / allowed_classes composed from OWNERSHIP_MODES +
+    # CITIES[city]['ownership_layer']. In-memory results['ownership_filter']
+    # stays a bare mode string (all existing consumers read it as such);
+    # the rich shape lives only in the export bundle, so metadata.json is
+    # self-describing without forcing an all-consumer audit.
+    _of_mode = results.get('ownership_filter')
+    if _of_mode and OWNERSHIP_MODES.get(_of_mode):
+        _of_cfg = OWNERSHIP_MODES[_of_mode]
+        _of_layer_meta = (city_cfg.get('ownership_layer') or {})
+        _bundle_ownership_filter = {
+            'mode':            _of_mode,
+            'label':           _of_cfg['label'],
+            'allowed_classes': list(_of_cfg['codes']),
+            'source':          _of_layer_meta.get('source'),
+            'data_date':       _of_layer_meta.get('data_date'),
+        }
+    else:
+        _bundle_ownership_filter = None
     _bundle_source = _PROVENANCE_HEADER_INFO.get(provenance, ("Unknown",))[0]
     if provenance == eib.PROVENANCE_EXPLORER:
         if _bundle_region_selection is not None:
@@ -6222,6 +6246,33 @@ with tab2:
             "Cost $M":                  f"${v_cost:.1f}M"              if v_cost is not None else "—",
         }
 
+    # Scenario Record Pass — Area + Ownership columns compose at render from
+    # the same fields the export bundle reads (results['region_selection'] +
+    # results['ownership_filter']). Layer display name resolves through
+    # `_CURRENT_CITY_STATE.region_layer_display_names` so it stays per-city
+    # correct; ownership label comes from OWNERSHIP_MODES. Region/ownership
+    # labels and IDs are sourced from already-string config values, so no
+    # `$`-escape is required, but we render through st.dataframe (not markdown)
+    # which is prose-safe by construction.
+    def _cs_area_for_row(row):
+        rs = row.get('region_selection') or {}
+        if rs.get('mode') != 'selected_regions' or rs.get('layer') is None:
+            return "Citywide"
+        layer = rs['layer']
+        ids = rs.get('selected_ids') or []
+        display = _CURRENT_CITY_STATE.region_layer_display_names.get(layer, "region")
+        n = len(ids)
+        if n == 1:
+            return f"{display} {ids[0]}"
+        if 1 < n <= 3:
+            return f"{n} selected {display}s ({', '.join(ids)})"
+        return f"{n} selected {display}s"
+
+    def _cs_ownership_for_row(row):
+        mode = row.get('ownership_filter') if row else None
+        cfg = OWNERSHIP_MODES.get(mode) if mode else None
+        return cfg['label'] if cfg else "None"
+
     _cs_rows = []
 
     # ── 1. NatCap anchor rows (SA only) ──
@@ -6252,6 +6303,8 @@ with tab2:
                 "Scenario":                 _spec["label"],
                 "Source":                   _src_natcap,
                 "Validation":               _val_natcap,
+                "Area":                     "Citywide",
+                "Ownership":                "None",
                 "Temperature":              _t_str,
                 "Carbon stock":             _c_str,
                 "Carbon Value $ (derived)": _cv_str,
@@ -6293,6 +6346,8 @@ with tab2:
         "Scenario":   _cur_label,
         "Source":     _cs_cur_src,
         "Validation": _cs_short_validation(_cur_prov),
+        "Area":       _cs_area_for_row(results),
+        "Ownership":  _cs_ownership_for_row(results),
         **_cs_row_metrics(results),
     })
 
@@ -6322,6 +6377,8 @@ with tab2:
             "Scenario":   _label,
             "Source":     _src,
             "Validation": _cs_short_validation(_prov),
+            "Area":       _cs_area_for_row(_saved),
+            "Ownership":  _cs_ownership_for_row(_saved),
             **_cs_row_metrics(_saved),
         })
 
@@ -6350,6 +6407,16 @@ with tab2:
                 "Validation",
                 width="medium",
                 help=_validation_help,
+            ),
+            "Area":       st.column_config.TextColumn(
+                "Area",
+                width="small",
+                help="Where conversions were placed. 'Citywide' = no region constraint; otherwise the selected region(s).",
+            ),
+            "Ownership":  st.column_config.TextColumn(
+                "Ownership",
+                width="small",
+                help="Ownership / vacancy screen applied to the placement pool. 'None' = no screen. SA-only today.",
             ),
         },
     )
@@ -6493,6 +6560,12 @@ with tab2:
             saved["display_name"] = scenario_name_input
             saved["placement_strategy"] = placement_strategy
             saved["heat_priority"] = use_heat_priority  # backward compat for older saves
+            # Scenario Record Pass — capture the seed even though it's
+            # hardcoded to 42 today. All five placement strategies route
+            # through rng (the ranking strategies sample stochastically with
+            # weights), so capturing the seed forward-compats any future
+            # seed-variation work and makes the record self-reproducing.
+            saved["random_seed"] = 42
             # Brief A.3: tag the city this scenario was saved in. Display sites
             # filter by active city so MN saves don't show up in SA's view.
             saved["city"] = selected_city
