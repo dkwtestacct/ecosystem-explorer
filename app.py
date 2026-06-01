@@ -42,11 +42,91 @@ NODATA            = -128
 # mapping for `data/sa/sa_public_vacant_30m.tif` (codes -1/0/1/2/3). The UI
 # selectbox surfaces `label`s; the caller composes a boolean mask via
 # `np.isin(ownership_raster, codes)`. SA-only.
+# Finer Ownership Classes Pass (`OWNERSHIP_FINER_CLASSES_SPEC.md`) — the
+# two-band raster encodes band 1 = class enum (0-6) and band 2 = vacant
+# flag (0/1). Each mode below resolves to a boolean mask via
+# `_build_ownership_mask` (selector keys: band1_eq / band1_in / band2_eq;
+# absent key = unconstrained on that axis).
+#
+# School / University Split (Batch 2 pre-push addendum): the combined
+# `school_university` class is split into two — `school` (K-12 public
+# districts; folded into the public rollup) and `university` (mixed
+# public + private higher-ed; kept out of public, flagged mixed in the
+# DATA_INVENTORY caveat).
+#
+# `public` rollup = city + county + state-federal + school. School
+# districts are government; folding them in restores the obvious case
+# the prior over-broad "public excludes all education" rollup missed.
+# University stays OUT of public — that bucket includes private campuses
+# (Trinity, St. Mary's, OLLU) and a planning-screen "Publicly-owned land"
+# filter shouldn't pretend a private campus is public land.
 OWNERSHIP_MODES = {
-    'public':        {'label': 'Publicly-owned land',         'codes': (1, 3)},
-    'vacant':        {'label': 'Vacant land',                 'codes': (2, 3)},
-    'vacant_public': {'label': 'Vacant publicly-owned land',  'codes': (3,)},
+    # ── Coarse rollups (unchanged keys; band1_in expanded to include
+    # school after the split) ──
+    'public': {
+        'label':    'Publicly-owned land',
+        'band1_in': (1, 2, 3, 4),  # city + county + state-federal + school
+    },
+    'vacant': {
+        'label':    'Vacant land',
+        'band2_eq': 1,
+    },
+    'vacant_public': {
+        'label':    'Vacant publicly-owned land',
+        'band1_in': (1, 2, 3, 4),
+        'band2_eq': 1,
+    },
+    # ── Finer modes ──
+    'city': {
+        'label':    'City-owned land',
+        'band1_eq': 1,
+    },
+    'county': {
+        'label':    'County-owned land',
+        'band1_eq': 2,
+    },
+    'state_federal': {
+        'label':    'State or federal land',
+        'band1_eq': 3,
+    },
+    'school': {
+        'label':    'School district land (K-12 public)',
+        'band1_eq': 4,
+    },
+    'university': {
+        'label':    'College or university land',
+        'band1_eq': 6,
+    },
 }
+
+
+def _build_ownership_mask(band1, band2, mode_cfg) -> "np.ndarray":
+    """Compose the boolean ownership mask for a given OWNERSHIP_MODES
+    config dict. Combines (where present) band1_eq / band1_in for the
+    class-enum filter and band2_eq for the vacant overlay. Absent keys
+    are unconstrained on that axis (the mask starts True and ANDs each
+    present criterion). Both bands must be the same shape."""
+    import numpy as _np
+    mask = _np.ones_like(band1, dtype=bool)
+    if 'band1_eq' in mode_cfg:
+        mask &= (band1 == mode_cfg['band1_eq'])
+    if 'band1_in' in mode_cfg:
+        mask &= _np.isin(band1, list(mode_cfg['band1_in']))
+    if 'band2_eq' in mode_cfg:
+        mask &= (band2 == mode_cfg['band2_eq'])
+    return mask
+
+
+def _ownership_allowed_band1_values(mode_cfg) -> "list[int]":
+    """Return the list of band-1 (class enum) values that satisfy the
+    mode's class-enum filter, or [] if the mode is class-unconstrained
+    (e.g. `vacant`, which keys only on band 2). Used by the export
+    bundle's rich `ownership_filter` block."""
+    if 'band1_eq' in mode_cfg:
+        return [int(mode_cfg['band1_eq'])]
+    if 'band1_in' in mode_cfg:
+        return [int(v) for v in mode_cfg['band1_in']]
+    return []
 
 # Region-Local Metrics (`REGION_LOCAL_METRICS_SPEC.md`) — per-metric
 # treatment table. Every entry is decomposable under the locked per-model
@@ -532,12 +612,16 @@ class CityState(NamedTuple):
     region_rasters: dict
     region_layer_labels: dict
     region_layer_display_names: dict
-    # Ownership Integration — the BCAD-derived public/vacant codes raster
-    # (int8, codes -1/0/1/2/3 per the rasterization scheme in
-    # `PHASE_0_INVESTIGATION.md`). None for cities without an `ownership_layer`
-    # config (MN). The caller derives boolean masks via
-    # `np.isin(ownership_raster, OWNERSHIP_MODES[mode]['codes'])`.
+    # Ownership Integration — Finer Ownership Classes Pass uses a two-band
+    # raster. `ownership_raster` (band 1) carries the class enum 0-5
+    # (private / city / county / state-federal / school-university /
+    # unknown), nodata=-1. `ownership_vacant_raster` (band 2) carries the
+    # is_vacant flag 0/1, nodata=-1. Both are None for cities without an
+    # `ownership_layer` config (MN). The caller derives boolean masks via
+    # `_build_ownership_mask(ownership_raster, ownership_vacant_raster,
+    # OWNERSHIP_MODES[mode])`.
     ownership_raster: Optional[np.ndarray]
+    ownership_vacant_raster: Optional[np.ndarray]
     # Baseline rasters
     baseline_hm_raster: np.ndarray
     baseline_ne_raster: np.ndarray
@@ -2885,12 +2969,18 @@ def _load_city_runtime_state(city_key: str) -> CityState:
                 f"({exc!r}); skipping."
             )
 
-    # ── Phase 12c: Ownership raster (Ownership Integration Commit 1) ─────────
-    # int8 raster (codes -1/0/1/2/3) on the active grid, derived from BCAD
-    # parcels via `scripts/data/download_bexar_parcels.py`. None for cities
-    # without an `ownership_layer` config (MN). The CRS assertion is the same
-    # safety net used at every other rasterio.open in the loader.
+    # ── Phase 12c: Ownership raster (Finer Ownership Classes Pass) ───────────
+    # Two-band int8 raster on the active grid:
+    #   Band 1 = ownership class enum 0-5 (private / city / county /
+    #            state-federal / school-university / unknown); nodata=-1.
+    #   Band 2 = is_vacant 0/1; nodata=-1.
+    # Built by `scripts/data/download_bexar_parcels.py` per
+    # OWNERSHIP_FINER_CLASSES_SPEC.md. SA-only; MN has no `ownership_layer`
+    # config. `state.ownership_raster` retains its name for backward compat
+    # and now holds BAND 1 (the class enum); `state.ownership_vacant_raster`
+    # holds BAND 2. The CRS assertion stays the safety net.
     ownership_raster: Optional[np.ndarray] = None
+    ownership_vacant_raster: Optional[np.ndarray] = None
     _ownership_cfg = cfg.get("ownership_layer")
     if _ownership_cfg is not None:
         try:
@@ -2898,15 +2988,31 @@ def _load_city_runtime_state(city_key: str) -> CityState:
             with rasterio.open(_own_path) as _own_src:
                 _assert_raster_crs(_own_src, cfg["crs"], _own_path)
                 ownership_raster = _own_src.read(1)
-            if ownership_raster.shape != ref_shape:
+                if _own_src.count >= 2:
+                    ownership_vacant_raster = _own_src.read(2)
+                else:
+                    # Legacy single-band file detected — config still points
+                    # to it on some old branches. Surface loudly because the
+                    # mode→mask path now expects two bands.
+                    print(
+                        f"  WARN: ownership raster {_own_path!r} is single-band; "
+                        "the Finer Ownership Classes Pass requires the two-band "
+                        "file produced by `download_bexar_parcels.py "
+                        "--reclassify-from <gpkg>`. Ownership disabled for "
+                        "this city."
+                    )
+                    ownership_raster = None
+            if ownership_raster is not None and ownership_raster.shape != ref_shape:
                 print(
                     f"  WARN: ownership raster shape {ownership_raster.shape} != "
                     f"ref_shape {ref_shape}; ownership disabled for this city."
                 )
                 ownership_raster = None
+                ownership_vacant_raster = None
         except Exception as exc:
             print(f"  WARN: ownership raster failed to load ({exc!r}); skipping.")
             ownership_raster = None
+            ownership_vacant_raster = None
 
     # ── Phase 13: Baseline rasters (use *_pure helpers because module aliases
     # haven't been rebound to this state's arrays yet — we're inside the
@@ -3008,6 +3114,7 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         region_layer_labels=region_layer_labels,
         region_layer_display_names=region_layer_display_names,
         ownership_raster=ownership_raster,
+        ownership_vacant_raster=ownership_vacant_raster,
         baseline_hm_raster=baseline_hm_raster,
         baseline_ne_raster=baseline_ne_raster,
         baseline_una_supply_percapita_raster=baseline_una_supply_percapita_raster,
@@ -4424,19 +4531,31 @@ if _ownership_available:
         index=0,
         key="ownership_filter_choice",
         help=(
-            "Constrain conversions to publicly-owned, vacant, or vacant-and-"
-            "publicly-owned parcels. Composes with Region Selection above; the "
-            "per-pixel engine is unchanged. Ownership classes are used as a "
-            "planning screen only; parcel availability and legal feasibility "
-            "are not verified."
+            "Constrain conversions to a specific ownership class or rollup "
+            "(coarse: publicly-owned land / vacant land / vacant + public; "
+            "finer: city / county / state-federal / school / university). "
+            "Composes with Region Selection above; the per-pixel engine is "
+            "unchanged. Ownership classes are used as a planning screen "
+            "only; parcel availability and legal feasibility are not "
+            "verified. 'Publicly-owned land' is city + county + "
+            "state-federal + school (K-12 public districts). "
+            "'University' is kept separate from the public rollup because "
+            "that bucket spans both public institutions (UT, A&M, Alamo "
+            "CCD) and private ones (Trinity, St. Mary's, OLLU); pick it "
+            "directly if you want it."
         ),
     )
     if _own_choice != "No filter":
         # Resolve the choice label back to its mode key, then build the mask.
         _own_mode = next(k for k, v in OWNERSHIP_MODES.items()
                          if v['label'] == _own_choice)
-        _own_codes = OWNERSHIP_MODES[_own_mode]['codes']
-        _own_mask = np.isin(_CURRENT_CITY_STATE.ownership_raster, _own_codes)
+        # Finer Ownership Classes Pass — two-band raster, helper resolves
+        # the mode's band1_eq / band1_in / band2_eq selectors.
+        _own_mask = _build_ownership_mask(
+            _CURRENT_CITY_STATE.ownership_raster,
+            _CURRENT_CITY_STATE.ownership_vacant_raster,
+            OWNERSHIP_MODES[_own_mode],
+        )
         # Eligible-under-all-constraints denominator. If the region UI above
         # already set a mask, intersect; otherwise use ownership alone.
         _region_mask_active = st.session_state.get('selected_region_mask')
@@ -4875,12 +4994,18 @@ def _build_invest_bundle_for_current_scenario():
     if _of_mode and OWNERSHIP_MODES.get(_of_mode):
         _of_cfg = OWNERSHIP_MODES[_of_mode]
         _of_layer_meta = (city_cfg.get('ownership_layer') or {})
+        # Finer Ownership Classes Pass — `allowed_classes` is the list of
+        # band-1 class-enum values that satisfy the mode (e.g. [1] for
+        # 'city', [1,2,3] for the 'public' rollup). Empty list means the
+        # mode keys only on band 2 (vacant); the consumer reads
+        # `vacant_required` to detect that.
         _bundle_ownership_filter = {
-            'mode':            _of_mode,
-            'label':           _of_cfg['label'],
-            'allowed_classes': list(_of_cfg['codes']),
-            'source':          _of_layer_meta.get('source'),
-            'data_date':       _of_layer_meta.get('data_date'),
+            'mode':              _of_mode,
+            'label':             _of_cfg['label'],
+            'allowed_classes':   _ownership_allowed_band1_values(_of_cfg),
+            'vacant_required':   _of_cfg.get('band2_eq') == 1,
+            'source':            _of_layer_meta.get('source'),
+            'data_date':         _of_layer_meta.get('data_date'),
         }
     else:
         _bundle_ownership_filter = None

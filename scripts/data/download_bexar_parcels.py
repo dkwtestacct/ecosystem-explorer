@@ -63,24 +63,42 @@ REF_RASTER = REPO_ROOT / "data" / "sa" / "flood" / "land_use_compound_sa.tif"
 # Locked classifier (docs/research/ownership/PHASE_0_INVESTIGATION.md).
 PUBLIC_GOVERNMENT_CLASSES = {"city", "county", "state", "federal", "isd", "river_auth"}
 
-# Finer Ownership Classes (OWNERSHIP_FEASIBILITY_PROFILING.md → 99.9% public
-# acreage classified cleanly). Class enum used in Band 1 of the new two-band
-# raster. Order matters — match the rule precedence in _classify_six_way:
-# school catches before state (Texas A&M Regents); HOA filter rescues
-# "BEXAR COUNTY X HOMEOWNERS" → private before the county branch matches.
+# Finer Ownership Classes (`OWNERSHIP_FEASIBILITY_PROFILING.md` → 99.9% of
+# public acreage classifies cleanly). School / University Split addendum:
+# the previous combined `school_university` class splits into two —
+# `school` (K-12 public districts; folds into the public rollup) and
+# `university` (mixed public + private higher-ed; stays out of public).
+# Class enum is Band 1 of the two-band raster; band 2 carries is_vacant.
+# Order matters in `_classify_seven_way`: school first (ISD names), then
+# university (UNIVERSITY/COLLEGE), then city / county / state-federal.
+#
+# Class IDs are stable across batches — `private=0` and `unknown=5` stay
+# put so any consumer that key-checks specific codes doesn't move under
+# the split. `university` takes the next free code (6).
 OWNERSHIP_CLASS_ENUM = {
-    "private":           0,
-    "city":              1,
-    "county":            2,
-    "state_federal":     3,
-    "school_university": 4,
-    "unknown":           5,
+    "private":       0,
+    "city":          1,
+    "county":        2,
+    "state_federal": 3,
+    "school":        4,   # was 'school_university' pre-split
+    "unknown":       5,
+    "university":    6,   # new — added by the split
 }
 
 _HOA_RE = re.compile(r"\b(HOMEOWNERS|ASSOCIATION|HOA|LLC|LTD|INC|TRUST)\b")
 _SCHOOL_RE = re.compile(
-    r"\b(ISD|INDEPENDENT SCHOOL|SCHOOL DISTRICT|UNIVERSITY|COLLEGE|REGENTS"
-    r"|BOARD OF TRUSTEES.*SCHOOL|BOARD OF TRUSTEES.*ISD)\b"
+    # K-12 public school districts. Do NOT key on bare \bSCHOOL\b — that
+    # would sweep in private schools and academies; fall those through to
+    # private. ISD covers the abbreviated district form (the dominant
+    # pattern in BCAD); INDEPENDENT SCHOOL DISTRICT / SCHOOL DISTRICT
+    # cover the spelled-out variants.
+    r"\b(ISD|INDEPENDENT SCHOOL DISTRICT|SCHOOL DISTRICT)\b"
+)
+_UNIVERSITY_RE = re.compile(
+    # Higher-ed campuses (mixed public + private). University comes
+    # AFTER school in the classifier so "BOARD OF TRUSTEES … ISD"
+    # variants get caught by school first.
+    r"\b(UNIVERSITY|COLLEGE)\b"
 )
 _CITY_RE = re.compile(
     r"\b(CITY OF|HOUSING AUTHORITY|PUBLIC SERVICE BOARD|CITY PUBLIC SERVICE"
@@ -104,17 +122,30 @@ _STATE_FED_RE = re.compile(
 )
 
 
-def _classify_six_way(owner: str) -> str:
-    """Apply the locked OWNERSHIP_FEASIBILITY_PROFILING.md rules; return one
-    of the six class keys from OWNERSHIP_CLASS_ENUM. Owner-field None or
-    empty → 'unknown'."""
+def _classify_seven_way(owner: str) -> str:
+    """Apply the locked rules + the School / University split; return one
+    of the seven class keys from OWNERSHIP_CLASS_ENUM. Owner-field None
+    or empty → 'unknown'.
+
+    Order:
+      1. school        — ISD / SCHOOL DISTRICT patterns (K-12 public)
+      2. university    — UNIVERSITY / COLLEGE; catches BOTH public (UT,
+                          A&M, Alamo CCD) AND private (Trinity, St.
+                          Mary's, OLLU) campuses; stays out of `public`
+      3. city          — CITY OF / municipal utility patterns
+      4. county        — \\bCOUNTY\\b ∧ ¬HOA-keywords
+      5. state_federal — TX state + US fed patterns
+      6. private       — fall-through (default)
+    """
     if owner is None:
         return "unknown"
     o = str(owner).strip().upper()
     if not o:
         return "unknown"
     if _SCHOOL_RE.search(o):
-        return "school_university"
+        return "school"
+    if _UNIVERSITY_RE.search(o):
+        return "university"
     if _CITY_RE.search(o):
         return "city"
     if _COUNTY_RE.search(o):
@@ -124,6 +155,11 @@ def _classify_six_way(owner: str) -> str:
     if _STATE_FED_RE.search(o):
         return "state_federal"
     return "private"
+
+
+# Backward-compat alias — preserves the old API for any external caller
+# that still imports `_classify_six_way`. Routes to the new split.
+_classify_six_way = _classify_seven_way
 
 
 def _log(offset: int, status: str, n: int, err: str = "") -> None:
@@ -543,8 +579,8 @@ def classify_and_rasterize() -> None:
     print(f"  pixel counts: {dict(zip(unique.tolist(), counts.tolist()))}")
 
     # Finer Ownership Classes Pass — also emit the two-band raster.
-    print("\nApplying six-way classifier + rasterizing two-band TIF...")
-    g_5070["owner_class_6"] = g_5070["Owner"].map(_classify_six_way)
+    print("\nApplying seven-way classifier + rasterizing two-band TIF...")
+    g_5070["owner_class_finer"] = g_5070["Owner"].map(_classify_six_way)
     _rasterize_two_band(g_5070, RASTER_OUT_2BAND, REF_RASTER)
 
 
@@ -553,7 +589,7 @@ def _rasterize_two_band(g_5070, out_path, ref_raster_path) -> None:
       Band 1 = ownership class enum (OWNERSHIP_CLASS_ENUM); nodata=-1.
       Band 2 = is_vacant (0/1); nodata=-1.
 
-    Caller must have populated `owner_class_6` and `is_vacant` columns on
+    Caller must have populated `owner_class_finer` and `is_vacant` columns on
     the GeoDataFrame. Band 1's nodata=-1 distinguishes outside-AOI from
     `private` (which is class code 0).
 
@@ -572,18 +608,21 @@ def _rasterize_two_band(g_5070, out_path, ref_raster_path) -> None:
         ref_shape = src.shape
         ref_transform = src.transform
 
-    # Priority order — lowest priority first, so higher priority overwrites.
-    # Public classes (city, county, state-federal, school-university) take
-    # precedence over private and unknown. Within public, order isn't
-    # load-bearing — overlap between public classes is negligible (BCAD
-    # parcels are largely disjoint) — but we use enum order for stability.
+    # Priority order — lowest priority first, so higher priority
+    # overwrites. After the School / University split: university (mixed
+    # public + private) sits BELOW the four government classes — at any
+    # overlapping pixel boundary, a city/county/state/school polygon
+    # outweighs an adjacent university polygon. Within the gov block,
+    # order isn't load-bearing (BCAD parcels are largely disjoint), but
+    # the convention is enum order — `school` (code 4) sits next to its
+    # gov peers, `university` (code 6) sits between private and gov.
     _PRIORITY_LOW_TO_HIGH = [
-        "unknown", "private",
-        "state_federal", "county", "school_university", "city",
+        "unknown", "private", "university",
+        "state_federal", "county", "school", "city",
     ]
     band1 = np.full(ref_shape, -1, dtype=np.int8)
     for cls in _PRIORITY_LOW_TO_HIGH:
-        sub = g_5070[g_5070["owner_class_6"] == cls]
+        sub = g_5070[g_5070["owner_class_finer"] == cls]
         if len(sub) == 0:
             continue
         mask = _rasterize_fn(
@@ -632,7 +671,7 @@ def _rasterize_two_band(g_5070, out_path, ref_raster_path) -> None:
 
 def reclassify_from_gpkg(gpkg_path: str) -> None:
     """Read an existing classified GPKG (e.g. the archived BCAD output) and
-    apply the new six-way classifier; rasterize as two bands.
+    apply the new seven-way classifier; rasterize as two bands.
 
     The archived GPKG must carry `Owner` and `is_vacant` columns. CRS is
     coerced to EPSG:5070 if not already in it. No re-fetch from BCAD; uses
@@ -647,8 +686,8 @@ def reclassify_from_gpkg(gpkg_path: str) -> None:
         print(f"  reprojecting to {TARGET_CRS}...")
         g = g.to_crs(TARGET_CRS)
 
-    print("\nApplying six-way classifier...")
-    g["owner_class_6"] = g["Owner"].map(_classify_six_way)
+    print("\nApplying seven-way classifier...")
+    g["owner_class_finer"] = g["Owner"].map(_classify_six_way)
 
     if "is_vacant" not in g.columns:
         raise RuntimeError(
@@ -660,7 +699,7 @@ def reclassify_from_gpkg(gpkg_path: str) -> None:
     # Acreage report — sanity check before rasterization.
     g["Acres"] = pd.to_numeric(g.get("Acres", 0), errors="coerce").fillna(0)
     total = g["Acres"].sum()
-    breakdown = (g.groupby("owner_class_6")["Acres"]
+    breakdown = (g.groupby("owner_class_finer")["Acres"]
                   .agg(["sum", "count"])
                   .sort_values("sum", ascending=False))
     breakdown.columns = ["acres", "parcels"]
@@ -684,7 +723,7 @@ def main() -> int:
     parser.add_argument("--finish", action="store_true",
                         help="Phase B steps 2-3 — re-fetch + classify + rasterize")
     parser.add_argument("--reclassify-from", metavar="GPKG",
-                        help="Skip fetching; apply the six-way classifier to "
+                        help="Skip fetching; apply the seven-way classifier to "
                              "an existing classified GPKG and emit the new "
                              "two-band raster (additive — does not touch the "
                              "legacy single-band raster).")

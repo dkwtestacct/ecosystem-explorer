@@ -519,8 +519,13 @@ def main(update: bool) -> int:
             if state.ownership_raster is None:
                 print(f"  {city_name}: ownership_raster not loaded; skip")
                 continue
-            codes = app.OWNERSHIP_MODES[mode]["codes"]
-            mask = np.isin(state.ownership_raster, codes)
+            # Two-band encoding (Finer Ownership Classes Pass) — route
+            # through app._build_ownership_mask so this assertion catches
+            # any regression in the mask-build path itself.
+            mask = app._build_ownership_mask(
+                state.ownership_raster, state.ownership_vacant_raster,
+                app.OWNERSHIP_MODES[mode],
+            )
             cp = state.convertible_pixels
             independent_count = int(mask[cp[:, 0], cp[:, 1]].sum())
             results = app.evaluate_scenario(
@@ -809,8 +814,13 @@ def main(update: bool) -> int:
         return np.isin(raster, pos_indices)
 
     def _ownership_mask_from(state, mode_key):
-        codes = list(app.OWNERSHIP_MODES[mode_key]['codes'])
-        return np.isin(state.ownership_raster, codes)
+        # Two-band encoding (Finer Ownership Classes Pass) — route through
+        # app._build_ownership_mask so this test exercises the same mask-
+        # build path the live app uses.
+        return app._build_ownership_mask(
+            state.ownership_raster, state.ownership_vacant_raster,
+            app.OWNERSHIP_MODES[mode_key],
+        )
 
     def _run_cell(state, label, region_mask, ownership_mask, recipe):
         """Run one matrix cell. Returns (subset_local, reconcile_local).
@@ -1003,27 +1013,37 @@ def main(update: bool) -> int:
     print("Ownership Finer Classes — Batch 1 reconciliation")
     print(f"{'=' * 60}")
     ownership_diffs_batch1 = 0
+    # School / University Split — 7-class enum. `private=0` and
+    # `unknown=5` stay stable across the split; `school` takes the old
+    # `school_university` code 4; `university` takes the new code 6.
     _OWN_CLASS_ENUM = {
         'private': 0, 'city': 1, 'county': 2,
-        'state_federal': 3, 'school_university': 4, 'unknown': 5,
+        'state_federal': 3, 'school': 4, 'unknown': 5, 'university': 6,
     }
     _PIXEL_AREA_ACRES = 0.2224
     _RASTER_2BAND = Path("data/sa/sa_ownership_2band_30m.tif")
+    # Locked rasterized in-AOI per-class acres (frozen against the
+    # post-split rasterization). The pre-split combined `school_university`
+    # value (6,030 ac) splits into `school` (2,392) + `university` (3,583);
+    # the 55-ac residual is the fall-through to private of names not
+    # matching either ISD/SCHOOL DISTRICT or UNIVERSITY/COLLEGE.
     _RASTER_EXPECTED_AC = {
-        'private':           507_110.0,
-        'city':               41_044.0,
-        'county':              2_886.0,
-        'state_federal':      28_237.0,
-        'school_university':   6_030.0,
-        'unknown':            15_885.0,
+        'private':       507_165.0,
+        'city':           41_044.0,
+        'county':          2_886.0,
+        'state_federal':  28_237.0,
+        'school':          2_392.0,
+        'unknown':        15_885.0,
+        'university':      3_583.0,
     }
     _RULE_EXPECTED_AC = {
-        'private':           606_379.0,
-        'city':              126_634.0,
-        'county':              3_018.0,
-        'state_federal':      54_883.0,
-        'school_university':   6_430.0,
-        'unknown':             1_735.0,
+        'private':       606_433.0,
+        'city':          126_634.0,
+        'county':          3_018.0,
+        'state_federal':  54_883.0,
+        'school':          2_604.0,
+        'unknown':         1_735.0,
+        'university':      3_771.0,
     }
     _ARCHIVE_GPKG = Path(
         "/Users/dkw-testing/Desktop/ecosystem_explorer_archive/"
@@ -1074,8 +1094,8 @@ def main(update: bool) -> int:
                   "(full-parcel polygon-Acres, ±0.5%):")
             _g = _gpd.read_file(str(_ARCHIVE_GPKG), ignore_geometry=True)
             _g['Acres'] = _pd.to_numeric(_g['Acres'], errors='coerce').fillna(0)
-            _g['cls6'] = _g['Owner'].map(_dbp._classify_six_way)
-            _actual = _g.groupby('cls6')['Acres'].sum()
+            _g['cls'] = _g['Owner'].map(_dbp._classify_seven_way)
+            _actual = _g.groupby('cls')['Acres'].sum()
             for cls_name in _OWN_CLASS_ENUM:
                 actual_ac = float(_actual.get(cls_name, 0))
                 expected_ac = _RULE_EXPECTED_AC[cls_name]

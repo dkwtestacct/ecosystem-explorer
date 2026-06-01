@@ -3,7 +3,9 @@
 **Audience:** Internal
 **Status:** Building — four batches built in strict sequence (1→2→3→4); each held for eyeball before the next.
 **Depends on:** Ownership Filter (SA live), Subset Invariants (live), Eligibility Funnel (live), Optimizer Reversal (live), **Ownership Feasibility Profiling (live — locks the taxonomy and the rules)**.
-**Builds:** A six-class ownership taxonomy (City / County / State-federal / School-university / Private / Unknown) on a two-band raster, the matching `OWNERSHIP_MODES` expansion, new subset-invariant cells exercising region × finer-class masks, and a UI capstone "Eligible land filter" panel. SA-only — MN has no ownership data.
+**Builds:** A seven-class ownership taxonomy (City / County / State-federal / School / University / Private / Unknown) on a two-band raster, the matching `OWNERSHIP_MODES` expansion, new subset-invariant cells exercising region × finer-class masks, and a UI capstone "Eligible land filter" panel. SA-only — MN has no ownership data.
+
+**School / University Split (Batch 2 pre-push addendum):** the original spec specified a single `school_university` class kept out of the public rollup because that bucket mixed public ISDs/state-universities with private campuses (Trinity, St. Mary's, OLLU). Splitting it into two — `school` (K-12 public districts only, regex `\b(ISD|INDEPENDENT SCHOOL DISTRICT|SCHOOL DISTRICT)\b`) and `university` (UNIVERSITY/COLLEGE, mixed public + private) — restores the obvious case: school districts are government and belong in the `public` rollup; private universities still don't. After the split: `public` = city + county + state-federal + school; `university` stays as a first-class selectable filter on its own.
 **Source of truth for:** the four-batch sequencing, the raster encoding contract, the rollup-from-band-1 rule, and the locked UI text + KNOWN_DIVERGENCES seed entry.
 
 ---
@@ -20,7 +22,7 @@ The four-batch ordering exists because Batch 1 is load-bearing — the raster IS
 
 A single-band encoding for six classes × {vacant, not-vacant} = 12 codes is brittle: adding a class later means picking a new code, hoping nothing collides, and updating every consumer's filter expression. Two bands keep the dimensions orthogonal:
 
-- **Band 1 — ownership class enum:** `0=private`, `1=city`, `2=county`, `3=state-federal`, `4=school-university`, `5=unknown`. NODATA `-1` (outside the SA AOI). Adding a class later is a new band-1 value with no code reshuffle.
+- **Band 1 — ownership class enum (7 classes after the School / University Split):** `0=private`, `1=city`, `2=county`, `3=state-federal`, `4=school`, `5=unknown`, `6=university`. NODATA `-1` (outside the SA AOI). Class IDs are stable — `private=0` and `unknown=5` stay fixed; `school` keeps the original `school_university` code 4 (the pre-split combined class becomes K-12 districts only); `university` takes the new code 6.
 - **Band 2 — vacant flag:** `0=not-vacant`, `1=vacant`. NODATA `-1`. The vacant rule keys on tax-exemption + improvement value (per the existing logic at `download_bexar_parcels.py:393-418`), independent of ownership class.
 
 Consumers compose masks via AND:
@@ -28,23 +30,25 @@ Consumers compose masks via AND:
 city_mask           = band1 == 1
 county_mask         = band1 == 2
 state_federal_mask  = band1 == 3
-school_uni_mask     = band1 == 4
+school_mask         = band1 == 4    # K-12 public districts only
 private_mask        = band1 == 0
 unknown_mask        = band1 == 5
+university_mask     = band1 == 6    # mixed public + private (Trinity etc.)
 vacant_mask         = band2 == 1
 
-# "Public" rollup — government-owned land: city + county + state-federal.
-# School-university is INTENTIONALLY EXCLUDED — that bucket spans both
-# public institutions (ISDs, Alamo CCD, UT, TX A&M) AND private
-# institutions (Trinity, St. Mary's, OLLU). The split would require more
-# regex work; until then, treating the whole bucket as not-public avoids
-# wrongly counting private campuses as publicly-available planning land.
-# School-university stays selectable on its own.
-public_mask         = np.isin(band1, [1, 2, 3])
+# "Public" rollup — government-owned land: city + county +
+# state-federal + school. School districts are clearly government and
+# fold in. University is INTENTIONALLY EXCLUDED — that bucket spans
+# both public institutions (UT, A&M, Alamo CCD) AND private
+# institutions (Trinity, St. Mary's, OLLU); leaving it out of `public`
+# keeps the planning-screen "Publicly-owned land" filter honest.
+# University stays selectable on its own.
+public_mask         = np.isin(band1, [1, 2, 3, 4])
 vacant_public_mask  = public_mask & vacant_mask
 
 # Composable per-class × vacant:
 city_vacant_mask    = (band1 == 1) & (band2 == 1)
+school_vacant_mask  = (band1 == 4) & (band2 == 1)
 ```
 
 **Path:** new file `data/sa/sa_ownership_2band_30m.tif`. The legacy `sa_public_vacant_30m.tif` (single-band codes 0/1/2/3) stays in place until Batch 2 retires it — keeps Batch 1 strictly additive.
@@ -55,30 +59,37 @@ city_vacant_mask    = (band1 == 1) & (band2 == 1)
 
 ```python
 OWNERSHIP_MODES = {
-  # Coarse rollups — `public` = city + county + state-federal ONLY
-  # (school-university intentionally excluded; see "Public rollup
-  # composition" below).
-  'public':         {'label': 'Publicly-owned land',          'rollup': True,  'band1_in': (1, 2, 3)},
-  'vacant':         {'label': 'Vacant land',                  'rollup': True,  'band2_eq': 1},
-  'vacant_public':  {'label': 'Vacant publicly-owned land',   'rollup': True,  'band1_in': (1, 2, 3), 'band2_eq': 1},
-  # Finer modes (new in Batch 2)
+  # Coarse rollups — `public` = city + county + state-federal + school
+  # (school = K-12 public districts; folded in by the School / University
+  # Split addendum). `university` stays out of `public` because that
+  # bucket mixes public and private campuses.
+  'public':         {'label': 'Publicly-owned land',          'band1_in': (1, 2, 3, 4)},
+  'vacant':         {'label': 'Vacant land',                  'band2_eq': 1},
+  'vacant_public':  {'label': 'Vacant publicly-owned land',   'band1_in': (1, 2, 3, 4), 'band2_eq': 1},
+  # Finer modes
   'city':            {'label': 'City-owned land',                  'band1_eq': 1},
   'county':          {'label': 'County-owned land',                'band1_eq': 2},
   'state_federal':   {'label': 'State or federal land',            'band1_eq': 3},
-  'school_university': {'label': 'School-district or university land', 'band1_eq': 4},
-  # ... and matching vacant-overlay variants if/when the UI requests them
+  'school':          {'label': 'School district land (K-12 public)', 'band1_eq': 4},
+  'university':      {'label': 'College or university land',         'band1_eq': 6},
 }
 ```
 
-The exact shape of `OWNERSHIP_MODES` is settled in Batch 2; the contract is that **the `public` rollup excludes school-university** (`band1_in: (1, 2, 3)`, not `(1, 2, 3, 4)`).
+The exact shape of `OWNERSHIP_MODES` is settled in Batch 2; the contract is that **the `public` rollup excludes `university`** (`band1_in: (1, 2, 3, 4)`).
 
-### Public rollup composition — why school-university is excluded
+### Public rollup composition — why university is excluded (and school is in)
 
-The spot-check during Batch 1 surfaced that the `school_university` class includes **both public AND private institutions**: ISDs (San Antonio ISD, Northside ISD, NEISD, …) and state universities (Alamo CCD, UT System, Texas A&M) are clearly public — but Trinity University, St. Mary's University, and Our Lady of the Lake University are private and were caught by the same `\b(UNIVERSITY|COLLEGE)\b` rule.
+The spot-check during Batch 1 surfaced that the original combined `school_university` class mixed two distinct kinds of land:
 
-Splitting the bucket further would require additional regex work (recognizing private religious / private nonprofit university names). Rather than do that work now, **school-university is excluded from the `public` rollup entirely** — keeping a private Trinity campus out of "Publicly-owned land" matters more for the planning-screen use case than keeping a state-university campus in.
+- **K-12 public school districts** — San Antonio ISD, NEISD, Northside ISD, Comal ISD, etc. Clearly government (ISDs are special-purpose government bodies).
+- **Higher-ed campuses** — UT System, TX A&M System, Alamo CCD (public); Trinity, St. Mary's, OLLU (private). Mixed public + private.
 
-School-university stays a first-class selectable filter (a planner who explicitly wants "all school district + university campuses, public or private" can pick it directly). It just isn't a default member of the `public` rollup.
+The School / University Split addendum separates these:
+
+- **`school`** uses `\b(ISD|INDEPENDENT SCHOOL DISTRICT|SCHOOL DISTRICT)\b` — deliberately NOT keying on bare `\bSCHOOL\b`, which would sweep in private K-12 schools and academies. Charter operators not named ISD and private K-12s fall through to `private`. Post-split fall-through population: ~55 ac (0.86%) / 20 parcels — small per the sanity check.
+- **`university`** uses `\b(UNIVERSITY|COLLEGE)\b` — catches BOTH public and private campuses. Kept out of `public` because a planning-screen "Publicly-owned land" filter shouldn't pretend Trinity campus is public land.
+
+`school` folds into `public` because school districts are unambiguous government. `university` stays a first-class selectable filter on its own (a planner who explicitly wants "all college/university campuses, public or private" picks it directly).
 
 ## Batches
 
@@ -131,18 +142,21 @@ the state-federal regex; "UNITED STATES" / "U S GOVERNMENT" / "U.S." still
 catch all the federal-government patterns observed in the public-set
 analysis.
 
-**Final per-class polygon-Acres (full Bexar County, after rule refinement
-— the reconciliation target):**
+**Final per-class polygon-Acres (full Bexar County, after School / University
+Split — the reconciliation target):**
 
 ```
-private             606,379 ac
+private             606,433 ac
 city                126,634 ac
 state_federal        54,883 ac
-school_university     6,430 ac
+university            3,771 ac
 county                3,018 ac
+school                2,604 ac
 unknown               1,735 ac
 TOTAL               799,079 ac
 ```
+
+(Pre-split combined `school_university` was 6,430 ac across 725 parcels; post-split `school` + `university` = 2,604 + 3,771 = 6,375 ac across 705 parcels. The 55 ac / 20 parcels of fall-through to `private` are names matching neither ISD/SCHOOL DISTRICT nor UNIVERSITY/COLLEGE — private K-12 schools, academies, charter operators not named ISD.)
 
 **Verification (Batch 1):**
 - `verify_baselines.py` 40/40 byte-identical (no app-code consumer of the new raster yet).

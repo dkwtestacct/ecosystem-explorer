@@ -241,16 +241,18 @@ CITIES = {
             },
         },
         # Ownership Integration Commit 0.5 (`OWNERSHIP_INTEGRATION_SPEC.md`) —
-        # int8 raster on the SA grid carrying public/vacant codes derived from
-        # BCAD parcels. Code-to-mode mapping is module-level (`OWNERSHIP_MODES`
-        # in app.py); the config only declares the source path. SA-only —
-        # BCAD is Bexar-specific.
+        # Finer Ownership Classes Pass (`OWNERSHIP_FINER_CLASSES_SPEC.md`)
+        # swapped this to the two-band raster: band 1 = ownership class enum
+        # 0-5 (private / city / county / state-federal / school-university /
+        # unknown); band 2 = is_vacant 0/1. Mode-to-band mapping is
+        # module-level (`OWNERSHIP_MODES` in app.py). SA-only — BCAD is
+        # Bexar-specific. The legacy single-band raster
+        # `data/sa/sa_public_vacant_30m.tif` stays in the repo as historical
+        # reference; app.py reads only the two-band file now.
         #
-        # Scenario Record Pass — `source` + `data_date` make the export bundle
-        # self-describing. The writer composes the rich ownership block in
-        # metadata.json from these + OWNERSHIP_MODES.
+        # `source` + `data_date` make the export bundle self-describing.
         'ownership_layer':      {
-            'path':      'data/sa/sa_public_vacant_30m.tif',
+            'path':      'data/sa/sa_ownership_2band_30m.tif',
             'source':    'Bexar County GIS (BCAD parcels)',
             'data_date': '2026-05-31',
         },
