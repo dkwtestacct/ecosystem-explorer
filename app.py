@@ -3036,6 +3036,37 @@ def _load_city_runtime_state(city_key: str) -> CityState:
 _CURRENT_CITY_STATE = _load_city_runtime_state(selected_city)
 state = _CURRENT_CITY_STATE  # short alias for use inside cached helpers below
 
+
+# ── Record-display helpers (shared across tabs + the audit expander) ─────────
+# Used by the Compare scenarios table (tab2), the Scenario audit expander
+# (above the metric cards), and the Scenario CSV export (tab2). Compose at
+# render time from the fields evaluate_scenario stamps onto results — the
+# underlying record stays minimal; the rich Area / Ownership view lives in
+# this composition rule. Defined at module scope (right after
+# _CURRENT_CITY_STATE is bound, since they read its region_layer_display_names)
+# so every downstream block can call them without duplicating the logic. Both
+# functions accept either a results dict or a saved-scenario dict (same shape
+# sans `scenario_lulc`).
+def _cs_area_for_row(row):
+    rs = (row or {}).get('region_selection') or {}
+    if rs.get('mode') != 'selected_regions' or rs.get('layer') is None:
+        return "Citywide"
+    layer = rs['layer']
+    ids = rs.get('selected_ids') or []
+    display = _CURRENT_CITY_STATE.region_layer_display_names.get(layer, "region")
+    n = len(ids)
+    if n == 1:
+        return f"{display} {ids[0]}"
+    if 1 < n <= 3:
+        return f"{n} selected {display}s ({', '.join(ids)})"
+    return f"{n} selected {display}s"
+
+
+def _cs_ownership_for_row(row):
+    mode = (row or {}).get('ownership_filter')
+    cfg = OWNERSHIP_MODES.get(mode) if mode else None
+    return cfg['label'] if cfg else "None"
+
 # load_data outputs
 lulc                = _CURRENT_CITY_STATE.lulc
 soil_resized        = _CURRENT_CITY_STATE.soil_resized
@@ -5084,6 +5115,50 @@ _source_suffix = (
 _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
                                     source_suffix=_source_suffix)
 
+# ── Scenario audit expander ───────────────────────────────────────────────────
+# Single-place view of the current scenario's record. Every field reads the
+# record directly — no recomputation, no parallel truth. Inapplicable fields
+# render the uniform value ("Citywide" / "None") so the field list is
+# consistent across all scenario types. Module-level helpers
+# `_cs_area_for_row` / `_cs_ownership_for_row` compose the Area / Ownership
+# cells (same rule the comparison-table columns use).
+with st.expander("Scenario audit", expanded=False):
+    _audit_rs = results.get('region_selection') or {}
+    _audit_eligible_acres = (
+        (_audit_rs.get('eligible_pixels_in_region') or 0) * PIXEL_AREA_ACRES
+    )
+    _audit_converted_acres = _audit_rs.get('converted_acres') or 0.0
+    # Validation label = locked badge vocab from _PROVENANCE_HEADER_INFO
+    # (the same mapping the provenance header renders). Tuple shape:
+    # (Source, Validation, color).
+    _audit_validation = _PROVENANCE_HEADER_INFO.get(
+        _scen_provenance, ("Unknown", "provenance not recorded", "gray")
+    )[1]
+    # Source = the augmented Source-line text the header just rendered
+    # (provenance label + selected-region / ownership suffixes when active).
+    _audit_source = _PROVENANCE_HEADER_INFO.get(
+        _scen_provenance, ("Unknown",))[0] + _source_suffix
+    _audit_rows = [
+        ("Source",          _audit_source),
+        ("Area",            _cs_area_for_row(results)),
+        ("Ownership",       _cs_ownership_for_row(results)),
+        ("Placement",       PLACEMENT_STRATEGY_LABELS.get(
+                                placement_strategy, placement_strategy)),
+        ("Seed",            "42"),
+        ("Eligible acres",  f"{_audit_eligible_acres:,.0f} acres"),
+        ("Converted acres", f"{_audit_converted_acres:,.0f} acres"),
+        ("Validation",      _audit_validation),
+        ("Export schema",   str(SCENARIO_SCHEMA_VERSION)),
+    ]
+    _audit_df = pd.DataFrame(_audit_rows, columns=["Field", "Value"])
+    st.dataframe(
+        _audit_df, hide_index=True, use_container_width=True,
+        column_config={
+            "Field": st.column_config.TextColumn("Field", width="small"),
+            "Value": st.column_config.TextColumn("Value", width="large"),
+        },
+    )
+
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
 
@@ -6271,33 +6346,10 @@ with tab2:
             "Cost $M":                  f"${v_cost:.1f}M"              if v_cost is not None else "—",
         }
 
-    # Scenario Record Pass — Area + Ownership columns compose at render from
-    # the same fields the export bundle reads (results['region_selection'] +
-    # results['ownership_filter']). Layer display name resolves through
-    # `_CURRENT_CITY_STATE.region_layer_display_names` so it stays per-city
-    # correct; ownership label comes from OWNERSHIP_MODES. Region/ownership
-    # labels and IDs are sourced from already-string config values, so no
-    # `$`-escape is required, but we render through st.dataframe (not markdown)
-    # which is prose-safe by construction.
-    def _cs_area_for_row(row):
-        rs = row.get('region_selection') or {}
-        if rs.get('mode') != 'selected_regions' or rs.get('layer') is None:
-            return "Citywide"
-        layer = rs['layer']
-        ids = rs.get('selected_ids') or []
-        display = _CURRENT_CITY_STATE.region_layer_display_names.get(layer, "region")
-        n = len(ids)
-        if n == 1:
-            return f"{display} {ids[0]}"
-        if 1 < n <= 3:
-            return f"{n} selected {display}s ({', '.join(ids)})"
-        return f"{n} selected {display}s"
-
-    def _cs_ownership_for_row(row):
-        mode = row.get('ownership_filter') if row else None
-        cfg = OWNERSHIP_MODES.get(mode) if mode else None
-        return cfg['label'] if cfg else "None"
-
+    # Scenario Record Pass — Area + Ownership columns compose at render via
+    # the module-level _cs_area_for_row / _cs_ownership_for_row helpers
+    # (extracted so the Scenario audit expander on tab1 and the CSV export
+    # below can reuse the same composition rule).
     _cs_rows = []
 
     # ── 1. NatCap anchor rows (SA only) ──
