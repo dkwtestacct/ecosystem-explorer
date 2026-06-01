@@ -219,23 +219,48 @@ city_cfg = CITIES[selected_city]
 # Runs BEFORE the sidebar widgets are instantiated. Preset buttons set
 # `_pending_*` and trigger `st.rerun()`; on that rerun the city has not
 # changed so this branch is skipped and the preset wins.
-if st.session_state.get('_prev_city_key') != selected_city:
+def _reset_state_for_city_switch(session_state) -> None:
+    """Clear every session_state key that doesn't survive a city change.
+
+    Sliders + optimizer flags: a new city renders against its own defaults
+    rather than inheriting the previous city's slider state, and an MN
+    optimizer result doesn't visibly persist into the SA dashboard.
+
+    Region + ownership widget keys (Subset Invariants Pass): regions are
+    city-specific (SA council_districts ≠ MN downtown_tracts — rasters,
+    label spaces, and display names all differ) and ownership data is
+    SA-only, so a stale widget-key value carried across a city switch
+    would render an empty multiselect at best and a labels-mismatch at
+    worst. Clearing the widget state here, BEFORE the sidebar renders,
+    means the new city starts on "entire-area / no filter" defaults. The
+    mask-rebuild path in the sidebar already null-defaults the derived
+    masks every rerun; this helper clears the WIDGET state that drives
+    the rebuild.
+
+    Called from the top of the script on city change AND from
+    verify_baselines.py's guard transition test so both paths exercise
+    the same contract. Caller is responsible for updating
+    `_prev_city_key` afterwards.
+    """
     for _k in ('slider_pct_converted', 'slider_gi_pct', 'slider_ff_pct'):
-        st.session_state.pop(_k, None)
-    # First paint and every city switch reset the sliders to their defaults
-    # (10 / 50 / 50 via the setdefaults below), which is the Balanced preset —
-    # so re-highlight that button rather than clearing the active example.
-    st.session_state.active_example_scenario = 'balanced'
-    # Brief A.2: also reset cross-city optimizer state. Without these, an MN
-    # optimizer result visibly persists into the SA dashboard view (the
-    # post-optimize success banner stays up, and the Optimized Scenario
-    # Suggestions section keeps rendering MN's results table).
-    st.session_state.optimized_results = None
-    st.session_state.just_optimized = False
-    # Brief #4: also reset the Applied-from-Optimizer flag on city change so a
-    # scenario applied in MN doesn't carry OPTIMIZER provenance into SA.
-    st.session_state.applied_from_optimizer = False
-    st.session_state._applied_optimizer_values = None
+        session_state.pop(_k, None)
+    session_state.active_example_scenario = 'balanced'
+    session_state.optimized_results = None
+    session_state.just_optimized = False
+    session_state.applied_from_optimizer = False
+    session_state._applied_optimizer_values = None
+    session_state.region_apply_within = "Entire analysis area"
+    session_state.pop('region_layer', None)
+    session_state.pop('region_map_picker_event', None)
+    session_state.pop('region_map_picker_layer', None)
+    for _stale_key in [k for k in list(session_state.keys())
+                       if isinstance(k, str) and k.startswith('region_labels_')]:
+        session_state.pop(_stale_key, None)
+    session_state.ownership_filter_choice = "No filter"
+
+
+if st.session_state.get('_prev_city_key') != selected_city:
+    _reset_state_for_city_switch(st.session_state)
     st.session_state._prev_city_key = selected_city
 
 # ── City-derived constants ────────────────────────────────────────────────────
