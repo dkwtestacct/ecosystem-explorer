@@ -780,6 +780,7 @@ def main(update: bool) -> int:
     print("Subset Invariants — placement-stage subset assertions")
     print(f"{'=' * 60}")
     subset_diffs = 0
+    reconcile_diffs = 0
     _SUBSET_RECIPE_PCT10 = dict(
         pct_converted=10, green_infrastructure_pct=50, food_forest_pct=50,
     )
@@ -803,13 +804,14 @@ def main(update: bool) -> int:
         return np.isin(state.ownership_raster, codes)
 
     def _run_cell(state, label, region_mask, ownership_mask, recipe):
-        """Run one matrix cell. Returns (cell_diffs, funnel_dict).
+        """Run one matrix cell. Returns (subset_local, reconcile_local).
 
         region_mask / ownership_mask are None when the cell doesn't exercise
         that constraint. The combined mask passed to evaluate_scenario
         mirrors what the live app composes (region & ownership when both,
         either one alone, or None for citywide)."""
-        nonlocal_diffs = 0
+        subset_local = 0
+        reconcile_local = 0
         if region_mask is not None and ownership_mask is not None:
             combined = region_mask & ownership_mask
         elif region_mask is not None:
@@ -849,7 +851,7 @@ def main(update: bool) -> int:
             offender = np.argwhere(converted_mask & ~eligible_mask)[0]
             print(f"  FAIL  {label}: {out_eligible} converted px outside eligible "
                   f"(buildings/roads/non-developed); first at row={offender[0]} col={offender[1]}")
-            nonlocal_diffs += 1
+            subset_local += 1
         # ── Invariant 2: converted ⊆ region (when region active) ──
         if region_mask is not None:
             out_region = int((converted_mask & ~region_mask).sum())
@@ -857,7 +859,7 @@ def main(update: bool) -> int:
                 offender = np.argwhere(converted_mask & ~region_mask)[0]
                 print(f"  FAIL  {label}: {out_region} converted px outside region; "
                       f"first at row={offender[0]} col={offender[1]}")
-                nonlocal_diffs += 1
+                subset_local += 1
         # ── Invariant 3: converted ⊆ ownership (when ownership active) ──
         if ownership_mask is not None:
             out_own = int((converted_mask & ~ownership_mask).sum())
@@ -865,8 +867,8 @@ def main(update: bool) -> int:
                 offender = np.argwhere(converted_mask & ~ownership_mask)[0]
                 print(f"  FAIL  {label}: {out_own} converted px outside ownership; "
                       f"first at row={offender[0]} col={offender[1]}")
-                nonlocal_diffs += 1
-        if nonlocal_diffs == 0:
+                subset_local += 1
+        if subset_local == 0:
             checks = ["eligible"]
             if region_mask is not None:    checks.append("region")
             if ownership_mask is not None: checks.append("ownership")
@@ -878,7 +880,36 @@ def main(update: bool) -> int:
                   f"convertible={funnel['convertible_px']:,} → "
                   f"final_eligible={funnel['final_eligible_px']:,} → "
                   f"converted={funnel['converted_px']:,}")
-        return nonlocal_diffs
+
+        # ── Eligibility Funnel Pass — record reconciliation ─────────────
+        # The funnel UI sources every cell from the same record fields the
+        # subset matrix is exercising here. Tie them together: funnel's
+        # final-eligible step (recomputed from raw masks) must equal
+        # results['region_selection']['eligible_pixels_in_region'], and
+        # funnel's converted_acres must equal results['region_selection']
+        # ['converted_acres']. Skipped for citywide cells (mode='entire_aoi')
+        # — the funnel doesn't render there.
+        rs = results.get('region_selection') or {}
+        if rs.get('mode') == 'selected_regions':
+            record_elig = rs.get('eligible_pixels_in_region')
+            if funnel['final_eligible_px'] != record_elig:
+                print(f"  FAIL  {label}: funnel reconciliation — "
+                      f"final-eligible {funnel['final_eligible_px']:,} != "
+                      f"record eligible_pixels_in_region {record_elig:,}")
+                reconcile_local += 1
+            record_conv_acres = rs.get('converted_acres')
+            funnel_conv_acres = funnel['converted_px'] * app.PIXEL_AREA_ACRES
+            if not np.isclose(funnel_conv_acres, record_conv_acres,
+                              rtol=1e-9, atol=1e-9):
+                print(f"  FAIL  {label}: funnel reconciliation — "
+                      f"converted_acres {funnel_conv_acres} != "
+                      f"record converted_acres {record_conv_acres}")
+                reconcile_local += 1
+            if reconcile_local == 0:
+                print(f"        reconciliation OK: funnel ⇔ record "
+                      f"(eligible={record_elig:,} px, "
+                      f"converted={record_conv_acres:,.2f} acres)")
+        return (subset_local, reconcile_local)
 
     # ── SA matrix (6 cells) ──
     try:
@@ -890,19 +921,18 @@ def main(update: bool) -> int:
         sa_tiny_mask = np.zeros(sa_state.ref_shape, dtype=bool)
         sa_tiny_mask[sa_tiny_pixels[:, 0], sa_tiny_pixels[:, 1]] = True
         sa_multi = _region_mask_from(sa_state, "council_districts", ["5", "7"])
-        subset_diffs += _run_cell(sa_state, "SA / region-only (D5)",
-                                  sa_region, None, _SUBSET_RECIPE_PCT10)
-        subset_diffs += _run_cell(sa_state, "SA / region + ownership (D5 + vacant_public)",
-                                  sa_region, sa_ownership, _SUBSET_RECIPE_PCT10)
-        subset_diffs += _run_cell(sa_state, "SA / ownership-only (vacant_public)",
-                                  None, sa_ownership, _SUBSET_RECIPE_PCT10)
-        subset_diffs += _run_cell(sa_state, "SA / citywide",
-                                  None, None, _SUBSET_RECIPE_PCT10)
-        # Tiny: 25 eligible by construction; pct=100 to force all 25 conversions.
-        subset_diffs += _run_cell(sa_state, "SA / tiny region (25 px synthetic)",
-                                  sa_tiny_mask, None, _SUBSET_RECIPE_PCT100)
-        subset_diffs += _run_cell(sa_state, "SA / multi-region (D5 + D7)",
-                                  sa_multi, None, _SUBSET_RECIPE_PCT10)
+        for _cell_args in [
+            (sa_state, "SA / region-only (D5)", sa_region, None, _SUBSET_RECIPE_PCT10),
+            (sa_state, "SA / region + ownership (D5 + vacant_public)", sa_region, sa_ownership, _SUBSET_RECIPE_PCT10),
+            (sa_state, "SA / ownership-only (vacant_public)", None, sa_ownership, _SUBSET_RECIPE_PCT10),
+            (sa_state, "SA / citywide", None, None, _SUBSET_RECIPE_PCT10),
+            # Tiny: 25 eligible by construction; pct=100 to force all 25 conversions.
+            (sa_state, "SA / tiny region (25 px synthetic)", sa_tiny_mask, None, _SUBSET_RECIPE_PCT100),
+            (sa_state, "SA / multi-region (D5 + D7)", sa_multi, None, _SUBSET_RECIPE_PCT10),
+        ]:
+            _sd, _rd = _run_cell(*_cell_args)
+            subset_diffs += _sd
+            reconcile_diffs += _rd
     except Exception as e:
         print(f"  ERROR SA matrix: {e}")
         import traceback; traceback.print_exc()
@@ -922,15 +952,15 @@ def main(update: bool) -> int:
         mn_tiny_mask[mn_tiny_pixels[:, 0], mn_tiny_pixels[:, 1]] = True
         mn_multi = _region_mask_from(mn_state, mn_layer,
                                      [mn_first_label, mn_second_label])
-        subset_diffs += _run_cell(mn_state, f"MN / region-only ({mn_first_label})",
-                                  mn_region, None, _SUBSET_RECIPE_PCT10)
-        subset_diffs += _run_cell(mn_state, "MN / citywide",
-                                  None, None, _SUBSET_RECIPE_PCT10)
-        subset_diffs += _run_cell(mn_state, "MN / tiny region (25 px synthetic)",
-                                  mn_tiny_mask, None, _SUBSET_RECIPE_PCT100)
-        subset_diffs += _run_cell(mn_state, f"MN / multi-region "
-                                            f"({mn_first_label}, {mn_second_label})",
-                                  mn_multi, None, _SUBSET_RECIPE_PCT10)
+        for _cell_args in [
+            (mn_state, f"MN / region-only ({mn_first_label})", mn_region, None, _SUBSET_RECIPE_PCT10),
+            (mn_state, "MN / citywide", None, None, _SUBSET_RECIPE_PCT10),
+            (mn_state, "MN / tiny region (25 px synthetic)", mn_tiny_mask, None, _SUBSET_RECIPE_PCT100),
+            (mn_state, f"MN / multi-region ({mn_first_label}, {mn_second_label})", mn_multi, None, _SUBSET_RECIPE_PCT10),
+        ]:
+            _sd, _rd = _run_cell(*_cell_args)
+            subset_diffs += _sd
+            reconcile_diffs += _rd
     except Exception as e:
         print(f"  ERROR MN matrix: {e}")
         import traceback; traceback.print_exc()
@@ -1067,7 +1097,8 @@ def main(update: bool) -> int:
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
-                   + round_trip_diffs + subset_diffs + guard_diffs)
+                   + round_trip_diffs + subset_diffs + reconcile_diffs
+                   + guard_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -1090,6 +1121,9 @@ def main(update: bool) -> int:
         if subset_diffs:
             print(f"{subset_diffs} subset-invariant divergence(s) — "
                   "placement-stage spatial bug; see cell failures above.")
+        if reconcile_diffs:
+            print(f"{reconcile_diffs} funnel reconciliation divergence(s) — "
+                  "funnel drifted from record fields.")
         if guard_diffs:
             print(f"{guard_diffs} city-switch guard divergence(s) — "
                   "stale region/ownership state survived a city change.")

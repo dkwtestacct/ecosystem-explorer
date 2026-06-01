@@ -6892,21 +6892,78 @@ with tab3:
             "only inside the selected area; the Scenario tab shows both "
             "citywide and region-local results."
         )
-        # Area / eligibility summary panel (Interactive Region Map Spec #3).
-        # Pulled from results['region_selection'] which evaluate_scenario
-        # already populates. "Citywide impact shown above" mirrors the locked
-        # honesty caption that exists on the sidebar live-denominator.
+        # Eligibility Funnel (Interactive Region Map Spec #3 — extended).
+        # Shows where pixels drop out at each placement-pool step:
+        # selected → developed → after roads/buildings/existing nature →
+        # after ownership → converted. Sources every cell from
+        # results['region_selection'] (selected_area_acres, converted_acres,
+        # eligible_pixels_in_region) or a one-line intersection of masks
+        # already on hand (developed/convertible ∩ region). Monotonicity is
+        # guaranteed by the subset invariants (verify_baselines.py — every
+        # step ⊆ the prior is a standing assertion).
         _rs_t3 = results.get('region_selection') or {}
         if _rs_t3.get('mode') == 'selected_regions':
+            _region_mask = st.session_state.get('selected_region_mask')
+            _ownership_active = (
+                st.session_state.get('selected_ownership_mask') is not None
+            )
             _t3_sel_area = _rs_t3.get('selected_area_acres') or 0.0
-            _t3_elig_px = _rs_t3.get('eligible_pixels_in_region') or 0
-            _t3_elig_acres = _t3_elig_px * PIXEL_AREA_ACRES
-            _t3_conv_px = int(results.get('n_wet', 0)) + int(results.get('n_for', 0)) + int(results.get('n_hd', 0))
-            _t3_conv_acres = _t3_conv_px * PIXEL_AREA_ACRES
-            _ap1, _ap2, _ap3 = st.columns(3)
-            _ap1.metric("Selected area", f"{_t3_sel_area:,.0f} acres")
-            _ap2.metric("Eligible for placement", f"{_t3_elig_acres:,.0f} acres")
-            _ap3.metric("Converted", f"{_t3_conv_acres:,.0f} acres")
+            _t3_final_elig_px = _rs_t3.get('eligible_pixels_in_region') or 0
+            _t3_final_elig_acres = _t3_final_elig_px * PIXEL_AREA_ACRES
+            _t3_conv_acres = _rs_t3.get('converted_acres') or 0.0
+            # The one new computation — developed ∩ region (and, when
+            # ownership is also active, convertible ∩ region pre-ownership
+            # for the intermediate "After roads/buildings/existing nature"
+            # step). Both single-line index ops against arrays already in
+            # _CURRENT_CITY_STATE.
+            if _region_mask is not None:
+                _dp = _CURRENT_CITY_STATE.developed_pixels
+                _cp = _CURRENT_CITY_STATE.convertible_pixels
+                _t3_dev_in_region_px = int(
+                    _region_mask[_dp[:, 0], _dp[:, 1]].sum()
+                )
+                _t3_conv_in_region_px = int(
+                    _region_mask[_cp[:, 0], _cp[:, 1]].sum()
+                )
+            else:
+                _t3_dev_in_region_px = 0
+                _t3_conv_in_region_px = 0
+            _t3_dev_in_region_acres = _t3_dev_in_region_px * PIXEL_AREA_ACRES
+            _t3_conv_in_region_acres = _t3_conv_in_region_px * PIXEL_AREA_ACRES
+
+            # Build the chain. Region+ownership splits the convertible step
+            # from the final eligible step; region-only collapses them
+            # (eligible_pixels_in_region already equals convertible ∩ region
+            # when ownership is inactive).
+            _funnel_rows = [
+                ("Selected area",                          f"{_t3_sel_area:,.0f} acres"),
+                ("Developed land",                         f"{_t3_dev_in_region_acres:,.0f} acres"),
+            ]
+            if _ownership_active:
+                _funnel_rows.append(
+                    ("After roads / buildings / existing nature",
+                     f"{_t3_conv_in_region_acres:,.0f} acres"),
+                )
+                _funnel_rows.append(
+                    ("After ownership filter",
+                     f"{_t3_final_elig_acres:,.0f} acres"),
+                )
+            else:
+                _funnel_rows.append(
+                    ("After roads / buildings / existing nature",
+                     f"{_t3_final_elig_acres:,.0f} acres"),
+                )
+            _funnel_rows.append(
+                ("Converted", f"{_t3_conv_acres:,.0f} acres"),
+            )
+            _funnel_df = pd.DataFrame(_funnel_rows, columns=["Step", "Acres"])
+            st.dataframe(
+                _funnel_df, hide_index=True, use_container_width=True,
+                column_config={
+                    "Step":  st.column_config.TextColumn("Step", width="large"),
+                    "Acres": st.column_config.TextColumn("Acres", width="small"),
+                },
+            )
             # UI-Text Pass — region-id caption beneath the panel, derived from
             # the active layer's display name; replaces the layer-specific
             # label ("Selected tract" / "Selected district") on the metric.
