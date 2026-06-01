@@ -55,10 +55,75 @@ FETCH_LOG = PAGES_DIR / "fetch.log"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POLY_OUT   = REPO_ROOT / "data" / "sa" / "sa_ownership.gpkg"
 RASTER_OUT = REPO_ROOT / "data" / "sa" / "sa_public_vacant_30m.tif"
+# Finer ownership classes (OWNERSHIP_FINER_CLASSES_SPEC.md) — two-band raster.
+# Band 1: ownership class enum (0-5); Band 2: is_vacant (0/1). nodata=-1.
+RASTER_OUT_2BAND = REPO_ROOT / "data" / "sa" / "sa_ownership_2band_30m.tif"
 REF_RASTER = REPO_ROOT / "data" / "sa" / "flood" / "land_use_compound_sa.tif"
 
 # Locked classifier (docs/research/ownership/PHASE_0_INVESTIGATION.md).
 PUBLIC_GOVERNMENT_CLASSES = {"city", "county", "state", "federal", "isd", "river_auth"}
+
+# Finer Ownership Classes (OWNERSHIP_FEASIBILITY_PROFILING.md → 99.9% public
+# acreage classified cleanly). Class enum used in Band 1 of the new two-band
+# raster. Order matters — match the rule precedence in _classify_six_way:
+# school catches before state (Texas A&M Regents); HOA filter rescues
+# "BEXAR COUNTY X HOMEOWNERS" → private before the county branch matches.
+OWNERSHIP_CLASS_ENUM = {
+    "private":           0,
+    "city":              1,
+    "county":            2,
+    "state_federal":     3,
+    "school_university": 4,
+    "unknown":           5,
+}
+
+_HOA_RE = re.compile(r"\b(HOMEOWNERS|ASSOCIATION|HOA|LLC|LTD|INC|TRUST)\b")
+_SCHOOL_RE = re.compile(
+    r"\b(ISD|INDEPENDENT SCHOOL|SCHOOL DISTRICT|UNIVERSITY|COLLEGE|REGENTS"
+    r"|BOARD OF TRUSTEES.*SCHOOL|BOARD OF TRUSTEES.*ISD)\b"
+)
+_CITY_RE = re.compile(
+    r"\b(CITY OF|HOUSING AUTHORITY|PUBLIC SERVICE BOARD|CITY PUBLIC SERVICE"
+    r"|WATER SYSTEM)\b"
+)
+_COUNTY_RE = re.compile(r"\bCOUNTY\b")
+_STATE_FED_RE = re.compile(
+    # State (TX) + federal (US) government — patterns refined after the
+    # full-parcel spot-check surfaced false positives from business names.
+    # DROPPED from the feasibility doc's regex:
+    #   - standalone \bUSA\b → caught "BORALIS USA INC", "FORESTAR (USA)
+    #     REAL ESTATE GROUP", "HOME DEPOT USA INC" (~1.5k ac of private
+    #     companies with USA in their corporate name). Federal-gov owners
+    #     instead use "UNITED STATES" or "U S GOVERNMENT" — both covered.
+    #   - standalone \bFEDERAL\b → caught "SECURITY SERVICE FEDERAL CREDIT
+    #     UNION" (~76 ac; credit unions aren't federal gov). The real
+    #     federal patterns are caught by "UNITED STATES" / "US GOVERNMENT".
+    r"\b(STATE OF TEXAS|TX DEPT|TEXAS DEPT|TEXAS PARKS|TEXAS A&M"
+    r"|TEXAS HIGHWAY|UNITED STATES|U\.S\.|US GOVERNMENT|U S GOVERNMENT"
+    r"|RIVER AUTHORITY)\b"
+)
+
+
+def _classify_six_way(owner: str) -> str:
+    """Apply the locked OWNERSHIP_FEASIBILITY_PROFILING.md rules; return one
+    of the six class keys from OWNERSHIP_CLASS_ENUM. Owner-field None or
+    empty → 'unknown'."""
+    if owner is None:
+        return "unknown"
+    o = str(owner).strip().upper()
+    if not o:
+        return "unknown"
+    if _SCHOOL_RE.search(o):
+        return "school_university"
+    if _CITY_RE.search(o):
+        return "city"
+    if _COUNTY_RE.search(o):
+        if _HOA_RE.search(o):
+            return "private"
+        return "county"
+    if _STATE_FED_RE.search(o):
+        return "state_federal"
+    return "private"
 
 
 def _log(offset: int, status: str, n: int, err: str = "") -> None:
@@ -477,6 +542,138 @@ def classify_and_rasterize() -> None:
     print(f"  shape={raster.shape}, dtype=int8, nodata=-1")
     print(f"  pixel counts: {dict(zip(unique.tolist(), counts.tolist()))}")
 
+    # Finer Ownership Classes Pass — also emit the two-band raster.
+    print("\nApplying six-way classifier + rasterizing two-band TIF...")
+    g_5070["owner_class_6"] = g_5070["Owner"].map(_classify_six_way)
+    _rasterize_two_band(g_5070, RASTER_OUT_2BAND, REF_RASTER)
+
+
+def _rasterize_two_band(g_5070, out_path, ref_raster_path) -> None:
+    """Write a two-band int8 TIF on the SA grid:
+      Band 1 = ownership class enum (OWNERSHIP_CLASS_ENUM); nodata=-1.
+      Band 2 = is_vacant (0/1); nodata=-1.
+
+    Caller must have populated `owner_class_6` and `is_vacant` columns on
+    the GeoDataFrame. Band 1's nodata=-1 distinguishes outside-AOI from
+    `private` (which is class code 0).
+
+    Per-class priority rasterization — public classes overwrite private and
+    unknown when polygons abut or overlap at the 30m grid edge. A single-
+    pass rasterize with the geometries in DataFrame order produced a
+    ~67% undercount on city + ~815% overcount on unknown, because rasterio
+    is last-write-wins and the natural DataFrame order put private /
+    unknown polygons after city/state ones. The per-class build below is
+    explicit about who wins each pixel."""
+    import numpy as np
+    import rasterio
+    from rasterio.features import rasterize as _rasterize_fn
+
+    with rasterio.open(ref_raster_path) as src:
+        ref_shape = src.shape
+        ref_transform = src.transform
+
+    # Priority order — lowest priority first, so higher priority overwrites.
+    # Public classes (city, county, state-federal, school-university) take
+    # precedence over private and unknown. Within public, order isn't
+    # load-bearing — overlap between public classes is negligible (BCAD
+    # parcels are largely disjoint) — but we use enum order for stability.
+    _PRIORITY_LOW_TO_HIGH = [
+        "unknown", "private",
+        "state_federal", "county", "school_university", "city",
+    ]
+    band1 = np.full(ref_shape, -1, dtype=np.int8)
+    for cls in _PRIORITY_LOW_TO_HIGH:
+        sub = g_5070[g_5070["owner_class_6"] == cls]
+        if len(sub) == 0:
+            continue
+        mask = _rasterize_fn(
+            ((geom, 1) for geom in sub.geometry if geom is not None and not geom.is_empty),
+            out_shape=ref_shape, transform=ref_transform,
+            fill=0, dtype=np.uint8,
+        )
+        band1[mask.astype(bool)] = OWNERSHIP_CLASS_ENUM[cls]
+
+    # Band 2 — vacancy is orthogonal; single pass is fine since the value
+    # written is the parcel's is_vacant flag, not a class enum.
+    vacant_codes = g_5070["is_vacant"].astype(bool).astype(np.int8)
+    band2 = _rasterize_fn(
+        ((geom, int(c)) for geom, c in zip(g_5070.geometry, vacant_codes)
+         if geom is not None and not geom.is_empty),
+        out_shape=ref_shape, transform=ref_transform,
+        fill=-1, dtype=np.int8,
+    )
+    with rasterio.open(
+        out_path, "w", driver="GTiff",
+        height=ref_shape[0], width=ref_shape[1],
+        count=2, dtype=np.int8, crs="EPSG:5070",
+        transform=ref_transform, nodata=-1, compress="deflate",
+    ) as dst:
+        dst.write(band1, 1)
+        dst.write(band2, 2)
+        dst.set_band_description(1, "ownership_class_6way")
+        dst.set_band_description(2, "is_vacant")
+
+    # Per-class pixel counts + acreage (sanity check; reconciliation
+    # against OWNERSHIP_FEASIBILITY_PROFILING.md happens in
+    # verify_baselines.py).
+    print(f"  wrote {out_path} ({out_path.stat().st_size / 1024:.1f} KB)")
+    print(f"  shape={band1.shape}, dtype=int8 × 2 bands, nodata=-1")
+    pixel_area_acres = 0.2224  # 30m × 30m × 1/4046.86, matches app.py:32
+    inv_enum = {v: k for k, v in OWNERSHIP_CLASS_ENUM.items()}
+    unique, counts = np.unique(band1[band1 != -1], return_counts=True)
+    print("  Band 1 per-class pixel counts × acres:")
+    for c, n in sorted(zip(unique.tolist(), counts.tolist())):
+        name = inv_enum.get(int(c), f"code_{int(c)}")
+        print(f"    {name:>20s}: {int(n):>9,} px  ({n * pixel_area_acres:>10,.0f} ac)")
+    vac_in_aoi = int((band2 == 1).sum())
+    print(f"  Band 2 vacant pixels (in AOI): {vac_in_aoi:,} "
+          f"({vac_in_aoi * pixel_area_acres:,.0f} ac)")
+
+
+def reclassify_from_gpkg(gpkg_path: str) -> None:
+    """Read an existing classified GPKG (e.g. the archived BCAD output) and
+    apply the new six-way classifier; rasterize as two bands.
+
+    The archived GPKG must carry `Owner` and `is_vacant` columns. CRS is
+    coerced to EPSG:5070 if not already in it. No re-fetch from BCAD; uses
+    the polygons already in the GPKG."""
+    import geopandas as gpd
+    import pandas as pd
+
+    print(f"\nReading {gpkg_path}...")
+    g = gpd.read_file(gpkg_path)
+    print(f"  {len(g):,} polygons; CRS={g.crs}")
+    if g.crs is None or str(g.crs) != TARGET_CRS:
+        print(f"  reprojecting to {TARGET_CRS}...")
+        g = g.to_crs(TARGET_CRS)
+
+    print("\nApplying six-way classifier...")
+    g["owner_class_6"] = g["Owner"].map(_classify_six_way)
+
+    if "is_vacant" not in g.columns:
+        raise RuntimeError(
+            "Archived GPKG missing `is_vacant` column — re-run a full "
+            "--finish to regenerate, or extend reclassify_from_gpkg to "
+            "re-derive is_vacant from State_cd + ImprVal + Exempts."
+        )
+
+    # Acreage report — sanity check before rasterization.
+    g["Acres"] = pd.to_numeric(g.get("Acres", 0), errors="coerce").fillna(0)
+    total = g["Acres"].sum()
+    breakdown = (g.groupby("owner_class_6")["Acres"]
+                  .agg(["sum", "count"])
+                  .sort_values("sum", ascending=False))
+    breakdown.columns = ["acres", "parcels"]
+    print(f"\nPer-class acreage breakdown (polygon-area, pre-rasterization):")
+    print(f"  total: {total:,.0f} ac across {len(g):,} parcels")
+    for cls, row in breakdown.iterrows():
+        pct = row["acres"] / total * 100
+        print(f"    {cls:>20s}: {row['acres']:>10,.0f} ac  "
+              f"({row['parcels']:>7,} parcels, {pct:>5.2f}% of total)")
+
+    print(f"\nRasterizing to {RASTER_OUT_2BAND}...")
+    _rasterize_two_band(g, RASTER_OUT_2BAND, REF_RASTER)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -486,6 +683,11 @@ def main() -> int:
                         help="Phase B step 1 — completeness scan (read-only)")
     parser.add_argument("--finish", action="store_true",
                         help="Phase B steps 2-3 — re-fetch + classify + rasterize")
+    parser.add_argument("--reclassify-from", metavar="GPKG",
+                        help="Skip fetching; apply the six-way classifier to "
+                             "an existing classified GPKG and emit the new "
+                             "two-band raster (additive — does not touch the "
+                             "legacy single-band raster).")
     args = parser.parse_args()
 
     if args.fetch:
@@ -517,7 +719,9 @@ def main() -> int:
                   "convergence. Investigate.")
             return 1
         classify_and_rasterize()
-    if not (args.fetch or args.verify or args.finish):
+    if args.reclassify_from:
+        reclassify_from_gpkg(args.reclassify_from)
+    if not (args.fetch or args.verify or args.finish or args.reclassify_from):
         parser.print_help()
         return 2
     return 0
