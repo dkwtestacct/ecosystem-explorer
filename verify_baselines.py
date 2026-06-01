@@ -930,7 +930,7 @@ def main(update: bool) -> int:
                       f"converted={record_conv_acres:,.2f} acres)")
         return (subset_local, reconcile_local)
 
-    # ── SA matrix (6 cells) ──
+    # ── SA matrix ──
     try:
         _rebind_city(app, "San Antonio, TX")
         sa_state = app._CURRENT_CITY_STATE
@@ -940,6 +940,16 @@ def main(update: bool) -> int:
         sa_tiny_mask = np.zeros(sa_state.ref_shape, dtype=bool)
         sa_tiny_mask[sa_tiny_pixels[:, 0], sa_tiny_pixels[:, 1]] = True
         sa_multi = _region_mask_from(sa_state, "council_districts", ["5", "7"])
+        # Finer-class masks (Batch 3 of OWNERSHIP_FINER_CLASSES_SPEC.md) —
+        # each region × finer-class cell asserts converted ⊆ the finer
+        # mask. Coarse rollup cells (region + vacant_public,
+        # ownership-only vacant_public) continue to pass because rollups
+        # are unions over band-1 values.
+        sa_city          = _ownership_mask_from(sa_state, "city")
+        sa_state_federal = _ownership_mask_from(sa_state, "state_federal")
+        sa_school        = _ownership_mask_from(sa_state, "school")
+        sa_university    = _ownership_mask_from(sa_state, "university")
+        sa_county        = _ownership_mask_from(sa_state, "county")
         for _cell_args in [
             (sa_state, "SA / region-only (D5)", sa_region, None, _SUBSET_RECIPE_PCT10),
             (sa_state, "SA / region + ownership (D5 + vacant_public)", sa_region, sa_ownership, _SUBSET_RECIPE_PCT10),
@@ -953,6 +963,22 @@ def main(update: bool) -> int:
             # for the scenario class the surrogate would suggest.
             (sa_state, "SA / optimizer-applied recipe under region + ownership",
              sa_region, sa_ownership, _SUBSET_RECIPE_OPTIMIZER),
+            # ── Finer-class cells (Batch 3) ──
+            # Each exercises converted ⊆ eligible ∩ region ∩ class for
+            # one of the five selectable finer classes. D5 ∩ county is
+            # small (97 convertible px, ≈21.6 ac — see the Batch 3 county
+            # measurement in OWNERSHIP_FINER_CLASSES_SPEC.md) but
+            # non-zero, so the assertion exercises real pixels.
+            (sa_state, "SA / region + city-only (D5 + city)",
+             sa_region, sa_city, _SUBSET_RECIPE_PCT10),
+            (sa_state, "SA / region + state-federal-only (D5 + state_federal)",
+             sa_region, sa_state_federal, _SUBSET_RECIPE_PCT10),
+            (sa_state, "SA / region + school-only (D5 + school)",
+             sa_region, sa_school, _SUBSET_RECIPE_PCT10),
+            (sa_state, "SA / region + university-only (D5 + university)",
+             sa_region, sa_university, _SUBSET_RECIPE_PCT10),
+            (sa_state, "SA / region + county-only (D5 + county)",
+             sa_region, sa_county, _SUBSET_RECIPE_PCT10),
         ]:
             _sd, _rd = _run_cell(*_cell_args)
             subset_diffs += _sd

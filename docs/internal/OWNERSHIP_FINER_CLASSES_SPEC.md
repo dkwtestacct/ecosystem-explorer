@@ -186,20 +186,40 @@ TOTAL               799,079 ac
 
 ### Batch 3 — Subset-invariants extension (verify_baselines.py)
 
-**Goal:** Lock the finer-class contract — `converted ⊆ city_mask`, `converted ⊆ county_mask`, etc.
+**Goal:** Lock the finer-class contract — `converted ⊆ city_mask`, `converted ⊆ school_mask`, `converted ⊆ university_mask`, etc.
 
 **Steps:**
-1. Add new matrix cells, all SA:
-   - `SA / region + City-only` — district 5 + ownership=`city`. converted ⊆ city_mask.
-   - `SA / region + State-federal-only` — district 5 + ownership=`state_federal`.
-   - `SA / region + School-university-only` — district 5 + ownership=`school_university`.
-   - (County-only is a tiny set — only ~3k acres total; skip unless useful.)
+1. Add new matrix cells, all SA (Batch 2's School / University Split expanded the finer set to five):
+   - `SA / region + city-only (D5 + city)` — converted ⊆ city_mask.
+   - `SA / region + state-federal-only (D5 + state_federal)`.
+   - `SA / region + school-only (D5 + school)` — K-12 ISDs inside D5.
+   - `SA / region + university-only (D5 + university)` — Alamo CCD / OLLU campuses inside D5.
+   - `SA / region + county-only (D5 + county)` — small but non-zero (see county-gap measurement below).
 2. Each cell exercises all three subset checks (eligible / region / ownership) where the ownership mask is the finer-class mask.
-3. The matrix's existing coarse-rollup cells (`region + ownership-only (vacant_public)` etc.) **must continue to pass** — they're unions over band-1 values, so they're still subset of each contributing finer class. Same invariant; richer coverage.
+3. The matrix's existing coarse-rollup cells (`region + vacant_public`, `ownership-only vacant_public`, etc.) **must continue to pass** — they're unions over band-1 values, so they're still subset of each contributing finer class. Same invariant; richer coverage.
+
+**County gap — measured before adding the cell.** The countywide county-class mask covers 12,976 px (~2,886 ac) in the SA AOI — small. To pick the right region for the county cell, I measured `region ∩ convertible ∩ county` across all 10 SA council districts:
+
+```
+D1: 34 px    D2: 525    D3: 694    D4: 63    D5: 97
+D6: 162      D7: 68     D8: 347    D9: 46    D10: 56
+tiny region (25 px synthetic): 0 px (the synthetic patch is contiguous
+                                       at the start of CONVERTIBLE_PIXELS;
+                                       hits 0 county pixels)
+```
+
+Every district has a non-zero county intersection. D5 (97 px ≈ 21.6 ac) is non-zero and consistent with the other finer-class cells (which all use D5), so the county cell uses D5 too. At pct=10, n_convert = 9; the subset assertion exercises real pixels.
+
+**First-run results — all five new cells pass:**
+- D5 ∩ city: 2,313 eligible px → 231 converted at pct=10.
+- D5 ∩ school: 668 → 66 (SAISD parcels inside D5).
+- D5 ∩ university: 342 → 34 (Alamo CCD downtown / OLLU adjacencies).
+- D5 ∩ state-federal: 106 → 10 (small but non-zero — TX state highway / federal slivers).
+- D5 ∩ county: 97 → 9 (~21.6 ac of county convertible land inside D5; ~2.0 ac converted).
 
 **Verification (Batch 3):**
 - `verify_baselines.py` 40/40 byte-identical.
-- Matrix is now SA 10 + MN 4 = 14 cells; ~12 region-active cells reconcile to record.
+- Matrix is now SA 12 + MN 4 = 16 cells; 14 region-active cells reconcile to record.
 
 ### Batch 4 — UI capstone: "Eligible land filter" panel + KNOWN_DIVERGENCES seed entry
 
