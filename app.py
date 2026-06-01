@@ -3303,6 +3303,32 @@ surrogate = _cached_train_surrogate(
 )
 
 # ── Plotting helpers ───────────────────────────────────────────────────────────
+@st.cache_resource(show_spinner=False)
+def _load_region_polygons_for_plotly(path: str, label_field: str):
+    """Cache the polygon coordinate arrays for the interactive selector. Returns
+    a list of `(label, [(xs, ys), ...])` tuples where xs/ys are exterior coords
+    for each polygon ring in the region. EPSG:5070 (equal-area) so the visual
+    shape is preserved without basemap distortion. Plain-cartesian plotly
+    Scatter polygons + click events = zero new deps (Interactive Region Map
+    Spec, Path C decision).
+    """
+    import geopandas as _gpd
+    gdf = _gpd.read_file(path)
+    if gdf.crs is None or str(gdf.crs) != "EPSG:5070":
+        gdf = gdf.to_crs("EPSG:5070")
+    out = []
+    for _, row in gdf.iterrows():
+        label = str(row[label_field])
+        geom = row.geometry
+        polys = [geom] if geom.geom_type == "Polygon" else list(geom.geoms)
+        rings = []
+        for poly in polys:
+            xs, ys = poly.exterior.xy
+            rings.append((list(xs), list(ys)))
+        out.append((label, rings))
+    return out
+
+
 def render_matplotlib(fig):
     try:
         st.pyplot(fig, width='stretch')
@@ -4183,6 +4209,30 @@ placement_strategy = st.sidebar.radio(
 use_heat_priority = (placement_strategy == 'cooling-focused')
 
 st.sidebar.divider()
+
+# ── Interactive Region Map: sync clicks → sidebar multiselect (top-of-script) ─
+# Reads the plotly selector's event payload (lives in session_state under the
+# chart's key) and copies the clicked district labels into the multiselect's
+# session_state slot BEFORE the sidebar renders. This way the sidebar reads
+# the freshly-clicked selection on the same rerun the click came in — no
+# one-frame lag between clicking a polygon and the rest of the dashboard
+# updating. The reverse direction (dropdown → selector) auto-syncs because
+# the plotly figure is rebuilt each rerun from the canonical session_state.
+_picker_event = st.session_state.get("region_map_picker_event")
+if _picker_event is not None:
+    _picked_ids = sorted({
+        p.get("customdata") for p in
+        (_picker_event.get("selection") or {}).get("points", [])
+        if p.get("customdata")
+    })
+    # Honor the multiselect key shape used by the sidebar block below.
+    _picker_layer = st.session_state.get("region_map_picker_layer")
+    if _picker_layer is not None:
+        _ms_key = f"region_labels_{_picker_layer}"
+        if sorted(st.session_state.get(_ms_key, []) or []) != _picked_ids:
+            st.session_state[_ms_key] = _picked_ids
+    # Consume the event so the next rerun starts clean.
+    st.session_state["region_map_picker_event"] = None
 
 # ── Region Selection (Phase 1) ────────────────────────────────────────────────
 # Placed between Placement Strategy and Discover scenarios so a planner picks
@@ -6570,6 +6620,117 @@ with tab2:
 
 with tab3:
     st.subheader("Where Changes Happen")
+
+    # ── Interactive Region Selector (Interactive Region Map Spec, Path C) ──
+    # Plain-cartesian plotly polygon traces over EPSG:5070 coords — no basemap,
+    # no new deps. Click a district to set the selection; shift- or ctrl-click
+    # to add; Clear button to wipe. Syncs with the sidebar dropdown via the
+    # top-of-script handler (both write to `region_labels_<layer>` in
+    # session_state). Honors whichever region_layer the dropdown currently
+    # has active. Hidden when no region layers are configured (citywide-only
+    # cities); also hidden when the dropdown is set to "Entire analysis area"
+    # since the selector wouldn't compose with it cleanly.
+    _t3_layer = st.session_state.get('selected_region_layer')
+    _t3_layer_cfg = (
+        (city_cfg.get('region_layers') or {}).get(_t3_layer)
+        if _t3_layer else None
+    )
+    if _t3_layer_cfg is not None:
+        _t3_polys = _load_region_polygons_for_plotly(
+            _t3_layer_cfg['path'], _t3_layer_cfg['label_field']
+        )
+        _t3_selected_ids = st.session_state.get('selected_region_ids') or []
+        _t3_display = _CURRENT_CITY_STATE.region_layer_display_names.get(_t3_layer, "region")
+        _t3_fig = go.Figure()
+        for _t3_label, _t3_rings in _t3_polys:
+            _is_sel = _t3_label in _t3_selected_ids
+            _fill = 'rgba(31, 119, 180, 0.55)' if _is_sel else 'rgba(170, 195, 220, 0.18)'
+            _line_w = 2.4 if _is_sel else 1.2
+            for _xs, _ys in _t3_rings:
+                _t3_fig.add_trace(go.Scatter(
+                    x=_xs, y=_ys,
+                    fill='toself',
+                    fillcolor=_fill,
+                    mode='lines',
+                    line=dict(color='#1f77b4', width=_line_w),
+                    customdata=[_t3_label] * len(_xs),
+                    hovertemplate=f"<b>{_t3_display} {_t3_label}</b><extra></extra>",
+                    showlegend=False,
+                    name=_t3_label,
+                ))
+            # Centroid label so the user can read which district is which
+            # without hovering.
+            if _t3_rings:
+                _xs0, _ys0 = _t3_rings[0]
+                _cx = sum(_xs0) / len(_xs0)
+                _cy = sum(_ys0) / len(_ys0)
+                _t3_fig.add_annotation(
+                    x=_cx, y=_cy, text=_t3_label,
+                    showarrow=False, font=dict(size=11, color='#1f3a5c'),
+                )
+        _t3_fig.update_layout(
+            xaxis=dict(visible=False, scaleanchor='y', scaleratio=1),
+            yaxis=dict(visible=False),
+            plot_bgcolor='white', paper_bgcolor='white',
+            height=360,
+            margin=dict(l=0, r=0, t=10, b=10),
+            dragmode='pan',
+        )
+        _t3_picker_col, _t3_clear_col = st.columns([6, 1])
+        with _t3_picker_col:
+            # Stash the current layer key so the top-of-script handler knows
+            # which multiselect key to sync the event into.
+            st.session_state['region_map_picker_layer'] = _t3_layer
+            _t3_event = st.plotly_chart(
+                _t3_fig,
+                use_container_width=True,
+                on_select='rerun',
+                selection_mode='points',
+                key='region_map_picker',
+            )
+            # Stash the event for the top-of-next-rerun handler. The handler
+            # consumes + clears it.
+            if _t3_event:
+                _new_event = _t3_event if isinstance(_t3_event, dict) else dict(_t3_event)
+                if _new_event.get('selection', {}).get('points'):
+                    st.session_state['region_map_picker_event'] = _new_event
+        with _t3_clear_col:
+            st.write("")
+            st.write("")
+            if st.button("Clear", key='region_map_clear_btn',
+                         help="Deselect all districts. Equivalent to clearing "
+                              "the sidebar multiselect."):
+                st.session_state[f"region_labels_{_t3_layer}"] = []
+                st.session_state['region_map_picker_event'] = None
+                st.rerun()
+        st.caption(
+            f"Click a {_t3_display.lower()} to select; shift- or ctrl-click to "
+            "add. The sidebar multiselect stays in sync. Selection drives the "
+            "conversion map below + the region-local readings on the Scenario tab."
+        )
+        # Area / eligibility summary panel (Interactive Region Map Spec #3).
+        # Pulled from results['region_selection'] which evaluate_scenario
+        # already populates. "Citywide impact shown above" mirrors the locked
+        # honesty caption that exists on the sidebar live-denominator.
+        _rs_t3 = results.get('region_selection') or {}
+        if _rs_t3.get('mode') == 'selected_regions':
+            _t3_sel_area = _rs_t3.get('selected_area_acres') or 0.0
+            _t3_elig_px = _rs_t3.get('eligible_pixels_in_region') or 0
+            _t3_elig_acres = _t3_elig_px * PIXEL_AREA_ACRES
+            _t3_conv_px = int(results.get('n_wet', 0)) + int(results.get('n_for', 0)) + int(results.get('n_hd', 0))
+            _t3_conv_acres = _t3_conv_px * PIXEL_AREA_ACRES
+            _ap1, _ap2, _ap3 = st.columns(3)
+            _ap1.metric(f"Selected {_t3_display.lower()}{'s' if len(_t3_selected_ids) != 1 else ''}",
+                        f"{_t3_sel_area:,.0f} acres")
+            _ap2.metric("Eligible for placement", f"{_t3_elig_acres:,.0f} acres")
+            _ap3.metric("Converted", f"{_t3_conv_acres:,.0f} acres")
+            st.caption(
+                "Citywide impact shown on the metric cards above. The "
+                "region-local readings on the Scenario tab show what the "
+                f"scenario does within the selected {_t3_display.lower()} specifically."
+            )
+        st.divider()
+
     if placement_strategy != 'random':
         st.info(
         f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** — conversions weighted "
