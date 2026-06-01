@@ -6299,7 +6299,7 @@ with tab2:
         lookup_table=lookup_table,
         saved=_saved_for_city,
         optimized=st.session_state.optimized_results
-    ), width='stretch')
+    ), use_container_width=True)
 
     if TRACTS_DATA_AVAILABLE:
         st.divider()
