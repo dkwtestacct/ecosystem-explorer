@@ -111,17 +111,21 @@ CHANGE_COLORS = {
 # be noticed by a returning user, and reads as one line without internal
 # vocabulary or specific parameter values. Forward-looking work goes in
 # UNDERWAY_ENTRIES, which renders only when non-empty.
-WHATS_NEW_ENTRIES = [
-    "**Region-local view** — for region scenarios, a paired table shows the change *inside* the selected region next to the citywide reading, with locked flood-routing and reach-effect caveats for honest reading.",
-    "**Ownership Filter (San Antonio)** — narrow conversions to publicly-owned, vacant, or vacant-and-publicly-owned parcels; composes with Region Selection. (Parcel data: Bexar County GIS / BCAD, 2026-05-31 pull.)",
-    "**Region Selection** — constrain conversions to a selected council district (San Antonio) or census tract (Minneapolis); metrics still show citywide impact.",
-    "A single comparison table on the Tradeoff Analysis tab puts NatCap's published scenarios, the current scenario, and any you've saved side by side — each row labeled with its source and how it's validated.",
-    "Every scenario shows its source and validation status at the top — NatCap published reference, baseline, engine-validated Explorer scenario, or surrogate-suggested optimizer suggestion.",
-    "San Antonio: load NatCap's project scenarios from the sidebar (baseline + the six food-forest and urban-agriculture alternatives). Per-metric validation badges on every card.",
-    "You can now download the current scenario as a runnable input bundle for canonical InVEST 3.19.0 — rasters, AOIs, biophysical tables, and per-model args files for all five urban models. San Antonio only for v1.",
-    "San Antonio flood estimates now use NatCap's San Antonio Curve Numbers instead of Minneapolis values. (NatCap, 2023.)",
-    "San Antonio land cover now uses NatCap's San Antonio data.",
-    "San Antonio carbon now uses NatCap's four-pool storage framework — reported as one-time storage value rather than annual rate.",
+# Organized into capability sections — placement (where conversions can land)
+# vs. validation/handoff (how to read and ship results). Data/model updates
+# (curve numbers, land-cover sources, carbon framing) are implementation
+# history; they live in the changelog / "On the radar", not here.
+WHATS_NEW_SECTIONS = [
+    ("Interactive scenario placement", [
+        "**Region Selection** — constrain conversions to a selected council district (San Antonio) or census tract (Minneapolis); metric cards show citywide impact, paired with a Selected-region impact view.",
+        "**Selected-region impact** — alongside any region scenario, a paired table compares outcomes inside the selected area with the citywide result, with locked flood-routing and reach-effect caveats.",
+        "**Ownership Filter (San Antonio)** — narrow conversions to publicly-owned, vacant, or vacant-and-publicly-owned parcels; composes with Region Selection. (Parcel data: Bexar County GIS / BCAD, 2026-05-31 pull.)",
+    ]),
+    ("Validation and handoff", [
+        "**Provenance + validation badges** — every scenario shows its source at the top (NatCap reference, baseline, engine-validated Explorer, or surrogate-suggested optimizer), with per-metric validation badges on each card.",
+        "**Comparison table** — NatCap's published scenarios, the current scenario, and any you've saved side by side on the Tradeoff Analysis tab.",
+        "**InVEST export** — download the current scenario as a runnable input bundle for canonical InVEST 3.19.0 (rasters, AOIs, biophysical tables, per-model args). San Antonio v1.",
+    ]),
 ]
 
 UNDERWAY_ENTRIES = []
@@ -132,8 +136,13 @@ ON_THE_RADAR = """\
 
 def _build_whats_new():
     sections = []
-    if WHATS_NEW_ENTRIES:
-        sections.append("### What's new\n" + "\n".join(f"- {e}" for e in WHATS_NEW_ENTRIES))
+    if WHATS_NEW_SECTIONS:
+        parts = ["### What's new"]
+        for _title, _entries in WHATS_NEW_SECTIONS:
+            if _entries:
+                parts.append(f"\n**{_title}**\n")
+                parts.extend(f"- {e}" for e in _entries)
+        sections.append("\n".join(parts))
     if UNDERWAY_ENTRIES:
         sections.append("### Underway\n" + "\n".join(f"- {e}" for e in UNDERWAY_ENTRIES))
     sections.append("### On the radar\n" + ON_THE_RADAR.rstrip())
@@ -4320,7 +4329,9 @@ if _apply_within == "Selected regions" and _region_layers_available:
             st.sidebar.caption(
                 "Conversions will be placed only inside the selected region, "
                 "after excluding roads, buildings, and existing natural land. "
-                "**Metrics show citywide impact.**"
+                "**Metric cards show citywide impact. The Selected-region "
+                "impact table compares outcomes inside the selected area "
+                "with the citywide result.**"
             )
         # Push to session_state for Commit 2's lookup bypass and Commit 1's
         # caller-stamping of results['region_selection']. Note: even with
@@ -4353,7 +4364,9 @@ if _ownership_available:
         help=(
             "Constrain conversions to publicly-owned, vacant, or vacant-and-"
             "publicly-owned parcels. Composes with Region Selection above; the "
-            "per-pixel engine is unchanged."
+            "per-pixel engine is unchanged. Ownership classes are used as a "
+            "planning screen only; parcel availability and legal feasibility "
+            "are not verified."
         ),
     )
     if _own_choice != "No filter":
@@ -5025,6 +5038,33 @@ _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
 
+# UI-Text Pass — citywide caption above the metric cards. Renders only when a
+# region is selected (entire-area scenarios already imply citywide). Reads from
+# results['region_selection'] so it stays correct under any selection path
+# (dropdown or interactive map). City suffix uses the active-city display name.
+_rs_above = results.get('region_selection') or {}
+if _rs_above.get('mode') == 'selected_regions':
+    _rs_above_layer = _rs_above.get('layer')
+    _rs_above_ids = _rs_above.get('selected_ids') or []
+    _rs_above_display = (
+        _CURRENT_CITY_STATE.region_layer_display_names.get(_rs_above_layer, "region")
+        if _rs_above_layer else "selected region"
+    )
+    _rs_above_n = len(_rs_above_ids)
+    if _rs_above_n == 1:
+        _rs_above_what = f"{_rs_above_display} {_rs_above_ids[0]}"
+    elif 1 < _rs_above_n <= 3:
+        _rs_above_what = (
+            f"{_rs_above_n} selected {_rs_above_display}s "
+            f"({', '.join(_rs_above_ids)})"
+        )
+    else:
+        _rs_above_what = f"{_rs_above_n} selected {_rs_above_display}s"
+    st.caption(
+        f"Citywide impact from changes placed in {_rs_above_what} "
+        f"(in {selected_city})."
+    )
+
 st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
 eco1.metric(
@@ -5571,7 +5611,7 @@ if _region_local:
     )
     _rs_plural = "s" if len(_rs_ids) != 1 else ""
     _rs_label = f"{_rs_display}{_rs_plural} {', '.join(_rs_ids)}" if _rs_ids else _rs_display
-    st.markdown(f"#### Region-local view — {_rs_label}")
+    st.markdown(f"#### Selected-region impact — {_rs_label}")
     st.caption(
         f"What the scenario does **inside the selected {_rs_display.lower()}{_rs_plural}** "
         "specifically — paired with the citywide reading so the pairing keeps it honest. "
@@ -5619,6 +5659,20 @@ if _region_local:
         "only the aggregation scope. The pairing keeps it honest: never read a "
         "region-local number without its citywide companion."
     )
+    # UI-Text Pass — food/cost/carbon equality note. Direct conversion metrics
+    # sum identical per-pixel quantities whether tallied citywide or only over
+    # the region, so they read equal under the locked clip-clean treatment.
+    # Framed as an explanation, not a caveat.
+    with st.expander(
+        "ⓘ Why region and citywide totals can match for food / cost / carbon",
+        expanded=False,
+    ):
+        st.caption(
+            "For direct conversion metrics (food production, cost, carbon), "
+            "region totals equal citywide totals when all converted pixels are "
+            "inside the selected region — this matches the locked clip-clean "
+            "treatment. The equality is correct, not a rounding artifact."
+        )
 
     # Locked caveats from REGION_LOCAL_METRICS_SPEC.md.
     st.caption(
@@ -6103,15 +6157,30 @@ with tab2:
     # column is labeled (derived) on every row because it's the prototype's
     # own NatCap-carbon × EPA SC-CO2 multiplication, not itself a NatCap-
     # published dollar value.
-    st.markdown("#### Compare scenarios")
-    st.caption(
-        ("NatCap-published reference scenarios, t"
-         if selected_city.startswith("San Antonio") else "T")
-        + "he current scenario, and any you've saved — side by side. "
-        "**Source** says where the value comes from; **Validation** says how "
-        "it's grounded. Different sources are not directly comparable as "
-        "precision numbers; the columns make the difference visible."
+    # UI-Text Pass — adaptive title. SA always has NatCap anchor rows so the
+    # table is genuinely a comparison; MN has anchors only when the user has
+    # saved scenarios. With no anchors and no saves the table is a single-row
+    # summary, so "Compare scenarios" overpromises.
+    _has_comparison_rows = (
+        selected_city.startswith("San Antonio") or bool(_saved_for_city)
     )
+    if _has_comparison_rows:
+        st.markdown("#### Compare scenarios")
+        st.caption(
+            ("NatCap-published reference scenarios, t"
+             if selected_city.startswith("San Antonio") else "T")
+            + "he current scenario, and any you've saved — side by side. "
+            "**Source** says where the value comes from; **Validation** says how "
+            "it's grounded. Different sources are not directly comparable as "
+            "precision numbers; the columns make the difference visible."
+        )
+    else:
+        st.markdown("#### Current scenario summary")
+        st.caption(
+            "Just the current scenario for now — save scenarios from below to "
+            "build up a side-by-side comparison. **Source** and **Validation** "
+            "columns describe where each value comes from and how it's grounded."
+        )
 
     def _cs_source_validation(prov):
         info = _PROVENANCE_HEADER_INFO.get(
@@ -6646,7 +6715,7 @@ with tab3:
         for _t3_label, _t3_rings in _t3_polys:
             _is_sel = _t3_label in _t3_selected_ids
             _fill = 'rgba(31, 119, 180, 0.55)' if _is_sel else 'rgba(170, 195, 220, 0.18)'
-            _line_w = 2.4 if _is_sel else 1.2
+            _line_w = 4.0 if _is_sel else 1.2
             for _xs, _ys in _t3_rings:
                 _t3_fig.add_trace(go.Scatter(
                     x=_xs, y=_ys,
@@ -6715,15 +6784,15 @@ with tab3:
             st.write("")
             st.write("")
             if st.button("Clear", key='region_map_clear_btn',
-                         help="Deselect all districts. Equivalent to clearing "
-                              "the sidebar multiselect."):
+                         help="Deselect all selected areas."):
                 st.session_state[f"region_labels_{_t3_layer}"] = []
                 st.session_state['region_map_picker_event'] = None
                 st.rerun()
         st.caption(
-            f"Click a {_t3_display.lower()} to select; shift- or ctrl-click to "
-            "add. The sidebar multiselect stays in sync. Selection drives the "
-            "conversion map below + the region-local readings on the Scenario tab."
+            f"Click a {_t3_display.lower()} to select it. Shift-click or "
+            "Ctrl-click to select multiple. Land-use changes will be placed "
+            "only inside the selected area; the Scenario tab shows both "
+            "citywide and region-local results."
         )
         # Area / eligibility summary panel (Interactive Region Map Spec #3).
         # Pulled from results['region_selection'] which evaluate_scenario
@@ -6737,14 +6806,26 @@ with tab3:
             _t3_conv_px = int(results.get('n_wet', 0)) + int(results.get('n_for', 0)) + int(results.get('n_hd', 0))
             _t3_conv_acres = _t3_conv_px * PIXEL_AREA_ACRES
             _ap1, _ap2, _ap3 = st.columns(3)
-            _ap1.metric(f"Selected {_t3_display.lower()}{'s' if len(_t3_selected_ids) != 1 else ''}",
-                        f"{_t3_sel_area:,.0f} acres")
+            _ap1.metric("Selected area", f"{_t3_sel_area:,.0f} acres")
             _ap2.metric("Eligible for placement", f"{_t3_elig_acres:,.0f} acres")
             _ap3.metric("Converted", f"{_t3_conv_acres:,.0f} acres")
+            # UI-Text Pass — region-id caption beneath the panel, derived from
+            # the active layer's display name; replaces the layer-specific
+            # label ("Selected tract" / "Selected district") on the metric.
+            _t3_n_sel = len(_t3_selected_ids)
+            if _t3_n_sel == 1:
+                _t3_id_caption = f"{_t3_display} {_t3_selected_ids[0]}"
+            elif 1 < _t3_n_sel <= 3:
+                _t3_id_caption = (
+                    f"{_t3_n_sel} selected {_t3_display.lower()}s: "
+                    f"{', '.join(_t3_selected_ids)}"
+                )
+            else:
+                _t3_id_caption = f"{_t3_n_sel} selected {_t3_display.lower()}s"
+            st.caption(_t3_id_caption)
             st.caption(
-                "Citywide impact shown on the metric cards above. The "
-                "region-local readings on the Scenario tab show what the "
-                f"scenario does within the selected {_t3_display.lower()} specifically."
+                "Metric cards show citywide impact; the Scenario tab also "
+                "includes region-local readings for the selected area."
             )
         st.divider()
 

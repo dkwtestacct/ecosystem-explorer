@@ -99,7 +99,7 @@ The honest one-line claim: *the prototype's engine reproduces canonical InVEST p
 
 Two changelog audiences, two bars:
 
-**WHATS_NEW_ENTRIES** (in-app, strict bar) — Returning dashboard user would notice it; one line; no internal vocabulary or parameter values. Reserved for user-visible feature changes, confidence-level changes, architectural shifts users see.
+**WHATS_NEW_SECTIONS** (in-app, strict bar) — Returning dashboard user would notice it; one line; no internal vocabulary or parameter values. Grouped into capability sections (e.g. "Interactive scenario placement", "Validation and handoff"). Reserved for user-visible feature changes, confidence-level changes, architectural shifts users see. Data/model-update implementation history (e.g. switching a per-city baseline source) lives in the changelog, not here.
 
 **Collaborator-facing docs** (NATCAP_ALIGNMENT.md, DESIGN_NOTES.md, ../archive/HISTORY.md) — Looser bar. Methodology milestones, validation results, schema bumps, internal taxonomy. The institutional record.
 
