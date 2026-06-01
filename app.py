@@ -6504,6 +6504,113 @@ with tab2:
         "shown separately because NatCap reference and Explorer scenarios use "
         "different derivations."
     )
+
+    # ── Scenario CSV export ───────────────────────────────────────────────
+    # Data-complete download of the comparison set: one row per scenario
+    # (current + saved-for-city). Full record + computed metrics; every
+    # value reads results / _saved directly — no recomputation. NatCap
+    # anchors intentionally excluded (no full record; would force "—" on
+    # most columns and dilute the round-trip guarantee).
+    import io as _csv_io
+    from datetime import datetime as _csv_dt, timezone as _csv_tz
+
+    def _csv_row_from_scenario(d, label, provenance, source_label, validation_label):
+        rs = d.get('region_selection') or {}
+        own_mode = d.get('ownership_filter')
+        own_cfg = OWNERSHIP_MODES.get(own_mode) if own_mode else None
+        city_for_row = d.get('city', selected_city)
+        own_layer_meta = (CITIES.get(city_for_row, {}).get('ownership_layer') or {})
+        rl = d.get('region_local') or {}
+        row = {
+            'scenario_label':             label,
+            'city':                       city_for_row,
+            'provenance':                 provenance,
+            'source_label':               source_label,
+            'validation':                 validation_label,
+            'region_layer':               rs.get('layer') or '',
+            'region_selected_ids':        '|'.join(rs.get('selected_ids') or []),
+            'region_selected_area_acres': (rs.get('selected_area_acres')
+                                            if rs.get('mode') == 'selected_regions' else ''),
+            'region_eligible_acres':      (rs.get('eligible_pixels_in_region') or 0) * PIXEL_AREA_ACRES,
+            'region_converted_acres':     rs.get('converted_acres', 0.0),
+            'ownership_mode':             own_mode or '',
+            # CSV-round-trip safety: empty cell (not the literal "None" sentinel)
+            # when no ownership filter is active. Pandas read_csv's default
+            # na_values list includes "None"; writing the literal string here
+            # would silently coerce to NaN on parse. The comparison-table
+            # column and audit expander still display "None" via
+            # _cs_ownership_for_row at render time — only this serialization
+            # path stays empty for no-filter rows.
+            'ownership_label':            own_cfg['label'] if own_cfg else '',
+            'ownership_source':           own_layer_meta.get('source') if own_mode else '',
+            'ownership_data_date':        own_layer_meta.get('data_date') if own_mode else '',
+            'pct_converted':              d.get('pct_converted'),
+            'green_infrastructure_pct':   d.get('green_infrastructure_pct'),
+            'food_forest_pct':            d.get('food_forest_pct'),
+            'pct_highdensity':            100 - (d.get('green_infrastructure_pct') or 0)
+                                              - (d.get('food_forest_pct') or 0),
+            'placement_strategy':         d.get('placement_strategy', placement_strategy),
+            'random_seed':                d.get('random_seed', 42),
+            'scenario_schema_version':    SCENARIO_SCHEMA_VERSION,
+        }
+        for k in ('flood_reduction', 'temp_change_f', 'mean_hm', 'mean_ndvi',
+                  'food_mln_lbs', 'carbon_tons_co2', 'carbon_value_usd',
+                  'cooling_energy_savings_usd', 'nature_access_pct',
+                  'people_with_nature_access', 'preventable_mh_cases',
+                  'avoided_mh_cost_usd', 'total_cost_mln', 'runoff_acre_feet'):
+            row[k] = d.get(k)
+        for k, cfg in _REGION_LOCAL_METRICS.items():
+            if cfg.get('decomposable'):
+                row[f'region_local__{k}'] = rl.get(k) if rl else ''
+        return row
+
+    _csv_cur_val = _PROVENANCE_HEADER_INFO.get(
+        _cur_prov, ("Unknown", "provenance not recorded", "gray")
+    )[1]
+    _csv_rows = [
+        _csv_row_from_scenario(
+            results, _cur_label, _cur_prov, _cs_cur_src, _csv_cur_val,
+        )
+    ]
+    for _saved in _saved_for_city:
+        _prov_save = _saved.get("provenance")
+        if _prov_save is None:
+            _prov_save = (eib.PROVENANCE_BASELINE
+                          if _saved.get("pct_converted", 0) == 0
+                          else eib.PROVENANCE_EXPLORER)
+        _src_save = _cs_source_validation(_prov_save)[0]
+        if _prov_save == eib.PROVENANCE_EXPLORER:
+            if (_saved.get('region_selection') or {}).get('layer') is not None:
+                _src_save = f"{_src_save} · selected-region placement"
+            _src_save = f"{_src_save}{_ownership_source_suffix(_saved)}"
+        _label_save = (_saved.get("display_name")
+                       or _saved.get("scenario_name") or "(unnamed save)")
+        _val_save = _PROVENANCE_HEADER_INFO.get(
+            _prov_save, ("Unknown", "provenance not recorded", "gray")
+        )[1]
+        _csv_rows.append(
+            _csv_row_from_scenario(_saved, _label_save, _prov_save,
+                                    _src_save, _val_save)
+        )
+
+    _csv_buf = _csv_io.StringIO()
+    pd.DataFrame(_csv_rows).to_csv(_csv_buf, index=False)
+    _csv_filename = (
+        f"scenario_summary_"
+        f"{selected_city.split(',')[0].lower().replace(' ', '_')}"
+        f"_{_csv_dt.now(_csv_tz.utc).strftime('%Y-%m-%d')}.csv"
+    )
+    st.download_button(
+        label="Download scenario summary (CSV)",
+        data=_csv_buf.getvalue(),
+        file_name=_csv_filename,
+        mime="text/csv",
+        help=("Current scenario plus every saved scenario for this city as a "
+              "CSV. Full record (region, ownership, placement, seed) plus "
+              "citywide and region-local metrics. NatCap reference rows are "
+              "not included — they don't carry a complete record."),
+    )
+
     st.divider()
 
     st.subheader("Tradeoff Space")
