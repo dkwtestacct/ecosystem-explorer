@@ -697,8 +697,67 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         disclosure_diffs += 1
 
+    # ── Scenario Record Pass — saved-scenario round-trip assertion ─────────
+    # Formalizes the reproducibility contract at the record-API surface: a
+    # saved record's recipe (sliders + placement_strategy + random_seed),
+    # passed back through evaluate_scenario, must reproduce the metrics the
+    # record stored. Mostly redundant with the 40/40 above (which itself is
+    # the regen-reproduces-stored-metrics test at the call-signature level);
+    # the value is making the saved-record contract explicit so a future
+    # regression at the record layer reads as its own failure mode rather
+    # than a generic baseline diff. Thin: one scenario per (city × strategy).
     print(f"\n{'=' * 60}")
-    grand_total = total_diffs + region_diffs + ownership_diffs + region_local_diffs + smoke_diffs + disclosure_diffs
+    print("Scenario Record — saved-scenario round-trip assertion")
+    print(f"{'=' * 60}")
+    round_trip_diffs = 0
+    _round_trip_recipe = dict(
+        pct_converted=10, green_infrastructure_pct=50, food_forest_pct=50,
+    )
+    _round_trip_metrics = ("mean_cn", "mean_hm", "food_mln_lbs",
+                           "carbon_tons_co2", "total_cost_mln")
+    for city_name in active_cities:
+        try:
+            _rebind_city(app, city_name)
+            for strategy in STRATEGIES:
+                first = app.evaluate_scenario(
+                    **_round_trip_recipe, seed=42, placement_strategy=strategy,
+                )
+                # Mimic the save handler: capture the recipe + stored metrics
+                # exactly as st.session_state.saved_scenarios receives them.
+                record = {k: v for k, v in first.items() if k != "scenario_lulc"}
+                record["placement_strategy"] = strategy
+                record["random_seed"] = 42
+                # Regen from the record's recipe.
+                regen = app.evaluate_scenario(
+                    pct_converted=record["pct_converted"],
+                    green_infrastructure_pct=record["green_infrastructure_pct"],
+                    food_forest_pct=record["food_forest_pct"],
+                    seed=record["random_seed"],
+                    placement_strategy=record["placement_strategy"],
+                )
+                divergent = [
+                    m for m in _round_trip_metrics
+                    if not np.isclose(record[m], regen[m],
+                                      rtol=1e-9, atol=1e-9, equal_nan=True)
+                ]
+                if divergent:
+                    print(f"  FAIL {city_name} / {strategy}: "
+                          f"divergent metrics on regen: {divergent}")
+                    for m in divergent:
+                        print(f"    {m}: stored={record[m]} regen={regen[m]}")
+                    round_trip_diffs += len(divergent)
+                else:
+                    print(f"  OK   {city_name} / {strategy}: "
+                          f"{len(_round_trip_metrics)} metrics reproduce from record")
+        except Exception as e:
+            print(f"  ERROR {city_name}: {e}")
+            import traceback; traceback.print_exc()
+            round_trip_diffs += 1
+
+    print(f"\n{'=' * 60}")
+    grand_total = (total_diffs + region_diffs + ownership_diffs
+                   + region_local_diffs + smoke_diffs + disclosure_diffs
+                   + round_trip_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -716,6 +775,8 @@ def main(update: bool) -> int:
             print(f"{smoke_diffs} region-local smoke-test divergence(s).")
         if disclosure_diffs:
             print(f"{disclosure_diffs} honesty-surface disclosure divergence(s).")
+        if round_trip_diffs:
+            print(f"{round_trip_diffs} saved-scenario round-trip divergence(s).")
         return 1
 
 
