@@ -557,7 +557,7 @@ st.markdown(
     "ecological changes into concrete impacts for planners and decision-makers."
 )
 st.markdown(
-    '- **Green Infrastructure (wetlands)** — best for flood  \n'
+    '- **Green Infrastructure (wetlands)** — strongest per-pixel flood-retention effect; citywide flood changes may be small  \n'
     '- **Food Forest** — best for cooling + food  \n'
     '- **High Density** — worst for ecological and nature-access outcomes  \n'
 )
@@ -3992,8 +3992,8 @@ def _render_natcap_fixed_scenario_view(scenario_id):
     st.dataframe(pd.DataFrame(_comp_rows),
                  use_container_width=True, hide_index=True)
     st.caption(
-        "Carbon $ derivation: NatCap-published carbon Δ × "
-        f"${EPA_SOCIAL_COST_CARBON}/t CO2e (EPA 2023, 2 % discount, 2030). "
+        "Carbon \\$ derivation: NatCap-published carbon Δ × "
+        f"\\${EPA_SOCIAL_COST_CARBON}/t CO2e (EPA 2023, 2 % discount, 2030). "
         "Baseline row shows absolute values; alternatives show Δ vs baseline."
     )
 
@@ -5927,8 +5927,24 @@ if st.session_state.get("just_optimized"):
             st.rerun()
 
 mode_text = f"using {PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()}"
+# Region active → name the region in the sentence so the user sees the
+# placement scope inline ("...eligible developed land within Council District 5,
+# allocating...") rather than only reading it as a sidebar caveat. Derived
+# from results['region_selection'] — layer display name + selected_ids.
+_rs_info = (results.get('region_selection') or {})
+_rs_layer_key = _rs_info.get('layer')
+_rs_ids_inline = _rs_info.get('selected_ids') or []
+if _rs_layer_key and _rs_ids_inline:
+    _rs_display_inline = _CURRENT_CITY_STATE.region_layer_display_names.get(_rs_layer_key, "region")
+    _rs_plural_inline = "s" if len(_rs_ids_inline) != 1 else ""
+    _within_phrase = (
+        f"eligible developed land within {_rs_display_inline}{_rs_plural_inline} "
+        f"{', '.join(_rs_ids_inline)}"
+    )
+else:
+    _within_phrase = "developed land"
 st.write(
-    f"This scenario converts **{pct_converted}%** of developed land, allocating "
+    f"This scenario converts **{pct_converted}%** of {_within_phrase}, allocating "
     f"**{green_infrastructure_pct}%** to green infrastructure, "
     f"**{food_forest_pct}%** to food forest, and **{pct_highdensity}%** "
     f"to high-density development, {mode_text}."
@@ -6218,16 +6234,11 @@ with tab2:
         },
     )
     st.caption(
-        "Notes: **every row** in the Temperature, Carbon stock, and Carbon Value $ "
-        "columns is Δ-vs-baseline (NatCap rows use NatCap's baseline; prototype rows "
-        "use the prototype's baseline). The NatCap baseline row reads \"baseline\" in "
-        "those columns — its absolute citywide anchors live in the *NatCap published "
-        "reference scenarios* view on the Scenario tab, not mixed into this "
-        "Δ-basis table. **Flood is intentionally excluded** (different derivations "
-        "between baseline and NatCap alternatives — the per-scenario flood card on "
-        "the Scenario tab is the right place for that). **Carbon Value $** is derived "
-        f"from carbon × EPA SC-CO2 (${EPA_SOCIAL_COST_CARBON}/t CO2e, EPA 2023, 2 % "
-        "discount, 2030) on every row — not itself a NatCap-published dollar value."
+        "Notes: Temperature, carbon stock, and carbon value are shown as changes "
+        "from each row's own baseline. NatCap-published rows use NatCap's published "
+        "baseline; Explorer-generated rows use the prototype baseline. Flood is "
+        "shown separately because NatCap reference and Explorer scenarios use "
+        "different derivations."
     )
     st.divider()
 

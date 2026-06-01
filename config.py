@@ -232,7 +232,7 @@ CITIES = {
             'council_districts': {
                 'path':         'data/sa/sa_council_districts.gpkg',
                 'label_field':  'District',
-                'display_name': 'Council district',
+                'display_name': 'Council District',
             },
             'bexar_tracts': {
                 'path':         'data/sa/tracts_bexar.shp',
