@@ -4211,13 +4211,14 @@ use_heat_priority = (placement_strategy == 'cooling-focused')
 st.sidebar.divider()
 
 # ── Interactive Region Map: sync clicks → sidebar multiselect (top-of-script) ─
-# Reads the plotly selector's event payload (lives in session_state under the
-# chart's key) and copies the clicked district labels into the multiselect's
-# session_state slot BEFORE the sidebar renders. This way the sidebar reads
-# the freshly-clicked selection on the same rerun the click came in — no
-# one-frame lag between clicking a polygon and the rest of the dashboard
-# updating. The reverse direction (dropdown → selector) auto-syncs because
-# the plotly figure is rebuilt each rerun from the canonical session_state.
+# Reads `region_map_picker_event` (stashed by tab3) and writes the clicked
+# labels into the multiselect's session_state slot BEFORE the sidebar reads
+# it. Tab3 runs after the sidebar, so a naive write would land one rerun
+# late; tab3's edge-triggered st.rerun() forces this handler to fire on the
+# very next rerun — sidebar multiselect, mask, scenario sentence, metric
+# cards, and the optimizer guard all reflect the click without a second
+# interaction. Reverse direction (dropdown → selector) auto-syncs because
+# the plotly figure is rebuilt each rerun from canonical session_state.
 _picker_event = st.session_state.get("region_map_picker_event")
 if _picker_event is not None:
     _picked_ids = sorted({
@@ -6688,12 +6689,28 @@ with tab3:
                 selection_mode='points',
                 key='region_map_picker',
             )
-            # Stash the event for the top-of-next-rerun handler. The handler
-            # consumes + clears it.
+            # Stash the event for the top-of-next-rerun handler, then force a
+            # rerun so the handler fires before the sidebar reads
+            # region_labels_<layer> on the click frame itself (tab3 runs AFTER
+            # the sidebar, so without this the click would land one rerun late).
+            # Edge-triggered: plotly's selection is sticky and _t3_event
+            # returns the same payload on every rerun — comparing picked labels
+            # against the multiselect's session_state slot guards against an
+            # infinite rerun loop. Once the handler has copied the labels over,
+            # subsequent reruns see equal sets and stop.
             if _t3_event:
                 _new_event = _t3_event if isinstance(_t3_event, dict) else dict(_t3_event)
                 if _new_event.get('selection', {}).get('points'):
-                    st.session_state['region_map_picker_event'] = _new_event
+                    _picked_ids = sorted({
+                        p.get("customdata") for p in
+                        _new_event['selection']['points']
+                        if p.get("customdata")
+                    })
+                    _ms_key = f"region_labels_{_t3_layer}"
+                    _current_ids = sorted(st.session_state.get(_ms_key, []) or [])
+                    if _current_ids != _picked_ids:
+                        st.session_state['region_map_picker_event'] = _new_event
+                        st.rerun()
         with _t3_clear_col:
             st.write("")
             st.write("")
