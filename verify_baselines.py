@@ -137,6 +137,9 @@ class _SessionStateStub:
     def __contains__(self, key):
         return key in self._store
 
+    def keys(self):
+        return list(self._store.keys())
+
 
 class _StubSt:
     def __getattr__(self, name):
@@ -754,10 +757,317 @@ def main(update: bool) -> int:
             import traceback; traceback.print_exc()
             round_trip_diffs += 1
 
+    # ── Subset Invariants Pass — placement-stage spatial assertions ─────────
+    # The 40/40 metric snapshots above verify that engine outputs are
+    # reproducible; they DON'T verify that conversions land inside the
+    # eligible / region / ownership masks. A placement-stage bug that wrote
+    # conversions outside the selected region would shift mean_hm / mean_cn
+    # in unintuitive ways (or not at all) — it would not read as a baseline
+    # diff. These three subset assertions plug that gap.
+    #
+    # Each cell: pick a (region_mask, ownership_mask) pair, call
+    # evaluate_scenario with the combined mask the live app would pass,
+    # compute converted_mask = (baseline_lulc != scenario_lulc), and assert
+    # converted ⊆ eligible, converted ⊆ region (if active), and
+    # converted ⊆ ownership (if active). Three checks kept separate as
+    # defense in depth — catches a bug where the eligible mask is
+    # miscomposed but happens to still subset the others.
+    #
+    # Funnel cardinalities are surfaced for each cell (developed →
+    # convertible → region_eligible → final_eligible → converted) so the
+    # deferred eligibility-funnel UI can reuse the exact counts.
+    print(f"\n{'=' * 60}")
+    print("Subset Invariants — placement-stage subset assertions")
+    print(f"{'=' * 60}")
+    subset_diffs = 0
+    _SUBSET_RECIPE_PCT10 = dict(
+        pct_converted=10, green_infrastructure_pct=50, food_forest_pct=50,
+    )
+    _SUBSET_RECIPE_PCT100 = dict(
+        pct_converted=100, green_infrastructure_pct=50, food_forest_pct=50,
+    )
+
+    def _convertible_in_raster(state):
+        m = np.zeros(state.ref_shape, dtype=bool)
+        m[state.convertible_pixels[:, 0], state.convertible_pixels[:, 1]] = True
+        return m
+
+    def _region_mask_from(state, layer_key, labels):
+        raster = state.region_rasters[layer_key]
+        label_list = state.region_layer_labels[layer_key]
+        pos_indices = [label_list.index(lbl) for lbl in labels]
+        return np.isin(raster, pos_indices)
+
+    def _ownership_mask_from(state, mode_key):
+        codes = list(app.OWNERSHIP_MODES[mode_key]['codes'])
+        return np.isin(state.ownership_raster, codes)
+
+    def _run_cell(state, label, region_mask, ownership_mask, recipe):
+        """Run one matrix cell. Returns (cell_diffs, funnel_dict).
+
+        region_mask / ownership_mask are None when the cell doesn't exercise
+        that constraint. The combined mask passed to evaluate_scenario
+        mirrors what the live app composes (region & ownership when both,
+        either one alone, or None for citywide)."""
+        nonlocal_diffs = 0
+        if region_mask is not None and ownership_mask is not None:
+            combined = region_mask & ownership_mask
+        elif region_mask is not None:
+            combined = region_mask
+        elif ownership_mask is not None:
+            combined = ownership_mask
+        else:
+            combined = None
+        results = app.evaluate_scenario(
+            **recipe, seed=42, placement_strategy='random',
+            selected_region_mask=combined,
+        )
+        baseline_lulc = state.lulc
+        scenario_lulc = results['scenario_lulc']
+        converted_mask = (baseline_lulc != scenario_lulc)
+        eligible_mask = _convertible_in_raster(state)
+
+        # ── Funnel cardinalities ──
+        funnel = {
+            'total_px':           int(state.ref_shape[0] * state.ref_shape[1]),
+            'developed_px':       int(len(state.developed_pixels)),
+            'convertible_px':     int(len(state.convertible_pixels)),
+            'region_px':          int(region_mask.sum()) if region_mask is not None else None,
+            'region_eligible_px': int((eligible_mask & region_mask).sum()) if region_mask is not None else int(eligible_mask.sum()),
+            'ownership_px':       int(ownership_mask.sum()) if ownership_mask is not None else None,
+            'final_eligible_px':  int((
+                eligible_mask
+                & (region_mask if region_mask is not None else np.ones_like(eligible_mask))
+                & (ownership_mask if ownership_mask is not None else np.ones_like(eligible_mask))
+            ).sum()),
+            'converted_px':       int(converted_mask.sum()),
+        }
+
+        # ── Invariant 1: converted ⊆ eligible (always) ──
+        out_eligible = int((converted_mask & ~eligible_mask).sum())
+        if out_eligible:
+            offender = np.argwhere(converted_mask & ~eligible_mask)[0]
+            print(f"  FAIL  {label}: {out_eligible} converted px outside eligible "
+                  f"(buildings/roads/non-developed); first at row={offender[0]} col={offender[1]}")
+            nonlocal_diffs += 1
+        # ── Invariant 2: converted ⊆ region (when region active) ──
+        if region_mask is not None:
+            out_region = int((converted_mask & ~region_mask).sum())
+            if out_region:
+                offender = np.argwhere(converted_mask & ~region_mask)[0]
+                print(f"  FAIL  {label}: {out_region} converted px outside region; "
+                      f"first at row={offender[0]} col={offender[1]}")
+                nonlocal_diffs += 1
+        # ── Invariant 3: converted ⊆ ownership (when ownership active) ──
+        if ownership_mask is not None:
+            out_own = int((converted_mask & ~ownership_mask).sum())
+            if out_own:
+                offender = np.argwhere(converted_mask & ~ownership_mask)[0]
+                print(f"  FAIL  {label}: {out_own} converted px outside ownership; "
+                      f"first at row={offender[0]} col={offender[1]}")
+                nonlocal_diffs += 1
+        if nonlocal_diffs == 0:
+            checks = ["eligible"]
+            if region_mask is not None:    checks.append("region")
+            if ownership_mask is not None: checks.append("ownership")
+            print(f"  OK    {label}: "
+                  f"converted={funnel['converted_px']:,} px ⊆ "
+                  f"{' ∩ '.join(checks)}; "
+                  f"funnel total={funnel['total_px']:,} → "
+                  f"developed={funnel['developed_px']:,} → "
+                  f"convertible={funnel['convertible_px']:,} → "
+                  f"final_eligible={funnel['final_eligible_px']:,} → "
+                  f"converted={funnel['converted_px']:,}")
+        return nonlocal_diffs
+
+    # ── SA matrix (6 cells) ──
+    try:
+        _rebind_city(app, "San Antonio, TX")
+        sa_state = app._CURRENT_CITY_STATE
+        sa_region = _region_mask_from(sa_state, "council_districts", ["5"])
+        sa_ownership = _ownership_mask_from(sa_state, "vacant_public")
+        sa_tiny_pixels = sa_state.convertible_pixels[:25]
+        sa_tiny_mask = np.zeros(sa_state.ref_shape, dtype=bool)
+        sa_tiny_mask[sa_tiny_pixels[:, 0], sa_tiny_pixels[:, 1]] = True
+        sa_multi = _region_mask_from(sa_state, "council_districts", ["5", "7"])
+        subset_diffs += _run_cell(sa_state, "SA / region-only (D5)",
+                                  sa_region, None, _SUBSET_RECIPE_PCT10)
+        subset_diffs += _run_cell(sa_state, "SA / region + ownership (D5 + vacant_public)",
+                                  sa_region, sa_ownership, _SUBSET_RECIPE_PCT10)
+        subset_diffs += _run_cell(sa_state, "SA / ownership-only (vacant_public)",
+                                  None, sa_ownership, _SUBSET_RECIPE_PCT10)
+        subset_diffs += _run_cell(sa_state, "SA / citywide",
+                                  None, None, _SUBSET_RECIPE_PCT10)
+        # Tiny: 25 eligible by construction; pct=100 to force all 25 conversions.
+        subset_diffs += _run_cell(sa_state, "SA / tiny region (25 px synthetic)",
+                                  sa_tiny_mask, None, _SUBSET_RECIPE_PCT100)
+        subset_diffs += _run_cell(sa_state, "SA / multi-region (D5 + D7)",
+                                  sa_multi, None, _SUBSET_RECIPE_PCT10)
+    except Exception as e:
+        print(f"  ERROR SA matrix: {e}")
+        import traceback; traceback.print_exc()
+        subset_diffs += 1
+
+    # ── MN matrix (4 cells — no ownership data) ──
+    try:
+        _rebind_city(app, "Minneapolis, MN")
+        mn_state = app._CURRENT_CITY_STATE
+        mn_layer = "downtown_tracts"
+        mn_labels = mn_state.region_layer_labels[mn_layer]
+        mn_first_label = mn_labels[0]
+        mn_second_label = mn_labels[1] if len(mn_labels) > 1 else mn_labels[0]
+        mn_region = _region_mask_from(mn_state, mn_layer, [mn_first_label])
+        mn_tiny_pixels = mn_state.convertible_pixels[:25]
+        mn_tiny_mask = np.zeros(mn_state.ref_shape, dtype=bool)
+        mn_tiny_mask[mn_tiny_pixels[:, 0], mn_tiny_pixels[:, 1]] = True
+        mn_multi = _region_mask_from(mn_state, mn_layer,
+                                     [mn_first_label, mn_second_label])
+        subset_diffs += _run_cell(mn_state, f"MN / region-only ({mn_first_label})",
+                                  mn_region, None, _SUBSET_RECIPE_PCT10)
+        subset_diffs += _run_cell(mn_state, "MN / citywide",
+                                  None, None, _SUBSET_RECIPE_PCT10)
+        subset_diffs += _run_cell(mn_state, "MN / tiny region (25 px synthetic)",
+                                  mn_tiny_mask, None, _SUBSET_RECIPE_PCT100)
+        subset_diffs += _run_cell(mn_state, f"MN / multi-region "
+                                            f"({mn_first_label}, {mn_second_label})",
+                                  mn_multi, None, _SUBSET_RECIPE_PCT10)
+    except Exception as e:
+        print(f"  ERROR MN matrix: {e}")
+        import traceback; traceback.print_exc()
+        subset_diffs += 1
+
+    # ── Subset Invariants Pass — city-switch guard transition test ──────────
+    # Mirror of the live-app reset: pre-populate an isolated session-state
+    # mock with SA region + ownership widget keys (the state a user would
+    # leave behind after picking District 5 + vacant_public on SA), then
+    # call `_reset_state_for_city_switch` directly. Assert every region /
+    # ownership / optimizer / slider widget key returns to its post-switch
+    # default. Failure here means a future edit to the reset helper dropped
+    # a key; the cell-by-cell pass/fail tells the maintainer which one.
+    print(f"\n{'=' * 60}")
+    print("Subset Invariants — city-switch guard transition test")
+    print(f"{'=' * 60}")
+    guard_diffs = 0
+
+    class _TestSessionState:
+        """Isolated session_state mock for the guard test. Implements the
+        subset of the streamlit session_state API that
+        `_reset_state_for_city_switch` consumes: get / pop / keys, item
+        and attribute set, attribute read. Owns its own dict so it can't
+        corrupt the shared `_SessionStateStub._store`."""
+        def __init__(self, initial):
+            object.__setattr__(self, "_d", dict(initial))
+        def get(self, key, default=None):
+            return self._d.get(key, default)
+        def pop(self, key, *args):
+            return self._d.pop(key, *args) if args else self._d.pop(key, None)
+        def keys(self):
+            return list(self._d.keys())
+        def __getattr__(self, name):
+            if name.startswith("_"):
+                raise AttributeError(name)
+            return self._d.get(name)
+        def __setattr__(self, name, value):
+            if name == "_d":
+                object.__setattr__(self, name, value)
+            else:
+                self._d[name] = value
+        def __contains__(self, key):
+            return key in self._d
+
+    try:
+        stale = {
+            # Region widget state — SA user picked District 5 via the
+            # dropdown AND the interactive map.
+            'region_apply_within':                  'Selected regions',
+            'region_layer':                         'council_districts',
+            'region_labels_council_districts':      ['5'],
+            'region_labels_bexar_tracts':           [],
+            'region_map_picker_event':              {'selection': {'points': [{'customdata': '5'}]}},
+            'region_map_picker_layer':              'council_districts',
+            # Ownership widget state — SA user picked vacant_public.
+            'ownership_filter_choice':              'Vacant publicly-owned land',
+            # Slider + optimizer state that the existing reset block was
+            # already clearing — re-asserted so a regression in either
+            # half of the helper surfaces clearly.
+            'slider_pct_converted':                 25,
+            'slider_gi_pct':                        70,
+            'slider_ff_pct':                        20,
+            'optimized_results':                    'fake-results-from-SA',
+            'just_optimized':                       True,
+            'applied_from_optimizer':               True,
+            '_applied_optimizer_values':            (25, 70, 20),
+            'active_example_scenario':              'cooling',
+        }
+        test_ss = _TestSessionState(stale)
+        app._reset_state_for_city_switch(test_ss)
+
+        # Expectations — each entry is (description, got, expected).
+        expectations = [
+            # Region widget keys all reset to entire-area defaults.
+            ('region_apply_within = "Entire analysis area"',
+                test_ss.get('region_apply_within'), 'Entire analysis area'),
+            ('region_layer cleared',
+                test_ss.get('region_layer'), None),
+            ('region_labels_council_districts cleared',
+                test_ss.get('region_labels_council_districts'), None),
+            ('region_labels_bexar_tracts cleared',
+                test_ss.get('region_labels_bexar_tracts'), None),
+            ('region_map_picker_event cleared',
+                test_ss.get('region_map_picker_event'), None),
+            ('region_map_picker_layer cleared',
+                test_ss.get('region_map_picker_layer'), None),
+            # Ownership widget key reset.
+            ('ownership_filter_choice = "No filter"',
+                test_ss.get('ownership_filter_choice'), 'No filter'),
+            # Slider state cleared so the new city renders against its
+            # own defaults.
+            ('slider_pct_converted cleared',
+                test_ss.get('slider_pct_converted'), None),
+            ('slider_gi_pct cleared',
+                test_ss.get('slider_gi_pct'), None),
+            ('slider_ff_pct cleared',
+                test_ss.get('slider_ff_pct'), None),
+            # Optimizer + preset-highlight state reset.
+            ('optimized_results cleared',
+                test_ss.get('optimized_results'), None),
+            ('just_optimized = False',
+                test_ss.get('just_optimized'), False),
+            ('applied_from_optimizer = False',
+                test_ss.get('applied_from_optimizer'), False),
+            ('_applied_optimizer_values cleared',
+                test_ss.get('_applied_optimizer_values'), None),
+            ('active_example_scenario = "balanced"',
+                test_ss.get('active_example_scenario'), 'balanced'),
+        ]
+
+        for name, got, want in expectations:
+            if got == want:
+                print(f"  OK   {name}")
+            else:
+                print(f"  FAIL {name}: got {got!r}, want {want!r}")
+                guard_diffs += 1
+
+        # No stale region_labels_* key should survive — the helper iterates
+        # every key with that prefix and drops it. Sanity check: scan the
+        # post-reset store for any leftover prefix match.
+        leftover = [k for k in test_ss.keys()
+                    if isinstance(k, str) and k.startswith('region_labels_')]
+        if leftover:
+            print(f"  FAIL region_labels_* sweep left these behind: {leftover}")
+            guard_diffs += len(leftover)
+        else:
+            print(f"  OK   region_labels_* sweep complete (no stale keys)")
+
+    except Exception as e:
+        print(f"  ERROR guard transition test: {e}")
+        import traceback; traceback.print_exc()
+        guard_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
-                   + round_trip_diffs)
+                   + round_trip_diffs + subset_diffs + guard_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -777,6 +1087,12 @@ def main(update: bool) -> int:
             print(f"{disclosure_diffs} honesty-surface disclosure divergence(s).")
         if round_trip_diffs:
             print(f"{round_trip_diffs} saved-scenario round-trip divergence(s).")
+        if subset_diffs:
+            print(f"{subset_diffs} subset-invariant divergence(s) — "
+                  "placement-stage spatial bug; see cell failures above.")
+        if guard_diffs:
+            print(f"{guard_diffs} city-switch guard divergence(s) — "
+                  "stale region/ownership state survived a city change.")
         return 1
 
 
