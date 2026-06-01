@@ -980,6 +980,120 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         subset_diffs += 1
 
+    # ── Ownership Finer Classes (Batch 1) — reconciliation assertion ───────
+    # Two checks (see OWNERSHIP_FINER_CLASSES_SPEC.md §"Verification"):
+    #
+    #  1. Rule-output reconciliation (±0.5%, OPTIONAL — needs archived GPKG):
+    #     Re-apply the six-way classifier to the archived BCAD GPKG,
+    #     aggregate `Acres` per class, assert the per-class polygon-Acres
+    #     totals match the locked targets within ±0.5%. This is the
+    #     load-bearing correctness check — it surfaces every rule
+    #     mislabel. Skipped (with a note) when the archived GPKG isn't
+    #     present (e.g. on a fresh checkout where the archive lives
+    #     outside the repo).
+    #
+    #  2. Raster-integrity reconciliation (±5%, ALWAYS RUNS — in-repo
+    #     only): Read the new two-band raster's band 1, count pixels per
+    #     class code, multiply by PIXEL_AREA_ACRES, assert each class
+    #     matches the in-AOI rasterization frozen at Batch 1's first run.
+    #     Catches rasterization regressions independently of the source
+    #     GPKG. ±5% accounts for rasterization rounding + AOI boundary
+    #     clip effects.
+    print(f"\n{'=' * 60}")
+    print("Ownership Finer Classes — Batch 1 reconciliation")
+    print(f"{'=' * 60}")
+    ownership_diffs_batch1 = 0
+    _OWN_CLASS_ENUM = {
+        'private': 0, 'city': 1, 'county': 2,
+        'state_federal': 3, 'school_university': 4, 'unknown': 5,
+    }
+    _PIXEL_AREA_ACRES = 0.2224
+    _RASTER_2BAND = Path("data/sa/sa_ownership_2band_30m.tif")
+    _RASTER_EXPECTED_AC = {
+        'private':           507_110.0,
+        'city':               41_044.0,
+        'county':              2_886.0,
+        'state_federal':      28_237.0,
+        'school_university':   6_030.0,
+        'unknown':            15_885.0,
+    }
+    _RULE_EXPECTED_AC = {
+        'private':           606_379.0,
+        'city':              126_634.0,
+        'county':              3_018.0,
+        'state_federal':      54_883.0,
+        'school_university':   6_430.0,
+        'unknown':             1_735.0,
+    }
+    _ARCHIVE_GPKG = Path(
+        "/Users/dkw-testing/Desktop/ecosystem_explorer_archive/"
+        "sa_ownership_bexar_2026-05-31.gpkg"
+    )
+
+    # Check (2) — raster integrity (always runs).
+    if _RASTER_2BAND.exists():
+        try:
+            import rasterio
+            with rasterio.open(_RASTER_2BAND) as src:
+                band1 = src.read(1)
+                # Sanity: must be a two-band file.
+                assert src.count == 2, f"expected 2 bands, got {src.count}"
+            print("Raster-integrity check (band 1 per-class in-AOI acres, ±5%):")
+            for cls_name, cls_code in _OWN_CLASS_ENUM.items():
+                actual_px = int((band1 == cls_code).sum())
+                actual_ac = actual_px * _PIXEL_AREA_ACRES
+                expected_ac = _RASTER_EXPECTED_AC[cls_name]
+                delta_pct = abs(actual_ac - expected_ac) / expected_ac * 100
+                ok = delta_pct <= 5.0
+                tag = "OK  " if ok else "FAIL"
+                print(f"  {tag} {cls_name:>20s}: {actual_ac:>10,.0f} ac "
+                      f"(expected ~{expected_ac:>10,.0f}, delta {delta_pct:+.2f}%)")
+                if not ok:
+                    ownership_diffs_batch1 += 1
+        except Exception as e:
+            print(f"  ERROR raster-integrity: {e}")
+            import traceback; traceback.print_exc()
+            ownership_diffs_batch1 += 1
+    else:
+        print(f"  SKIP raster-integrity: {_RASTER_2BAND} not in repo "
+              f"— run scripts/data/download_bexar_parcels.py "
+              f"--reclassify-from <archived.gpkg> to produce it")
+
+    # Check (1) — rule-output reconciliation (optional; archived GPKG outside repo).
+    if _ARCHIVE_GPKG.exists():
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "_dbp", "scripts/data/download_bexar_parcels.py"
+            )
+            _dbp = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(_dbp)
+            import geopandas as _gpd
+            import pandas as _pd
+            print("\nRule-output reconciliation "
+                  "(full-parcel polygon-Acres, ±0.5%):")
+            _g = _gpd.read_file(str(_ARCHIVE_GPKG), ignore_geometry=True)
+            _g['Acres'] = _pd.to_numeric(_g['Acres'], errors='coerce').fillna(0)
+            _g['cls6'] = _g['Owner'].map(_dbp._classify_six_way)
+            _actual = _g.groupby('cls6')['Acres'].sum()
+            for cls_name in _OWN_CLASS_ENUM:
+                actual_ac = float(_actual.get(cls_name, 0))
+                expected_ac = _RULE_EXPECTED_AC[cls_name]
+                delta_pct = abs(actual_ac - expected_ac) / expected_ac * 100
+                ok = delta_pct <= 0.5
+                tag = "OK  " if ok else "FAIL"
+                print(f"  {tag} {cls_name:>20s}: {actual_ac:>10,.0f} ac "
+                      f"(expected {expected_ac:>10,.0f}, delta {delta_pct:+.2f}%)")
+                if not ok:
+                    ownership_diffs_batch1 += 1
+        except Exception as e:
+            print(f"  ERROR rule-output: {e}")
+            import traceback; traceback.print_exc()
+            ownership_diffs_batch1 += 1
+    else:
+        print(f"\n  SKIP rule-output: archived GPKG not found at "
+              f"{_ARCHIVE_GPKG}")
+
     # ── Subset Invariants Pass — city-switch guard transition test ──────────
     # Mirror of the live-app reset: pre-populate an isolated session-state
     # mock with SA region + ownership widget keys (the state a user would
@@ -1112,7 +1226,7 @@ def main(update: bool) -> int:
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
                    + round_trip_diffs + subset_diffs + reconcile_diffs
-                   + guard_diffs)
+                   + guard_diffs + ownership_diffs_batch1)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -1141,6 +1255,10 @@ def main(update: bool) -> int:
         if guard_diffs:
             print(f"{guard_diffs} city-switch guard divergence(s) — "
                   "stale region/ownership state survived a city change.")
+        if ownership_diffs_batch1:
+            print(f"{ownership_diffs_batch1} ownership finer-classes "
+                  "divergence(s) — raster or rule output drifted; see "
+                  "OWNERSHIP_FINER_CLASSES_SPEC.md for expected values.")
         return 1
 
 
