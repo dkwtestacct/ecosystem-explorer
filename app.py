@@ -4567,17 +4567,22 @@ with st.sidebar.container(border=True):
             "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
         )
 
-    # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 1 —
-    # optimizer guard. The optimizer leans on the citywide lookup and its
-    # citywide-discovery framing doesn't cohere with placement-diluted
-    # metrics, so we block when either a region OR an ownership filter is
-    # active. Placement-constrained optimization is a feature, not a guard —
-    # deferred to Phase 2.
-    _optimizer_blocked_by_placement = (
+    # Optimizer Reversal Pass — the Optimize button used to disable when
+    # `selected_region_mask` or `selected_ownership_mask` was set. The
+    # surrogate is citywide-trained (no region/ownership param into
+    # optimize_scenario — that's Phase 2), but the Apply path already
+    # routes suggestions through evaluate_scenario with the combined mask
+    # (see app.py:4751-4757), so a region+ownership scenario applied from
+    # an optimizer suggestion produces an engine-validated, correctly-
+    # masked result. The honest framing is "suggestions are citywide
+    # recommendations and ignore your current selection; predicted values
+    # won't match the region-applied result" — rendered as a caption when
+    # any filter is active, NOT a disabled button.
+    _filter_active = (
         st.session_state.get('selected_region_mask') is not None
         or st.session_state.get('selected_ownership_mask') is not None
     )
-    if st.button("Optimize", disabled=_optimizer_blocked_by_placement):
+    if st.button("Optimize"):
         with st.spinner("Searching for most efficient tradeoff scenarios..."):
             st.session_state.optimized_results = optimize_scenario(
                 surrogate, min_flood, min_cool, min_food, max_runoff,
@@ -4590,11 +4595,12 @@ with st.sidebar.container(border=True):
         else:
             st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
             st.session_state.just_optimized = True
-    if _optimizer_blocked_by_placement:
+    if _filter_active:
         st.caption(
-            "The optimizer explores the entire analysis area. "
-            "Clear the region selection and/or ownership filter to use it. "
-            "*(Placement-constrained optimization is a Phase 2 follow-on.)*"
+            "Suggestions are citywide recommendations and ignore your "
+            "current selection; predicted values won't match the "
+            "region-applied result. Apply a suggestion to evaluate it "
+            "under your filters."
         )
 
 st.sidebar.divider()

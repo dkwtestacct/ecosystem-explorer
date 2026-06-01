@@ -787,6 +787,15 @@ def main(update: bool) -> int:
     _SUBSET_RECIPE_PCT100 = dict(
         pct_converted=100, green_infrastructure_pct=50, food_forest_pct=50,
     )
+    # Optimizer Reversal Pass — an optimizer-style recipe (high conversion,
+    # mixed GI/FF; the kind of mix the citywide-trained surrogate would
+    # actually recommend) applied under region+ownership. Confirms converted
+    # ⊆ region ∩ ownership for optimizer-applied scenarios, locking in the
+    # honesty: the surrogate's predictions ignore the masks, but the
+    # post-Apply engine evaluation respects them exactly.
+    _SUBSET_RECIPE_OPTIMIZER = dict(
+        pct_converted=30, green_infrastructure_pct=60, food_forest_pct=40,
+    )
 
     def _convertible_in_raster(state):
         m = np.zeros(state.ref_shape, dtype=bool)
@@ -929,6 +938,11 @@ def main(update: bool) -> int:
             # Tiny: 25 eligible by construction; pct=100 to force all 25 conversions.
             (sa_state, "SA / tiny region (25 px synthetic)", sa_tiny_mask, None, _SUBSET_RECIPE_PCT100),
             (sa_state, "SA / multi-region (D5 + D7)", sa_multi, None, _SUBSET_RECIPE_PCT10),
+            # Optimizer-applied: high-conversion mixed GI/FF recipe under
+            # region+ownership. Locks in converted ⊆ region ∩ ownership
+            # for the scenario class the surrogate would suggest.
+            (sa_state, "SA / optimizer-applied recipe under region + ownership",
+             sa_region, sa_ownership, _SUBSET_RECIPE_OPTIMIZER),
         ]:
             _sd, _rd = _run_cell(*_cell_args)
             subset_diffs += _sd
