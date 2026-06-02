@@ -38,8 +38,8 @@ Metrics on the metric cards run live on every slider change — your sidebar set
 | Tab | What you see |
 |---|---|
 | **Scenario** | Sidebar slider state → 13 metric cards in three categories (🌿 Ecological / 👥 Human & Social / 💵 Economic) plus a 📊 Cost Effectiveness sub-section. Each card carries a validation badge (see §4). Below the cards: a plain-language scenario summary, a Baseline-vs-Scenario comparison expander, and small Flood / Cooling / Food bar charts. |
-| **Tradeoff Analysis** | A Plotly tradeoff chart with Flood Retention on X and Heat Mitigation Index on Y, populated with current scenario (purple star), saved scenarios (purple circles, sized by food production), optimizer suggestions (orange diamonds with uncertainty error bars), Pareto frontier (gold), and per-city reference benchmarks. Also: Best Scenarios by Goal panel and Input Influence bar chart. |
-| **Map View** | Pixel-level raster showing which developed pixels changed and to what cover (teal = Green Infrastructure, green = Food Forest, red = High Density). Useful for confirming where placement strategies concentrated the converted pixels. |
+| **Tradeoff Analysis** | A Plotly tradeoff chart with Flood Retention on X and Heat Mitigation Index on Y, populated with current scenario (purple star), saved scenarios (purple circles, sized by food production), optimizer suggestions (orange diamonds with 10th/90th percentile error bars from the surrogate's tree ensemble — see §8), Pareto frontier (gold), and per-city reference benchmarks. Also: the cross-source Compare scenarios table (NatCap-published + current + saved rows side by side with Area + Ownership columns) and a `Download scenario summary (CSV)` button. **Best Scenarios by Goal** (the citywide precomputed library) renders only when no Region Selection and no Eligible-land filter is active — under either filter it hides with a one-line note explaining why (the rankings are citywide and don't reflect your filter). |
+| **Map View** | Pixel-level raster showing which developed pixels changed and to what cover (teal = Green Infrastructure, green = Food Forest, red = High Density). When a region is selected, this tab also surfaces the **interactive region-picker** map (click polygons to add or remove from the selection — multi-select via shift/ctrl) and a five-row **eligibility funnel** that traces convertible-pool dropouts (see §2 *Eligibility funnel*). |
 
 ### Sidebar controls
 
@@ -52,9 +52,42 @@ Metrics on the metric cards run live on every slider change — your sidebar set
 | **Spatial Priority: Target High Heat-Exposure Areas** | Toggle. When on, converted pixels are sampled with higher probability in NLCD 23 > 22 > 21 areas (development-intensity proxy). |
 | **Placement strategy** | Radio picker over five strategies — see §5. |
 | **Example Scenario buttons** | Three one-click presets: Green Infrastructure (100 % GI at 10 % converted), Food Forest (100 % FF), High Density (100 % HD — control case). |
-| **Find Best Scenario** | Sliders for minimum flood / cooling / food / carbon, then the **Optimize** button that searches the surrogate over ~10,000 candidates and returns up to 5 Pareto-front suggestions. The optimizer is reframed as scenario *discovery* — see §8 for the framing. |
+| **Region Selection** | "Apply changes within" radio (Entire analysis area / Selected regions) + a region-layer dropdown + a multiselect of region labels. Picking one or more polygons constrains conversions to inside them. Per-pixel engine is the same validated math; only the WHERE narrows. SA layers: council districts, Bexar tracts. MN layer: downtown tracts. See §2 *Region selection + region-local metrics* below. |
+| **Eligible land filter** (SA only) | Always-on exclusions (buildings / roads / existing natural land) plus five finer ownership classes as multi-select checkboxes — `City`, `County`, `State or federal`, `School district (K-12 public)`, `College or university` — plus a `Limit to vacant parcels only` overlay and three quick-set buttons (`Public` / `Vacant + Public` / `Clear`). Mask = union of checked classes (∩ vacant if toggled). The `Public` quick-set = city + county + state-federal + school; `university` is intentionally OUT of the public rollup because that bucket mixes public (UT / A&M / Alamo CCD) and private (Trinity, St. Mary's, OLLU) institutions. **Rule-derived caveat** (also shown as a sidebar caption + as the `ownership_rule_derived` entry in exported metadata.json): classes are parsed from BCAD owner names + exemption codes, not validated against a title registry; `school` matches `ISD` / `SCHOOL DISTRICT` only (charters and private K-12 fall through to `private`); `university` mixes public + private. Planning screen, not verified ownership. |
+| **Find Best Scenario** | Sliders for minimum flood / cooling / food / carbon, then the **Optimize** button that searches the surrogate over ~10,000 candidates and returns up to 5 suggestions. The surrogate is **citywide-trained** — it does NOT take a region or ownership mask. When you have a Region or Eligible-land filter active, the sidebar caption next to the button warns: *"Suggestions are citywide recommendations and ignore your current selection; predicted values won't match the region-applied result. Apply a suggestion to evaluate it under your filters."* The post-Apply scenario IS evaluated under the filters by the full engine — only the suggestions themselves ignore them. See §8. |
 | **Export for InVEST** | (San Antonio only) packages the active scenario as a runnable canonical InVEST 3.19.0 input bundle. See §8 for the bundle structure. |
 | **⚙️ Advanced Settings** | Carbon-rate sliders (MN only — SA reads NatCap's four-pool table directly) and the model-quality mode radio. |
+
+### Region selection + region-local metrics
+
+When you pick one or more region polygons in the sidebar, conversions are placed only inside that mask (intersected with the convertible pool, defined as developed land minus buildings, roads, and existing natural land). The Scenario tab gains a **Selected-region impact** table beneath the citywide metric cards: each row pairs the per-metric region-clipped value with the citywide value so the two are honest about each other.
+
+Region-local readings inherit per-metric validation badges from the citywide cards — region-local doesn't change the engine, only the aggregation scope. Two locked caveats:
+
+- **Flood routing.** The flood retention metric is a closed-form SCS-CN volume scaled to the region's developed area, not routed hydrology. Regional CN means legitimately differ from citywide ones.
+- **Reach effects (UCM / UNA / UMH).** The three reach models (~600 m for cooling, ~800 m for nature access, ~300 m for mental health) have spillover at the region boundary — effects produced by in-region conversions that propagate just outside the boundary are reflected in the citywide column but NOT in the region-local column. Documented in the export bundle as the `region_local_spillover_reach_models` divergence.
+
+Reconciliation contract: for every decomposable metric, computing the region-local value over the entire AOI must equal citywide (machine-checked by `verify_baselines.py`). That's how the region-local code path stays trustworthy.
+
+### Eligibility funnel
+
+On the Map View tab, when a region is selected the panel shows a small five-row funnel that traces where the convertible pool drops out at each step:
+
+```
+Selected area:                       e.g. 12,346 acres
+Developed land:                       2,876 acres
+After roads / buildings / existing nature: 337 acres
+After ownership filter:                  34 acres       (only when ownership active)
+Converted:                                34 acres
+```
+
+When ownership isn't active the "After ownership filter" row is omitted. Acres come from the same record fields the metric cards use; numbers reconcile to the audit expander and the comparison-table Area / Ownership columns by construction.
+
+### Saved scenarios, audit expander, and CSV export
+
+- **Save this scenario** appends the current scenario's record to a per-session list. **Saved scenarios are session-only** (lost on page refresh or server restart) — the in-app caption next to the saved list and at the export site says so explicitly. There is no disk persistence and no "load from file" path.
+- **Scenario audit** is a collapsed expander under the provenance header on the Scenario tab. It opens with a prose sentence (what was converted, where, under what ownership, with which strategy) and then a 9-row field list: Source · Area · Ownership · Placement · Seed · Eligible acres · Converted acres · Validation · Export schema. Every field reads the underlying record directly — no recomputation.
+- **Download scenario summary (CSV)** is the durable export. One row per scenario (current + every saved scenario for the active city); ~60 columns covering identity + provenance + region + ownership (including a multi-class `ownership_classes` column and a `ownership_vacant_only` boolean) + conversion mix + placement + seed + schema_version + citywide + region-local metrics. NatCap reference rows are intentionally excluded — they don't carry a full record. The CSV is what survives the page refresh.
 
 ### Scenario summary
 
@@ -272,7 +305,7 @@ InVEST UMH (added in v3.19.0) computes preventable mental health cases via `PC =
 - **How it is computed** — **MN:** `TOTAL_POTENTIAL_DAMAGE_USD × max(0, runoff_reduction_fraction)`, where `TOTAL_POTENTIAL_DAMAGE_USD = Σ(building_footprint_m² × per_type_damage_rate_$/m²)` from `Damage_loss_table_MN.csv` (Other $40, Commercial $120, Residential $150, Industrial $100 per m²). Capped at $0 when the scenario warms / increases runoff. **SA:** displayed runoff-reduction volume only.
 - **Units** — **MN:** USD/yr. **SA:** acre-feet.
 - **Validation status** — `≈ Aligned method`. Canonical SCS-CN underneath; MN dollar approach is a proportional scaling rather than InVEST UFR's per-watershed `serv_blt` indicator (which the InVEST docs themselves call "only an indicator of service, not an actual measure of damage or savings").
-- **Main caveat** — **Order-of-magnitude.** Direction tracks well; absolute magnitudes do not. For **Minneapolis Full** the dollar card returns "—" with an explanatory tooltip — OSM-only buildings don't carry the per-type codes the formula requires (Option A — see §7).
+- **Main caveat** — **Order-of-magnitude.** Direction tracks well; absolute magnitudes do not. For **Minneapolis Full** the dollar card returns "—" with an explanatory tooltip — OSM-only buildings don't carry the per-type codes the formula requires (Option A — see §7). On the **Selected-region impact** table (region scenarios), the flood-damage row reads **"n/a — no damage valuation available"** for SA and the real $ figure for MN — the trigger keys on the city's `damage_table_file` config, not on the computed value, so an MN scenario that legitimately produces $0 avoided still shows $0 (real number), not n/a.
 
 #### Cooling Energy Savings
 
@@ -296,11 +329,11 @@ Three sub-ratios under Economic — `Cost / Acre-Foot Prevented`, `Cost / °F Co
 
 | Ratio | Formula | Notes |
 |---|---|---|
-| Cost / Acre-Foot Prevented | `total_cost_$ ÷ (baseline_runoff − scenario_runoff)` | N/A when scenario increases runoff. |
-| Cost / °F Cooling | `total_cost_$ ÷ (−temp_change_f)` | N/A when scenario warms. Inherits the ±2 °F uncertainty of the HM-to-temp calibration. |
-| Cost / 1,000 People Fed | `total_cost_$ ÷ (people_fed ÷ 1,000)` | N/A when no food-forest pixels. Inherits the food yield benchmark uncertainty. |
+| Cost / Acre-Foot Prevented | `total_cost_$ ÷ (baseline_runoff − scenario_runoff)` | N/A when scenario increases runoff, **or when runoff reduction is below ~10 ac-ft** (screening floor). |
+| Cost / °F Cooling | `total_cost_$ ÷ (−temp_change_f)` | N/A when scenario warms, **or when cooling magnitude is below ~0.05 °F** (screening floor). Inherits the ±2 °F uncertainty of the HM-to-temp calibration. |
+| Cost / 1,000 People Fed | `total_cost_$ ÷ (people_fed ÷ 1,000)` | N/A when no food-forest pixels, **or when fewer than 100 people fed** (screening floor). Inherits the food yield benchmark uncertainty. |
 
-All three return **N/A** when the denominator is zero or negative (no improvement vs baseline), or when total cost is zero (no conversions). All three are flagged `Prototype` — app-level synthesis without an InVEST counterpart.
+All three return **N/A** when the denominator is zero or negative (no improvement vs baseline), when total cost is zero (no conversions), **or when the benefit denominator is below the per-metric screening floor.** The floors guard against spuriously sharp dollar figures from near-zero denominators — region scenarios that produce only a fraction of an acre-foot of runoff reduction or hundredths of a degree of cooling would otherwise read as e.g. "$961k per ac-ft," which looks precise but isn't informative. All three are flagged `Prototype` — app-level synthesis without an InVEST counterpart.
 
 ---
 
@@ -379,6 +412,8 @@ The dashboard's **Find Best Scenario** panel uses a Random Forest surrogate trai
 | Method | RF surrogate predicts on ~10,000 random (pct, GI%, FF%) candidates, returns top-5 by a balanced score after threshold-filtering and Pareto-front deduplication | NatCap ROOT's LP optimization (max Σ wᵢ Vᵢₛₐ xₛₐ at spatial-decision-unit level with production possibility frontiers and agreement maps) |
 | When trust the number | When you **Apply** a suggestion — at that point the displayed cards reflect a full-raster evaluation by the canonical-engine-verified models, not surrogate predictions | The surrogate diamonds + uncertainty bars on the tradeoff chart are predictions; treat them as candidates worth verifying |
 | Spatial geometry | The surrogate cannot see the spatial geometry of where pixels are placed (it inputs only `pct, GI%, FF%`) — Nature Access predictions in particular are spatial-trend-only | A spatially-explicit optimizer |
+| Region / ownership awareness | **Citywide-trained.** The surrogate sees only the citywide pixel pool — it does NOT take a region or ownership mask. When you Optimize with a filter active, the suggestions still come from the citywide search; the sidebar caption next to the button surfaces this explicitly. Apply still routes through the full engine WITH the filter, so the post-Apply scenario IS evaluated under your selection — only the suggestions themselves ignore it. | A region-constrained optimizer (deferred — would require training a region-aware surrogate or running the engine inside the candidate search loop). |
+| **Confidence range** (P10 / P90) | The orange-diamond error bars on the Tradeoff Space chart + the uncertainty columns in the optimizer-result table are **10th / 90th percentile predictions across the Random Forest's trees** (`predict_with_uncertainty` in `surrogate.py`). They reflect the surrogate's per-prediction disagreement, not measurement uncertainty. **Scope is surrogate-only**: the live metric cards, the validated per-pixel engine, and the displayed-validated taxonomy do NOT use P10 / P90 — these belong exclusively to the optimizer overlay and its result table. | A measurement uncertainty range, a confidence interval in the statistical sense, or anything the engine itself emits. |
 
 For the deep mechanics (training scenarios, RF tree counts per model-quality mode, lookup-table internals, schema-version discipline), see `docs/internal/ARCHITECTURE.md` (At a glance + Layer 1/2/3 sections).
 

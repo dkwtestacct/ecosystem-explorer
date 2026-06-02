@@ -79,7 +79,7 @@ Every scenario carries one of four **provenance** values from `natcap_scenarios.
 
 The active city's state is a frozen `CityState` NamedTuple produced by `_load_city_runtime_state(city_key)`. Fields:
 
-- **Rasters** — `cooling_lulc`, `cooling_lulc_compound` (SA only — `None` for MN), `soil_group`, `ndvi_baseline`, `pop_count_raster`, `et_raster`, `buildings_mask`, `buildings_type`, `roads_mask`, `tracts_index`
+- **Rasters** — `cooling_lulc`, `cooling_lulc_compound` (SA only — `None` for MN), `soil_group`, `ndvi_baseline`, `pop_count_raster`, `et_raster`, `buildings_mask`, `buildings_type`, `roads_mask`, `tracts_index`, `region_rasters: dict[str, np.ndarray]` (per-layer positional-index raster for region selection — council districts, Bexar tracts, downtown tracts), `ownership_raster` (SA only — **Band 1 of the two-band ownership TIF**; int8 class enum 0–6: 0=private, 1=city, 2=county, 3=state-federal, 4=school, 5=unknown, 6=university; nodata=-1), `ownership_vacant_raster` (SA only — **Band 2 of the same file**; int8 vacant flag 0/1; nodata=-1)
 - **Lookup arrays** (compound-keyed for SA, NLCD-keyed for MN) — `cn_a_arr`, `cn_b_arr`, `cn_c_arr`, `cn_d_arr` (CN per lucode × soil group); `shade_arr`, `kc_arr`, `albedo_arr` (UCM biophysical); `urban_nature_arr` (UNA); `c_above_arr`, `c_below_arr`, `c_soil_arr`, `c_dead_arr` (Carbon four-pool); `compound_to_nlcd`, `compound_to_nlcd_tree`, `compound_after_ff`, `compound_after_gi`, `compound_after_hd` (SA conversion lookups)
 - **Baseline rasters** (precomputed once) — `baseline_hmi_raster`, `baseline_ne_raster`, `baseline_access_score`, `baseline_runoff_pixel`, `convertible_mask`
 - **Distance fields** — `nature_distance: dict[int, np.ndarray]` (per-NLCD-lucode distance rasters, persisted under `data/precomputed/<city>/nature_distance_<lucode>.npy`)
@@ -105,6 +105,56 @@ The Streamlit map rendering uses EPSG:3857 internally (because tile servers and 
 City configs live in `config.CITIES` as a dict-of-dicts. Each entry declares input file paths, the canonical CRS, biophysical-table filenames, per-city scalars (`uhi_max_c`, `design_storm_inches`, `una_demand_m2_per_capita`, `una_search_radius_m`, `una_decay_function`), and `available: bool`. The sidebar selector populates from `available=True` entries. `_load_city_runtime_state` reads the active city's config dict and produces the matching `CityState`. Adding a new city is a config entry + the on-disk input files; no code changes needed for the loader path.
 
 Active cities in the UI today: **Minneapolis, MN** (downtown extent) and **San Antonio, TX** (Bexar bbox). **Minneapolis Full, MN** is implemented in the codebase with `available=False` (hidden — see §10).
+
+### Two-band ownership raster + single-source mask helper
+
+**Raster shape.** SA-only. `data/sa/sa_ownership_2band_30m.tif` is a two-band int8 TIF on the SA grid. Band 1 = ownership class enum 0–6 (private / city / county / state-federal / school / unknown / university; `private=0` and `unknown=5` deliberately stable across schema bumps). Band 2 = is_vacant 0/1. Both bands carry nodata = -1 (outside the AOI). MN has no ownership configuration; its `ownership_raster` / `ownership_vacant_raster` are `None`.
+
+**Why two bands not single-band code.** Twelve single-band codes (six classes × {vacant, not-vacant}) would couple "what class" and "is vacant" into one int — adding a class later means picking new codes and updating every consumer's `np.isin(...)` filter. Two orthogonal bands keep the dimensions independent: `mask = (band1 == class_value) & (band2 == 1)`. Per-class composability falls out for free. Per-class priority at the rasterizer (`scripts/data/download_bexar_parcels.py` — public classes overwrite private/unknown at overlapping pixel edges via priority-ordered per-class rasterization) is the only mechanism for resolving overlap; consumers don't need to know the priority order.
+
+**Single-source mask helper.** All ownership-mask construction in the live app routes through one function — `_build_ownership_mask(band1, band2, mode_cfg)` (`app.py:309`) — which accepts a `mode_cfg` dict with optional `band1_eq` / `band1_in` / `band2_eq` keys and returns the boolean mask. Two cfg producers feed it:
+
+- **Static cfgs** — `OWNERSHIP_MODES[mode_key]` gives a baked-in cfg for each named mode (the 8 single-class keys, 3 coarse rollups, 6 vacant composites — see *Composite filter shape* below).
+- **Synthesized cfgs** — `_compose_eligible_filter_cfg(class_names, vacant_overlay)` (`app.py:185`) builds an OWNERSHIP_MODES-compatible cfg for the multi-class checkbox UI when ≥ 2 classes are checked (`band1_in` = sorted union of the per-class enum values, plus optional `band2_eq=1`).
+
+The live sidebar's `_resolve_eligible_filter_state` picks between the two producers depending on selection cardinality, then calls `_build_ownership_mask` with the resulting cfg. The same `_build_ownership_mask` powers `verify_baselines.py`'s subset-invariant matrix — directly from the union cell (`verify_baselines.py:1061` calls `app._build_ownership_mask` with a `_compose_eligible_filter_cfg` cfg) and through a thin test-side wrapper `_ownership_mask_from(state, mode_key)` (`verify_baselines.py:919`) that does the `OWNERSHIP_MODES` lookup and forwards to `app._build_ownership_mask`. So test and live paths share the actual mask-construction function — a regression in `_build_ownership_mask` would surface as a matrix-cell failure, not as a silent divergence between live and test behavior.
+
+**Composite filter shape — `results['ownership_filter']` accepts three values:**
+
+| Shape | When | Example |
+|---|---|---|
+| `None` | No filter active | — |
+| `str` (an `OWNERSHIP_MODES` key) | Single class, or one of the coarse rollups (`public` / `vacant` / `vacant_public`), or a single-class + vacant composite that has a pre-baked `_vacant` mode key | `'city'`, `'school_vacant'`, `'vacant_public'` |
+| `dict` `{'classes': [...], 'vacant': bool}` | Multi-class composite from the checkbox UI (≥ 2 classes, optional vacant overlay) | `{'classes': ['city', 'school'], 'vacant': True}` |
+
+The schema-33 tag (`SCENARIO_SCHEMA_VERSION` in `app.py`) marks the addition of the composite-dict shape. Consumers (`_cs_ownership_for_row`, `_ownership_source_suffix`, the export bundle composition, the CSV row builder) all route through `_normalize_ownership_filter(value)` which de-shapes all three forms into a canonical `{classes, vacant_only, mode_key, label}` record — so display, audit, comparison-table, and CSV cells share one normalization path.
+
+**Engine boundary — the engine never reads `ownership_raster`.** `evaluate_scenario` takes a single boolean mask (`selected_region_mask`), composed by the caller (the sidebar render block) as `region_mask & ownership_mask` and intersected with the convertible pool inside the engine. The engine doesn't know which class the mask came from — it just consumes the resulting set of eligible pixels. **This boundary is what keeps the 40/40 baselines byte-identical** across every batch of the Finer Ownership Classes workstream: a new class, a new rollup, a new composite, a new UI panel — none of them touch the equations.
+
+### Subset-invariant contract
+
+**The standing assertion.** For every scenario computed at runtime, the engine's placement must satisfy three subset relations:
+
+```
+converted_mask = (BASELINE_LULC != results['scenario_lulc'])
+
+converted ⊆ eligible                                    (always)
+converted ⊆ region_mask          (when region active)
+converted ⊆ ownership_mask       (when ownership active)
+```
+
+`eligible` is the convertible pool projected onto the raster (`True` at every `CONVERTIBLE_PIXELS` position, `False` elsewhere). The three relations are kept SEPARATE in the assertion — defense in depth, because a miscomposed eligible mask could happen to still subset the region/ownership masks and slip through a combined check.
+
+**Union case.** When the multi-class checkbox UI is active, `ownership_mask = ⋃ band1_class_masks (∩ vacant_mask if toggled)`. The same subset relation `converted ⊆ ownership_mask` covers the union case unchanged — `_build_ownership_mask` handles both single-class and union via the unified `band1_eq` / `band1_in` schema. The union cell in the matrix (`SA / region + city ∪ school (D5 union)`) also carries an **explicit non-empty assertion** — `|converted| > 0` inside the union — because a subset check alone is vacuously satisfied by zero conversions; the non-empty check is what catches a bug where the composite cfg resolves to an empty mask.
+
+**Machine-checked alongside 40/40.** `verify_baselines.py` runs the subset matrix (16 cells: SA 12 + MN 4) and the union cell on every gate pass, alongside the 40 (city × scenario × strategy) baseline snapshots. The matrix includes:
+
+- `region-only`, `region + ownership`, `ownership-only`, `citywide`, `tiny region (25 px synthetic)`, `multi-region` — the foundational cases.
+- `optimizer-applied recipe under region + ownership` — locks the optimizer-Apply path (the surrogate's recipes ignore filters; the post-Apply engine evaluation respects them).
+- `region + city`, `region + state-federal`, `region + school`, `region + university`, `region + county` — one per finer ownership class.
+- `region + city ∪ school` — the multi-class union path, with the explicit non-empty assertion.
+
+The matrix shares the same `_ownership_mask_from` / `_build_ownership_mask` helpers the live app uses — a divergence between live behavior and test expectations would show up as a cell failure rather than a baseline drift. Funnel reconciliation runs alongside (each region-active cell asserts `funnel.final_eligible_px == record.eligible_pixels_in_region` and `funnel.converted_acres == record.converted_acres`), so the eligibility-funnel UI is tied to the same record fields the subset assertions exercise.
 
 ---
 

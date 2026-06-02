@@ -582,6 +582,29 @@ Path C chosen because it aligns with NatCap's documented stance and is the most 
 
 **Code touchpoints.** The Tradeoff Analysis tab's comparison-section render (top of tab2, before `#### Tradeoff Space`); `_PROVENANCE_HEADER_INFO` (source-to-validation mapping); `natcap_validation.published_delta`; `saved["provenance"]` field on each saved-scenario dict.
 
+### 8.4 KNOWN_DIVERGENCES — surfaces and the export-bundle completeness check
+
+**Decision.** Pre-vetted methodology divergences from canonical / published values are stored as a single locked list (`KNOWN_DIVERGENCES` in `export_invest_bundle.py`, ~7 entries today). The list surfaces in two places:
+
+- **Export bundle metadata.json** — every exported zip carries the entire list verbatim under `scenario.known_divergences` so a downstream user opening a bundle reads the disclosures alongside the inputs, not separately.
+- **App-side sidebar caveat captions** — the captions next to a relevant control re-state the same caveat in user-facing prose where the user is making the choice. Two examples currently wired:
+  - Eligible-land filter panel (sidebar) carries the `ownership_rule_derived` caveat — classes are rule-derived from BCAD owner-name + exemption parsing, NOT validated against a title registry; `school` matches `ISD` / `SCHOOL DISTRICT` only; `university` spans both public (UT / A&M / Alamo CCD) and private (Trinity, St. Mary's, OLLU) campuses.
+  - Region-local Selected-region impact table carries the `region_local_spillover_reach_models` caveat — UCM / UNA / UMH reach effects are clipped to the region boundary.
+
+**Export-bundle completeness check.** `verify_baselines.py:680-689` (Honesty-Surface Pass Commit 4) enforces **bidirectional set-equality** between the in-memory `eib.KNOWN_DIVERGENCES` list and the exported metadata.json's `scenario.known_divergences` array — both `expected_ids - emitted_ids` (silently dropped in the serializer) and `emitted_ids - expected_ids` (unexpected extras in the output) fail the gate. The guarantee is "the export bundle reflects the in-memory list exactly," NOT "the list can only grow." Entries can be added or removed freely; the assertion just enforces that whatever's in `KNOWN_DIVERGENCES` matches what gets stamped onto metadata.json. The two app-side caveat captions in the prior paragraph are NOT machine-checked — they're prose, and a refactor that drops one of those captions wouldn't trip any assertion.
+
+**Why disclosure-as-data, not prose-only.** A prose caveat in REFERENCE.md or an app caption can drift silently. A data row in `KNOWN_DIVERGENCES` that's stamped into every export bundle and machine-checked against the serializer cannot — a refactor that breaks the metadata.json serialization fails the gate.
+
+**Three-state taxonomy cross-reference.** The four-badge per-card vocabulary in §8.1 ties to the broader three-state framing the project communicates externally: *validated where possible* (per-pixel parity vs canonical InVEST, MAE ≈ 0) / *displayed where NatCap-published* (the dashboard surfaces NatCap's number; doesn't reproduce it) / *exploratory where the model is sound but no anchor exists* (Explorer-generated and Optimizer-suggested scenarios — engine-validated, no per-scenario reference value to compare against). The full three-state framing lives in STRATEGY.md §3-§4 and the in-app B2a "validated vs displayed vs exploratory" note; this section's four badges are the per-card refinement of that three-state stance.
+
+**Alternatives considered.**
+- A separate `disclosures.md` doc — would need cross-link discipline; the metadata.json embedding is more durable.
+- Per-metric divergence flags in the card validation badge — the 4-state badge taxonomy (§8.1) is locked, and Match/Diverged states require per-pixel reproductions that aren't available for most metrics.
+
+**Revisit if.** A divergence becomes resolved (e.g. SA's compound LULC arrives → `sa_citywide_not_reproduced` can be re-scoped) — remove the entry from `KNOWN_DIVERGENCES` and the gate stops checking for it.
+
+**Code touchpoints.** `KNOWN_DIVERGENCES` (`export_invest_bundle.py`); the completeness check (`verify_baselines.py:680-689`, Honesty-Surface block); sidebar caveat captions in the Eligible-land-filter panel + the Selected-region impact table.
+
 ---
 
 ## 9. Export for InVEST
@@ -709,6 +732,50 @@ Negative-case labels: "Preventable MH Cases" → "Additional MH Cases"; "Avoided
 **Revisit if.** A new sidebar control's logical position differs from its visual one.
 
 **Code touchpoints.** Sidebar render order in `app.py`.
+
+### 10.5 Ownership / eligibility filters are feasibility constraints, not engine inputs
+
+**Decision.** Region Selection and the Eligible-land filter (the seven-class ownership taxonomy + vacant overlay + multi-class union via checkboxes) constrain *where* conversions can be placed — they do NOT enter the biophysical model equations. The locked sidebar caption next to the panel says exactly this: *"Ownership filters are feasibility constraints. They limit where conversions may be placed but do not change the biophysical model equations."*
+
+**Why this framing matters.** A planner picking "City-owned land + vacant" is narrowing the candidate pool of pixels eligible to be converted; the per-pixel UCM / UNA / UFR / Carbon / UMH math runs identically on the resulting conversions. A region-clipped scenario produces a region-local NUMBER (a different aggregation scope) — not a region-local MODEL. Conflating the two would suggest the engine treats public-land conversions differently from private-land conversions, which it doesn't. The math is identical; what changes is the pixel set that gets converted.
+
+**Subset-invariant consequence.** The "engine doesn't read the ownership raster" property is what keeps the 40/40 baseline snapshots byte-identical across every batch in the Finer Ownership Classes workstream. The mask is composed by the caller (`_build_ownership_mask` at the sidebar render site) and passed as the `selected_region_mask` arg to `evaluate_scenario`. The engine just consumes a boolean mask — it doesn't know which class the mask came from. See ARCHITECTURE.md §3 for the data flow + the subset-invariant contract.
+
+**Design boundary.** This decision deliberately does NOT extend the engine to:
+- Read per-class biophysical parameters (e.g. treat city-owned conversions differently from private-owned). The cooling / flood / carbon / nature-access / MH equations are pixel-physics, not ownership-conditioned; an ownership-conditioned biophysical parameter would invent a per-class effect that has no measured basis.
+- Encode the filter as a per-pixel weighting rather than a hard mask. The placement contract is "this pixel is eligible or it isn't"; a soft-preference weighting would muddle the subset-invariant check and the eligibility-funnel arithmetic both of which assume a hard mask.
+
+These are boundaries, not rejected-after-deliberation alternatives — they record where the engine's responsibility stops, not what was considered and discarded.
+
+**Consequences.** Adding a new ownership class (the Batch 4 v2 city ∪ school union path; future region-by-class subset cells) is a UI + mask-helper change — never a math change. The honesty caption is what makes this property legible to the user; the subset-invariant assertion in `verify_baselines.py` (converted ⊆ eligible ∩ region ∩ ownership) is what enforces it.
+
+**Code touchpoints.** Locked caption (`app.py` Eligible-land-filter panel); `_build_ownership_mask` + `_compose_eligible_filter_cfg` (single-source mask helpers); `evaluate_scenario(selected_region_mask=…)` (the engine's only filter input); subset-invariant matrix (`verify_baselines.py`).
+
+### 10.6 Carbon stock vs flow — per-city framing + label choice
+
+**Decision.** SA carbon is reported as a **stock change** (one-time, t CO2e), MN carbon as an **annual flow** (t CO2e/yr). The labels match the underlying methodology:
+
+| | SA (`_CARBON_IS_STOCK = True`) | MN (`_CARBON_IS_STOCK = False`) |
+|---|---|---|
+| Quantity card label | "Carbon Storage Change" | "Carbon Sequestration" |
+| Dollar card label | "Carbon Storage Value" (positive) / "Carbon Storage Loss" (negative) | "Avoided Carbon Cost" (positive) / "Added Carbon Cost" (negative) |
+| Selected-region impact row | "Carbon Storage Change" | "Carbon Sequestration" |
+| Compare-scenarios column | "Carbon Storage Change" / "Carbon Storage Value $ (derived)" | "Carbon Sequestration" / "Avoided Carbon Cost $/yr (derived)" |
+| Unit | t CO2e | t CO2e/yr |
+| Methodology | NatCap four-pool stock change (Vibrant Land convention; `c_above_arr` + `c_below_arr` + `c_soil_arr` + `c_dead_arr` — `_compute_carbon_four_pool`) | Per-cover-class annual sequestration rate (USDA NRCS / IPCC midpoints — `CARBON_SEQ_RATES`) |
+
+**Why per-city, not unified.** SA's NatCap stack hands the prototype a four-pool stock framework directly; reframing it as an annual flow would invent a temporal scope NatCap doesn't claim. MN has no four-pool framework available; the per-cover-class annual rate proxy is what the prototype can compute. Forcing the two cities into a single label would either misrepresent SA's stock framing or invent a flow framing for SA that isn't supported by the data. Keeping the per-city distinction in labels is the honesty floor.
+
+**Sign convention symmetry.** Both cities use the locked-positive-magnitude pattern (§10.2): a negative carbon outcome flips the label ("Storage Loss" / "Added Cost") and the delta arrow color so a precise positive number doesn't read as a benefit when the scenario is actually losing carbon (only SA's four-pool stock model can produce a negative outcome at present; MN's annual rates are non-negative).
+
+**Alternatives considered.**
+- Single canonical label per quantity ("Carbon" / "Carbon $") with a per-card tooltip explaining the per-city framing — loses the temporal-scope honesty at the headline level; users skim labels more than tooltips.
+- Force both cities to a stock framing — requires inventing a stock arithmetic for MN that the per-cover-class annual rate doesn't support.
+- Force both to a flow framing — requires inventing a temporal divisor for SA's four-pool stock that NatCap doesn't claim.
+
+**Revisit if.** SA-style four-pool data becomes available for MN (would unify both cities on stock-change semantics), OR an MN-specific per-cover-class table calibrated to local species becomes available (would tighten the flow-side framing without changing the label).
+
+**Code touchpoints.** `_CARBON_IS_STOCK` (set once after city-state aliasing in `app.py`); `_carbon_card_label` / `_carbon_dollar_label` (per-city branches); `_CS_CARBON_TONS_LABEL` / `_CS_CARBON_DOLLAR_LABEL` (compare-scenarios table constants); the SA NatCap fixed-scenario reference view's Carbon Storage Value branch; `_compute_carbon_four_pool` (SA stock math) vs `CARBON_SEQ_RATES` (MN flow math).
 
 ---
 
