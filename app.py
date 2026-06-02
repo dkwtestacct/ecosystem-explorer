@@ -23,6 +23,7 @@ from surrogate import (
     predict_with_uncertainty,
     plot_feature_importance,
     optimize_scenario,
+    optimize_scenario_region,
     compute_pareto,
 )
 import export_invest_bundle as eib   # Brief D1 — InVEST export bundle
@@ -312,6 +313,13 @@ if "saved_scenarios" not in st.session_state:
     st.session_state.saved_scenarios = []
 if "optimized_results" not in st.session_state:
     st.session_state.optimized_results = None
+# Region-constrained optimizer (variant B). Distinct slot from the citywide
+# `optimized_results` so the tradeoff tab can pick the right render branch:
+# citywide shows surrogate-predicted values + uncertainty bands; region-active
+# shows engine-true region_local values (no bands — values are real, not
+# quantiles). See docs/internal/REGION_OPTIMIZER_SPEC.md.
+if "region_optimized_results" not in st.session_state:
+    st.session_state.region_optimized_results = None
 if "active_example_scenario" not in st.session_state:
     st.session_state.active_example_scenario = 'balanced'
 # Brief #4 — track whether the active scenario was applied from an optimizer
@@ -323,6 +331,16 @@ if "applied_from_optimizer" not in st.session_state:
     st.session_state.applied_from_optimizer = False
 if "_applied_optimizer_values" not in st.session_state:
     st.session_state._applied_optimizer_values = None
+# Region-constrained optimizer (variant B) — distinct from the citywide
+# `applied_from_optimizer` flag because the displayed metrics are engine-true
+# region-local, not surrogate predictions. The provenance / Save / Export
+# branches key off this independently so a region-optimized scenario can't
+# silently surface as "Surrogate-suggested." See
+# docs/internal/REGION_OPTIMIZER_SPEC.md §4.
+if "applied_from_region_optimizer" not in st.session_state:
+    st.session_state.applied_from_region_optimizer = False
+if "_applied_region_optimizer_values" not in st.session_state:
+    st.session_state._applied_region_optimizer_values = None
 # Apply any pending slider values before sliders are rendered
 if "_pending_pct" in st.session_state:
     st.session_state.slider_pct_converted = st.session_state.pop("_pending_pct")
@@ -344,6 +362,19 @@ if st.session_state.get("applied_from_optimizer"):
     if _applied_vals is None or _cur_slider_vals != _applied_vals:
         st.session_state.applied_from_optimizer = False
         st.session_state._applied_optimizer_values = None
+# Same auto-clear for the region-optimizer flag — mirrors the citywide
+# logic so manual edits / preset clicks reset region-optimized provenance
+# back to Explorer.
+if st.session_state.get("applied_from_region_optimizer"):
+    _cur_slider_vals_r = (
+        st.session_state.get("slider_pct_converted"),
+        st.session_state.get("slider_gi_pct"),
+        st.session_state.get("slider_ff_pct"),
+    )
+    _applied_vals_r = st.session_state.get("_applied_region_optimizer_values")
+    if _applied_vals_r is None or _cur_slider_vals_r != _applied_vals_r:
+        st.session_state.applied_from_region_optimizer = False
+        st.session_state._applied_region_optimizer_values = None
 
 # ── City selection ─────────────────────────────────────────────────────────────
 # Only available cities surface in the dropdown. Unavailable entries (e.g.
@@ -385,9 +416,12 @@ def _reset_state_for_city_switch(session_state) -> None:
         session_state.pop(_k, None)
     session_state.active_example_scenario = 'balanced'
     session_state.optimized_results = None
+    session_state.region_optimized_results = None
     session_state.just_optimized = False
     session_state.applied_from_optimizer = False
     session_state._applied_optimizer_values = None
+    session_state.applied_from_region_optimizer = False
+    session_state._applied_region_optimizer_values = None
     session_state.region_apply_within = "Entire analysis area"
     session_state.pop('region_layer', None)
     session_state.pop('region_map_picker_event', None)
@@ -3571,6 +3605,36 @@ surrogate = _cached_train_surrogate(
     mode_key=ACTIVE_MODEL_QUALITY, n_estimators=N_ESTIMATORS,
 )
 
+
+# ── Fast-only surrogate for the region-constrained optimizer ────────────────
+# Phase-0.5 validated the prefilter at the Fast configuration only (~90
+# recipes, 100 trees). Balanced and High Resolution surrogates haven't been
+# checked for the same ranking quality vs the engine on region-scoped
+# candidates. To keep the validated configuration in use regardless of the
+# Model-quality radio, the region optimizer ALWAYS prefilters with a Fast
+# surrogate — built lazily and cached per city so a Balanced / High user
+# pays the ~3-minute Fast-grid build once per session, not per click.
+@st.cache_resource(show_spinner=False)
+def _cached_fast_scenario_grid(_state, city_key,
+                               data_dir_flood, data_dir_cooling):
+    return compute_scenario_grid(
+        _state, city_key, data_dir_flood, data_dir_cooling,
+        step_pct=10, step_alloc=25,
+    )
+
+
+@st.cache_resource(show_spinner=False)
+def _cached_fast_surrogate_for_region(_state, city_key,
+                                      data_dir_flood, data_dir_cooling):
+    """Return (fast_scenario_df, fast_surrogate_model) for the region
+    optimizer's prefilter. Independent of ACTIVE_MODEL_QUALITY so the
+    Phase-0.5-validated configuration (Fast 90, 100 trees) is the only
+    thing ever used to rank region candidates."""
+    fast_df = _cached_fast_scenario_grid(
+        _state, city_key, data_dir_flood, data_dir_cooling)
+    fast_model = _train_surrogate_fn(fast_df, n_estimators=100)
+    return fast_df, fast_model
+
 # ── Plotting helpers ───────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def _load_region_polygons_for_plotly(path: str, label_field: str):
@@ -4012,6 +4076,18 @@ _PROVENANCE_HEADER_INFO = {
         "Surrogate-suggested",
         "engine-validated; full-raster evaluated — exploratory candidate "
         "for further validation",
+        "blue",
+    ),
+    # Region-constrained optimizer (variant B). Distinct from
+    # PROVENANCE_OPTIMIZER because the values displayed are engine-true
+    # region-local — the surrogate's role stopped at shortlisting. The
+    # label calls that out: "Engine-verified" (the data shown is real),
+    # "region-optimized" (the search scope was the active region∩ownership
+    # filter), with the search-completeness caveat in the validation line.
+    eib.PROVENANCE_REGION_OPTIMIZED: (
+        "Engine-verified — region-optimized",
+        "engine-true region-local values; surrogate-shortlisted "
+        "candidates (shortlist may not be exhaustive)",
         "blue",
     ),
 }
@@ -4758,149 +4834,266 @@ if _ownership_available:
         st.session_state['selected_ownership_mode'] = _own_mode
 
 st.sidebar.divider()
-st.sidebar.subheader("Discover scenarios to validate")
-
-st.sidebar.caption(
-    "**Searches for promising scenarios to validate further.** The surrogate "
-    "explores ~10,000 candidate strategies in seconds and surfaces a ranked "
-    "shortlist — these are *predicted* values, not final answers. Apply a "
-    "suggestion to compute it with the full prototype engine; export the "
-    "evaluated scenario for canonical InVEST when you want full-resolution "
-    "validation."
-)
-with st.sidebar.expander("How this works", expanded=False):
-    st.caption(
-        "The optimizer is trained on the prototype's pre-computed scenario "
-        "library (~90 full-resolution simulations in Fast mode; more in the "
-        "higher-quality modes). It explores combinations of conversion "
-        "percentage and conversion mix far faster than running the full model "
-        "— but each returned scenario is a surrogate prediction, not a full "
-        "simulation. It targets flood retention, cooling, food production, and "
-        "carbon; cost and placement strategy are not part of the surrogate. "
-        "Use the controls above to verify any optimized scenario in detail."
-    )
-
-st.sidebar.caption(
-    "Set the minimum performance each slider below must meet (or cap runoff); "
-    "the optimizer returns scenarios that satisfy all targets at once."
-)
-
-with st.sidebar.container(border=True):
-
-    # Flood slider max uses the precomputed grid's actual achievable maximum
-    # rather than the theoretical 0–100 ceiling, so the slider range
-    # represents reachable targets. Round up to the next 5 for headroom.
-    _flood_achievable_max = int(scenario_df['flood_reduction'].max())
-    _flood_slider_max = ((_flood_achievable_max + 4) // 5) * 5
-    _flood_default = max(0, _flood_slider_max - 10)
-    min_flood  = st.slider(
-        "Flood reduction ≥",
-        0, _flood_slider_max, _flood_default, 5,
-        help=f"Corresponds to the Flood Retention metric card. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f}. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.",
-    )
-    # read from state to avoid silent-staleness if city switches
-    _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
-    # Cooling slider max uses the precomputed grid's actual achievable maximum
-    # rather than the theoretical CC ceiling, so the slider range represents
-    # reachable targets. +0.2 °F headroom.
-    _cool_achievable_max = (scenario_df['mean_hm'].max() - _baseline_hm_local) * HM_TO_FAHRENHEIT
-    _cool_slider_max = round(_cool_achievable_max + 0.2, 1)
-    min_cool_f = st.slider(
-        "Cooling ≥ (°F vs baseline)",
-        min_value=-1.0, max_value=_cool_slider_max,
-        value=0.1, step=0.1,
-        help="Corresponds to the Temperature Change metric card. Set to 0.1 for at least 0.1°F cooler than baseline."
-    )
-    min_cool   = _baseline_hm_local + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
-    min_food   = st.slider("Food production ≥ (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01,
-        help="Corresponds directly to the Food Production metric card value in M lbs/yr.")
-    _runoff_min = float(scenario_df['runoff_acre_feet'].min())
-    _runoff_max = float(scenario_df['runoff_acre_feet'].max())
-    max_runoff = st.slider(
-        "Runoff ≤ (ac-ft)",
-        min_value=round(_runoff_min),
-        max_value=round(_runoff_max),
-        value=round(BASELINE_RUNOFF_ACRE_FEET),
-        step=100,
-        help=f"Scenarios must stay below this runoff volume. Baseline is approximately {BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft."
-    )
-    # Brief 30: SA framing = stock change (t CO2e); MN framing = annual flow.
-    _opt_carbon_label = (
-        "Carbon storage change ≥ (tons CO2e)" if _CARBON_IS_STOCK
-        else "Carbon sequestration ≥ (tons CO2e/yr)"
-    )
-    _opt_carbon_help = (
-        "Corresponds to the Carbon Storage Change metric card (one-time stock value). "
-        "Baseline is 0."
-        if _CARBON_IS_STOCK else
-        "Corresponds to the Carbon Sequestration metric card. Counts only converted pixels; baseline is 0."
-    )
-    min_carbon = st.slider(
-        _opt_carbon_label,
-        0, int(scenario_df['carbon_tons_co2'].max()), 0, 100,
-        help=_opt_carbon_help,
-    )
-
-    if lookup_table:
-        st.sidebar.caption(
-            "Slider results use a precomputed lookup table for faster response. "
-            "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
-        )
-    else:
-        st.sidebar.caption(
-            "Slider results are computed live in the current model-quality mode. "
-            "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
-        )
-
-    # Optimizer Reversal Pass — the Optimize button used to disable when
-    # `selected_region_mask` or `selected_ownership_mask` was set. The
-    # surrogate is citywide-trained (no region/ownership param into
-    # optimize_scenario — that's Phase 2), but the Apply path already
-    # routes suggestions through evaluate_scenario with the combined mask
-    # (see app.py:4751-4757), so a region+ownership scenario applied from
-    # an optimizer suggestion produces an engine-validated, correctly-
-    # masked result. The honest framing is "suggestions are citywide
-    # recommendations and ignore your current selection; predicted values
-    # won't match the region-applied result" — rendered as a caption when
-    # any filter is active, NOT a disabled button.
-    _filter_active = (
-        st.session_state.get('selected_region_mask') is not None
-        or st.session_state.get('selected_ownership_mask') is not None
-    )
-    if st.button("Optimize"):
-        with st.spinner("Searching for most efficient tradeoff scenarios..."):
-            st.session_state.optimized_results = optimize_scenario(
-                surrogate, min_flood, min_cool, min_food, max_runoff,
-                min_carbon=min_carbon, max_food=MAX_FOOD,
-                max_flood=MAX_FLOOD, max_cool=MAX_COOL)
-        _opt_res = st.session_state.optimized_results
-        if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
-            st.sidebar.warning("No scenarios found — try lowering the targets.")
-            st.session_state.just_optimized = False
-        else:
-            st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
-            st.session_state.just_optimized = True
-    if _filter_active:
-        st.caption(
-            "Suggestions are citywide recommendations and ignore your "
-            "current selection; predicted values won't match the "
-            "region-applied result. Apply a suggestion to evaluate it "
-            "under your filters."
-        )
-
-st.sidebar.divider()
 
 # ── Cost sliders (collapsed expander) ────────────────────────────────────────
-with st.sidebar.expander("Implementation Costs ($/acre)", expanded=False):
-    cost_gi = st.slider("Green Infrastructure ($/acre)", 5_000, 150_000,
+# Hoisted above the Discover block so the region-constrained optimizer can
+# read the user-set cost rates at click time. See
+# docs/internal/REGION_OPTIMIZER_SPEC.md.
+with st.sidebar.expander("Implementation Costs (\\$/acre)", expanded=False):
+    cost_gi = st.slider("Green Infrastructure (\\$/acre)", 5_000, 150_000,
                         DEFAULT_COST_GI, 5_000,
-                        help="Typical range: $20,000–$100,000/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.")
-    cost_ff = st.slider("Food Forest ($/acre)", 1_000, 50_000,
+                        help="Typical range: \\$20,000–\\$100,000/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.")
+    cost_ff = st.slider("Food Forest (\\$/acre)", 1_000, 50_000,
                         DEFAULT_COST_FF, 1_000,
-                        help="Typical range: $5,000–$20,000/acre for food forest establishment. Default is an illustrative estimate — adjust to reflect local project costs.")
-    cost_hd = st.slider("High Density Infill ($/acre)", 1_000, 50_000,
+                        help="Typical range: \\$5,000–\\$20,000/acre for food forest establishment. Default is an illustrative estimate — adjust to reflect local project costs.")
+    cost_hd = st.slider("High Density Infill (\\$/acre)", 1_000, 50_000,
                         DEFAULT_COST_HD, 1_000,
                         help="Marginal cost of additional impervious development. Default is an illustrative estimate — adjust to reflect local project costs.")
+
+st.sidebar.divider()
+st.sidebar.subheader("Discover scenarios to validate")
+
+# Filter-active drives the mode switch between the citywide surrogate
+# optimizer (no filter) and the region-prefilter + engine-verify path
+# (filter active). docs/internal/REGION_OPTIMIZER_SPEC.md §2.
+_filter_active = (
+    st.session_state.get('selected_region_mask') is not None
+    or st.session_state.get('selected_ownership_mask') is not None
+)
+
+# Defaults — defined before the mode branch so the citywide-results render
+# block in the Tradeoff Analysis tab (which interpolates `min_flood` /
+# `min_cool` / etc. into a caption) never NameErrors if the user activated a
+# filter after an earlier citywide Optimize run left `optimized_results`
+# behind in session state. The citywide branch below overwrites these.
+min_flood = 0
+min_cool = _CURRENT_CITY_STATE.baseline_hm
+min_cool_f = 0.0
+min_food = 0.0
+max_runoff = float(BASELINE_RUNOFF_ACRE_FEET)
+min_carbon = 0
+
+if not _filter_active:
+    st.sidebar.caption(
+        "**Searches for promising scenarios to validate further.** The surrogate "
+        "explores ~10,000 candidate strategies in seconds and surfaces a ranked "
+        "shortlist — these are *predicted* values, not final answers. Apply a "
+        "suggestion to compute it with the full prototype engine; export the "
+        "evaluated scenario for canonical InVEST when you want full-resolution "
+        "validation."
+    )
+    with st.sidebar.expander("How this works", expanded=False):
+        st.caption(
+            "The optimizer is trained on the prototype's pre-computed scenario "
+            "library (~90 full-resolution simulations in Fast mode; more in the "
+            "higher-quality modes). It explores combinations of conversion "
+            "percentage and conversion mix far faster than running the full model "
+            "— but each returned scenario is a surrogate prediction, not a full "
+            "simulation. It targets flood retention, cooling, food production, and "
+            "carbon; cost and placement strategy are not part of the surrogate. "
+            "Use the controls above to verify any optimized scenario in detail."
+        )
+
+    st.sidebar.caption(
+        "Optimizer uses a fast citywide surrogate to search many candidate mixes. "
+        "Set the minimum performance each slider below must meet (or cap runoff); "
+        "the optimizer returns scenarios that satisfy all targets at once."
+    )
+
+    with st.sidebar.container(border=True):
+        # Flood slider max uses the precomputed grid's actual achievable maximum
+        # rather than the theoretical 0–100 ceiling, so the slider range
+        # represents reachable targets. Round up to the next 5 for headroom.
+        _flood_achievable_max = int(scenario_df['flood_reduction'].max())
+        _flood_slider_max = ((_flood_achievable_max + 4) // 5) * 5
+        _flood_default = max(0, _flood_slider_max - 10)
+        min_flood  = st.slider(
+            "Flood reduction ≥",
+            0, _flood_slider_max, _flood_default, 5,
+            help=f"Corresponds to the Flood Retention metric card. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f}. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.",
+        )
+        # read from state to avoid silent-staleness if city switches
+        _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
+        # Cooling slider max uses the precomputed grid's actual achievable maximum
+        # rather than the theoretical CC ceiling, so the slider range represents
+        # reachable targets. +0.2 °F headroom.
+        _cool_achievable_max = (scenario_df['mean_hm'].max() - _baseline_hm_local) * HM_TO_FAHRENHEIT
+        _cool_slider_max = round(_cool_achievable_max + 0.2, 1)
+        min_cool_f = st.slider(
+            "Cooling ≥ (°F vs baseline)",
+            min_value=-1.0, max_value=_cool_slider_max,
+            value=0.1, step=0.1,
+            help="Corresponds to the Temperature Change metric card. Set to 0.1 for at least 0.1°F cooler than baseline."
+        )
+        min_cool   = _baseline_hm_local + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
+        min_food   = st.slider("Food production ≥ (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01,
+            help="Corresponds directly to the Food Production metric card value in M lbs/yr.")
+        _runoff_min = float(scenario_df['runoff_acre_feet'].min())
+        _runoff_max = float(scenario_df['runoff_acre_feet'].max())
+        max_runoff = st.slider(
+            "Runoff ≤ (ac-ft)",
+            min_value=round(_runoff_min),
+            max_value=round(_runoff_max),
+            value=round(BASELINE_RUNOFF_ACRE_FEET),
+            step=100,
+            help=f"Scenarios must stay below this runoff volume. Baseline is approximately {BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft."
+        )
+        # Brief 30: SA framing = stock change (t CO2e); MN framing = annual flow.
+        _opt_carbon_label = (
+            "Carbon storage change ≥ (tons CO2e)" if _CARBON_IS_STOCK
+            else "Carbon sequestration ≥ (tons CO2e/yr)"
+        )
+        _opt_carbon_help = (
+            "Corresponds to the Carbon Storage Change metric card (one-time stock value). "
+            "Baseline is 0."
+            if _CARBON_IS_STOCK else
+            "Corresponds to the Carbon Sequestration metric card. Counts only converted pixels; baseline is 0."
+        )
+        min_carbon = st.slider(
+            _opt_carbon_label,
+            0, int(scenario_df['carbon_tons_co2'].max()), 0, 100,
+            help=_opt_carbon_help,
+        )
+
+        if lookup_table:
+            st.sidebar.caption(
+                "Slider results use a precomputed lookup table for faster response. "
+                "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
+            )
+        else:
+            st.sidebar.caption(
+                "Slider results are computed live in the current model-quality mode. "
+                "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
+            )
+
+        if st.button("Optimize"):
+            with st.spinner("Searching for most efficient tradeoff scenarios..."):
+                st.session_state.optimized_results = optimize_scenario(
+                    surrogate, min_flood, min_cool, min_food, max_runoff,
+                    min_carbon=min_carbon, max_food=MAX_FOOD,
+                    max_flood=MAX_FLOOD, max_cool=MAX_COOL)
+            _opt_res = st.session_state.optimized_results
+            if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
+                st.sidebar.warning("No scenarios found — try lowering the targets.")
+                st.session_state.just_optimized = False
+            else:
+                st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
+                st.session_state.just_optimized = True
+else:
+    # ── Region-constrained optimizer (variant B) ─────────────────────────
+    # Mode-switch path. Replaces the min-target sliders + Optimize button
+    # with weight sliders + Optimize-selected-area. The fast surrogate
+    # shortlists candidate mixes; the full engine evaluates the finalists
+    # on the active region∩ownership mask. Displayed values are engine-true
+    # region-local — no surrogate predictions surface. See
+    # docs/internal/REGION_OPTIMIZER_SPEC.md.
+    st.sidebar.caption(
+        "The fast model shortlists candidate mixes, then the full model "
+        "evaluates the finalists on your selected area. "
+        "**The results shown are real (engine-verified); "
+        "the shortlist may not be exhaustive.**"
+    )
+    with st.sidebar.expander("How this works", expanded=False):
+        st.caption(
+            "When a region or ownership filter is active, the optimizer runs "
+            "in two stages. Stage 1 — the citywide surrogate ranks every "
+            "candidate mix and picks a Pareto-efficient shortlist (≈ 40 "
+            "candidates). Stage 2 — each shortlisted mix is evaluated by "
+            "the full per-pixel engine inside your selected area. Values "
+            "shown on each returned scenario are engine-true region-local "
+            "(not surrogate predictions). Moving a weight slider below "
+            "re-ranks the already-evaluated shortlist instantly — no engine "
+            "re-run."
+        )
+
+    with st.sidebar.container(border=True):
+        st.markdown("**Weight each objective** (0 = ignore, 1 = full weight)")
+        w_cool = st.slider("Cooling", 0.0, 1.0, 1.0, 0.1, key="region_opt_w_cool")
+        w_flood = st.slider("Flood reduction", 0.0, 1.0, 1.0, 0.1,
+                            key="region_opt_w_flood")
+        w_carbon = st.slider("Carbon", 0.0, 1.0, 1.0, 0.1,
+                             key="region_opt_w_carbon")
+        w_food = st.slider("Food production", 0.0, 1.0, 1.0, 0.1,
+                           key="region_opt_w_food")
+        w_cost = st.slider("Cost (lower = better)", 0.0, 1.0, 0.5, 0.1,
+                           key="region_opt_w_cost")
+        _region_opt_weights = {
+            'mean_hm':          w_cool,
+            'flood_reduction':  w_flood,
+            'carbon_tons_co2':  w_carbon,
+            'food_mln_lbs':     w_food,
+            'total_cost_mln':   w_cost,
+            'runoff_acre_feet': w_flood,  # piggyback flood weight onto runoff
+        }
+
+        if st.button("Optimize selected area",
+                     key="region_opt_button"):
+            # Compose the active region∩ownership mask the engine consumes.
+            _r = st.session_state.get('selected_region_mask')
+            _o = st.session_state.get('selected_ownership_mask')
+            if _r is not None and _o is not None:
+                _opt_mask = _r & _o
+            elif _o is not None:
+                _opt_mask = _o
+            else:
+                _opt_mask = _r
+
+            # Engine eval — closure over the live cost slider values + the
+            # combined mask. surrogate.optimize_scenario_region calls this
+            # K ≈ 40 times under a progress bar.
+            def _engine_eval(_pct, _gi, _ff):
+                return evaluate_scenario(
+                    _pct, _gi, _ff,
+                    seed=42, placement_strategy='random',
+                    cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
+                    carbon_rate_ff=st.session_state.carbon_rate_ff,
+                    carbon_rate_gi=st.session_state.carbon_rate_gi,
+                    selected_region_mask=_opt_mask,
+                )
+
+            # Use the Phase-0.5-validated Fast (~90 recipes, 100 trees)
+            # surrogate regardless of the active Model-quality mode. In Fast
+            # mode the cache key collides with the already-built grid, so
+            # this is free; in Balanced / High it builds the Fast grid once
+            # per session (~3 min on SA) under a spinner.
+            with st.spinner(
+                "Preparing Fast prefilter (first run only)…"
+            ):
+                _fast_df, _fast_surrogate = _cached_fast_surrogate_for_region(
+                    _CURRENT_CITY_STATE, selected_city,
+                    DATA_DIR_FLOOD, DATA_DIR_COOLING,
+                )
+
+            _prog = st.progress(0.0, text="Engine-verifying candidates 0 / 0…")
+            def _progress(i, K):
+                _prog.progress(i / K,
+                               text=f"Engine-verifying candidates {i} / {K}…")
+            try:
+                _region_out = optimize_scenario_region(
+                    _fast_surrogate, _fast_df, _engine_eval,
+                    _region_opt_weights,
+                    k_engine=40, top_n=5,
+                    progress_cb=_progress,
+                )
+                _prog.empty()
+            except Exception as _e:
+                _prog.empty()
+                st.sidebar.error(f"Optimization failed: {_e}")
+                _region_out = None
+
+            if _region_out is None or _region_out.empty:
+                st.sidebar.warning(
+                    "No scenarios found — try widening the weights or "
+                    "selecting a different region."
+                )
+                st.session_state.region_optimized_results = None
+                st.session_state.just_optimized = False
+            else:
+                st.session_state.region_optimized_results = _region_out
+                st.sidebar.success(
+                    "Results ready — open the Tradeoff Analysis tab →"
+                )
+                st.session_state.just_optimized = True
 
 st.sidebar.divider()
 
@@ -5077,6 +5270,30 @@ def _build_invest_bundle_for_current_scenario():
                      "note": "unmodified prototype LULC"}
         scen_label = f"Baseline — {selected_city}"
         scen_id = "baseline"
+    elif st.session_state.get("applied_from_region_optimizer"):
+        # Region-constrained optimizer (variant B). Surrogate-shortlisted
+        # candidate, evaluated by the full engine on the active region∩ownership
+        # mask. Distinct from PROVENANCE_OPTIMIZER because the displayed
+        # values are engine-true region-local — the surrogate's role stopped
+        # at shortlisting. See docs/internal/REGION_OPTIMIZER_SPEC.md §4.
+        provenance = eib.PROVENANCE_REGION_OPTIMIZED
+        generator = {
+            "type": "region_optimizer_engine_verified",
+            "pct_converted":            int(results['pct_converted']),
+            "green_infrastructure_pct": int(results['green_infrastructure_pct']),
+            "food_forest_pct":          int(results['food_forest_pct']),
+            "high_density_pct":         int(results['pct_highdensity']),
+            "placement_strategy":       placement_strategy,
+            "random_seed":              42,
+            "note": ("Applied from Region-Optimizer suggestion; surrogate "
+                     "prefilter ranked candidates, full engine evaluated the "
+                     "shortlist on the active region∩ownership mask before "
+                     "export."),
+        }
+        scen_label = f"Region-optimized · {results['scenario_name']}"
+        scen_id = (f"region_optimizer_pct{int(results['pct_converted'])}"
+                   f"_gi{int(results['green_infrastructure_pct'])}"
+                   f"_ff{int(results['food_forest_pct'])}_{placement_strategy}")
     elif st.session_state.get("applied_from_optimizer"):
         # Brief #4 — the slider state matches the optimizer's just-Applied
         # values, so this scenario came from the surrogate's discovery loop and
@@ -5401,6 +5618,9 @@ else:
 if results['pct_converted'] == 0:
     _scen_provenance = eib.PROVENANCE_BASELINE
     _scen_label = f"Baseline — {selected_city}"
+elif st.session_state.get("applied_from_region_optimizer"):
+    _scen_provenance = eib.PROVENANCE_REGION_OPTIMIZED
+    _scen_label = f"Region-optimized · {results['scenario_name']}"
 elif st.session_state.get("applied_from_optimizer"):
     _scen_provenance = eib.PROVENANCE_OPTIMIZER
     _scen_label = f"Optimizer suggestion · {results['scenario_name']}"
@@ -5410,8 +5630,8 @@ else:
 # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3 —
 # augment the Source line text when an Explorer scenario is region- and/or
 # ownership-constrained. Baseline (pct=0) reads just 'Baseline' — don't
-# augment. Optimizer can't be placement-active (Optimize is disabled when
-# either constraint is set — see optimizer guard).
+# augment. PROVENANCE_OPTIMIZER (citywide) and PROVENANCE_REGION_OPTIMIZED
+# carry their own scope semantics in the label and don't get the suffix.
 _region_active = (
     _scen_provenance == eib.PROVENANCE_EXPLORER
     and st.session_state.get('selected_region_mask') is not None
@@ -6702,6 +6922,11 @@ with tab2:
         eib.PROVENANCE_NATCAP_FIXED: "displayed (NatCap)",
         eib.PROVENANCE_EXPLORER:     "engine verified",
         eib.PROVENANCE_OPTIMIZER:    "engine + full-raster",
+        # Region-constrained optimizer (variant B). The displayed values are
+        # engine-true region-local; the surrogate's role stopped at
+        # shortlisting. Distinct from PROVENANCE_OPTIMIZER's "engine +
+        # full-raster" (citywide).
+        eib.PROVENANCE_REGION_OPTIMIZED: "engine verified (region)",
     }
     def _cs_short_validation(prov):
         return _CS_SHORT_VAL.get(prov, "—")
@@ -6805,6 +7030,10 @@ with tab2:
     if results['pct_converted'] == 0:
         _cur_prov = eib.PROVENANCE_BASELINE
         _cur_label = f"▶ Current — Baseline ({selected_city})"
+    elif st.session_state.get("applied_from_region_optimizer"):
+        _cur_prov = eib.PROVENANCE_REGION_OPTIMIZED
+        _cur_label = (f"▶ Current — Region-optimized · "
+                      f"{results['scenario_name']}")
     elif st.session_state.get("applied_from_optimizer"):
         _cur_prov = eib.PROVENANCE_OPTIMIZER
         _cur_label = f"▶ Current — Optimizer suggestion · {results['scenario_name']}"
@@ -7047,9 +7276,16 @@ with tab2:
     # optimizer-overlay path (the `plot_tradeoff` defensive backstop
     # would skip it too, but coerce here so the intent is visible at
     # the call site).
-    _opt_for_chart = st.session_state.optimized_results
-    if not isinstance(_opt_for_chart, pd.DataFrame):
+    # When a filter is active the citywide optimizer is stale (it's
+    # citywide-scoped, predicted values); don't overlay it on a region
+    # tradeoff. The region-optimizer surfaces its results in its own table
+    # below — chart overlay for region values is not in v1.
+    if _filter_active:
         _opt_for_chart = None
+    else:
+        _opt_for_chart = st.session_state.optimized_results
+        if not isinstance(_opt_for_chart, pd.DataFrame):
+            _opt_for_chart = None
     st.plotly_chart(plot_tradeoff(
         results, scenario_df,
         lookup_table=lookup_table,
@@ -7167,9 +7403,12 @@ with tab2:
                     # set Applied-from-Optimizer flag is cleared, so a best-goal
                     # scenario that happens to share pct/gi/ff with a prior
                     # optimizer Apply doesn't inherit OPTIMIZER provenance via the
-                    # auto-clear's "values match" path.
+                    # auto-clear's "values match" path. Same defense for the
+                    # region-optimizer flag.
                     st.session_state.applied_from_optimizer = False
                     st.session_state._applied_optimizer_values = None
+                    st.session_state.applied_from_region_optimizer = False
+                    st.session_state._applied_region_optimizer_values = None
                     st.session_state._show_apply_toast = True
                     st.rerun()
 
@@ -7224,6 +7463,8 @@ with tab2:
             # schema bump.
             if results['pct_converted'] == 0:
                 saved["provenance"] = eib.PROVENANCE_BASELINE
+            elif st.session_state.get("applied_from_region_optimizer"):
+                saved["provenance"] = eib.PROVENANCE_REGION_OPTIMIZED
             elif st.session_state.get("applied_from_optimizer"):
                 saved["provenance"] = eib.PROVENANCE_OPTIMIZER
             else:
@@ -7235,7 +7476,96 @@ with tab2:
         elif confirm_clicked and not scenario_name_input:
             st.warning("Please enter a name before saving.")
 
-    if st.session_state.optimized_results is not None:
+    # Mode-switch render. Filter-active → render the region-optimized
+    # results (engine-true region-local values, no surrogate bands). Otherwise
+    # → render the existing citywide surrogate suggestions. The two paths
+    # write to distinct session-state slots (`optimized_results` /
+    # `region_optimized_results`) so each is mode-safe. See
+    # docs/internal/REGION_OPTIMIZER_SPEC.md §6.
+    if (_filter_active
+            and st.session_state.region_optimized_results is not None
+            and not st.session_state.region_optimized_results.empty):
+        st.divider()
+        st.subheader("Top scenarios found — selected area")
+        st.caption(
+            "Engine-verified results inside your selected area. "
+            "The shortlist comes from a fast surrogate-Pareto pass; values "
+            "shown are computed by the full pixel-level engine — not predictions. "
+            "Click Apply to load a recipe into the sliders."
+        )
+        _ropt = st.session_state.region_optimized_results
+        _opt_carbon_col_label_r = (
+            "Carbon (tons CO2e stock)" if _CARBON_IS_STOCK
+            else "Carbon (tons CO2e/yr)"
+        )
+        _r_display_cols = [
+            'scenario_name', 'pct_converted', 'green_infrastructure_pct',
+            'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs',
+            'carbon_tons_co2', 'total_cost_mln', 'weighted_score',
+        ]
+        _r_col_rename = {
+            'scenario_name':            'Scenario',
+            'pct_converted':            'Total Conversion (%)',
+            'green_infrastructure_pct': 'Green Infra %',
+            'food_forest_pct':          'Food Forest %',
+            'flood_reduction':          'Flood Index',
+            'mean_hm':                  'Cooling HM',
+            'food_mln_lbs':             'Food (M lbs)',
+            'carbon_tons_co2':          _opt_carbon_col_label_r,
+            'total_cost_mln':           'Cost (\\$M)',
+            'weighted_score':           'Weighted score',
+        }
+        _r_present = [c for c in _r_display_cols if c in _ropt.columns]
+        st.dataframe(_ropt[_r_present].rename(columns=_r_col_rename),
+                     width='stretch', hide_index=True)
+
+        st.markdown("#### Apply a suggestion")
+        st.caption(
+            "Loading a recipe into the sliders re-runs the engine on your "
+            "selected area — provenance flips to Surrogate-suggested."
+        )
+        _r_btn_cols = st.columns(len(_ropt))
+        for i, (_, row) in enumerate(_ropt.iterrows()):
+            with _r_btn_cols[i]:
+                _prefix = ("✓ " if st.session_state.get("applied_suggestion") == i
+                           else "")
+                _label = f"{_prefix}#{i+1}: {int(row.pct_converted)}% conv"
+                if st.button(_label, key=f"apply_region_opt_{i}"):
+                    st.session_state._pending_pct = int(
+                        round(row.pct_converted / 5) * 5)
+                    st.session_state._pending_gi = int(
+                        round(row.green_infrastructure_pct / 5) * 5)
+                    st.session_state._pending_ff = int(
+                        round(row.food_forest_pct / 5) * 5)
+                    if (st.session_state._pending_gi
+                            + st.session_state._pending_ff > 100):
+                        st.session_state._pending_ff = (
+                            100 - st.session_state._pending_gi)
+                    st.session_state.applied_suggestion = i
+                    # Region-constrained optimizer (variant B) — set the
+                    # NEW flag so the header / Save / Export route to
+                    # PROVENANCE_REGION_OPTIMIZED ("Engine-verified —
+                    # region-optimized"), distinct from the citywide
+                    # surrogate's "Surrogate-suggested." Clear the citywide
+                    # flag so the two states never co-fire.
+                    st.session_state.applied_from_region_optimizer = True
+                    st.session_state._applied_region_optimizer_values = (
+                        st.session_state._pending_pct,
+                        st.session_state._pending_gi,
+                        st.session_state._pending_ff,
+                    )
+                    st.session_state.applied_from_optimizer = False
+                    st.session_state._applied_optimizer_values = None
+                    st.session_state._show_apply_toast = True
+                    st.rerun()
+
+        if st.session_state.get("_show_apply_toast"):
+            st.success("Applied — check the Scenario tab to see updated results.")
+            st.session_state._show_apply_toast = False
+
+        st.divider()
+
+    if (not _filter_active) and st.session_state.optimized_results is not None:
         st.divider()
         st.subheader("Optimized Scenario Suggestions")
         st.caption("Scroll down to see suggestions and apply them to the sliders.")
@@ -7324,13 +7654,17 @@ with tab2:
                         # so the main panel header reads "Surrogate-suggested"
                         # and the D1 export records PROVENANCE_OPTIMIZER, not
                         # Explorer. The clearing logic at the top of the script
-                        # resets the flag when slider values drift away.
+                        # resets the flag when slider values drift away. Clear
+                        # the region-optimizer flag so the two states can't
+                        # co-fire after a citywide Apply on a previous run.
                         st.session_state.applied_from_optimizer = True
                         st.session_state._applied_optimizer_values = (
                             st.session_state._pending_pct,
                             st.session_state._pending_gi,
                             st.session_state._pending_ff,
                         )
+                        st.session_state.applied_from_region_optimizer = False
+                        st.session_state._applied_region_optimizer_values = None
                         st.session_state._show_apply_toast = True
                         st.rerun()
 

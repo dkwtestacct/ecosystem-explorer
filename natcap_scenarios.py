@@ -32,16 +32,24 @@ import numpy as np
 # Every active scenario carries exactly one provenance value. B2's per-metric
 # validation badges key off (provenance, scenario_id); D1's generator block
 # reads provenance to decide which scenarios are user-editable.
-PROVENANCE_BASELINE     = "baseline"
-PROVENANCE_NATCAP_FIXED = "natcap_fixed_scenario"
-PROVENANCE_EXPLORER     = "explorer_generated"
-PROVENANCE_OPTIMIZER    = "optimizer_suggested"
+PROVENANCE_BASELINE         = "baseline"
+PROVENANCE_NATCAP_FIXED     = "natcap_fixed_scenario"
+PROVENANCE_EXPLORER         = "explorer_generated"
+PROVENANCE_OPTIMIZER        = "optimizer_suggested"
+# Region-constrained optimizer (variant B). Distinct from the citywide
+# PROVENANCE_OPTIMIZER ("Surrogate-suggested" — values shown are surrogate
+# predictions on the citywide search) because the displayed metrics on a
+# region-optimized record are engine-true region-local. The surrogate's role
+# stops at shortlisting; the values are the full engine's. See
+# docs/internal/REGION_OPTIMIZER_SPEC.md §4–5.
+PROVENANCE_REGION_OPTIMIZED = "region_optimizer_engine_verified"
 
 ALL_PROVENANCES = (
     PROVENANCE_BASELINE,
     PROVENANCE_NATCAP_FIXED,
     PROVENANCE_EXPLORER,
     PROVENANCE_OPTIMIZER,
+    PROVENANCE_REGION_OPTIMIZED,
 )
 
 # ── NatCap SA fixed scenarios ────────────────────────────────────────────────

@@ -1163,6 +1163,258 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         subset_diffs += 1
 
+    # ── Region-Constrained Optimizer (variant B) — two assertion cells ─────
+    # docs/internal/REGION_OPTIMIZER_SPEC.md §8.
+    #
+    #   1. Subset invariant on every record the region optimizer returns —
+    #      converted ⊆ eligible ∩ region ∩ ownership AND |converted| > 0
+    #      (anti-vacuous; subset alone is trivially satisfied by zero
+    #      conversions).
+    #   2. Engine-verified reconciliation — a fresh engine eval on the
+    #      record's recipe + mask must reproduce the recorded metrics
+    #      (rtol=1e-9 / atol=1e-9). Plus a meta-test: inject a surrogate
+    #      value into a record and assert reconciliation FAILS. Without
+    #      the meta-test the reconciliation cell would be green-light
+    #      theatre — verifying nothing about predicted-vs-engine drift.
+    print(f"\n{'=' * 60}")
+    print("Region-Constrained Optimizer — subset + engine-reconciliation")
+    print(f"{'=' * 60}")
+    region_opt_diffs = 0
+    try:
+        _rebind_city(app, "San Antonio, TX")
+        ro_state = app._CURRENT_CITY_STATE
+        ro_region = _region_mask_from(ro_state, "council_districts", ["5"])
+        ro_ownership = _ownership_mask_from(ro_state, "vacant_public")
+        ro_combined = ro_region & ro_ownership
+
+        ro_scenario_df = app.compute_scenario_grid(
+            ro_state, "San Antonio, TX",
+            app.DATA_DIR_FLOOD, app.DATA_DIR_COOLING,
+        )
+        from surrogate import train_surrogate, optimize_scenario_region
+        ro_surrogate = train_surrogate(ro_scenario_df, n_estimators=100)
+
+        def _ro_engine_eval(_pct, _gi, _ff):
+            return app.evaluate_scenario(
+                _pct, _gi, _ff,
+                seed=42, placement_strategy='random',
+                selected_region_mask=ro_combined,
+            )
+
+        # K=5 for the gate — assertions exercise the contract on a small
+        # set of records; a roomier K is for runtime UX, not testing.
+        ro_records = optimize_scenario_region(
+            ro_surrogate, ro_scenario_df, _ro_engine_eval,
+            weights={'mean_hm': 1.0, 'flood_reduction': 1.0,
+                     'food_mln_lbs': 1.0, 'carbon_tons_co2': 1.0,
+                     'total_cost_mln': 0.5, 'runoff_acre_feet': 1.0},
+            k_engine=5, top_n=5,
+        )
+        if ro_records is None or ro_records.empty:
+            print("  FAIL  region optimizer returned no records")
+            region_opt_diffs += 1
+        else:
+            ro_eligible = _convertible_in_raster(ro_state)
+            ro_baseline = ro_state.lulc
+            print(f"  region optimizer returned {len(ro_records)} records")
+
+            for i, (_, rec) in enumerate(ro_records.iterrows()):
+                _recipe = dict(
+                    pct_converted=int(rec['pct_converted']),
+                    green_infrastructure_pct=int(rec['green_infrastructure_pct']),
+                    food_forest_pct=int(rec['food_forest_pct']),
+                )
+                fresh = app.evaluate_scenario(
+                    **_recipe, seed=42, placement_strategy='random',
+                    selected_region_mask=ro_combined,
+                )
+                conv_mask = (ro_baseline != fresh['scenario_lulc'])
+
+                # ── Subset invariant ──
+                out_e = int((conv_mask & ~ro_eligible).sum())
+                out_r = int((conv_mask & ~ro_region).sum())
+                out_o = int((conv_mask & ~ro_ownership).sum())
+                n_conv = int(conv_mask.sum())
+                if out_e or out_r or out_o:
+                    print(f"  FAIL  record #{i + 1} subset: "
+                          f"out_eligible={out_e} out_region={out_r} "
+                          f"out_ownership={out_o}")
+                    region_opt_diffs += 1
+                elif n_conv <= 0:
+                    print(f"  FAIL  record #{i + 1} converted-non-empty: "
+                          f"|converted| = 0 (subset trivially satisfied)")
+                    region_opt_diffs += 1
+                else:
+                    print(f"  OK    record #{i + 1} subset: "
+                          f"|converted|={n_conv:,} px ⊆ "
+                          f"eligible ∩ region ∩ ownership")
+
+                # ── Engine-verified reconciliation ──
+                # The record was produced by the same _ro_engine_eval call
+                # the orchestration runs; a fresh call with the same recipe
+                # + mask must reproduce the metrics exactly. The matrix below
+                # mirrors the round-trip assertion's metric list.
+                _RO_RECON_METRICS = (
+                    'mean_hm', 'flood_reduction', 'food_mln_lbs',
+                    'carbon_tons_co2', 'total_cost_mln',
+                )
+                rl = fresh.get('region_local') or {}
+                divergent = []
+                for m in _RO_RECON_METRICS:
+                    fresh_v = rl.get(m, fresh.get(m))
+                    rec_v = rec.get(m)
+                    if (fresh_v is None or rec_v is None
+                            or not np.isclose(float(fresh_v), float(rec_v),
+                                              rtol=1e-9, atol=1e-9,
+                                              equal_nan=True)):
+                        divergent.append((m, rec_v, fresh_v))
+                if divergent:
+                    print(f"  FAIL  record #{i + 1} reconciliation:")
+                    for m, rec_v, fresh_v in divergent:
+                        print(f"           {m}: record={rec_v} fresh={fresh_v}")
+                    region_opt_diffs += 1
+                else:
+                    print(f"        record #{i + 1} reconcile OK: "
+                          f"{len(_RO_RECON_METRICS)} metrics match fresh eval "
+                          f"(rtol=1e-9)")
+
+            # ── Meta-test: injected surrogate value MUST fail reconciliation ──
+            # The reconciliation cell above only guards if it actually catches
+            # surrogate-vs-engine drift. Inject a deliberately-wrong value
+            # (the surrogate's citywide prediction for the same recipe,
+            # which is ≠ the engine region-local for any nontrivial case)
+            # and assert the reconciliation fails on that altered record.
+            meta_rec = ro_records.iloc[0].copy()
+            X = np.array([[meta_rec['pct_converted'],
+                           meta_rec['green_infrastructure_pct'],
+                           meta_rec['food_forest_pct']]], dtype=float)
+            from surrogate import predict_with_uncertainty
+            pred_mean, _, _ = predict_with_uncertainty(ro_surrogate, X)
+            # surrogate output column order: flood_reduction, mean_hm, ...
+            # Index 1 = mean_hm. We poison meta_rec['mean_hm'] with the
+            # citywide surrogate prediction.
+            poisoned_mean_hm = float(pred_mean[0, 1])
+            true_mean_hm = float(meta_rec['mean_hm'])
+            # Sanity: don't run the meta-test if the surrogate happens to
+            # exactly predict the engine value (extremely unlikely; would make
+            # the meta-test vacuous).
+            if np.isclose(poisoned_mean_hm, true_mean_hm,
+                          rtol=1e-9, atol=1e-9):
+                print(f"  SKIP  meta-test: surrogate prediction exactly matches "
+                      f"engine value — meta-test would be vacuous")
+            else:
+                # Re-run reconciliation against the poisoned value; expect
+                # divergence on mean_hm.
+                _meta_recipe = dict(
+                    pct_converted=int(meta_rec['pct_converted']),
+                    green_infrastructure_pct=int(meta_rec['green_infrastructure_pct']),
+                    food_forest_pct=int(meta_rec['food_forest_pct']),
+                )
+                meta_fresh = app.evaluate_scenario(
+                    **_meta_recipe, seed=42, placement_strategy='random',
+                    selected_region_mask=ro_combined,
+                )
+                meta_rl = meta_fresh.get('region_local') or {}
+                meta_fresh_v = float(meta_rl.get('mean_hm',
+                                                  meta_fresh.get('mean_hm')))
+                if np.isclose(meta_fresh_v, poisoned_mean_hm,
+                              rtol=1e-9, atol=1e-9):
+                    print(f"  FAIL  meta-test: poisoned record's mean_hm "
+                          f"({poisoned_mean_hm}) reconciled against fresh "
+                          f"engine ({meta_fresh_v}) — the reconciliation "
+                          f"isn't catching surrogate drift")
+                    region_opt_diffs += 1
+                else:
+                    print(f"  OK    meta-test: injected surrogate value "
+                          f"({poisoned_mean_hm:.4f}) ≠ engine value "
+                          f"({meta_fresh_v:.4f}); reconciliation correctly "
+                          f"flags the drift")
+
+            # ── Provenance distinction — region-optimizer records cannot
+            #    silently collapse into the citywide surrogate's tag ──
+            # Three guards, both-ways:
+            #   1. The two provenance constants are themselves distinct.
+            #   2. Every region record carries
+            #      source='region_optimized' + validation='engine_verified'
+            #      (the new tags) — not the citywide surrogate tag.
+            #   3. The citywide optimize_scenario function does NOT emit
+            #      those columns (its DataFrame has different shape) — a
+            #      structural distinguisher independent of (1).
+            # Also assert the rendered Source labels diverge: the user-facing
+            # distinction is what the brief calls out, not just the constant.
+            import natcap_scenarios as _ns
+            if _ns.PROVENANCE_REGION_OPTIMIZED == _ns.PROVENANCE_OPTIMIZER:
+                print("  FAIL  provenance constants collapsed: "
+                      "PROVENANCE_REGION_OPTIMIZED == PROVENANCE_OPTIMIZER")
+                region_opt_diffs += 1
+            else:
+                print(f"  OK    provenance constants distinct: "
+                      f"REGION_OPTIMIZED={_ns.PROVENANCE_REGION_OPTIMIZED!r} "
+                      f"vs OPTIMIZER={_ns.PROVENANCE_OPTIMIZER!r}")
+
+            _region_labels = app._PROVENANCE_HEADER_INFO.get(
+                _ns.PROVENANCE_REGION_OPTIMIZED)
+            _citywide_labels = app._PROVENANCE_HEADER_INFO.get(
+                _ns.PROVENANCE_OPTIMIZER)
+            if (_region_labels is None or _citywide_labels is None
+                    or _region_labels[0] == _citywide_labels[0]):
+                print(f"  FAIL  rendered Source labels collapsed or "
+                      f"missing: region={_region_labels!r} "
+                      f"citywide={_citywide_labels!r}")
+                region_opt_diffs += 1
+            else:
+                print(f"  OK    rendered Source labels distinct: "
+                      f"region={_region_labels[0]!r} "
+                      f"vs citywide={_citywide_labels[0]!r}")
+
+            _src_col_bad = []
+            _val_col_bad = []
+            for _, _rec in ro_records.iterrows():
+                if _rec.get('source') != 'region_optimized':
+                    _src_col_bad.append(_rec.get('source'))
+                if _rec.get('validation') != 'engine_verified':
+                    _val_col_bad.append(_rec.get('validation'))
+            if _src_col_bad or _val_col_bad:
+                print(f"  FAIL  region records carry wrong tags: "
+                      f"source values={_src_col_bad}  "
+                      f"validation values={_val_col_bad}")
+                region_opt_diffs += 1
+            else:
+                print(f"  OK    {len(ro_records)} region records tagged "
+                      f"source=region_optimized + validation=engine_verified")
+
+            # Citywide optimize_scenario for the structural distinguisher.
+            # Use a tiny constraint set the surrogate can satisfy on the
+            # Fast grid so we get a real DataFrame back.
+            from surrogate import optimize_scenario as _cw_optimize
+            _cw_df = _cw_optimize(
+                ro_surrogate, min_flood=0, min_cool=0.0, min_food=0.0,
+                max_runoff=float(ro_scenario_df['runoff_acre_feet'].max()) + 1,
+                min_carbon=0, max_food=float(ro_scenario_df['food_mln_lbs'].max()),
+                max_flood=100.0, max_cool=1.1, n_samples=2000,
+            )
+            if isinstance(_cw_df, dict):
+                print(f"  SKIP  citywide structural distinguisher: "
+                      f"optimize_scenario returned no scenarios "
+                      f"(constraint pruning) — provenance constants + "
+                      f"label assertions above already cover the "
+                      f"collapse-prevention contract")
+            elif 'source' in _cw_df.columns or 'validation' in _cw_df.columns:
+                print(f"  FAIL  citywide optimize_scenario emitted "
+                      f"source/validation columns — those are specific to "
+                      f"the region path; the structural distinguisher "
+                      f"between the two record types collapsed")
+                region_opt_diffs += 1
+            else:
+                print(f"  OK    citywide optimize_scenario DataFrame "
+                      f"({len(_cw_df)} rows) has no source/validation "
+                      f"columns — structural distinguisher from region "
+                      f"records holds")
+    except Exception as e:
+        print(f"  ERROR region-optimizer assertions: {e}")
+        import traceback; traceback.print_exc()
+        region_opt_diffs += 1
+
     # ── Ownership Finer Classes (Batch 1) — reconciliation assertion ───────
     # Two checks (see OWNERSHIP_FINER_CLASSES_SPEC.md §"Verification"):
     #
@@ -1426,7 +1678,8 @@ def main(update: bool) -> int:
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
                    + round_trip_diffs + subset_diffs + reconcile_diffs
-                   + guard_diffs + ownership_diffs_batch1 + tradeoff_diffs)
+                   + guard_diffs + ownership_diffs_batch1 + tradeoff_diffs
+                   + region_opt_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -1463,6 +1716,10 @@ def main(update: bool) -> int:
             print(f"{tradeoff_diffs} tradeoff-chart empty-optimizer "
                   "regression(s) — plot_tradeoff raised on a no-scenarios "
                   "or empty optimizer argument.")
+        if region_opt_diffs:
+            print(f"{region_opt_diffs} region-optimizer assertion "
+                  "divergence(s) — subset / reconciliation / meta-test "
+                  "(see REGION_OPTIMIZER_SPEC.md §8).")
         return 1
 
 
