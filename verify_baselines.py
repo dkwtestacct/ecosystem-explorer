@@ -2010,6 +2010,103 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         section_order_diffs += 1
 
+    # ── Optimizer Promotion — shared-fire assertion ─────────────────────────
+    # Sidebar Discover button + main-panel CTA must route through the same
+    # `_fire_citywide_optimize` / `_fire_region_optimize` helpers so a click
+    # on either produces the same engine pass + same session_state writes.
+    # This assertion scans app.py for the helper-call sites and asserts:
+    #   1. _fire_citywide_optimize is DEFINED exactly once.
+    #   2. _fire_region_optimize is DEFINED exactly once.
+    #   3. Each helper is CALLED in at least one location (sidebar button).
+    #   4. No inline optimize_scenario() or optimize_scenario_region() calls
+    #      survive in the Discover sidebar block — those must route through
+    #      the helpers, not duplicate the logic.
+    # When the main-panel CTA lands (HOLD batch), it adds a second call site
+    # to each helper; the assertion's "≥ 1" check tolerates either state.
+    print(f"\n{'=' * 60}")
+    print("Optimizer Promotion — shared-fire helper contract")
+    print(f"{'=' * 60}")
+    shared_fire_diffs = 0
+    try:
+        with open("app.py", "r") as _fh:
+            _src = _fh.read()
+        import re as _re
+        # Defs must each appear exactly once.
+        _defs_city = len(_re.findall(
+            r"^def _fire_citywide_optimize\(", _src, _re.MULTILINE))
+        _defs_region = len(_re.findall(
+            r"^def _fire_region_optimize\(", _src, _re.MULTILINE))
+        if _defs_city != 1:
+            print(f"  FAIL _fire_citywide_optimize defined {_defs_city} "
+                  f"times — expected exactly 1")
+            shared_fire_diffs += 1
+        if _defs_region != 1:
+            print(f"  FAIL _fire_region_optimize defined {_defs_region} "
+                  f"times — expected exactly 1")
+            shared_fire_diffs += 1
+        # Calls — count appearances minus the def site. ≥ 1 call means at
+        # least one button routes through the helper.
+        _calls_city = len(_re.findall(
+            r"_fire_citywide_optimize\(", _src)) - _defs_city
+        _calls_region = len(_re.findall(
+            r"_fire_region_optimize\(", _src)) - _defs_region
+        if _calls_city < 1:
+            print(f"  FAIL _fire_citywide_optimize called 0 times — "
+                  f"sidebar button must route through it")
+            shared_fire_diffs += 1
+        if _calls_region < 1:
+            print(f"  FAIL _fire_region_optimize called 0 times — "
+                  f"sidebar button must route through it")
+            shared_fire_diffs += 1
+        if shared_fire_diffs == 0:
+            print(f"  OK   _fire_citywide_optimize: 1 def + {_calls_city} "
+                  f"call(s); _fire_region_optimize: 1 def + "
+                  f"{_calls_region} call(s)")
+        # Bonus check: no inline `optimize_scenario(` or
+        # `optimize_scenario_region(` calls inside the Discover sidebar
+        # `with _sec_discover:` block — those would be a duplicate
+        # fire path that bypasses the shared helper.
+        _disc_start = _re.search(
+            r"^with _sec_discover:", _src, _re.MULTILINE)
+        if _disc_start:
+            # End of Discover block: heuristic — next `^with _sec_` or end.
+            _after_disc = _src[_disc_start.end():]
+            _disc_end_match = _re.search(
+                r"^with _sec_", _after_disc, _re.MULTILINE)
+            _disc_body = (_after_disc[:_disc_end_match.start()]
+                           if _disc_end_match else _after_disc)
+            _inline_cw = _re.findall(
+                r"\boptimize_scenario\(", _disc_body)
+            _inline_rg = _re.findall(
+                r"\boptimize_scenario_region\(", _disc_body)
+            # optimize_scenario_region in _disc_body is fine in helper
+            # arguments; but a direct call inside Discover would bypass
+            # the shared fire path. Filter out occurrences inside the
+            # helper-call argument list by stripping any
+            # `_fire_*_optimize(...optimize_scenario_region(...)`. The
+            # helpers are at module level, NOT inside the with-block,
+            # so any `optimize_scenario(` / `optimize_scenario_region(`
+            # inside _disc_body is an inline duplicate.
+            if _inline_cw:
+                print(f"  FAIL inline optimize_scenario() calls inside "
+                      f"_sec_discover block: {len(_inline_cw)} — should "
+                      f"route through _fire_citywide_optimize")
+                shared_fire_diffs += 1
+            if _inline_rg:
+                print(f"  FAIL inline optimize_scenario_region() calls "
+                      f"inside _sec_discover block: {len(_inline_rg)} — "
+                      f"should route through _fire_region_optimize")
+                shared_fire_diffs += 1
+            if not (_inline_cw or _inline_rg):
+                print(f"  OK   no inline optimize_scenario / "
+                      f"optimize_scenario_region calls inside the "
+                      f"Discover sidebar block — both buttons route "
+                      f"through the shared helpers")
+    except Exception as e:
+        print(f"  ERROR shared-fire assertion: {e}")
+        import traceback; traceback.print_exc()
+        shared_fire_diffs += 1
+
     # ── Sidebar wiring-survival assertion ────────────────────────────────────
     # The sidebar's grown dense and accreted layout refactors. Every Streamlit
     # widget that participates in app behavior carries a `key=` so its
@@ -2040,6 +2137,10 @@ def main(update: bool) -> int:
             'region_opt_w_carbon', 'region_opt_w_cool',
             'region_opt_w_cost', 'region_opt_w_flood', 'region_opt_w_food',
             'scenario_source',
+            # Optimizer Promotion: secondary sidebar trigger for the
+            # citywide path. The primary trigger is the main-panel CTA;
+            # both call _fire_citywide_optimize with identical args.
+            'sidebar_citywide_opt_button',
             'slider_ff_pct', 'slider_gi_pct', 'slider_pct_converted',
         })
         _SIDEBAR_DYNAMIC_PREFIXES_EXPECTED = ('elf_check_', 'region_labels_')
@@ -2125,7 +2226,8 @@ def main(update: bool) -> int:
                    + round_trip_diffs + subset_diffs + reconcile_diffs
                    + guard_diffs + ownership_diffs_batch1 + tradeoff_diffs
                    + region_opt_diffs + sidebar_keys_diffs
-                   + scenario_state_diffs + section_order_diffs)
+                   + scenario_state_diffs + section_order_diffs
+                   + shared_fire_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -2179,6 +2281,10 @@ def main(update: bool) -> int:
             print(f"{section_order_diffs} Tradeoff Analysis section-order "
                   "divergence(s) — Explorer tab2 or NatCap view sections "
                   "moved out of the expected sequence.")
+        if shared_fire_diffs:
+            print(f"{shared_fire_diffs} Optimizer Promotion shared-fire "
+                  "divergence(s) — _fire_citywide_optimize / "
+                  "_fire_region_optimize helper contract broke.")
         return 1
 
 

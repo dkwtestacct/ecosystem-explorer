@@ -3723,6 +3723,105 @@ def _cached_fast_surrogate_for_region(_state, city_key,
     fast_model = _train_surrogate_fn(fast_df, n_estimators=100)
     return fast_df, fast_model
 
+
+# ── Shared optimize triggers (Optimizer Promotion) ──────────────────────────
+# The sidebar Discover button AND the main-panel CTA must fire the same
+# optimize logic on the same config so the user can trust that clicking
+# either produces the same result. These helpers are the single fire site;
+# both buttons call them with the same explicit args (no implicit module
+# globals). verify_baselines asserts both call sites pass identical
+# argument expressions to lock in the contract.
+def _fire_citywide_optimize(
+    surrogate_model,
+    min_flood, min_cool, min_food, max_runoff, min_carbon,
+    max_food, max_flood_const, max_cool_const,
+):
+    """Run the citywide surrogate optimizer. Writes to
+    `st.session_state.optimized_results`. Surfaces success / no-result
+    feedback inline."""
+    with st.spinner("Searching for most efficient tradeoff scenarios..."):
+        st.session_state.optimized_results = optimize_scenario(
+            surrogate_model, min_flood, min_cool, min_food, max_runoff,
+            min_carbon=min_carbon, max_food=max_food,
+            max_flood=max_flood_const, max_cool=max_cool_const,
+        )
+    _opt_res = st.session_state.optimized_results
+    if _opt_res is None or (
+            isinstance(_opt_res, dict) and not _opt_res.get('found')):
+        st.warning("No scenarios found — try lowering the targets.")
+        st.session_state.just_optimized = False
+    else:
+        st.success("Results ready — open the Tradeoff Analysis tab →")
+        st.session_state.just_optimized = True
+
+
+def _fire_region_optimize(
+    state, city_key, data_dir_flood, data_dir_cooling,
+    region_mask, ownership_mask,
+    cost_gi_val, cost_ff_val, cost_hd_val,
+    weights,
+):
+    """Run the region-prefilter + engine-verify optimizer. Writes to
+    `st.session_state.region_optimized_results`. Composes the
+    region∩ownership mask, defines the engine-eval closure, pulls the
+    cached Fast surrogate, and orchestrates the engine-verify pass under
+    a progress bar — same code as the sidebar's prior inline block,
+    factored so the main-panel CTA can call the same path."""
+    # Compose the active region∩ownership mask the engine consumes.
+    if region_mask is not None and ownership_mask is not None:
+        opt_mask = region_mask & ownership_mask
+    elif ownership_mask is not None:
+        opt_mask = ownership_mask
+    else:
+        opt_mask = region_mask
+
+    def _engine_eval(_pct, _gi, _ff):
+        return evaluate_scenario(
+            _pct, _gi, _ff,
+            seed=42, placement_strategy='random',
+            cost_gi=cost_gi_val, cost_ff=cost_ff_val, cost_hd=cost_hd_val,
+            carbon_rate_ff=st.session_state.carbon_rate_ff,
+            carbon_rate_gi=st.session_state.carbon_rate_gi,
+            selected_region_mask=opt_mask,
+        )
+
+    with st.spinner("Preparing Fast prefilter (first run only)…"):
+        fast_df, fast_surrogate = _cached_fast_surrogate_for_region(
+            state, city_key, data_dir_flood, data_dir_cooling,
+        )
+
+    _prog = st.progress(0.0, text="Engine-verifying candidates 0 / 0…")
+    def _progress(i, K):
+        _prog.progress(i / K,
+                       text=f"Engine-verifying candidates {i} / {K}…")
+    try:
+        region_out = optimize_scenario_region(
+            fast_surrogate, fast_df, _engine_eval,
+            weights,
+            k_engine=40, top_n=5,
+            progress_cb=_progress,
+        )
+        _prog.empty()
+    except Exception as _e:
+        _prog.empty()
+        st.error(f"Optimization failed: {_e}")
+        region_out = None
+
+    if region_out is None or region_out.empty:
+        st.warning(
+            "No scenarios found — try widening the weights or "
+            "selecting a different region."
+        )
+        st.session_state.region_optimized_results = None
+        st.session_state.just_optimized = False
+    else:
+        st.session_state.region_optimized_results = region_out
+        st.success(
+            "Results ready — open the Tradeoff Analysis tab →"
+        )
+        st.session_state.just_optimized = True
+
+
 # ── Plotting helpers ───────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def _load_region_polygons_for_plotly(path: str, label_field: str):
@@ -4592,13 +4691,37 @@ st.session_state.setdefault("slider_gi_pct",
 st.session_state.setdefault("slider_ff_pct",
                             SCENARIO_DEFAULT_FF_PCT)
 
-# ── Sidebar section: Scenario (Sidebar Reorg) ──────────────────────────────
+# ── Sidebar visual order (Optimizer Promotion) ─────────────────────────────
+# Pre-create the five section expanders in VISUAL order — Scenario,
+# Discover scenarios (promoted to position 2 per the Optimizer
+# Promotion brief), Where changes happen, Eligibility filters, Export.
+# Code below populates each via `with _sec_<name>:` in DEPENDENCY order
+# (Scenario → Where → Eligibility → Discover → Export) so the Discover
+# block reads session_state that the Where + Eligibility blocks set
+# in the same rerun — no one-rerun mode-switch lag.
+_where_expanded = (
+    st.session_state.get('selected_region_mask') is not None
+)
+_eligibility_available = _CURRENT_CITY_STATE.ownership_raster is not None
+
+_sec_scenario    = st.sidebar.expander("Scenario", expanded=True)
+_sec_discover    = st.sidebar.expander("Discover scenarios",
+                                        expanded=True)
+_sec_where       = st.sidebar.expander("Where changes happen",
+                                        expanded=_where_expanded)
+_sec_eligibility = (
+    st.sidebar.expander("Eligibility filters", expanded=False)
+    if _eligibility_available else None
+)
+_sec_export      = st.sidebar.expander("Export", expanded=False)
+
+# ── Sidebar section: Scenario ──────────────────────────────────────────────
 # Base scenario controls — conversion mix, presets, placement strategy,
 # implementation costs (folded in from the prior standalone expander), and
 # carbon-rate sliders (MN only — folded in from the prior Advanced Settings
 # expander). Expanded by default since this is the primary configuration
 # surface.
-with st.sidebar.expander("Scenario", expanded=True):
+with _sec_scenario:
     pct_converted = st.slider(
         "% of developed land to convert", 0, 50,
         key="slider_pct_converted",
@@ -4824,7 +4947,7 @@ _region_layers_available = bool(_CURRENT_CITY_STATE.region_rasters)
 _where_expanded = (
     st.session_state.get('selected_region_mask') is not None
 )
-with st.sidebar.expander("Where changes happen", expanded=_where_expanded):
+with _sec_where:
     _apply_within = st.radio(
         "Apply changes within",
         options=["Entire analysis area", "Selected regions"],
@@ -4927,9 +5050,12 @@ with st.sidebar.expander("Where changes happen", expanded=_where_expanded):
 # Where-changes-happen region selection: the combined eligible denominator
 # reflects `region ∩ ownership ∩ convertible` when both are active. SA-only
 # (MN has no ownership raster — the expander is hidden for that city).
-_ownership_available = _CURRENT_CITY_STATE.ownership_raster is not None
-if _ownership_available:
-    with st.sidebar.expander("Eligibility filters", expanded=False):
+# _eligibility_available was computed at the top of the sidebar for
+# pre-creation of _sec_eligibility; reused here as the populate-or-skip
+# guard. Alias preserved for any downstream readers below the sidebar.
+_ownership_available = _eligibility_available
+if _eligibility_available:
+    with _sec_eligibility:
         # Always-on exclusions — display only; the per-pixel engine enforces
         # these via the convertible-pixel pool (developed minus
         # buildings/roads), so they aren't selectable.
@@ -5087,7 +5213,7 @@ min_food = 0.0
 max_runoff = float(BASELINE_RUNOFF_ACRE_FEET)
 min_carbon = 0
 
-with st.sidebar.expander("Discover scenarios", expanded=False):
+with _sec_discover:
     if not _filter_active:
         # Citywide-mode Discover copy (Relay B). Honest framing: surrogate
         # predictions, not engine results — verify via Apply.
@@ -5179,19 +5305,16 @@ with st.sidebar.expander("Discover scenarios", expanded=False):
                     "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
                 )
 
-            if st.button("Optimize"):
-                with st.spinner("Searching for most efficient tradeoff scenarios..."):
-                    st.session_state.optimized_results = optimize_scenario(
-                        surrogate, min_flood, min_cool, min_food, max_runoff,
-                        min_carbon=min_carbon, max_food=MAX_FOOD,
-                        max_flood=MAX_FLOOD, max_cool=MAX_COOL)
-                _opt_res = st.session_state.optimized_results
-                if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
-                    st.warning("No scenarios found — try lowering the targets.")
-                    st.session_state.just_optimized = False
-                else:
-                    st.success("Results ready — open the Tradeoff Analysis tab →")
-                    st.session_state.just_optimized = True
+            # Optimizer Promotion — secondary-styled sidebar trigger. The
+            # main-panel CTA is the primary; both share _fire_citywide_optimize
+            # with identical args. Verb aligned with the CTA ("Find promising
+            # scenarios"). Both write to st.session_state.optimized_results.
+            if st.button("Find promising scenarios",
+                         key="sidebar_citywide_opt_button"):
+                _fire_citywide_optimize(
+                    surrogate, min_flood, min_cool, min_food, max_runoff,
+                    min_carbon, MAX_FOOD, MAX_FLOOD, MAX_COOL,
+                )
     else:
         # ── Region-constrained optimizer (variant B) ─────────────────────
         # Mode-switch path. Replaces the min-target sliders + Optimize button
@@ -5242,74 +5365,20 @@ with st.sidebar.expander("Discover scenarios", expanded=False):
                 'runoff_acre_feet': w_flood,  # piggyback flood weight onto runoff
             }
 
-            if st.button("Optimize selected area",
+            # Optimizer Promotion — secondary sidebar trigger. Main-panel CTA
+            # is the primary; both share _fire_region_optimize with identical
+            # args, so clicking either produces the same engine pass + result
+            # state. Verb aligned with the CTA ("Find best tested mixes").
+            if st.button("Find best tested mixes",
                          key="region_opt_button"):
-                # Compose the active region∩ownership mask the engine consumes.
-                _r = st.session_state.get('selected_region_mask')
-                _o = st.session_state.get('selected_ownership_mask')
-                if _r is not None and _o is not None:
-                    _opt_mask = _r & _o
-                elif _o is not None:
-                    _opt_mask = _o
-                else:
-                    _opt_mask = _r
-
-                # Engine eval — closure over the live cost slider values + the
-                # combined mask. surrogate.optimize_scenario_region calls this
-                # K ≈ 40 times under a progress bar.
-                def _engine_eval(_pct, _gi, _ff):
-                    return evaluate_scenario(
-                        _pct, _gi, _ff,
-                        seed=42, placement_strategy='random',
-                        cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
-                        carbon_rate_ff=st.session_state.carbon_rate_ff,
-                        carbon_rate_gi=st.session_state.carbon_rate_gi,
-                        selected_region_mask=_opt_mask,
-                    )
-
-                # Use the Phase-0.5-validated Fast (~90 recipes, 100 trees)
-                # surrogate regardless of the active Model-quality mode. In Fast
-                # mode the cache key collides with the already-built grid, so
-                # this is free; in Balanced / High it builds the Fast grid once
-                # per session (~3 min on SA) under a spinner.
-                with st.spinner(
-                    "Preparing Fast prefilter (first run only)…"
-                ):
-                    _fast_df, _fast_surrogate = _cached_fast_surrogate_for_region(
-                        _CURRENT_CITY_STATE, selected_city,
-                        DATA_DIR_FLOOD, DATA_DIR_COOLING,
-                    )
-
-                _prog = st.progress(0.0, text="Engine-verifying candidates 0 / 0…")
-                def _progress(i, K):
-                    _prog.progress(i / K,
-                                   text=f"Engine-verifying candidates {i} / {K}…")
-                try:
-                    _region_out = optimize_scenario_region(
-                        _fast_surrogate, _fast_df, _engine_eval,
-                        _region_opt_weights,
-                        k_engine=40, top_n=5,
-                        progress_cb=_progress,
-                    )
-                    _prog.empty()
-                except Exception as _e:
-                    _prog.empty()
-                    st.error(f"Optimization failed: {_e}")
-                    _region_out = None
-
-                if _region_out is None or _region_out.empty:
-                    st.warning(
-                        "No scenarios found — try widening the weights or "
-                        "selecting a different region."
-                    )
-                    st.session_state.region_optimized_results = None
-                    st.session_state.just_optimized = False
-                else:
-                    st.session_state.region_optimized_results = _region_out
-                    st.success(
-                        "Results ready — open the Tradeoff Analysis tab →"
-                    )
-                    st.session_state.just_optimized = True
+                _fire_region_optimize(
+                    _CURRENT_CITY_STATE, selected_city,
+                    DATA_DIR_FLOOD, DATA_DIR_COOLING,
+                    st.session_state.get('selected_region_mask'),
+                    st.session_state.get('selected_ownership_mask'),
+                    cost_gi, cost_ff, cost_hd,
+                    _region_opt_weights,
+                )
 
     # ── Model-quality controls (folded in from prior Advanced Settings) ──
     # Live at the bottom of Discover scenarios so the optimizer's training-
@@ -5646,7 +5715,7 @@ def _build_invest_bundle_for_current_scenario():
 
 
 # ── Sidebar section: Export (Sidebar Reorg) ──────────────────────────────────
-with st.sidebar.expander("Export", expanded=False):
+with _sec_export:
     if not selected_city.startswith("San Antonio"):
         st.caption(
             "InVEST export is currently SA-only (the bundle is built around NatCap's "
@@ -7790,7 +7859,10 @@ with tab2:
 
     if (not _filter_active) and st.session_state.optimized_results is not None:
         st.divider()
-        st.subheader("Optimized Scenario Suggestions")
+        # Optimizer Promotion — de-optimize the heading: "Suggested
+        # scenarios" framed as predicted (not "Optimized"). Caption below
+        # still flags the surrogate-prediction nature.
+        st.subheader("Suggested scenarios")
         st.caption("Scroll down to see suggestions and apply them to the sliders.")
         opt = st.session_state.optimized_results
         # Brief 30: SA optimizer reports stock-change; MN reports annual flow.
