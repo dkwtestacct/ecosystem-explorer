@@ -219,6 +219,93 @@ def _ownership_allowed_band1_values(mode_cfg) -> "list[int]":
         return [int(v) for v in mode_cfg['band1_in']]
     return []
 
+# ── Default-scenario state + display unification (Relay A) ─────────────────
+# Documented default — the app's own copy says "Default view illustrates a
+# balanced 50/50 mix at 10% conversion," so on load and after a city switch
+# the resolved scenario lands at (pct=10, GI=50, FF=50, HD=0).
+SCENARIO_DEFAULT_PCT_CONVERTED      = 10
+SCENARIO_DEFAULT_GI_PCT             = 50
+SCENARIO_DEFAULT_FF_PCT             = 50
+
+
+def _resolve_scenario(pct_converted, green_infrastructure_pct, food_forest_pct):
+    """Single resolved-scenario dict that every display surface reads from.
+
+    The HD share is canonical `100 - GI - FF`. The display helpers below take
+    this dict as their only input so the banner title, the main-panel
+    sentence, and the audit expander can't desync from each other or from
+    the engine's input arguments.
+    """
+    pct = int(pct_converted)
+    gi = int(green_infrastructure_pct)
+    ff = int(food_forest_pct)
+    return {
+        'pct_converted':            pct,
+        'green_infrastructure_pct': gi,
+        'food_forest_pct':          ff,
+        'pct_highdensity':          100 - gi - ff,
+    }
+
+
+def _explorer_scenario_label(resolved):
+    """Banner title for an Explorer-source scenario.
+
+    When `pct_converted == 0` no pixels convert, so the standard
+    "{pct}% converted — GI {gi}% / FF {ff}%" form is misleading (it would
+    advertise allocation knobs that don't fire). Use the "no conversion"
+    label instead; downstream code uses this consistently with the engine's
+    no-op behavior at pct=0.
+    """
+    pct = resolved['pct_converted']
+    if pct == 0:
+        return "Explorer scenario · no conversion"
+    return (f"Explorer scenario · {pct}% converted — "
+            f"GI {resolved['green_infrastructure_pct']}% / "
+            f"FF {resolved['food_forest_pct']}%")
+
+
+def _explorer_scenario_sentence(resolved, within_phrase, mode_text):
+    """The "This scenario converts …" sentence rendered in the main panel.
+
+    Branches on `pct_converted == 0` so a no-conversion state reads honestly
+    ("makes no conversions — metrics reflect the baseline") rather than
+    listing 0%/0%/100% allocations that don't fire."""
+    pct = resolved['pct_converted']
+    if pct == 0:
+        return (
+            "This scenario makes no conversions — the displayed metrics "
+            "reflect the baseline."
+        )
+    return (
+        f"This scenario converts **{pct}%** of {within_phrase}, allocating "
+        f"**{resolved['green_infrastructure_pct']}%** to green infrastructure, "
+        f"**{resolved['food_forest_pct']}%** to food forest, and "
+        f"**{resolved['pct_highdensity']}%** to high-density development, "
+        f"{mode_text}."
+    )
+
+
+def _explorer_audit_sentence(resolved, area_phrase, ownership_clause,
+                             strategy_label):
+    """Audit-expander sentence — same 0-conversion branch as the main panel
+    sentence, with the audit's additional area + ownership context."""
+    pct = resolved['pct_converted']
+    if pct == 0:
+        return (
+            f"This scenario makes no conversions in **{area_phrase}**"
+            f"{ownership_clause}; the metrics reflect the baseline."
+        )
+    return (
+        f"This scenario converts **{pct}%** of the eligible "
+        f"convertible pool in **{area_phrase}**{ownership_clause}, "
+        f"allocating **{resolved['green_infrastructure_pct']}%** "
+        f"to green infrastructure, "
+        f"**{resolved['food_forest_pct']}%** to food forest, "
+        f"and **{resolved['pct_highdensity']}%** to high-density "
+        f"development, using **{strategy_label}**."
+    )
+
+
 # _REGION_LOCAL_METRICS — per-metric treatment table (data-only) — lives
 # in `region_local_metrics.py` (Constants Refactor / Task #52). The
 # reconciliation invariant (region_local over the entire AOI ==
@@ -4437,9 +4524,12 @@ if selected_city.startswith("San Antonio"):
 # Seed slider defaults via session_state (not via widget `value=` kwarg) so
 # the city-change reset above composes cleanly and Streamlit does not warn
 # about a key being set both via the widget default and the Session State API.
-st.session_state.setdefault("slider_pct_converted", 10)
-st.session_state.setdefault("slider_gi_pct", 50)
-st.session_state.setdefault("slider_ff_pct", 50)
+st.session_state.setdefault("slider_pct_converted",
+                            SCENARIO_DEFAULT_PCT_CONVERTED)
+st.session_state.setdefault("slider_gi_pct",
+                            SCENARIO_DEFAULT_GI_PCT)
+st.session_state.setdefault("slider_ff_pct",
+                            SCENARIO_DEFAULT_FF_PCT)
 
 # ── Sidebar section: Scenario (Sidebar Reorg) ──────────────────────────────
 # Base scenario controls — conversion mix, presets, placement strategy,
@@ -4491,6 +4581,18 @@ with st.sidebar.expander("Scenario", expanded=True):
     else:
         st.error(f"Mix sums to {mix_sum}% — must equal 100%")
         st.stop()
+
+    # ── Resolved scenario state (Relay A) ────────────────────────────────
+    # Single source of truth for the banner title, the main-panel sentence,
+    # the audit-expander sentence, and the metric-card label flow. The
+    # display helpers (_explorer_scenario_label / _explorer_scenario_sentence
+    # / _explorer_audit_sentence) read this dict — they do not interpolate
+    # the raw module-level variables. HD is canonical 100 - GI - FF here
+    # (the slider isn't keyed and can drift; this fixes the source).
+    _resolved_scenario = _resolve_scenario(
+        pct_converted, green_infrastructure_pct, food_forest_pct,
+    )
+    pct_highdensity = _resolved_scenario['pct_highdensity']
 
     st.divider()
 
@@ -5630,7 +5732,13 @@ else:
 # it whenever sliders drift, so the OPTIMIZER tag never stays stale.
 if results['pct_converted'] == 0:
     _scen_provenance = eib.PROVENANCE_BASELINE
-    _scen_label = f"Baseline — {selected_city}"
+    # Relay A — pct=0 is the user's "no conversion" Explorer choice. Frame
+    # honestly via the unified helper rather than the previous
+    # "Baseline — {city}" string, which buried the fact that the no-conversion
+    # state came from dragging Explorer sliders to 0. Provenance stays
+    # BASELINE (the engine output IS baseline-equivalent at pct=0); only
+    # the displayed banner label changes.
+    _scen_label = _explorer_scenario_label(_resolved_scenario)
 elif st.session_state.get("applied_from_region_optimizer"):
     _scen_provenance = eib.PROVENANCE_REGION_OPTIMIZED
     _scen_label = f"Region-optimized · {results['scenario_name']}"
@@ -5639,7 +5747,12 @@ elif st.session_state.get("applied_from_optimizer"):
     _scen_label = f"Optimizer suggestion · {results['scenario_name']}"
 else:
     _scen_provenance = eib.PROVENANCE_EXPLORER
-    _scen_label = f"Explorer scenario · {results['scenario_name']}"
+    # Relay A — use the unified display helper so the banner title shares
+    # its source with the main-panel + audit sentences. The helper branches
+    # on pct=0 ("no conversion" label) so a no-conversion state reads
+    # honestly instead of advertising 0%/0%/100% allocation knobs that
+    # don't fire.
+    _scen_label = _explorer_scenario_label(_resolved_scenario)
 # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3 —
 # augment the Source line text when an Explorer scenario is region- and/or
 # ownership-constrained. Baseline (pct=0) reads just 'Baseline' — don't
@@ -5671,21 +5784,18 @@ with st.expander("Scenario audit", expanded=False):
     # changes (e.g. cost is interpolated into the sentence), escape.
     _audit_area_inline = _cs_area_for_row(results)
     _audit_own_inline  = _cs_ownership_for_row(results)
-    _audit_pct_hd      = 100 - green_infrastructure_pct - food_forest_pct
     _audit_strategy    = PLACEMENT_STRATEGY_LABELS.get(
         placement_strategy, placement_strategy)
     _audit_own_clause  = (
         "" if _audit_own_inline == "None"
         else f" restricted to {_audit_own_inline.lower()}"
     )
-    st.write(
-        f"This scenario converts **{pct_converted}%** of the eligible "
-        f"convertible pool in **{_audit_area_inline}**"
-        f"{_audit_own_clause}, allocating **{green_infrastructure_pct}%** "
-        f"to green infrastructure, **{food_forest_pct}%** to food forest, "
-        f"and **{_audit_pct_hd}%** to high-density development, using "
-        f"**{_audit_strategy}**."
-    )
+    # Relay A — audit sentence reads from the same _resolved_scenario the
+    # banner title + main-panel sentence use, branching on pct=0.
+    st.write(_explorer_audit_sentence(
+        _resolved_scenario, _audit_area_inline, _audit_own_clause,
+        _audit_strategy,
+    ))
     _audit_rs = results.get('region_selection') or {}
     _audit_eligible_acres = (
         (_audit_rs.get('eligible_pixels_in_region') or 0) * PIXEL_AREA_ACRES
@@ -6788,12 +6898,9 @@ if _rs_layer_key and _rs_ids_inline:
     )
 else:
     _within_phrase = "developed land"
-st.write(
-    f"This scenario converts **{pct_converted}%** of {_within_phrase}, allocating "
-    f"**{green_infrastructure_pct}%** to green infrastructure, "
-    f"**{food_forest_pct}%** to food forest, and **{pct_highdensity}%** "
-    f"to high-density development, {mode_text}."
-)
+st.write(_explorer_scenario_sentence(
+    _resolved_scenario, _within_phrase, mode_text,
+))
 
 tab1, tab2, tab3, tab4 = st.tabs(["Scenario", "Tradeoff Analysis", "Map View", "Reference"])
 
@@ -7042,7 +7149,10 @@ with tab2:
     # from results / session_state each time.)
     if results['pct_converted'] == 0:
         _cur_prov = eib.PROVENANCE_BASELINE
-        _cur_label = f"▶ Current — Baseline ({selected_city})"
+        # Relay A — match the banner title's no-conversion framing so the
+        # comparison-table "▶ Current" cell stays in sync with the H2 above
+        # the metric grid. Provenance stays BASELINE.
+        _cur_label = f"▶ Current — {_explorer_scenario_label(_resolved_scenario)}"
     elif st.session_state.get("applied_from_region_optimizer"):
         _cur_prov = eib.PROVENANCE_REGION_OPTIMIZED
         _cur_label = (f"▶ Current — Region-optimized · "

@@ -1674,6 +1674,192 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         guard_diffs += 1
 
+    # ── Default-scenario state consistency (Relay A) ─────────────────────────
+    # Title, sentence, and audit are all rendered from the same
+    # `_resolved_scenario` dict via three display helpers
+    # (`_explorer_scenario_label`, `_explorer_scenario_sentence`,
+    # `_explorer_audit_sentence`). Assert the helpers stay self-consistent at
+    # (a) the documented default 10/50/50, (b) pct=0 → "no conversion" form,
+    # (c) a mixed scenario, AND (d) the post-city-switch reset reproduces the
+    # default. Plus the load-bearing meta-test: a deliberately desynced state
+    # (label built from one state, sentence built from another) MUST trip the
+    # check — otherwise the consistency assertion is green-light theatre.
+    print(f"\n{'=' * 60}")
+    print("Default-scenario state — title + sentence consistency")
+    print(f"{'=' * 60}")
+    scenario_state_diffs = 0
+    try:
+        # The display helpers are pure functions of a resolved-scenario dict.
+        # Test them directly — no Streamlit render needed.
+
+        def _check_consistent(state, label, sentence, audit):
+            """Both-ways consistency:
+              - All three strings agree on pct/gi/ff (or all say "no conversion").
+              - Resolved state's pct/gi/ff match the encoded values in each.
+            Returns list of failure strings."""
+            failures = []
+            pct = state['pct_converted']
+            gi = state['green_infrastructure_pct']
+            ff = state['food_forest_pct']
+            if pct == 0:
+                # All three must use the "no conversion" branch.
+                for name, txt in (("label", label), ("sentence", sentence),
+                                  ("audit", audit)):
+                    if "no conversion" not in txt:
+                        failures.append(
+                            f"{name} does not branch to 'no conversion' "
+                            f"at pct=0: {txt!r}"
+                        )
+            else:
+                # All three must encode the same pct/gi/ff (string match).
+                pct_token = f"{pct}%"
+                gi_token = f"{gi}%"
+                ff_token = f"{ff}%"
+                for name, txt in (("label", label), ("sentence", sentence),
+                                  ("audit", audit)):
+                    if pct_token not in txt:
+                        failures.append(
+                            f"{name} missing pct={pct_token}: {txt!r}"
+                        )
+                    if gi_token not in txt:
+                        failures.append(
+                            f"{name} missing gi={gi_token}: {txt!r}"
+                        )
+                # Audit/sentence carry FF explicitly; label too.
+                for name, txt in (("label", label), ("sentence", sentence),
+                                  ("audit", audit)):
+                    if ff_token not in txt:
+                        failures.append(
+                            f"{name} missing ff={ff_token}: {txt!r}"
+                        )
+            return failures
+
+        # (a) Documented default 10/50/50.
+        default_state = app._resolve_scenario(
+            app.SCENARIO_DEFAULT_PCT_CONVERTED,
+            app.SCENARIO_DEFAULT_GI_PCT,
+            app.SCENARIO_DEFAULT_FF_PCT,
+        )
+        label = app._explorer_scenario_label(default_state)
+        sentence = app._explorer_scenario_sentence(
+            default_state, "developed land", "using random placement",
+        )
+        audit = app._explorer_audit_sentence(
+            default_state, "Citywide", "", "Random",
+        )
+        # The default's pct/gi/ff must be the documented values, AND the three
+        # surfaces must agree.
+        if default_state != {
+            'pct_converted': 10, 'green_infrastructure_pct': 50,
+            'food_forest_pct': 50, 'pct_highdensity': 0,
+        }:
+            print(f"  FAIL default state != documented 10/50/50/0: "
+                  f"{default_state}")
+            scenario_state_diffs += 1
+        fails = _check_consistent(default_state, label, sentence, audit)
+        if fails:
+            print(f"  FAIL default 10/50/50 consistency:")
+            for f in fails:
+                print(f"    {f}")
+            scenario_state_diffs += len(fails)
+        else:
+            print(f"  OK   default 10/50/50 — label/sentence/audit agree")
+
+        # (b) pct=0 — "no conversion" branch.
+        zero_state = app._resolve_scenario(0, 0, 0)
+        label_z = app._explorer_scenario_label(zero_state)
+        sentence_z = app._explorer_scenario_sentence(
+            zero_state, "developed land", "",
+        )
+        audit_z = app._explorer_audit_sentence(
+            zero_state, "Citywide", "", "Random",
+        )
+        fails = _check_consistent(zero_state, label_z, sentence_z, audit_z)
+        if fails:
+            print(f"  FAIL pct=0 'no conversion' consistency:")
+            for f in fails:
+                print(f"    {f}")
+            scenario_state_diffs += len(fails)
+        else:
+            print(f"  OK   pct=0 — all three branch to 'no conversion'")
+
+        # (c) Mixed scenario.
+        mixed_state = app._resolve_scenario(30, 75, 25)
+        label_m = app._explorer_scenario_label(mixed_state)
+        sentence_m = app._explorer_scenario_sentence(
+            mixed_state, "developed land", "",
+        )
+        audit_m = app._explorer_audit_sentence(
+            mixed_state, "Citywide", "", "Random",
+        )
+        fails = _check_consistent(mixed_state, label_m, sentence_m, audit_m)
+        if fails:
+            print(f"  FAIL mixed 30/75/25 consistency:")
+            for f in fails:
+                print(f"    {f}")
+            scenario_state_diffs += len(fails)
+        else:
+            print(f"  OK   mixed 30/75/25 — label/sentence/audit agree")
+
+        # (d) Post-city-switch reset — sliders pop, setdefault re-seeds the
+        # documented default. Verify the seeded values match the constants.
+        # Mirror what _reset_state_for_city_switch + setdefault do.
+        test_ss = _SessionStateStub()
+        for _k in ('slider_pct_converted', 'slider_gi_pct', 'slider_ff_pct'):
+            test_ss._store[_k] = 0   # stale state from prior city
+        app._reset_state_for_city_switch(test_ss)
+        # _reset_state_for_city_switch pops; setdefault re-seeds. Mimic the
+        # setdefault block at the top of the sidebar.
+        test_ss.setdefault("slider_pct_converted",
+                            app.SCENARIO_DEFAULT_PCT_CONVERTED)
+        test_ss.setdefault("slider_gi_pct", app.SCENARIO_DEFAULT_GI_PCT)
+        test_ss.setdefault("slider_ff_pct", app.SCENARIO_DEFAULT_FF_PCT)
+        post_state = app._resolve_scenario(
+            test_ss._store["slider_pct_converted"],
+            test_ss._store["slider_gi_pct"],
+            test_ss._store["slider_ff_pct"],
+        )
+        if post_state != default_state:
+            print(f"  FAIL post-city-switch state != default: "
+                  f"{post_state} vs {default_state}")
+            scenario_state_diffs += 1
+        else:
+            print(f"  OK   post-city-switch resolves to documented default")
+
+        # (e) Meta-test — load-bearing. Build label from state A, sentence
+        # from state B (different pct), audit from state A; assert
+        # _check_consistent FLAGS the discrepancy. Without this, the
+        # consistency check guards nothing — it'd pass on any "all three
+        # match each other by construction" run.
+        state_A = app._resolve_scenario(10, 50, 50)
+        state_B = app._resolve_scenario(30, 75, 25)
+        label_meta = app._explorer_scenario_label(state_A)
+        # sentence built from state_B — deliberately desynced from label.
+        sentence_meta = app._explorer_scenario_sentence(
+            state_B, "developed land", "",
+        )
+        audit_meta = app._explorer_audit_sentence(
+            state_A, "Citywide", "", "Random",
+        )
+        # _check_consistent runs against state_A; sentence_meta won't carry
+        # state_A's pct/gi tokens, so it must fail.
+        meta_fails = _check_consistent(
+            state_A, label_meta, sentence_meta, audit_meta,
+        )
+        if not meta_fails:
+            print(f"  FAIL meta-test: deliberately desynced sentence "
+                  f"(built from state_B={state_B}) failed to trip the "
+                  f"consistency check against state_A={state_A}. The "
+                  f"check guards nothing.")
+            scenario_state_diffs += 1
+        else:
+            print(f"  OK   meta-test: desynced sentence trips the check "
+                  f"({len(meta_fails)} divergence(s) flagged)")
+    except Exception as e:
+        print(f"  ERROR scenario-state consistency: {e}")
+        import traceback; traceback.print_exc()
+        scenario_state_diffs += 1
+
     # ── Sidebar wiring-survival assertion ────────────────────────────────────
     # The sidebar's grown dense and accreted layout refactors. Every Streamlit
     # widget that participates in app behavior carries a `key=` so its
@@ -1788,7 +1974,8 @@ def main(update: bool) -> int:
                    + region_local_diffs + smoke_diffs + disclosure_diffs
                    + round_trip_diffs + subset_diffs + reconcile_diffs
                    + guard_diffs + ownership_diffs_batch1 + tradeoff_diffs
-                   + region_opt_diffs + sidebar_keys_diffs)
+                   + region_opt_diffs + sidebar_keys_diffs
+                   + scenario_state_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -1834,6 +2021,10 @@ def main(update: bool) -> int:
                   "— wiring broke during a layout refactor; the "
                   "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
                   "the contract.")
+        if scenario_state_diffs:
+            print(f"{scenario_state_diffs} default-scenario state "
+                  "divergence(s) — title, sentence, or audit drifted from "
+                  "the resolved-scenario dict (Relay A).")
         return 1
 
 
