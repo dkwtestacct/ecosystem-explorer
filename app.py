@@ -5186,6 +5186,7 @@ if _eligibility_available:
             "Public land",
             "Vacant land",
             "Vacant + public",
+            "School / university land",
             "Custom",
         ]
         # Default to None on first render; the preset selectbox isn't
@@ -5231,6 +5232,16 @@ if _eligibility_available:
                         _cls != "university"
                     )
                 st.session_state["elf_check_vacant"] = True
+            elif _elf_preset == "School / university land":
+                # Preset over the existing composite filter — check school
+                # and university; everything else off; no vacant overlay.
+                # Custom still exposes the two classes individually for
+                # anyone who wants them apart.
+                for _cls in _elf_finer:
+                    st.session_state[f"elf_check_{_cls}"] = (
+                        _cls in ("school", "university")
+                    )
+                st.session_state["elf_check_vacant"] = False
             st.session_state["_elf_preset_applied"] = _elf_preset
 
         # Checkboxes — visible only under "Custom" to keep the panel
