@@ -258,7 +258,7 @@ WHATS_NEW_SECTIONS = [
         "**Selected-region impact** — alongside any region scenario, a paired table compares outcomes inside the selected area with the citywide result, with locked flood-routing and reach-effect caveats.",
         "**Eligibility breakdown** — see where a selected area's convertible land goes (developed → minus roads / buildings / existing nature → minus ownership filter → converted).",
         "**Ownership Filter (San Antonio)** — restrict conversions by ownership; the coarse rollups (publicly-owned / vacant) and the finer classes (City / County / State-federal / School (K-12) / University) are all selectable; composes with Region Selection.",
-        "**Optimize selected area** — when a region or ownership filter is active, the optimizer switches to engine-verified scenario search: a fast surrogate shortlists candidate mixes, the full engine then evaluates the shortlist on the selected area, and weight sliders rank the engine results. The top 5 are real (not predictions); the shortlist may not be exhaustive, so they're presented as top scenarios found rather than the optimum.",
+        "**Optimize selected area** — when a region or ownership filter is active, the optimizer switches to engine-verified scenario search: a fast surrogate shortlists candidate mixes, the full engine then evaluates the shortlist on the selected area, and weight sliders rank the engine results. The 5 returned mixes are real (not predictions); the shortlist may not be exhaustive, so they're framed as the best tested mixes rather than the optimum.",
     ]),
     ("Validation and handoff", [
         "**Provenance + validation badges** — every scenario shows its source at the top (NatCap reference, baseline, engine-validated Explorer, or surrogate-suggested optimizer), with per-metric validation badges on each card.",
@@ -4429,8 +4429,11 @@ if selected_city.startswith("San Antonio"):
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
-st.sidebar.header("Land Use Scenario")
-
+# Sidebar Reorg — five collapsible sections: Scenario / Where changes happen /
+# Eligibility filters / Discover scenarios / Export. The City selector at the
+# top and the SA scenario-source picker (above) stay outside the expanders;
+# they're app-level picks, not scenario controls.
+#
 # Seed slider defaults via session_state (not via widget `value=` kwarg) so
 # the city-change reset above composes cleanly and Streamlit does not warn
 # about a key being set both via the widget default and the Session State API.
@@ -4438,132 +4441,188 @@ st.session_state.setdefault("slider_pct_converted", 10)
 st.session_state.setdefault("slider_gi_pct", 50)
 st.session_state.setdefault("slider_ff_pct", 50)
 
-pct_converted = st.sidebar.slider(
-    "% of developed land to convert", 0, 50,
-    key="slider_pct_converted",
-    help="Note: real conversions depend on land availability and existing uses — not all developed land is freely convertible."
-)
+# ── Sidebar section: Scenario (Sidebar Reorg) ──────────────────────────────
+# Base scenario controls — conversion mix, presets, placement strategy,
+# implementation costs (folded in from the prior standalone expander), and
+# carbon-rate sliders (MN only — folded in from the prior Advanced Settings
+# expander). Expanded by default since this is the primary configuration
+# surface.
+with st.sidebar.expander("Scenario", expanded=True):
+    pct_converted = st.slider(
+        "% of developed land to convert", 0, 50,
+        key="slider_pct_converted",
+        help="Note: real conversions depend on land availability and existing uses — not all developed land is freely convertible."
+    )
 
-st.sidebar.subheader("Conversion Mix")
-st.sidebar.caption(
-    "Allocate converted land across three uses — must sum to 100%. "
-    "High Density auto-fills as the remainder, but it can also be explicitly adjusted."
-)
+    st.subheader("Conversion Mix")
+    st.caption(
+        "Allocate converted land across three uses — must sum to 100%. "
+        "High Density auto-fills as the remainder, but it can also be explicitly adjusted."
+    )
 
-green_infrastructure_pct = st.sidebar.number_input(
-    "Green Infrastructure %", 0, 100,
-    step=5, key="slider_gi_pct",
-    help="Share of converted land allocated to green infrastructure (woody wetlands, NLCD 90)."
-)
-food_forest_pct = st.sidebar.number_input(
-    "Food Forest %", 0, 100,
-    step=5, key="slider_ff_pct",
-    help="Share of converted land allocated to food forest (deciduous forest, NLCD 41)."
-)
+    green_infrastructure_pct = st.number_input(
+        "Green Infrastructure %", 0, 100,
+        step=5, key="slider_gi_pct",
+        help="Share of converted land allocated to green infrastructure (woody wetlands, NLCD 90)."
+    )
+    food_forest_pct = st.number_input(
+        "Food Forest %", 0, 100,
+        step=5, key="slider_ff_pct",
+        help="Share of converted land allocated to food forest (deciduous forest, NLCD 41)."
+    )
 
-auto_hd = 100 - green_infrastructure_pct - food_forest_pct
-pct_highdensity = st.sidebar.number_input(
-    "High Density %", 0, 100,
-    value=max(0, auto_hd),
-    step=5,
-    help="Share of converted land allocated to high-density development (NLCD 24). Auto-fills as remainder."
-)
+    auto_hd = 100 - green_infrastructure_pct - food_forest_pct
+    pct_highdensity = st.number_input(
+        "High Density %", 0, 100,
+        value=max(0, auto_hd),
+        step=5,
+        help="Share of converted land allocated to high-density development (NLCD 24). Auto-fills as remainder."
+    )
 
-mix_sum = green_infrastructure_pct + food_forest_pct + pct_highdensity
+    mix_sum = green_infrastructure_pct + food_forest_pct + pct_highdensity
 
-st.sidebar.caption(
-    "Default view illustrates a balanced 50/50 mix at 10% conversion. "
-    "Adjust the sliders or use a Quick Start preset to explore alternatives."
-)
+    st.caption(
+        "Default view illustrates a balanced 50/50 mix at 10% conversion. "
+        "Adjust the sliders or use a Quick Start preset to explore alternatives."
+    )
 
-if mix_sum == 100:
-    st.sidebar.success("Mix sums to 100%")
-else:
-    st.sidebar.error(f"Mix sums to {mix_sum}% — must equal 100%")
-    st.stop()
+    if mix_sum == 100:
+        st.success("Mix sums to 100%")
+    else:
+        st.error(f"Mix sums to {mix_sum}% — must equal 100%")
+        st.stop()
 
-st.sidebar.divider()
+    st.divider()
 
-# ── Quick Start — preset scenarios ───────────────────────────────────────────
-st.sidebar.subheader("Quick Start — Try a Scenario")
-st.sidebar.caption("Click any button to load a preset scenario instantly.")
+    # ── Quick Start — preset scenarios ───────────────────────────────────
+    st.subheader("Quick Start — Try a Scenario")
+    st.caption("Click any button to load a preset scenario instantly.")
 
-# Clear active example if the user has manually changed any slider away from its values
-_EXAMPLE_VALUES = {
-    'balanced':     (10, 50,  50),
-    'food_forest':  (10,  0, 100),
-    'green_infra':  (10, 100,  0),
-    'high_density': (10,  0,   0),
-}
-_active = st.session_state.active_example_scenario
-if _active is not None:
-    _exp_pct, _exp_gi, _exp_ff = _EXAMPLE_VALUES[_active]
-    if (pct_converted != _exp_pct or
-            green_infrastructure_pct != _exp_gi or
-            food_forest_pct != _exp_ff):
-        st.session_state.active_example_scenario = None
-        _active = None
+    # Clear active example if the user has manually changed any slider away from its values
+    _EXAMPLE_VALUES = {
+        'balanced':     (10, 50,  50),
+        'food_forest':  (10,  0, 100),
+        'green_infra':  (10, 100,  0),
+        'high_density': (10,  0,   0),
+    }
+    _active = st.session_state.active_example_scenario
+    if _active is not None:
+        _exp_pct, _exp_gi, _exp_ff = _EXAMPLE_VALUES[_active]
+        if (pct_converted != _exp_pct or
+                green_infrastructure_pct != _exp_gi or
+                food_forest_pct != _exp_ff):
+            st.session_state.active_example_scenario = None
+            _active = None
 
-if st.sidebar.button("Balanced",
-                     type="primary" if _active == 'balanced' else "secondary"):
-    st.session_state._pending_pct = 10
-    st.session_state._pending_gi = 50
-    st.session_state._pending_ff = 50
-    st.session_state.active_example_scenario = 'balanced'
-    st.rerun()
-st.sidebar.caption("Default view — 50/50 nature-based mix")
+    if st.button("Balanced",
+                 type="primary" if _active == 'balanced' else "secondary"):
+        st.session_state._pending_pct = 10
+        st.session_state._pending_gi = 50
+        st.session_state._pending_ff = 50
+        st.session_state.active_example_scenario = 'balanced'
+        st.rerun()
+    st.caption("Default view — 50/50 nature-based mix")
 
-if st.sidebar.button("Green Infrastructure",
-                     type="primary" if _active == 'green_infra' else "secondary"):
-    st.session_state._pending_pct = 10
-    st.session_state._pending_gi = 100
-    st.session_state._pending_ff = 0
-    st.session_state.active_example_scenario = 'green_infra'
-    st.rerun()
-st.sidebar.caption("Flood mitigation focus")
+    if st.button("Green Infrastructure",
+                 type="primary" if _active == 'green_infra' else "secondary"):
+        st.session_state._pending_pct = 10
+        st.session_state._pending_gi = 100
+        st.session_state._pending_ff = 0
+        st.session_state.active_example_scenario = 'green_infra'
+        st.rerun()
+    st.caption("Flood mitigation focus")
 
-if st.sidebar.button("Food Forest",
-                     type="primary" if _active == 'food_forest' else "secondary"):
-    st.session_state._pending_pct = 10
-    st.session_state._pending_gi = 0
-    st.session_state._pending_ff = 100
-    st.session_state.active_example_scenario = 'food_forest'
-    st.rerun()
-st.sidebar.caption("Cooling + food production focus")
+    if st.button("Food Forest",
+                 type="primary" if _active == 'food_forest' else "secondary"):
+        st.session_state._pending_pct = 10
+        st.session_state._pending_gi = 0
+        st.session_state._pending_ff = 100
+        st.session_state.active_example_scenario = 'food_forest'
+        st.rerun()
+    st.caption("Cooling + food production focus")
 
-if st.sidebar.button("High Density",
-                     type="primary" if _active == 'high_density' else "secondary"):
-    st.session_state._pending_pct = 10
-    st.session_state._pending_gi = 0
-    st.session_state._pending_ff = 0
-    st.session_state.active_example_scenario = 'high_density'
-    st.rerun()
-st.sidebar.caption("Control case — no green conversion")
+    if st.button("High Density",
+                 type="primary" if _active == 'high_density' else "secondary"):
+        st.session_state._pending_pct = 10
+        st.session_state._pending_gi = 0
+        st.session_state._pending_ff = 0
+        st.session_state.active_example_scenario = 'high_density'
+        st.rerun()
+    st.caption("Control case — no green conversion")
 
-st.sidebar.divider()
+    st.divider()
 
-# ── Placement strategy ────────────────────────────────────────────────────────
-# Placed before "Discover scenarios to validate": placement shapes the *current* scenario,
-# so users configure it alongside the conversion mix, then optionally optimize.
-st.sidebar.subheader("Placement Strategy")
-placement_strategy = st.sidebar.radio(
-    "Which pixels get converted",
-    options=list(PLACEMENT_STRATEGY_LABELS.keys()),
-    format_func=lambda key: PLACEMENT_STRATEGY_LABELS[key],
-    index=0,
-    help=(
-        "Which pixels get converted. Random samples uniformly across "
-        "convertible developed pixels. Focused strategies bias placement "
-        "toward pixels where conversion yields the most benefit for the "
-        "chosen criterion. Balanced combines flood, cooling, and equity "
-        "signals equally."
-    ),
-    label_visibility="collapsed",
-)
-# Legacy alias kept for backward compatibility with saved scenarios.
-use_heat_priority = (placement_strategy == 'cooling-focused')
+    # ── Placement strategy ───────────────────────────────────────────────
+    # Placement shapes the *current* scenario, so users configure it
+    # alongside the conversion mix, then optionally optimize.
+    st.subheader("Placement Strategy")
+    placement_strategy = st.radio(
+        "Which pixels get converted",
+        options=list(PLACEMENT_STRATEGY_LABELS.keys()),
+        format_func=lambda key: PLACEMENT_STRATEGY_LABELS[key],
+        index=0,
+        help=(
+            "Which pixels get converted. Random samples uniformly across "
+            "convertible developed pixels. Focused strategies bias placement "
+            "toward pixels where conversion yields the most benefit for the "
+            "chosen criterion. Balanced combines flood, cooling, and equity "
+            "signals equally."
+        ),
+        label_visibility="collapsed",
+    )
+    # Legacy alias kept for backward compatibility with saved scenarios.
+    use_heat_priority = (placement_strategy == 'cooling-focused')
 
-st.sidebar.divider()
+    st.divider()
+
+    # ── Implementation Costs ─────────────────────────────────────────────
+    # Folded in from the prior standalone expander so the region optimizer
+    # reads the user-set cost rates at click time without a nested expander.
+    st.subheader("Implementation Costs (\\$/acre)")
+    cost_gi = st.slider(
+        "Green Infrastructure (\\$/acre)", 5_000, 150_000,
+        DEFAULT_COST_GI, 5_000,
+        help="Typical range: \\$20,000–\\$100,000/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.",
+    )
+    cost_ff = st.slider(
+        "Food Forest (\\$/acre)", 1_000, 50_000,
+        DEFAULT_COST_FF, 1_000,
+        help="Typical range: \\$5,000–\\$20,000/acre for food forest establishment. Default is an illustrative estimate — adjust to reflect local project costs.",
+    )
+    cost_hd = st.slider(
+        "High Density Infill (\\$/acre)", 1_000, 50_000,
+        DEFAULT_COST_HD, 1_000,
+        help="Marginal cost of additional impervious development. Default is an illustrative estimate — adjust to reflect local project costs.",
+    )
+
+    # ── Carbon-rate sliders (MN only) ────────────────────────────────────
+    # Folded in from the prior Advanced Settings expander. SA's Carbon uses
+    # NatCap's four-pool stock table directly — no per-pool override is
+    # exposed. Hidden for SA + session_state seeded with defaults so
+    # downstream `st.session_state.carbon_rate_*` reads still work.
+    if not _CARBON_IS_STOCK:
+        st.divider()
+        st.subheader("Carbon rates")
+        st.slider(
+            "Food Forest carbon rate (tons CO2e/acre/yr)",
+            0.5, 18.0, 3.5, 0.5,
+            key="carbon_rate_ff",
+            help="Provisional range 1.76–18.2 (USDA NRCS 2022). Default 3.5 is conservative for a mature system.",
+        )
+        st.slider(
+            "Green Infrastructure carbon rate (tons CO2e/acre/yr)",
+            0.5, 5.0, 2.0, 0.5,
+            key="carbon_rate_gi",
+            help="Provisional range for woody wetlands. Default 2.0 tons CO2e/acre/yr.",
+        )
+        st.caption(
+            "These are provisional regional estimates. Adjust to reflect locally calibrated "
+            "values or sensitivity test assumptions. See Methodology & Data Sources for "
+            "sources and caveats."
+        )
+    else:
+        st.session_state.setdefault("carbon_rate_ff", 3.5)
+        st.session_state.setdefault("carbon_rate_gi", 2.0)
 
 # ── Interactive Region Map: sync clicks → sidebar multiselect (top-of-script) ─
 # Reads `region_map_picker_event` (stashed by tab3) and writes the clicked
@@ -4590,269 +4649,253 @@ if _picker_event is not None:
     # Consume the event so the next rerun starts clean.
     st.session_state["region_map_picker_event"] = None
 
-# ── Region Selection (Phase 1) ────────────────────────────────────────────────
-# Placed between Placement Strategy and Discover scenarios so a planner picks
-# WHERE conversions can land (region) → HOW conversions are placed within
-# (strategy) → optionally search for promising mixes. The order matches the
-# configure-then-optimize sidebar flow.
-st.sidebar.subheader("Region Selection")
+# ── Sidebar section: Where changes happen (Sidebar Reorg) ──────────────────
+# Placed between Scenario and Eligibility filters so a planner picks
+# WHERE conversions can land (region) → narrows by WHAT KIND (ownership)
+# → optionally searches for promising mixes (Discover).
 _region_layers_available = bool(_CURRENT_CITY_STATE.region_rasters)
-_apply_within = st.sidebar.radio(
-    "Apply changes within",
-    options=["Entire analysis area", "Selected regions"],
-    index=0,
-    help=(
-        "Constrain conversions to inside selected polygons (council districts "
-        "or census tracts), instead of citywide. The per-pixel engine is the "
-        "same validated math; the where is planner-chosen."
-    ),
-    disabled=not _region_layers_available,
-    key="region_apply_within",
-)
-
-# Default: clear any active region state. Set below only if both the mode is
-# 'Selected regions' and at least one polygon is chosen.
-st.session_state['selected_region_mask']  = None
-st.session_state['selected_region_layer'] = None
-st.session_state['selected_region_ids']   = None
-# Ownership Integration Commit 1 — default reset; the Commit 2 UI block will
-# set these conditionally when the user picks a non-default ownership filter.
-# Until that lands, both stay None and the citywide path is byte-identical.
-st.session_state['selected_ownership_mask'] = None
-st.session_state['selected_ownership_mode'] = None
-
-if _apply_within == "Selected regions" and _region_layers_available:
-    _layer_keys = list(_CURRENT_CITY_STATE.region_rasters.keys())
-    _layer_key = st.sidebar.selectbox(
-        "Region layer",
-        options=_layer_keys,
-        format_func=lambda k: _CURRENT_CITY_STATE.region_layer_display_names.get(k, k),
+with st.sidebar.expander("Where changes happen", expanded=False):
+    _apply_within = st.radio(
+        "Apply changes within",
+        options=["Entire analysis area", "Selected regions"],
         index=0,
-        key="region_layer",
-        help="Pick a polygon layer to select from.",
+        help=(
+            "Constrain conversions to inside selected polygons (council districts "
+            "or census tracts), instead of citywide. The per-pixel engine is the "
+            "same validated math; the where is planner-chosen."
+        ),
+        disabled=not _region_layers_available,
+        key="region_apply_within",
     )
-    _labels = _CURRENT_CITY_STATE.region_layer_labels[_layer_key]
-    _display = _CURRENT_CITY_STATE.region_layer_display_names[_layer_key]
-    _selected_labels = st.sidebar.multiselect(
-        f"{_display}s",
-        options=_labels,
-        default=[],
-        key=f"region_labels_{_layer_key}",
-        help=f"Select one or more {_display.lower()}s to constrain placement.",
-    )
-    if _selected_labels:
-        # Build mask via positional indices (the locked contract: the raster
-        # carries positional indices internally; label values are what the
-        # user, the metadata, and session_state see).
-        _pos_indices = [_labels.index(lbl) for lbl in _selected_labels]
-        _raster = _CURRENT_CITY_STATE.region_rasters[_layer_key]
-        _region_mask = np.isin(_raster, _pos_indices)
-        # Live placement denominator — convertible ∩ region. The spec
-        # specifies eligible_pixels_in_region (convertible subset), NOT
-        # selected_area_acres (total region polygon area).
-        _cp = _CURRENT_CITY_STATE.convertible_pixels
-        _eligible_count = int(_region_mask[_cp[:, 0], _cp[:, 1]].sum())
-        _eligible_acres = _eligible_count * PIXEL_AREA_ACRES
-        _plural = "s" if len(_selected_labels) > 1 else ""
-        if _eligible_count == 0:
-            # Region Selection Phase 1 (Commit 6) — zero-convertible edge case.
-            # The region has no convertible pixels (e.g. all buildings + roads
-            # + existing nature inside the selected polygon). n_convert would
-            # be 0 → no conversion → metrics == baseline; surface that
-            # explicitly so the user understands the dashboard isn't broken.
-            st.sidebar.warning(
-                f"No convertible pixels inside the selected "
-                f"{_display.lower()}{_plural} — conversions can't land here. "
-                f"Try a larger region, a different layer, or clear the "
-                f"selection."
-            )
-        else:
-            st.sidebar.caption(
-                f"**Eligible for placement:** {_eligible_count:,} pixels "
-                f"(~{_eligible_acres:,.0f} acres) inside the selected "
-                f"{_display.lower()}{_plural}."
-            )
-            st.sidebar.caption(
-                "Conversions will be placed only inside the selected region, "
-                "after excluding roads, buildings, and existing natural land. "
-                "**Metric cards show citywide impact. The Selected-region "
-                "impact table compares outcomes inside the selected area "
-                "with the citywide result.**"
-            )
-        # Push to session_state for Commit 2's lookup bypass and Commit 1's
-        # caller-stamping of results['region_selection']. Note: even with
-        # _eligible_count == 0 we still set the mask — evaluate_scenario
-        # degrades gracefully (n_convert == 0 → no-op conversion → metrics
-        # equal baseline), and the provenance label still augments correctly.
-        st.session_state['selected_region_mask']  = _region_mask
-        st.session_state['selected_region_layer'] = _layer_key
-        st.session_state['selected_region_ids']   = list(_selected_labels)  # label values, not positional
-    else:
-        st.sidebar.caption(f"Pick one or more {_display.lower()}s above.")
-elif _apply_within == "Selected regions" and not _region_layers_available:
-    st.sidebar.info("No region layers configured for this city.")
 
-# ── Eligible land filter (Batch 4 of OWNERSHIP_FINER_CLASSES_SPEC.md) ───────
-# Renamed + restructured from the prior "Ownership Filter" block. The panel
-# now reads as "where can conversions land": exclusion items (always-on) at
-# the top, then the selectable ownership class + vacant overlay below. Lives
-# below Region Selection so the user picks WHERE first (region), then
-# narrows by WHAT KIND of land (ownership) — and the two compose. When both
-# are active the combined eligible denominator reflects
-# `region ∩ ownership ∩ convertible`.
+    # Default: clear any active region state. Set below only if both the mode is
+    # 'Selected regions' and at least one polygon is chosen.
+    st.session_state['selected_region_mask']  = None
+    st.session_state['selected_region_layer'] = None
+    st.session_state['selected_region_ids']   = None
+    # Ownership Integration Commit 1 — default reset; the Commit 2 UI block will
+    # set these conditionally when the user picks a non-default ownership filter.
+    # Until that lands, both stay None and the citywide path is byte-identical.
+    st.session_state['selected_ownership_mask'] = None
+    st.session_state['selected_ownership_mode'] = None
+
+    if _apply_within == "Selected regions" and _region_layers_available:
+        _layer_keys = list(_CURRENT_CITY_STATE.region_rasters.keys())
+        _layer_key = st.selectbox(
+            "Region layer",
+            options=_layer_keys,
+            format_func=lambda k: _CURRENT_CITY_STATE.region_layer_display_names.get(k, k),
+            index=0,
+            key="region_layer",
+            help="Pick a polygon layer to select from.",
+        )
+        _labels = _CURRENT_CITY_STATE.region_layer_labels[_layer_key]
+        _display = _CURRENT_CITY_STATE.region_layer_display_names[_layer_key]
+        _selected_labels = st.multiselect(
+            f"{_display}s",
+            options=_labels,
+            default=[],
+            key=f"region_labels_{_layer_key}",
+            help=f"Select one or more {_display.lower()}s to constrain placement.",
+        )
+        if _selected_labels:
+            # Build mask via positional indices (the locked contract: the raster
+            # carries positional indices internally; label values are what the
+            # user, the metadata, and session_state see).
+            _pos_indices = [_labels.index(lbl) for lbl in _selected_labels]
+            _raster = _CURRENT_CITY_STATE.region_rasters[_layer_key]
+            _region_mask = np.isin(_raster, _pos_indices)
+            # Live placement denominator — convertible ∩ region. The spec
+            # specifies eligible_pixels_in_region (convertible subset), NOT
+            # selected_area_acres (total region polygon area).
+            _cp = _CURRENT_CITY_STATE.convertible_pixels
+            _eligible_count = int(_region_mask[_cp[:, 0], _cp[:, 1]].sum())
+            _eligible_acres = _eligible_count * PIXEL_AREA_ACRES
+            _plural = "s" if len(_selected_labels) > 1 else ""
+            if _eligible_count == 0:
+                # Region Selection Phase 1 (Commit 6) — zero-convertible edge case.
+                # The region has no convertible pixels (e.g. all buildings + roads
+                # + existing nature inside the selected polygon). n_convert would
+                # be 0 → no conversion → metrics == baseline; surface that
+                # explicitly so the user understands the dashboard isn't broken.
+                st.warning(
+                    f"No convertible pixels inside the selected "
+                    f"{_display.lower()}{_plural} — conversions can't land here. "
+                    f"Try a larger region, a different layer, or clear the "
+                    f"selection."
+                )
+            else:
+                st.caption(
+                    f"**Eligible for placement:** {_eligible_count:,} pixels "
+                    f"(~{_eligible_acres:,.0f} acres) inside the selected "
+                    f"{_display.lower()}{_plural}."
+                )
+                st.caption(
+                    "Conversions will be placed only inside the selected region, "
+                    "after excluding roads, buildings, and existing natural land. "
+                    "**Metric cards show citywide impact. The Selected-region "
+                    "impact table compares outcomes inside the selected area "
+                    "with the citywide result.**"
+                )
+            # Push to session_state for Commit 2's lookup bypass and Commit 1's
+            # caller-stamping of results['region_selection']. Note: even with
+            # _eligible_count == 0 we still set the mask — evaluate_scenario
+            # degrades gracefully (n_convert == 0 → no-op conversion → metrics
+            # equal baseline), and the provenance label still augments correctly.
+            st.session_state['selected_region_mask']  = _region_mask
+            st.session_state['selected_region_layer'] = _layer_key
+            st.session_state['selected_region_ids']   = list(_selected_labels)  # label values, not positional
+        else:
+            st.caption(f"Pick one or more {_display.lower()}s above.")
+    elif _apply_within == "Selected regions" and not _region_layers_available:
+        st.info("No region layers configured for this city.")
+
+# ── Sidebar section: Eligibility filters (Sidebar Reorg) ───────────────────
+# Batch 4 of OWNERSHIP_FINER_CLASSES_SPEC.md. The panel reads as "where can
+# conversions land": exclusion items (always-on) at the top, then the
+# selectable ownership class + vacant overlay below. Composes with the
+# Where-changes-happen region selection: the combined eligible denominator
+# reflects `region ∩ ownership ∩ convertible` when both are active. SA-only
+# (MN has no ownership raster — the expander is hidden for that city).
 _ownership_available = _CURRENT_CITY_STATE.ownership_raster is not None
 if _ownership_available:
-    st.sidebar.subheader("Eligible land filter")
-    # Always-on exclusions — display only; the per-pixel engine enforces
-    # these via the convertible-pixel pool (developed minus
-    # buildings/roads), so they aren't selectable.
-    st.sidebar.markdown(
-        "**Conversions can never be placed on:**\n"
-        "- Building footprints (always excluded)\n"
-        "- Roads (always excluded)\n"
-        "- Existing natural land (always excluded)"
-    )
-    # Locked text — the honesty crux for the panel. Edits to this string
-    # must update OWNERSHIP_FINER_CLASSES_SPEC.md and DATA_INVENTORY in
-    # lockstep — the spec quotes it verbatim.
-    st.sidebar.caption(
-        "Ownership filters are feasibility constraints. They limit "
-        "where conversions may be placed but do not change the "
-        "biophysical model equations."
-    )
-    # KNOWN_DIVERGENCES surface — the rule-derived caveat lives in the
-    # export bundle's metadata.json (entry id `ownership_rule_derived`,
-    # locked + asserted complete by `verify_baselines.py`'s honesty-
-    # surface block). Surface the same caveat HERE on the panel so a
-    # user choosing a finer class sees the disclosure where they make
-    # the choice, not only after exporting a bundle.
-    st.sidebar.caption(
-        "Classes are derived from BCAD owner-name + exemption rules "
-        "(see `data/sa/sa_ownership_2band_30m.tif` provenance in "
-        "DATA_INVENTORY). NOT validated against a title registry — a "
-        "planning screen, not verified ownership. `School` = ISD / "
-        "SCHOOL DISTRICT name matches only (public districts; "
-        "charters and private K-12 schools fall through to "
-        "private). `University` spans both public (UT / A&M / Alamo) "
-        "and private (Trinity / St. Mary's / OLLU) campuses — kept "
-        "OUT of the public rollup for that reason."
-    )
-    # Multi-class checkboxes (Batch 4 v2). One checkbox per finer
-    # ownership class + a vacant-overlay toggle + quick-set buttons for
-    # the coarse rollups. Mask = union of checked classes (∩ vacant if
-    # toggled). Single-class selections collapse to existing
-    # OWNERSHIP_MODES keys for backward compat; multi-class persists as
-    # a small composite dict.
-    st.sidebar.markdown("**Restrict to (check classes to include):**")
-    _elf_finer = ('city', 'county', 'state_federal', 'school', 'university')
-
-    # Quick-set buttons — set the matching combination of checkboxes via
-    # session_state before the checkboxes render. `st.rerun()` after each
-    # so the new defaults take effect.
-    _qcol_a, _qcol_b, _qcol_c = st.sidebar.columns(3)
-    if _qcol_a.button("Public", help="Check city + county + state-federal + school (the public rollup)."):
-        for _cls in _elf_finer:
-            st.session_state[f"elf_check_{_cls}"] = (_cls != "university")
-        st.session_state["elf_check_vacant"] = False
-        st.rerun()
-    if _qcol_b.button("Vacant + Public", help="Check the public rollup AND the vacant-only overlay."):
-        for _cls in _elf_finer:
-            st.session_state[f"elf_check_{_cls}"] = (_cls != "university")
-        st.session_state["elf_check_vacant"] = True
-        st.rerun()
-    if _qcol_c.button("Clear", help="Uncheck every class and the vacant overlay."):
-        for _cls in _elf_finer:
-            st.session_state[f"elf_check_{_cls}"] = False
-        st.session_state["elf_check_vacant"] = False
-        st.rerun()
-
-    _own_classes_checked = []
-    for _cls in _elf_finer:
-        _label = OWNERSHIP_MODES[_cls]['label']
-        if st.sidebar.checkbox(_label, value=False, key=f"elf_check_{_cls}"):
-            _own_classes_checked.append(_cls)
-    _vacant_overlay = st.sidebar.checkbox(
-        "Limit to vacant parcels only",
-        value=False,
-        key="elf_check_vacant",
-        help=(
-            "Narrow the selection above to parcels flagged as vacant "
-            "(no improvement value, exempt-keyed; see the vacancy "
-            "methodology in DATA_INVENTORY). Composable with any "
-            "checked class — e.g. School district + vacant = vacant ISD "
-            "parcels."
-        ),
-    )
-
-    # Resolve the (checked classes, vacant overlay) UI state. Storage
-    # value collapses to a single OWNERSHIP_MODES key when possible
-    # (single class with or without overlay), else a composite dict.
-    _own_mode, _own_cfg, _own_label, _own_allowed = _resolve_eligible_filter_state(
-        _own_classes_checked, _vacant_overlay,
-    )
-    if _own_mode is not None:
-        # `_own_cfg` from the resolver is OWNERSHIP_MODES-compatible whether
-        # the mode is a string key or a composite dict — pass it directly,
-        # don't re-look-up by key (composite dicts aren't in OWNERSHIP_MODES).
-        _own_mask = _build_ownership_mask(
-            _CURRENT_CITY_STATE.ownership_raster,
-            _CURRENT_CITY_STATE.ownership_vacant_raster,
-            _own_cfg,
+    with st.sidebar.expander("Eligibility filters", expanded=False):
+        # Always-on exclusions — display only; the per-pixel engine enforces
+        # these via the convertible-pixel pool (developed minus
+        # buildings/roads), so they aren't selectable.
+        st.markdown(
+            "**Conversions can never be placed on:**\n"
+            "- Building footprints (always excluded)\n"
+            "- Roads (always excluded)\n"
+            "- Existing natural land (always excluded)"
         )
-        # Eligible-under-all-constraints denominator. If the region UI above
-        # already set a mask, intersect; otherwise use ownership alone.
-        _region_mask_active = st.session_state.get('selected_region_mask')
-        _combined_for_eligible = (
-            _own_mask & _region_mask_active
-            if _region_mask_active is not None else _own_mask
+        # Locked text — the honesty crux for the panel. Edits to this string
+        # must update OWNERSHIP_FINER_CLASSES_SPEC.md and DATA_INVENTORY in
+        # lockstep — the spec quotes it verbatim.
+        st.caption(
+            "Ownership filters are feasibility constraints. They limit "
+            "where conversions may be placed but do not change the "
+            "biophysical model equations."
         )
-        _cp = _CURRENT_CITY_STATE.convertible_pixels
-        _own_eligible_count = int(
-            _combined_for_eligible[_cp[:, 0], _cp[:, 1]].sum()
+        # KNOWN_DIVERGENCES surface — the rule-derived caveat lives in the
+        # export bundle's metadata.json (entry id `ownership_rule_derived`,
+        # locked + asserted complete by `verify_baselines.py`'s honesty-
+        # surface block). Surface the same caveat HERE on the panel so a
+        # user choosing a finer class sees the disclosure where they make
+        # the choice, not only after exporting a bundle.
+        st.caption(
+            "Classes are derived from BCAD owner-name + exemption rules "
+            "(see `data/sa/sa_ownership_2band_30m.tif` provenance in "
+            "DATA_INVENTORY). NOT validated against a title registry — a "
+            "planning screen, not verified ownership. `School` = ISD / "
+            "SCHOOL DISTRICT name matches only (public districts; "
+            "charters and private K-12 schools fall through to "
+            "private). `University` spans both public (UT / A&M / Alamo) "
+            "and private (Trinity / St. Mary's / OLLU) campuses — kept "
+            "OUT of the public rollup for that reason."
         )
-        _own_eligible_acres = _own_eligible_count * PIXEL_AREA_ACRES
-        _own_combined_label = (
-            "within the selected region(s) AND on " if _region_mask_active is not None
-            else "on "
-        ) + _own_label.lower()
-        if _own_eligible_count == 0:
-            st.sidebar.warning(
-                f"No convertible pixels {_own_combined_label} — conversions "
-                f"can't land here. Try a broader filter or clear the "
-                f"region/ownership selection."
+        # Multi-class checkboxes (Batch 4 v2). One checkbox per finer
+        # ownership class + a vacant-overlay toggle + quick-set buttons for
+        # the coarse rollups. Mask = union of checked classes (∩ vacant if
+        # toggled). Single-class selections collapse to existing
+        # OWNERSHIP_MODES keys for backward compat; multi-class persists as
+        # a small composite dict.
+        st.markdown("**Restrict to (check classes to include):**")
+        _elf_finer = ('city', 'county', 'state_federal', 'school', 'university')
+
+        # Quick-set buttons — set the matching combination of checkboxes via
+        # session_state before the checkboxes render. `st.rerun()` after each
+        # so the new defaults take effect.
+        _qcol_a, _qcol_b, _qcol_c = st.columns(3)
+        if _qcol_a.button("Public", help="Check city + county + state-federal + school (the public rollup)."):
+            for _cls in _elf_finer:
+                st.session_state[f"elf_check_{_cls}"] = (_cls != "university")
+            st.session_state["elf_check_vacant"] = False
+            st.rerun()
+        if _qcol_b.button("Vacant + Public", help="Check the public rollup AND the vacant-only overlay."):
+            for _cls in _elf_finer:
+                st.session_state[f"elf_check_{_cls}"] = (_cls != "university")
+            st.session_state["elf_check_vacant"] = True
+            st.rerun()
+        if _qcol_c.button("Clear", help="Uncheck every class and the vacant overlay."):
+            for _cls in _elf_finer:
+                st.session_state[f"elf_check_{_cls}"] = False
+            st.session_state["elf_check_vacant"] = False
+            st.rerun()
+
+        _own_classes_checked = []
+        for _cls in _elf_finer:
+            _label = OWNERSHIP_MODES[_cls]['label']
+            if st.checkbox(_label, value=False, key=f"elf_check_{_cls}"):
+                _own_classes_checked.append(_cls)
+        _vacant_overlay = st.checkbox(
+            "Limit to vacant parcels only",
+            value=False,
+            key="elf_check_vacant",
+            help=(
+                "Narrow the selection above to parcels flagged as vacant "
+                "(no improvement value, exempt-keyed; see the vacancy "
+                "methodology in DATA_INVENTORY). Composable with any "
+                "checked class — e.g. School district + vacant = vacant ISD "
+                "parcels."
+            ),
+        )
+
+        # Resolve the (checked classes, vacant overlay) UI state. Storage
+        # value collapses to a single OWNERSHIP_MODES key when possible
+        # (single class with or without overlay), else a composite dict.
+        _own_mode, _own_cfg, _own_label, _own_allowed = _resolve_eligible_filter_state(
+            _own_classes_checked, _vacant_overlay,
+        )
+        if _own_mode is not None:
+            # `_own_cfg` from the resolver is OWNERSHIP_MODES-compatible whether
+            # the mode is a string key or a composite dict — pass it directly,
+            # don't re-look-up by key (composite dicts aren't in OWNERSHIP_MODES).
+            _own_mask = _build_ownership_mask(
+                _CURRENT_CITY_STATE.ownership_raster,
+                _CURRENT_CITY_STATE.ownership_vacant_raster,
+                _own_cfg,
             )
-        else:
-            st.sidebar.caption(
-                f"**Eligible for placement:** {_own_eligible_count:,} pixels "
-                f"(~{_own_eligible_acres:,.0f} acres) {_own_combined_label}."
+            # Eligible-under-all-constraints denominator. If the region UI above
+            # already set a mask, intersect; otherwise use ownership alone.
+            _region_mask_active = st.session_state.get('selected_region_mask')
+            _combined_for_eligible = (
+                _own_mask & _region_mask_active
+                if _region_mask_active is not None else _own_mask
             )
-        st.sidebar.caption(
-            "Ownership is derived from parcel records and approximate at "
-            "30 m resolution — reliable for large parcels (parks, civic "
-            "campuses, big public tracts), pixelated for small lots."
-        )
-        st.session_state['selected_ownership_mask'] = _own_mask
-        st.session_state['selected_ownership_mode'] = _own_mode
+            _cp = _CURRENT_CITY_STATE.convertible_pixels
+            _own_eligible_count = int(
+                _combined_for_eligible[_cp[:, 0], _cp[:, 1]].sum()
+            )
+            _own_eligible_acres = _own_eligible_count * PIXEL_AREA_ACRES
+            _own_combined_label = (
+                "within the selected region(s) AND on " if _region_mask_active is not None
+                else "on "
+            ) + _own_label.lower()
+            if _own_eligible_count == 0:
+                st.warning(
+                    f"No convertible pixels {_own_combined_label} — conversions "
+                    f"can't land here. Try a broader filter or clear the "
+                    f"region/ownership selection."
+                )
+            else:
+                st.caption(
+                    f"**Eligible for placement:** {_own_eligible_count:,} pixels "
+                    f"(~{_own_eligible_acres:,.0f} acres) {_own_combined_label}."
+                )
+            st.caption(
+                "Ownership is derived from parcel records and approximate at "
+                "30 m resolution — reliable for large parcels (parks, civic "
+                "campuses, big public tracts), pixelated for small lots."
+            )
+            st.session_state['selected_ownership_mask'] = _own_mask
+            st.session_state['selected_ownership_mode'] = _own_mode
 
-st.sidebar.divider()
-
-# ── Cost sliders (collapsed expander) ────────────────────────────────────────
-# Hoisted above the Discover block so the region-constrained optimizer can
-# read the user-set cost rates at click time. See
-# docs/internal/REGION_OPTIMIZER_SPEC.md.
-with st.sidebar.expander("Implementation Costs (\\$/acre)", expanded=False):
-    cost_gi = st.slider("Green Infrastructure (\\$/acre)", 5_000, 150_000,
-                        DEFAULT_COST_GI, 5_000,
-                        help="Typical range: \\$20,000–\\$100,000/acre for constructed wetlands. Default is an illustrative estimate — adjust to reflect local project costs.")
-    cost_ff = st.slider("Food Forest (\\$/acre)", 1_000, 50_000,
-                        DEFAULT_COST_FF, 1_000,
-                        help="Typical range: \\$5,000–\\$20,000/acre for food forest establishment. Default is an illustrative estimate — adjust to reflect local project costs.")
-    cost_hd = st.slider("High Density Infill (\\$/acre)", 1_000, 50_000,
-                        DEFAULT_COST_HD, 1_000,
-                        help="Marginal cost of additional impervious development. Default is an illustrative estimate — adjust to reflect local project costs.")
-
-st.sidebar.divider()
-st.sidebar.subheader("Discover scenarios to validate")
+# ── Sidebar section: Discover scenarios (Sidebar Reorg) ────────────────────
+# The optimizer panel — citywide-surrogate mode (no filter) vs region-
+# prefilter + engine-verify mode (filter active). The model-quality controls
+# (folded in from the prior Advanced Settings expander) live at the bottom.
+# See docs/internal/REGION_OPTIMIZER_SPEC.md §2 for the mode-switch contract.
 
 # Filter-active drives the mode switch between the citywide surrogate
 # optimizer (no filter) and the region-prefilter + engine-verify path
@@ -4874,264 +4917,239 @@ min_food = 0.0
 max_runoff = float(BASELINE_RUNOFF_ACRE_FEET)
 min_carbon = 0
 
-if not _filter_active:
-    st.sidebar.caption(
-        "**Searches for promising scenarios to validate further.** The surrogate "
-        "explores ~10,000 candidate strategies in seconds and surfaces a ranked "
-        "shortlist — these are *predicted* values, not final answers. Apply a "
-        "suggestion to compute it with the full prototype engine; export the "
-        "evaluated scenario for canonical InVEST when you want full-resolution "
-        "validation."
-    )
-    with st.sidebar.expander("How this works", expanded=False):
+with st.sidebar.expander("Discover scenarios", expanded=False):
+    if not _filter_active:
         st.caption(
-            "The optimizer is trained on the prototype's pre-computed scenario "
-            "library (~90 full-resolution simulations in Fast mode; more in the "
-            "higher-quality modes). It explores combinations of conversion "
-            "percentage and conversion mix far faster than running the full model "
-            "— but each returned scenario is a surrogate prediction, not a full "
-            "simulation. It targets flood retention, cooling, food production, and "
-            "carbon; cost and placement strategy are not part of the surrogate. "
-            "Use the controls above to verify any optimized scenario in detail."
+            "**Searches for promising scenarios to validate further.** The surrogate "
+            "explores ~10,000 candidate strategies in seconds and surfaces a ranked "
+            "shortlist — these are *predicted* values, not final answers. Apply a "
+            "suggestion to compute it with the full prototype engine; export the "
+            "evaluated scenario for canonical InVEST when you want full-resolution "
+            "validation."
+        )
+        # The "How this works" sub-expander was unwrapped to an always-visible
+        # caption — Streamlit disallows nested expanders, and the Sidebar Reorg
+        # wraps this whole block in one.
+        st.caption(
+            "_How this works:_ the optimizer is trained on the prototype's "
+            "pre-computed scenario library (~90 full-resolution simulations in "
+            "Fast mode; more in the higher-quality modes). It explores "
+            "combinations of conversion percentage and conversion mix far faster "
+            "than running the full model — but each returned scenario is a "
+            "surrogate prediction, not a full simulation. It targets flood "
+            "retention, cooling, food production, and carbon; cost and placement "
+            "strategy are not part of the surrogate. Use the controls above to "
+            "verify any optimized scenario in detail."
+        )
+        st.caption(
+            "Optimizer uses a fast citywide surrogate to search many candidate mixes. "
+            "Set the minimum performance each slider below must meet (or cap runoff); "
+            "the optimizer returns scenarios that satisfy all targets at once."
         )
 
-    st.sidebar.caption(
-        "Optimizer uses a fast citywide surrogate to search many candidate mixes. "
-        "Set the minimum performance each slider below must meet (or cap runoff); "
-        "the optimizer returns scenarios that satisfy all targets at once."
-    )
-
-    with st.sidebar.container(border=True):
-        # Flood slider max uses the precomputed grid's actual achievable maximum
-        # rather than the theoretical 0–100 ceiling, so the slider range
-        # represents reachable targets. Round up to the next 5 for headroom.
-        _flood_achievable_max = int(scenario_df['flood_reduction'].max())
-        _flood_slider_max = ((_flood_achievable_max + 4) // 5) * 5
-        _flood_default = max(0, _flood_slider_max - 10)
-        min_flood  = st.slider(
-            "Flood reduction ≥",
-            0, _flood_slider_max, _flood_default, 5,
-            help=f"Corresponds to the Flood Retention metric card. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f}. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.",
-        )
-        # read from state to avoid silent-staleness if city switches
-        _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
-        # Cooling slider max uses the precomputed grid's actual achievable maximum
-        # rather than the theoretical CC ceiling, so the slider range represents
-        # reachable targets. +0.2 °F headroom.
-        _cool_achievable_max = (scenario_df['mean_hm'].max() - _baseline_hm_local) * HM_TO_FAHRENHEIT
-        _cool_slider_max = round(_cool_achievable_max + 0.2, 1)
-        min_cool_f = st.slider(
-            "Cooling ≥ (°F vs baseline)",
-            min_value=-1.0, max_value=_cool_slider_max,
-            value=0.1, step=0.1,
-            help="Corresponds to the Temperature Change metric card. Set to 0.1 for at least 0.1°F cooler than baseline."
-        )
-        min_cool   = _baseline_hm_local + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
-        min_food   = st.slider("Food production ≥ (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01,
-            help="Corresponds directly to the Food Production metric card value in M lbs/yr.")
-        _runoff_min = float(scenario_df['runoff_acre_feet'].min())
-        _runoff_max = float(scenario_df['runoff_acre_feet'].max())
-        max_runoff = st.slider(
-            "Runoff ≤ (ac-ft)",
-            min_value=round(_runoff_min),
-            max_value=round(_runoff_max),
-            value=round(BASELINE_RUNOFF_ACRE_FEET),
-            step=100,
-            help=f"Scenarios must stay below this runoff volume. Baseline is approximately {BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft."
-        )
-        # Brief 30: SA framing = stock change (t CO2e); MN framing = annual flow.
-        _opt_carbon_label = (
-            "Carbon storage change ≥ (tons CO2e)" if _CARBON_IS_STOCK
-            else "Carbon sequestration ≥ (tons CO2e/yr)"
-        )
-        _opt_carbon_help = (
-            "Corresponds to the Carbon Storage Change metric card (one-time stock value). "
-            "Baseline is 0."
-            if _CARBON_IS_STOCK else
-            "Corresponds to the Carbon Sequestration metric card. Counts only converted pixels; baseline is 0."
-        )
-        min_carbon = st.slider(
-            _opt_carbon_label,
-            0, int(scenario_df['carbon_tons_co2'].max()), 0, 100,
-            help=_opt_carbon_help,
-        )
-
-        if lookup_table:
-            st.sidebar.caption(
-                "Slider results use a precomputed lookup table for faster response. "
-                "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
+        with st.container(border=True):
+            # Flood slider max uses the precomputed grid's actual achievable maximum
+            # rather than the theoretical 0–100 ceiling, so the slider range
+            # represents reachable targets. Round up to the next 5 for headroom.
+            _flood_achievable_max = int(scenario_df['flood_reduction'].max())
+            _flood_slider_max = ((_flood_achievable_max + 4) // 5) * 5
+            _flood_default = max(0, _flood_slider_max - 10)
+            min_flood  = st.slider(
+                "Flood reduction ≥",
+                0, _flood_slider_max, _flood_default, 5,
+                help=f"Corresponds to the Flood Retention metric card. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f}. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.",
             )
-        else:
-            st.sidebar.caption(
-                "Slider results are computed live in the current model-quality mode. "
-                "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
+            # read from state to avoid silent-staleness if city switches
+            _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
+            # Cooling slider max uses the precomputed grid's actual achievable maximum
+            # rather than the theoretical CC ceiling, so the slider range represents
+            # reachable targets. +0.2 °F headroom.
+            _cool_achievable_max = (scenario_df['mean_hm'].max() - _baseline_hm_local) * HM_TO_FAHRENHEIT
+            _cool_slider_max = round(_cool_achievable_max + 0.2, 1)
+            min_cool_f = st.slider(
+                "Cooling ≥ (°F vs baseline)",
+                min_value=-1.0, max_value=_cool_slider_max,
+                value=0.1, step=0.1,
+                help="Corresponds to the Temperature Change metric card. Set to 0.1 for at least 0.1°F cooler than baseline."
+            )
+            min_cool   = _baseline_hm_local + min_cool_f / HM_TO_FAHRENHEIT   # HM units for surrogate
+            min_food   = st.slider("Food production ≥ (M lbs)", 0.0, float(max(MAX_FOOD, 0.1)), 0.0, 0.01,
+                help="Corresponds directly to the Food Production metric card value in M lbs/yr.")
+            _runoff_min = float(scenario_df['runoff_acre_feet'].min())
+            _runoff_max = float(scenario_df['runoff_acre_feet'].max())
+            max_runoff = st.slider(
+                "Runoff ≤ (ac-ft)",
+                min_value=round(_runoff_min),
+                max_value=round(_runoff_max),
+                value=round(BASELINE_RUNOFF_ACRE_FEET),
+                step=100,
+                help=f"Scenarios must stay below this runoff volume. Baseline is approximately {BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft."
+            )
+            # Brief 30: SA framing = stock change (t CO2e); MN framing = annual flow.
+            _opt_carbon_label = (
+                "Carbon storage change ≥ (tons CO2e)" if _CARBON_IS_STOCK
+                else "Carbon sequestration ≥ (tons CO2e/yr)"
+            )
+            _opt_carbon_help = (
+                "Corresponds to the Carbon Storage Change metric card (one-time stock value). "
+                "Baseline is 0."
+                if _CARBON_IS_STOCK else
+                "Corresponds to the Carbon Sequestration metric card. Counts only converted pixels; baseline is 0."
+            )
+            min_carbon = st.slider(
+                _opt_carbon_label,
+                0, int(scenario_df['carbon_tons_co2'].max()), 0, 100,
+                help=_opt_carbon_help,
             )
 
-        if st.button("Optimize"):
-            with st.spinner("Searching for most efficient tradeoff scenarios..."):
-                st.session_state.optimized_results = optimize_scenario(
-                    surrogate, min_flood, min_cool, min_food, max_runoff,
-                    min_carbon=min_carbon, max_food=MAX_FOOD,
-                    max_flood=MAX_FLOOD, max_cool=MAX_COOL)
-            _opt_res = st.session_state.optimized_results
-            if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
-                st.sidebar.warning("No scenarios found — try lowering the targets.")
-                st.session_state.just_optimized = False
+            if lookup_table:
+                st.caption(
+                    "Slider results use a precomputed lookup table for faster response. "
+                    "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
+                )
             else:
-                st.sidebar.success("Results ready — open the Tradeoff Analysis tab →")
-                st.session_state.just_optimized = True
-else:
-    # ── Region-constrained optimizer (variant B) ─────────────────────────
-    # Mode-switch path. Replaces the min-target sliders + Optimize button
-    # with weight sliders + Optimize-selected-area. The fast surrogate
-    # shortlists candidate mixes; the full engine evaluates the finalists
-    # on the active region∩ownership mask. Displayed values are engine-true
-    # region-local — no surrogate predictions surface. See
-    # docs/internal/REGION_OPTIMIZER_SPEC.md.
-    st.sidebar.caption(
-        "The fast model shortlists candidate mixes, then the full model "
-        "evaluates the finalists on your selected area. "
-        "**The results shown are real (engine-verified); "
-        "the shortlist may not be exhaustive.**"
-    )
-    with st.sidebar.expander("How this works", expanded=False):
-        st.caption(
-            "When a region or ownership filter is active, the optimizer runs "
-            "in two stages. Stage 1 — the citywide surrogate ranks every "
-            "candidate mix and picks a Pareto-efficient shortlist (≈ 40 "
-            "candidates). Stage 2 — each shortlisted mix is evaluated by "
-            "the full per-pixel engine inside your selected area. Values "
-            "shown on each returned scenario are engine-true region-local "
-            "(not surrogate predictions). Moving a weight slider below "
-            "re-ranks the already-evaluated shortlist instantly — no engine "
-            "re-run."
-        )
-
-    with st.sidebar.container(border=True):
-        st.markdown("**Weight each objective** (0 = ignore, 1 = full weight)")
-        w_cool = st.slider("Cooling", 0.0, 1.0, 1.0, 0.1, key="region_opt_w_cool")
-        w_flood = st.slider("Flood reduction", 0.0, 1.0, 1.0, 0.1,
-                            key="region_opt_w_flood")
-        w_carbon = st.slider("Carbon", 0.0, 1.0, 1.0, 0.1,
-                             key="region_opt_w_carbon")
-        w_food = st.slider("Food production", 0.0, 1.0, 1.0, 0.1,
-                           key="region_opt_w_food")
-        w_cost = st.slider("Cost (lower = better)", 0.0, 1.0, 0.5, 0.1,
-                           key="region_opt_w_cost")
-        _region_opt_weights = {
-            'mean_hm':          w_cool,
-            'flood_reduction':  w_flood,
-            'carbon_tons_co2':  w_carbon,
-            'food_mln_lbs':     w_food,
-            'total_cost_mln':   w_cost,
-            'runoff_acre_feet': w_flood,  # piggyback flood weight onto runoff
-        }
-
-        if st.button("Optimize selected area",
-                     key="region_opt_button"):
-            # Compose the active region∩ownership mask the engine consumes.
-            _r = st.session_state.get('selected_region_mask')
-            _o = st.session_state.get('selected_ownership_mask')
-            if _r is not None and _o is not None:
-                _opt_mask = _r & _o
-            elif _o is not None:
-                _opt_mask = _o
-            else:
-                _opt_mask = _r
-
-            # Engine eval — closure over the live cost slider values + the
-            # combined mask. surrogate.optimize_scenario_region calls this
-            # K ≈ 40 times under a progress bar.
-            def _engine_eval(_pct, _gi, _ff):
-                return evaluate_scenario(
-                    _pct, _gi, _ff,
-                    seed=42, placement_strategy='random',
-                    cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
-                    carbon_rate_ff=st.session_state.carbon_rate_ff,
-                    carbon_rate_gi=st.session_state.carbon_rate_gi,
-                    selected_region_mask=_opt_mask,
+                st.caption(
+                    "Slider results are computed live in the current model-quality mode. "
+                    "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
                 )
 
-            # Use the Phase-0.5-validated Fast (~90 recipes, 100 trees)
-            # surrogate regardless of the active Model-quality mode. In Fast
-            # mode the cache key collides with the already-built grid, so
-            # this is free; in Balanced / High it builds the Fast grid once
-            # per session (~3 min on SA) under a spinner.
-            with st.spinner(
-                "Preparing Fast prefilter (first run only)…"
-            ):
-                _fast_df, _fast_surrogate = _cached_fast_surrogate_for_region(
-                    _CURRENT_CITY_STATE, selected_city,
-                    DATA_DIR_FLOOD, DATA_DIR_COOLING,
-                )
-
-            _prog = st.progress(0.0, text="Engine-verifying candidates 0 / 0…")
-            def _progress(i, K):
-                _prog.progress(i / K,
-                               text=f"Engine-verifying candidates {i} / {K}…")
-            try:
-                _region_out = optimize_scenario_region(
-                    _fast_surrogate, _fast_df, _engine_eval,
-                    _region_opt_weights,
-                    k_engine=40, top_n=5,
-                    progress_cb=_progress,
-                )
-                _prog.empty()
-            except Exception as _e:
-                _prog.empty()
-                st.sidebar.error(f"Optimization failed: {_e}")
-                _region_out = None
-
-            if _region_out is None or _region_out.empty:
-                st.sidebar.warning(
-                    "No scenarios found — try widening the weights or "
-                    "selecting a different region."
-                )
-                st.session_state.region_optimized_results = None
-                st.session_state.just_optimized = False
-            else:
-                st.session_state.region_optimized_results = _region_out
-                st.sidebar.success(
-                    "Results ready — open the Tradeoff Analysis tab →"
-                )
-                st.session_state.just_optimized = True
-
-st.sidebar.divider()
-
-with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
-    # Brief C.1: carbon-rate sliders apply only to MN's per-conversion-type
-    # annual proxy (`CARBON_SEQ_RATES`). SA's Carbon uses NatCap's
-    # four-pool stock table directly — no per-pool override is exposed.
-    # Hide the sliders for SA and seed session_state with the MN defaults
-    # so downstream `st.session_state.carbon_rate_*` reads still work.
-    if not _CARBON_IS_STOCK:
-        st.slider(
-            "Food Forest carbon rate (tons CO2e/acre/yr)",
-            0.5, 18.0, 3.5, 0.5,
-            key="carbon_rate_ff",
-            help="Provisional range 1.76–18.2 (USDA NRCS 2022). Default 3.5 is conservative for a mature system."
-        )
-        st.slider(
-            "Green Infrastructure carbon rate (tons CO2e/acre/yr)",
-            0.5, 5.0, 2.0, 0.5,
-            key="carbon_rate_gi",
-            help="Provisional range for woody wetlands. Default 2.0 tons CO2e/acre/yr."
-        )
-        st.caption(
-            "These are provisional regional estimates. Adjust to reflect locally calibrated "
-            "values or sensitivity test assumptions. See Methodology & Data Sources for "
-            "sources and caveats."
-        )
+            if st.button("Optimize"):
+                with st.spinner("Searching for most efficient tradeoff scenarios..."):
+                    st.session_state.optimized_results = optimize_scenario(
+                        surrogate, min_flood, min_cool, min_food, max_runoff,
+                        min_carbon=min_carbon, max_food=MAX_FOOD,
+                        max_flood=MAX_FLOOD, max_cool=MAX_COOL)
+                _opt_res = st.session_state.optimized_results
+                if _opt_res is None or (isinstance(_opt_res, dict) and not _opt_res.get('found')):
+                    st.warning("No scenarios found — try lowering the targets.")
+                    st.session_state.just_optimized = False
+                else:
+                    st.success("Results ready — open the Tradeoff Analysis tab →")
+                    st.session_state.just_optimized = True
     else:
-        st.session_state.setdefault("carbon_rate_ff", 3.5)
-        st.session_state.setdefault("carbon_rate_gi", 2.0)
+        # ── Region-constrained optimizer (variant B) ─────────────────────
+        # Mode-switch path. Replaces the min-target sliders + Optimize button
+        # with weight sliders + Optimize-selected-area. The fast surrogate
+        # shortlists candidate mixes; the full engine evaluates the finalists
+        # on the active region∩ownership mask. Displayed values are engine-true
+        # region-local — no surrogate predictions surface. See
+        # docs/internal/REGION_OPTIMIZER_SPEC.md.
         st.caption(
-            "Carbon for this city uses NatCap's four-pool carbon storage table. "
-            "Annual sequestration-rate sliders are hidden because they don't apply."
+            "The fast model shortlists candidate mixes, then the full model "
+            "evaluates the finalists on your selected area. "
+            "**The results shown are real (engine-verified); "
+            "the shortlist may not be exhaustive.**"
+        )
+        # "How this works" unwrapped to caption (Streamlit disallows nested
+        # expanders inside the Sidebar Reorg's Discover wrapper).
+        st.caption(
+            "_How this works:_ when a region or ownership filter is active, "
+            "the optimizer runs in two stages. Stage 1 — the citywide "
+            "surrogate ranks every candidate mix and picks a Pareto-efficient "
+            "shortlist (≈ 40 candidates). Stage 2 — each shortlisted mix is "
+            "evaluated by the full per-pixel engine inside your selected area. "
+            "Values shown on each returned scenario are engine-true region-"
+            "local (not surrogate predictions). To re-rank under new weights, "
+            "click Optimize selected area again (v1 reruns the full pipeline)."
         )
 
-    st.divider()
+        with st.container(border=True):
+            st.markdown("**Weight each objective** (0 = ignore, 1 = full weight)")
+            w_cool = st.slider("Cooling", 0.0, 1.0, 1.0, 0.1, key="region_opt_w_cool")
+            w_flood = st.slider("Flood reduction", 0.0, 1.0, 1.0, 0.1,
+                                key="region_opt_w_flood")
+            w_carbon = st.slider("Carbon", 0.0, 1.0, 1.0, 0.1,
+                                 key="region_opt_w_carbon")
+            w_food = st.slider("Food production", 0.0, 1.0, 1.0, 0.1,
+                               key="region_opt_w_food")
+            w_cost = st.slider("Cost (lower = better)", 0.0, 1.0, 0.5, 0.1,
+                               key="region_opt_w_cost")
+            _region_opt_weights = {
+                'mean_hm':          w_cool,
+                'flood_reduction':  w_flood,
+                'carbon_tons_co2':  w_carbon,
+                'food_mln_lbs':     w_food,
+                'total_cost_mln':   w_cost,
+                'runoff_acre_feet': w_flood,  # piggyback flood weight onto runoff
+            }
 
+            if st.button("Optimize selected area",
+                         key="region_opt_button"):
+                # Compose the active region∩ownership mask the engine consumes.
+                _r = st.session_state.get('selected_region_mask')
+                _o = st.session_state.get('selected_ownership_mask')
+                if _r is not None and _o is not None:
+                    _opt_mask = _r & _o
+                elif _o is not None:
+                    _opt_mask = _o
+                else:
+                    _opt_mask = _r
+
+                # Engine eval — closure over the live cost slider values + the
+                # combined mask. surrogate.optimize_scenario_region calls this
+                # K ≈ 40 times under a progress bar.
+                def _engine_eval(_pct, _gi, _ff):
+                    return evaluate_scenario(
+                        _pct, _gi, _ff,
+                        seed=42, placement_strategy='random',
+                        cost_gi=cost_gi, cost_ff=cost_ff, cost_hd=cost_hd,
+                        carbon_rate_ff=st.session_state.carbon_rate_ff,
+                        carbon_rate_gi=st.session_state.carbon_rate_gi,
+                        selected_region_mask=_opt_mask,
+                    )
+
+                # Use the Phase-0.5-validated Fast (~90 recipes, 100 trees)
+                # surrogate regardless of the active Model-quality mode. In Fast
+                # mode the cache key collides with the already-built grid, so
+                # this is free; in Balanced / High it builds the Fast grid once
+                # per session (~3 min on SA) under a spinner.
+                with st.spinner(
+                    "Preparing Fast prefilter (first run only)…"
+                ):
+                    _fast_df, _fast_surrogate = _cached_fast_surrogate_for_region(
+                        _CURRENT_CITY_STATE, selected_city,
+                        DATA_DIR_FLOOD, DATA_DIR_COOLING,
+                    )
+
+                _prog = st.progress(0.0, text="Engine-verifying candidates 0 / 0…")
+                def _progress(i, K):
+                    _prog.progress(i / K,
+                                   text=f"Engine-verifying candidates {i} / {K}…")
+                try:
+                    _region_out = optimize_scenario_region(
+                        _fast_surrogate, _fast_df, _engine_eval,
+                        _region_opt_weights,
+                        k_engine=40, top_n=5,
+                        progress_cb=_progress,
+                    )
+                    _prog.empty()
+                except Exception as _e:
+                    _prog.empty()
+                    st.error(f"Optimization failed: {_e}")
+                    _region_out = None
+
+                if _region_out is None or _region_out.empty:
+                    st.warning(
+                        "No scenarios found — try widening the weights or "
+                        "selecting a different region."
+                    )
+                    st.session_state.region_optimized_results = None
+                    st.session_state.just_optimized = False
+                else:
+                    st.session_state.region_optimized_results = _region_out
+                    st.success(
+                        "Results ready — open the Tradeoff Analysis tab →"
+                    )
+                    st.session_state.just_optimized = True
+
+    # ── Model-quality controls (folded in from prior Advanced Settings) ──
+    # Live at the bottom of Discover scenarios so the optimizer's training-
+    # set size is configurable in the same place the user runs Optimize.
+    # Brief C.2: High Resolution mode is gated behind an explicit opt-in
+    # checkbox; the compute_lookup_table build takes 25–50 minutes on SA
+    # and is fatal on Streamlit Cloud's 1 GB tier.
+    st.divider()
+    st.markdown("**Model quality**")
     st.radio(
         "Model quality mode",
         options=MODEL_QUALITY_OPTIONS,
@@ -5142,19 +5160,13 @@ with st.sidebar.expander("⚙️ Advanced Settings", expanded=False):
             "surrogate model. More simulations improve optimizer suggestions but "
             "take longer to initialize."
         ),
+        label_visibility="collapsed",
     )
     st.caption(
         "Fast prototype: ~90 training scenarios — quick startup, good for exploration.  \n"
         "Balanced: ~500 scenarios — better coverage, moderate startup time.  \n"
         "High resolution: trains on the full 2,541-entry lookup table — slower startup, better optimizer coverage."
     )
-    # Brief C.2: High Resolution mode is gated behind an explicit opt-in
-    # checkbox. The compute_lookup_table build takes 25–50 minutes on SA
-    # and is fatal on Streamlit Cloud's 1 GB tier. Until confirmed, the
-    # app silently runs in Balanced mode (the `_effective_model_quality`
-    # downgrade earlier in the script). The radio still shows the user's
-    # selection so intent is preserved; the checkbox is consent to the
-    # expensive build.
     if _requested_model_quality == "High resolution":
         st.warning(
             "High resolution rebuilds a 2,541-entry lookup table that takes "
@@ -5464,34 +5476,34 @@ def _build_invest_bundle_for_current_scenario():
     return eib.build_invest_bundle(spec), eib.bundle_filename(spec)
 
 
-st.sidebar.divider()
-st.sidebar.subheader("Export for InVEST")
-if not selected_city.startswith("San Antonio"):
-    st.sidebar.caption(
-        "InVEST export is currently SA-only (the bundle is built around NatCap's "
-        "compound LULC framework). MN export is future work."
-    )
-else:
-    st.sidebar.caption(
-        "Download the current scenario as a runnable canonical-InVEST 3.19.0 "
-        "input bundle — rasters + AOIs + biophysical tables + per-model "
-        "`args.json` (UCM / UNA / UFR / Carbon / UMH). ~20 MB; for technical "
-        "users with InVEST installed."
-    )
-    if st.sidebar.button("Prepare InVEST bundle"):
-        with st.spinner("Building InVEST bundle (10–30 s)…"):
-            _data, _fname = _build_invest_bundle_for_current_scenario()
-            st.session_state["_invest_bundle"] = (_data, _fname)
-    if "_invest_bundle" in st.session_state:
-        _data, _fname = st.session_state["_invest_bundle"]
-        st.sidebar.download_button(
-            f"⬇ Download bundle ({len(_data) / 1e6:.1f} MB)",
-            data=_data, file_name=_fname, mime="application/zip",
+# ── Sidebar section: Export (Sidebar Reorg) ──────────────────────────────────
+with st.sidebar.expander("Export", expanded=False):
+    if not selected_city.startswith("San Antonio"):
+        st.caption(
+            "InVEST export is currently SA-only (the bundle is built around NatCap's "
+            "compound LULC framework). MN export is future work."
         )
-        st.sidebar.caption(f"`{_fname}`")
-        if st.sidebar.button("Clear prepared bundle"):
-            del st.session_state["_invest_bundle"]
-            st.rerun()
+    else:
+        st.caption(
+            "Download the current scenario as a runnable canonical-InVEST 3.19.0 "
+            "input bundle — rasters + AOIs + biophysical tables + per-model "
+            "`args.json` (UCM / UNA / UFR / Carbon / UMH). ~20 MB; for technical "
+            "users with InVEST installed."
+        )
+        if st.button("Prepare InVEST bundle"):
+            with st.spinner("Building InVEST bundle (10–30 s)…"):
+                _data, _fname = _build_invest_bundle_for_current_scenario()
+                st.session_state["_invest_bundle"] = (_data, _fname)
+        if "_invest_bundle" in st.session_state:
+            _data, _fname = st.session_state["_invest_bundle"]
+            st.download_button(
+                f"⬇ Download bundle ({len(_data) / 1e6:.1f} MB)",
+                data=_data, file_name=_fname, mime="application/zip",
+            )
+            st.caption(f"`{_fname}`")
+            if st.button("Clear prepared bundle"):
+                del st.session_state["_invest_bundle"]
+                st.rerun()
 
 
 # ── Top metric cards ───────────────────────────────────────────────────────────
@@ -7487,12 +7499,14 @@ with tab2:
             and st.session_state.region_optimized_results is not None
             and not st.session_state.region_optimized_results.empty):
         st.divider()
-        st.subheader("Top scenarios found — selected area")
+        st.subheader("Best tested mixes — selected area")
         st.caption(
-            "Engine-verified results inside your selected area. "
-            "The shortlist comes from a fast surrogate-Pareto pass; values "
-            "shown are computed by the full pixel-level engine — not predictions. "
-            "Click Apply to load a recipe into the sliders."
+            "Best among the candidates the engine tested inside your "
+            "selected area — not the optimum across all possible mixes. "
+            "A fast surrogate shortlists ≈40 candidates and the full "
+            "pixel-level engine evaluates each in-region; the values "
+            "shown are engine outputs, not predictions. The shortlist may "
+            "not be exhaustive. Click Apply to load a recipe into the sliders."
         )
         _ropt = st.session_state.region_optimized_results
         _opt_carbon_col_label_r = (

@@ -1674,12 +1674,121 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         guard_diffs += 1
 
+    # ── Sidebar wiring-survival assertion ────────────────────────────────────
+    # The sidebar's grown dense and accreted layout refactors. Every Streamlit
+    # widget that participates in app behavior carries a `key=` so its
+    # session-state slot is stable across reruns. If a layout reorg drops a
+    # key (a widget that lost its key= during a refactor, or a renamed key),
+    # the city-switch guard and the _filter_active mode switch silently break.
+    # This cell freezes the set of sidebar widget keys against a reference
+    # extracted at refactor time, and asserts the live source still produces
+    # the same set — wiring survival made explicit instead of relying on the
+    # guard transition test to surface a wrong-key behavior by side effect.
+    print(f"\n{'=' * 60}")
+    print("Sidebar wiring — widget-key set survival assertion")
+    print(f"{'=' * 60}")
+    sidebar_keys_diffs = 0
+    try:
+        # Frozen reference — keys live in the sidebar block from city selector
+        # through Export. Dynamic-prefix keys (`elf_check_<cls>`,
+        # `region_labels_<layer_key>`) are handled via prefixes since their
+        # exhaustive lists vary by city/loop. Static keys must match exactly.
+        _SIDEBAR_STATIC_KEYS_EXPECTED = frozenset({
+            'carbon_rate_ff', 'carbon_rate_gi',
+            'elf_check_vacant',
+            'hi_res_confirmed',
+            'model_quality',
+            'natcap_fixed_scenario_id',
+            'region_apply_within', 'region_layer',
+            'region_opt_button',
+            'region_opt_w_carbon', 'region_opt_w_cool',
+            'region_opt_w_cost', 'region_opt_w_flood', 'region_opt_w_food',
+            'scenario_source',
+            'slider_ff_pct', 'slider_gi_pct', 'slider_pct_converted',
+        })
+        _SIDEBAR_DYNAMIC_PREFIXES_EXPECTED = ('elf_check_', 'region_labels_')
+
+        # Scan app.py source for `key=...` in the sidebar block. Boundaries:
+        # the sidebar starts where `selected_city = st.sidebar.selectbox(...)`
+        # binds and ends at the "── Main panel ──" marker.
+        import re as _re
+        with open("app.py", "r") as _fh:
+            _src = _fh.read()
+        _start_match = _re.search(
+            r"^selected_city\s*=\s*st\.sidebar\.selectbox",
+            _src, _re.MULTILINE,
+        )
+        _end_match = _re.search(r"^# ── Main panel", _src, _re.MULTILINE)
+        if not _start_match or not _end_match:
+            print("  ERROR sidebar key scan: couldn't locate sidebar block "
+                  "boundaries — `selected_city = st.sidebar.selectbox` or "
+                  "the `── Main panel` marker is missing or moved.")
+            sidebar_keys_diffs += 1
+        else:
+            _sidebar_src = _src[_start_match.start():_end_match.start()]
+            # Match `key="literal"` and `key=f"format-string"`. Strip f-prefix
+            # and quotes; literal keys become themselves, f-string keys
+            # become e.g. `elf_check_{_cls}` which we route via the prefix set.
+            _all_keys = set()
+            for _m in _re.finditer(
+                r'key=(f?"[^"]+")', _sidebar_src
+            ):
+                _raw = _m.group(1)
+                _is_fstring = _raw.startswith('f"')
+                _val = _raw.lstrip('f').strip('"')
+                # `mode_key="fast"` in a function default at the start of the
+                # block (the surrogate-training fn signature) is a false
+                # positive — it's a Python kwarg, not a Streamlit key. Skip
+                # by checking for the function-signature context: the actual
+                # widget keys are all on `st.*` calls. The simplest filter
+                # is to drop the known false positive by value.
+                if _val == 'fast':
+                    continue
+                if _is_fstring:
+                    # The f-string keys must start with a known dynamic prefix.
+                    _prefix_hit = next(
+                        (p for p in _SIDEBAR_DYNAMIC_PREFIXES_EXPECTED
+                         if _val.startswith(p)),
+                        None,
+                    )
+                    if _prefix_hit is None:
+                        print(f"  FAIL sidebar key scan: unrecognized "
+                              f"f-string key {_val!r} — add the prefix to "
+                              f"_SIDEBAR_DYNAMIC_PREFIXES_EXPECTED if "
+                              f"intentional.")
+                        sidebar_keys_diffs += 1
+                else:
+                    _all_keys.add(_val)
+            # Static-key set must equal expected.
+            missing = _SIDEBAR_STATIC_KEYS_EXPECTED - _all_keys
+            extra = _all_keys - _SIDEBAR_STATIC_KEYS_EXPECTED
+            if missing:
+                print(f"  FAIL sidebar key scan: missing keys "
+                      f"{sorted(missing)} — a widget lost its key= or was "
+                      f"removed during a layout refactor. Behavior wiring "
+                      f"is broken.")
+                sidebar_keys_diffs += len(missing)
+            if extra:
+                print(f"  FAIL sidebar key scan: unexpected keys "
+                      f"{sorted(extra)} — a new widget was added without "
+                      f"updating _SIDEBAR_STATIC_KEYS_EXPECTED. Update the "
+                      f"reference set if intentional.")
+                sidebar_keys_diffs += len(extra)
+            if not (missing or extra):
+                print(f"  OK   {len(_all_keys)} static sidebar keys + "
+                      f"{len(_SIDEBAR_DYNAMIC_PREFIXES_EXPECTED)} dynamic "
+                      f"prefixes match the frozen reference set.")
+    except Exception as e:
+        print(f"  ERROR sidebar key scan: {e}")
+        import traceback; traceback.print_exc()
+        sidebar_keys_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
                    + round_trip_diffs + subset_diffs + reconcile_diffs
                    + guard_diffs + ownership_diffs_batch1 + tradeoff_diffs
-                   + region_opt_diffs)
+                   + region_opt_diffs + sidebar_keys_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -1720,6 +1829,11 @@ def main(update: bool) -> int:
             print(f"{region_opt_diffs} region-optimizer assertion "
                   "divergence(s) — subset / reconciliation / meta-test "
                   "(see REGION_OPTIMIZER_SPEC.md §8).")
+        if sidebar_keys_diffs:
+            print(f"{sidebar_keys_diffs} sidebar widget-key divergence(s) "
+                  "— wiring broke during a layout refactor; the "
+                  "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
+                  "the contract.")
         return 1
 
 

@@ -110,7 +110,7 @@ Both rounds use the same direction-correction; the per-round v_min/v_max are dif
 }
 ```
 
-**Display framing.** Surface as **"Top scenarios found"**, not "the optimal scenario." Values are engine-true; the search is over a surrogate shortlist, so global optimality is not claimed.
+**Display framing.** Surface as **"Best tested mixes — selected area"** — best among the candidates the engine actually tested, not the optimum across all possible mixes. Values are engine-true; the search is over a surrogate shortlist, so global optimality is not claimed.
 
 **Provenance.** A new constant, `PROVENANCE_REGION_OPTIMIZED = "region_optimizer_engine_verified"`, distinguishes region-optimized records from the citywide surrogate's `PROVENANCE_OPTIMIZER`. The two states could otherwise be confused — the citywide surrogate shows predicted values; the region path shows engine-true region-local values, with the surrogate's role limited to shortlisting. The rendered Source labels are correspondingly distinct: **"Engine-verified — region-optimized"** (region path) vs **"Surrogate-suggested"** (citywide path).
 
