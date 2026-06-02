@@ -861,19 +861,25 @@ class CityState(NamedTuple):
 # CityState comment above).
 _CURRENT_CITY_STATE: Optional[CityState] = None
 
-st.markdown(
-    "Explore how converting developed land into green infrastructure or food forests "
-    "affects **flood damage risk**, **urban cooling costs**, **food production**, "
-    "**nature access**, **carbon sequestration**, and **mental-health proxy outcomes** across the city — translating "
-    "ecological changes into concrete impacts for planners and decision-makers."
-)
-st.markdown(
-    '- **Green Infrastructure (wetlands)** — strongest per-pixel flood-retention effect; citywide flood changes may be small  \n'
-    '- **Food Forest** — best for cooling + food  \n'
-    '- **High Density** — worst for ecological and nature-access outcomes  \n'
-)
-
+# Un-bury the optimizer — the description paragraph + the three bullets
+# move INTO "How this prototype works" below; they're "how it works"
+# context, not the "what can I do" surface. The flood-changes-may-be-small
+# expectation-setting caveat rides with them (it's in the GI bullet).
+# Resulting top: title → [What's new / How this prototype works /
+# Validation status, all collapsed] → scenario sentence → Discover CTA →
+# metrics.
 with st.expander("How this prototype works", expanded=False):
+    st.markdown(
+        "Explore how converting developed land into green infrastructure or food forests "
+        "affects **flood damage risk**, **urban cooling costs**, **food production**, "
+        "**nature access**, **carbon sequestration**, and **mental-health proxy outcomes** across the city — translating "
+        "ecological changes into concrete impacts for planners and decision-makers."
+    )
+    st.markdown(
+        '- **Green Infrastructure (wetlands)** — strongest per-pixel flood-retention effect; citywide flood changes may be small  \n'
+        '- **Food Forest** — best for cooling + food  \n'
+        '- **High Density** — worst for ecological and nature-access outcomes  \n'
+    )
     st.markdown(
         "**Green Infrastructure** converts developed land to woody wetlands "
         "(NLCD code 90) — best for flood retention.  \n"
@@ -890,7 +896,7 @@ with st.expander("How this prototype works", expanded=False):
         f"Cooling °F is approximate (±2°F). Runoff uses a city-specific design "
         f"storm ({DESIGN_STORM_MM:.0f} mm / {DESIGN_STORM_INCHES:.2f} inches for "
         f"{selected_city}; NatCap per-city canonical). Cost is order-of-magnitude — "
-        f"adjust $/acre sliders in sidebar."
+        f"adjust \\$/acre sliders in sidebar."
     )
     st.markdown(
         "**Each scenario shows two validation surfaces.** A *Source / Validation* "
@@ -4748,16 +4754,39 @@ _where_expanded = (
 )
 _eligibility_available = _CURRENT_CITY_STATE.ownership_raster is not None
 
-_sec_scenario    = st.sidebar.expander("Scenario", expanded=True)
-_sec_discover    = st.sidebar.expander("Discover scenarios",
-                                        expanded=True)
-_sec_where       = st.sidebar.expander("Where changes happen",
-                                        expanded=_where_expanded)
-_sec_eligibility = (
+# Un-bury the optimizer: extract Quick Start / Placement Strategy /
+# Implementation Costs / Carbon rates out of Scenario into sibling
+# expanders so Scenario stays compact (% converted + Conversion Mix only)
+# and Discover sits directly under it. Visual order: Scenario / Discover /
+# Where / Eligibility / Quick Start / Placement Strategy / Implementation
+# Costs / Carbon rates (MN only) / Export. Code-populate order is
+# different: Scenario → Quick Start → Placement Strategy → Implementation
+# Costs → Carbon rates → Where → Eligibility → Discover → Export, so the
+# Discover block reads the cost-slider / region-mask / ownership-mask
+# state set by the populate-earlier blocks — same one-rerun-no-lag
+# property the pre-created-container pattern was introduced for.
+_carbon_rates_available = not _CARBON_IS_STOCK
+_sec_scenario          = st.sidebar.expander("Scenario", expanded=True)
+_sec_discover          = st.sidebar.expander("Discover scenarios",
+                                              expanded=True)
+_sec_where             = st.sidebar.expander("Where changes happen",
+                                              expanded=_where_expanded)
+_sec_eligibility       = (
     st.sidebar.expander("Eligibility filters", expanded=False)
     if _eligibility_available else None
 )
-_sec_export      = st.sidebar.expander("Export", expanded=False)
+_sec_quick_start       = st.sidebar.expander("Quick Start",
+                                              expanded=False)
+_sec_placement         = st.sidebar.expander("Placement Strategy",
+                                              expanded=False)
+_sec_costs             = st.sidebar.expander(
+    "Implementation Costs (\\$/acre)", expanded=False,
+)
+_sec_carbon_rates      = (
+    st.sidebar.expander("Carbon rates", expanded=False)
+    if _carbon_rates_available else None
+)
+_sec_export            = st.sidebar.expander("Export", expanded=False)
 
 # ── Sidebar section: Scenario ──────────────────────────────────────────────
 # Base scenario controls — conversion mix, presets, placement strategy,
@@ -4821,11 +4850,16 @@ with _sec_scenario:
         pct_converted, green_infrastructure_pct, food_forest_pct,
     )
     pct_highdensity = _resolved_scenario['pct_highdensity']
+# End of Scenario expander — Quick Start / Placement / Costs / Carbon rates
+# move to their own sibling expanders below.
 
-    st.divider()
-
-    # ── Quick Start — preset scenarios ───────────────────────────────────
-    st.subheader("Quick Start — Try a Scenario")
+# ── Sidebar section: Quick Start ───────────────────────────────────────────
+# Extracted out of Scenario per "un-bury the optimizer" so Scenario stays
+# compact (% + Conversion Mix only) and the Discover CTA sits directly
+# under it. Quick Start preset buttons set `_pending_pct/gi/ff` and rerun
+# — the resolved-state aliases at the top of the script pick those up
+# before slider widgets render.
+with _sec_quick_start:
     st.caption("Click any button to load a preset scenario instantly.")
 
     # Clear active example if the user has manually changed any slider away from its values
@@ -4880,12 +4914,10 @@ with _sec_scenario:
         st.rerun()
     st.caption("Control case — no green conversion")
 
-    st.divider()
-
-    # ── Placement strategy ───────────────────────────────────────────────
-    # Placement shapes the *current* scenario, so users configure it
-    # alongside the conversion mix, then optionally optimize.
-    st.subheader("Placement Strategy")
+# ── Sidebar section: Placement Strategy ────────────────────────────────────
+# Extracted out of Scenario. Placement shapes the current scenario; users
+# configure it alongside the conversion mix, then optionally optimize.
+with _sec_placement:
     placement_strategy = st.radio(
         "Which pixels get converted",
         options=list(PLACEMENT_STRATEGY_LABELS.keys()),
@@ -4903,12 +4935,11 @@ with _sec_scenario:
     # Legacy alias kept for backward compatibility with saved scenarios.
     use_heat_priority = (placement_strategy == 'cooling-focused')
 
-    st.divider()
-
-    # ── Implementation Costs ─────────────────────────────────────────────
-    # Folded in from the prior standalone expander so the region optimizer
-    # reads the user-set cost rates at click time without a nested expander.
-    st.subheader("Implementation Costs (\\$/acre)")
+# ── Sidebar section: Implementation Costs (\$/acre) ────────────────────────
+# Extracted out of Scenario. Must populate BEFORE the Discover expander so
+# the region-optimizer's _fire_region_optimize closure captures live cost
+# values at click time.
+with _sec_costs:
     cost_gi = st.slider(
         "Green Infrastructure (\\$/acre)", 5_000, 150_000,
         DEFAULT_COST_GI, 5_000,
@@ -4925,14 +4956,13 @@ with _sec_scenario:
         help="Marginal cost of additional impervious development. Default is an illustrative estimate — adjust to reflect local project costs.",
     )
 
-    # ── Carbon-rate sliders (MN only) ────────────────────────────────────
-    # Folded in from the prior Advanced Settings expander. SA's Carbon uses
-    # NatCap's four-pool stock table directly — no per-pool override is
-    # exposed. Hidden for SA + session_state seeded with defaults so
-    # downstream `st.session_state.carbon_rate_*` reads still work.
-    if not _CARBON_IS_STOCK:
-        st.divider()
-        st.subheader("Carbon rates")
+# ── Sidebar section: Carbon rates (MN only) ────────────────────────────────
+# Extracted out of Scenario. SA's Carbon uses NatCap's four-pool stock
+# table directly — no per-pool override is exposed; the expander only
+# renders for MN. SA's path seeds session_state defaults outside any
+# expander so downstream `st.session_state.carbon_rate_*` reads still work.
+if _sec_carbon_rates is not None:
+    with _sec_carbon_rates:
         st.slider(
             "Food Forest carbon rate (tons CO2e/acre/yr)",
             0.5, 18.0, 3.5, 0.5,
@@ -4950,9 +4980,9 @@ with _sec_scenario:
             "values or sensitivity test assumptions. See Methodology & Data Sources for "
             "sources and caveats."
         )
-    else:
-        st.session_state.setdefault("carbon_rate_ff", 3.5)
-        st.session_state.setdefault("carbon_rate_gi", 2.0)
+else:
+    st.session_state.setdefault("carbon_rate_ff", 3.5)
+    st.session_state.setdefault("carbon_rate_gi", 2.0)
 
 # ── Interactive Region Map: sync clicks → sidebar multiselect (top-of-script) ─
 # Reads `region_map_picker_event` (stashed by tab3) and writes the clicked
