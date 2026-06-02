@@ -181,6 +181,26 @@ KNOWN_DIVERGENCES = [
             "way. The per-metric mapping lives in NATCAP_ALIGNMENT.md."
         ),
     },
+    {
+        "id": "ownership_rule_derived",
+        "summary": "Ownership classes are rule-derived, not an authoritative title registry",
+        "detail": (
+            "Ownership classes (City / County / State-federal / School / "
+            "University / Private / Unknown) are derived by parsing the BCAD "
+            "parcel attributes (Owner free-text + Exempts codes) with regex "
+            "rules locked in docs/internal/OWNERSHIP_FEASIBILITY_PROFILING.md. "
+            "The classifier was area-weighted-validated at 99.9% of public "
+            "acreage classifying cleanly under the original 6-way split (see "
+            "the feasibility doc); the School / University Split addendum "
+            "(2026-06-01) tightened the school rule to ISD-only and put "
+            "private campuses (Trinity, St. Mary's, OLLU) into a separate "
+            "'University' class kept OUT of the 'Publicly-owned land' rollup. "
+            "Classes are NOT validated against an authoritative title "
+            "registry. The filter is a planning screen — useful for "
+            "narrowing where a hypothetical conversion could land — not a "
+            "substitute for verified ownership data."
+        ),
+    },
 ]
 
 

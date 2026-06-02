@@ -97,7 +97,213 @@ OWNERSHIP_MODES = {
         'label':    'College or university land',
         'band1_eq': 6,
     },
+    'private': {
+        'label':    'Privately-owned land',
+        'band1_eq': 0,
+    },
+    'unknown': {
+        'label':    'Unknown ownership',
+        'band1_eq': 5,
+    },
+    # ── Vacant-overlay composites (Batch 4 of OWNERSHIP_FINER_CLASSES_SPEC.md) ──
+    # The sidebar's "Limit to vacant parcels only" checkbox composes the
+    # vacant flag (band2_eq=1) with the selected class. These per-class
+    # vacant variants are the resolved mode keys; the selectbox shows
+    # only the primary class options, the checkbox composes the variant.
+    # `vacant` (class-unconstrained) and `vacant_public` (rollup) live
+    # above with the coarse rollups and serve the All-ownership + vacant
+    # and Publicly-owned + vacant cases. Saved scenarios from before this
+    # batch resolve cleanly under their existing mode keys.
+    'city_vacant': {
+        'label':    'City-owned land (vacant only)',
+        'band1_eq': 1,
+        'band2_eq': 1,
+    },
+    'county_vacant': {
+        'label':    'County-owned land (vacant only)',
+        'band1_eq': 2,
+        'band2_eq': 1,
+    },
+    'state_federal_vacant': {
+        'label':    'State or federal land (vacant only)',
+        'band1_eq': 3,
+        'band2_eq': 1,
+    },
+    'school_vacant': {
+        'label':    'School district land (K-12 public, vacant only)',
+        'band1_eq': 4,
+        'band2_eq': 1,
+    },
+    'university_vacant': {
+        'label':    'College or university land (vacant only)',
+        'band1_eq': 6,
+        'band2_eq': 1,
+    },
+    'private_vacant': {
+        'label':    'Privately-owned land (vacant only)',
+        'band1_eq': 0,
+        'band2_eq': 1,
+    },
 }
+
+# Eligible land filter — selectbox primary modes (Batch 4). The "vacant"
+# overlay is a separate checkbox in the UI; per-class vacant composites
+# (city_vacant, school_vacant, …) are resolved at filter time from
+# (selected primary class, vacant overlay). Order = display order in the
+# selectbox; "(no filter)" prepended at render time.
+ELIGIBLE_FILTER_PRIMARY_MODES = (
+    "public",         # rollup
+    "city",
+    "county",
+    "state_federal",
+    "school",
+    "university",
+    "private",
+    "unknown",
+)
+
+
+def _resolve_eligible_filter_mode(primary: str, vacant_overlay: bool) -> "Optional[str]":
+    """Map the (primary class, vacant overlay) UI state to an
+    OWNERSHIP_MODES key. (Legacy single-class resolver, kept for callers
+    not yet on the multi-class UI; Batch 4 v2's checkbox panel uses the
+    composite resolver below.)"""
+    if primary is None:
+        return 'vacant' if vacant_overlay else None
+    if primary == 'public':
+        return 'vacant_public' if vacant_overlay else 'public'
+    return f"{primary}_vacant" if vacant_overlay else primary
+
+
+# ── Eligible-land-filter multi-class resolvers (Batch 4 v2) ──────────────────
+# The sidebar exposes 5 finer-class checkboxes + a vacant overlay. Single-
+# class selections collapse to existing OWNERSHIP_MODES keys for backward
+# compat with saved scenarios; multi-class selections persist as a small
+# dict `{'classes': [...], 'vacant': bool}` that `_normalize_ownership_filter`
+# below de-shapes uniformly for display and the export bundle.
+
+def _compose_eligible_filter_cfg(class_names, vacant_overlay):
+    """Build an OWNERSHIP_MODES-compatible mode_cfg for an arbitrary
+    union of finer classes (+ optional vacant). The composed cfg has
+    band1_in (the enum values for the checked classes) and optionally
+    band2_eq=1; `_build_ownership_mask` consumes it identically to a
+    static mode dict."""
+    enum_vals = []
+    for cls in class_names:
+        cfg = OWNERSHIP_MODES.get(cls) or {}
+        if 'band1_eq' in cfg:
+            enum_vals.append(int(cfg['band1_eq']))
+    result = {}
+    if enum_vals:
+        result['band1_in'] = tuple(sorted(set(enum_vals)))
+    if vacant_overlay:
+        result['band2_eq'] = 1
+    return result
+
+
+def _build_composite_ownership_label(class_names, vacant_overlay):
+    """Display label for a multi-class composite. Uses each class's
+    OWNERSHIP_MODES label with the trailing " land" stripped, joined by
+    " + ", with "(vacant only)" appended when the overlay is on."""
+    if not class_names:
+        return "Vacant land" if vacant_overlay else "All ownership"
+    parts = []
+    for cls in sorted(class_names):
+        cfg = OWNERSHIP_MODES.get(cls) or {}
+        label = cfg.get('label', cls)
+        # Strip trailing " land" so "City-owned land" + "School ... land"
+        # → "City-owned + School district (K-12 public) (vacant only)".
+        if label.endswith(' land'):
+            label = label[:-len(' land')]
+        parts.append(label)
+    joined = ' + '.join(parts)
+    if vacant_overlay:
+        joined += ' (vacant only)'
+    return joined
+
+
+def _resolve_eligible_filter_state(classes_checked, vacant_overlay):
+    """Returns (storage_value, mode_cfg, label, allowed_band1_values):
+      storage_value: what to stamp onto results['ownership_filter']
+        — None, an OWNERSHIP_MODES key string, or a composite dict.
+      mode_cfg: dict for `_build_ownership_mask`.
+      label: display string.
+      allowed_band1_values: list[int] for the export bundle's
+        `allowed_classes` field.
+
+    Single-class selections (with or without vacant overlay) collapse
+    to existing string mode keys so saved scenarios from Batch 4 v1
+    round-trip identically. Multi-class selections persist as a small
+    dict `{'classes': [list], 'vacant': bool}`."""
+    classes_checked = list(classes_checked or [])
+    if not classes_checked and not vacant_overlay:
+        return None, None, None, []
+    if not classes_checked and vacant_overlay:
+        cfg = OWNERSHIP_MODES['vacant']
+        return 'vacant', cfg, cfg['label'], []
+    if len(classes_checked) == 1:
+        cls = classes_checked[0]
+        mode_key = f"{cls}_vacant" if vacant_overlay else cls
+        if mode_key in OWNERSHIP_MODES:
+            cfg = OWNERSHIP_MODES[mode_key]
+            return (mode_key, cfg, cfg['label'],
+                    _ownership_allowed_band1_values(cfg))
+    # Multi-class (or single-class without a pre-baked _vacant entry) —
+    # synthesize a composite.
+    cfg = _compose_eligible_filter_cfg(classes_checked, vacant_overlay)
+    label = _build_composite_ownership_label(classes_checked, vacant_overlay)
+    storage = {'classes': sorted(classes_checked), 'vacant': bool(vacant_overlay)}
+    return storage, cfg, label, list(cfg.get('band1_in', ()))
+
+
+def _normalize_ownership_filter(value):
+    """Normalize results['ownership_filter'] to a canonical record:
+      {classes: [...], vacant_only: bool, mode_key: str|None, label: str}
+    Accepts the three shapes the storage path produces:
+      - None (no filter)
+      - str (a single OWNERSHIP_MODES key — Batch 4 v1 + earlier)
+      - dict (composite from Batch 4 v2's checkbox UI)
+    Returns None when the input doesn't resolve to a known mode."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        cfg = OWNERSHIP_MODES.get(value)
+        if cfg is None:
+            return None
+        # Derive class list from the band1 selector. For a single-class
+        # mode (band1_eq), look up the matching primary class key. For
+        # a rollup (band1_in), collect every primary class whose
+        # band1_eq matches one of the rollup's values.
+        classes = []
+        if 'band1_eq' in cfg:
+            for k, v in OWNERSHIP_MODES.items():
+                if (k in ELIGIBLE_FILTER_PRIMARY_MODES
+                        and v.get('band1_eq') == cfg['band1_eq']):
+                    classes.append(k)
+                    break
+        elif 'band1_in' in cfg:
+            for ev in cfg['band1_in']:
+                for k, v in OWNERSHIP_MODES.items():
+                    if (k in ELIGIBLE_FILTER_PRIMARY_MODES
+                            and v.get('band1_eq') == ev):
+                        classes.append(k)
+                        break
+        return {
+            'classes':     classes,
+            'vacant_only': cfg.get('band2_eq') == 1,
+            'mode_key':    value,
+            'label':       cfg['label'],
+        }
+    if isinstance(value, dict):
+        classes = list(value.get('classes', []))
+        vacant = bool(value.get('vacant', False))
+        return {
+            'classes':     classes,
+            'vacant_only': vacant,
+            'mode_key':    None,
+            'label':       _build_composite_ownership_label(classes, vacant),
+        }
+    return None
 
 
 def _build_ownership_mask(band1, band2, mode_cfg) -> "np.ndarray":
@@ -199,11 +405,14 @@ WHATS_NEW_SECTIONS = [
     ("Interactive scenario placement", [
         "**Region Selection** — constrain conversions to a selected council district (San Antonio) or census tract (Minneapolis); metric cards show citywide impact, paired with a Selected-region impact view.",
         "**Selected-region impact** — alongside any region scenario, a paired table compares outcomes inside the selected area with the citywide result, with locked flood-routing and reach-effect caveats.",
-        "**Ownership Filter (San Antonio)** — narrow conversions to publicly-owned, vacant, or vacant-and-publicly-owned parcels; composes with Region Selection. (Parcel data: Bexar County GIS / BCAD, 2026-05-31 pull.)",
+        "**Eligibility breakdown** — see where a selected area's convertible land goes (developed → minus roads / buildings / existing nature → minus ownership filter → converted).",
+        "**Ownership Filter (San Antonio)** — restrict conversions by ownership; the coarse rollups (publicly-owned / vacant) and the finer classes (City / County / State-federal / School (K-12) / University) are all selectable; composes with Region Selection.",
     ]),
     ("Validation and handoff", [
         "**Provenance + validation badges** — every scenario shows its source at the top (NatCap reference, baseline, engine-validated Explorer, or surrogate-suggested optimizer), with per-metric validation badges on each card.",
+        "**Scenario audit** — source, area, ownership, placement, seed, and validation for any scenario, in one expander on the Scenario tab.",
         "**Comparison table** — NatCap's published scenarios, the current scenario, and any you've saved side by side on the Tradeoff Analysis tab.",
+        "**Scenario CSV** — download the full scenario comparison (current + saved) with metrics and provenance.",
         "**InVEST export** — download the current scenario as a runnable input bundle for canonical InVEST 3.19.0 (rasters, AOIs, biophysical tables, per-model args). San Antonio v1.",
     ]),
 ]
@@ -336,7 +545,17 @@ def _reset_state_for_city_switch(session_state) -> None:
     for _stale_key in [k for k in list(session_state.keys())
                        if isinstance(k, str) and k.startswith('region_labels_')]:
         session_state.pop(_stale_key, None)
-    session_state.ownership_filter_choice = "No filter"
+    # Eligible Land Filter (Batch 4 v2) — the panel switched to per-class
+    # checkboxes plus a vacant-overlay toggle. Reset all of them. The
+    # earlier-batch `ownership_filter_choice` selectbox + the legacy
+    # `ownership_filter_vacant_overlay` are also reset (they may still be
+    # in session_state from a prior session before the UI change).
+    for _elf_key in ('elf_check_city', 'elf_check_county',
+                     'elf_check_state_federal', 'elf_check_school',
+                     'elf_check_university', 'elf_check_vacant'):
+        session_state.pop(_elf_key, None)
+    session_state.ownership_filter_choice = None
+    session_state.ownership_filter_vacant_overlay = False
 
 
 if st.session_state.get('_prev_city_key') != selected_city:
@@ -1747,22 +1966,41 @@ def compute_cost(n_wet_pixels, n_for_pixels, n_hd_pixels,
 
 
 def compute_cost_effectiveness(results, baseline_runoff_acft):
-    """Return $/unit ratios vs baseline; None where denominator is zero or negative."""
+    """Return $/unit ratios vs baseline; None where the denominator is
+    zero, negative, OR below the per-metric "too small to divide"
+    epsilon. Small-denominator floors are screening thresholds — when a
+    region-constrained scenario reduces runoff by only a fraction of an
+    acre-foot or cools by a hundredth of a degree, dividing the
+    implementation cost by that nearly-zero benefit produces a
+    spuriously precise ratio (e.g. "$961k per ac-ft") that reads as a
+    real number but isn't informative. The floors collapse those cases
+    to N/A. Citywide scenarios typically clear them; region cells
+    sometimes don't, which is the signal the floors are designed to
+    catch (see UI feedback #2)."""
     cost = results['total_cost_mln'] * 1_000_000
     if cost <= 0:
         return {'cost_per_acft': None, 'cost_per_degf': None, 'cost_per_1k_people': None}
 
+    # Epsilon floors: below these the ratio's precision is illusory.
+    _RUNOFF_EPS_ACFT     = 10.0   # ~10 ac-ft of runoff reduction
+    _COOLING_EPS_DEGF    = 0.05   # ~0.05 °F of citywide cooling
+    _PEOPLE_EPS_HEADS    = 100    # 100 people fed (= 0.1 thousand)
+
     runoff_prevented = baseline_runoff_acft - results['runoff_acre_feet']
-    cost_per_acft = round(cost / runoff_prevented) if runoff_prevented > 0 else None
+    cost_per_acft = (round(cost / runoff_prevented)
+                     if runoff_prevented >= _RUNOFF_EPS_ACFT else None)
 
     # Cost per °F of cooling. Under the ΔT convention cooling is a NEGATIVE
     # temp_change_f (positive = warmer), so the ratio is only defined when the
     # scenario actually cools; divide cost by the cooling magnitude.
     temp_change_f = results['temp_change_f']
-    cost_per_degf = round(cost / -temp_change_f) if temp_change_f < 0 else None
+    cost_per_degf = (round(cost / -temp_change_f)
+                     if (temp_change_f < 0
+                         and abs(temp_change_f) >= _COOLING_EPS_DEGF) else None)
 
     people_fed = results['people_fed']
-    cost_per_1k_people = round(cost / (people_fed / 1000)) if people_fed > 0 else None
+    cost_per_1k_people = (round(cost / (people_fed / 1000))
+                          if people_fed >= _PEOPLE_EPS_HEADS else None)
 
     return {
         'cost_per_acft':       cost_per_acft,
@@ -2344,7 +2582,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 32  # bumped: Scenario Record Pass — metadata.json's ownership_filter is now a structured dict {mode, label, allowed_classes, source, data_date} (was a bare mode string); region_selection block gains converted_acres so the placement-funnel trio (selected_area / eligible / converted) is uniformly shaped. In-memory results['ownership_filter'] still carries the bare mode string — only the export writer composes the rich shape, so no all-consumer audit. Results dict picks up region_selection.converted_acres (additive; verify_baselines skips region_selection in the snapshot path, so 40/40 stays byte-identical). (31 was Honesty-Surface Pass Commits 2+3.)
+SCENARIO_SCHEMA_VERSION = 33  # bumped: Batch 4 v2 of Finer Ownership Classes — results['ownership_filter'] (and therefore the saved-scenario record) now accepts a third shape — a composite dict `{'classes': [...], 'vacant': bool}` — in addition to the existing `None` / single-mode-string shapes. The multi-class checkbox UI synthesizes the composite when ≥2 classes are checked or when a single class + vacant overlay has no pre-baked `_vacant` entry. Single-class selections still collapse to existing OWNERSHIP_MODES keys so Batch-2-era saves round-trip identically. Re-tag only — engine outputs are byte-identical; verify_baselines 40/40 stays unchanged. (32 was Scenario Record Pass — metadata.json's ownership_filter dict + region_selection.converted_acres. 31 was Honesty-Surface Pass Commits 2+3.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -3170,9 +3408,12 @@ def _cs_area_for_row(row):
 
 
 def _cs_ownership_for_row(row):
-    mode = (row or {}).get('ownership_filter')
-    cfg = OWNERSHIP_MODES.get(mode) if mode else None
-    return cfg['label'] if cfg else "None"
+    """Display label for `row['ownership_filter']`. Handles all three
+    shapes the storage path produces: None, a single OWNERSHIP_MODES
+    key (Batch 4 v1 + earlier saved scenarios), or a composite dict
+    {'classes': [...], 'vacant': bool} (Batch 4 v2's multi-class UI)."""
+    norm = _normalize_ownership_filter((row or {}).get('ownership_filter'))
+    return norm['label'] if norm else "None"
 
 # load_data outputs
 lulc                = _CURRENT_CITY_STATE.lulc
@@ -3933,14 +4174,14 @@ def _ownership_source_suffix(results_or_saved) -> str:
 
     Reads `ownership_filter` from a results dict OR a saved-scenario dict
     (both expose the field after Commit 1 — pre-29 saves return None safely
-    via .get()). Used at the main panel header, the export bundle source
+    via .get()). Handles Batch 4 v2's composite dict shape via the shared
+    normalizer. Used at the main panel header, the export bundle source
     label, and the comparison-table Source column.
     """
     if not results_or_saved:
         return ""
-    mode = results_or_saved.get('ownership_filter')
-    cfg = OWNERSHIP_MODES.get(mode) if mode else None
-    return f" · {cfg['label'].lower()}" if cfg else ""
+    norm = _normalize_ownership_filter(results_or_saved.get('ownership_filter'))
+    return f" · {norm['label'].lower()}" if norm else ""
 
 
 def _render_scenario_provenance_header(provenance, scenario_label=None,
@@ -4524,46 +4765,112 @@ if _apply_within == "Selected regions" and _region_layers_available:
 elif _apply_within == "Selected regions" and not _region_layers_available:
     st.sidebar.info("No region layers configured for this city.")
 
-# ── Ownership Filter (Ownership Integration Commit 2) ─────────────────────────
-# SA-only. Lives below Region Selection so the user picks region (where) first,
-# then optionally narrows to publicly-owned / vacant parcels (what land) — and
-# the two compose. When both are active the combined eligible denominator
-# reflects `region ∩ ownership ∩ convertible`.
+# ── Eligible land filter (Batch 4 of OWNERSHIP_FINER_CLASSES_SPEC.md) ───────
+# Renamed + restructured from the prior "Ownership Filter" block. The panel
+# now reads as "where can conversions land": exclusion items (always-on) at
+# the top, then the selectable ownership class + vacant overlay below. Lives
+# below Region Selection so the user picks WHERE first (region), then
+# narrows by WHAT KIND of land (ownership) — and the two compose. When both
+# are active the combined eligible denominator reflects
+# `region ∩ ownership ∩ convertible`.
 _ownership_available = _CURRENT_CITY_STATE.ownership_raster is not None
 if _ownership_available:
-    st.sidebar.subheader("Ownership Filter")
-    _own_mode_labels = ["No filter"] + [OWNERSHIP_MODES[k]['label']
-                                        for k in OWNERSHIP_MODES]
-    _own_choice = st.sidebar.selectbox(
-        "Restrict to",
-        options=_own_mode_labels,
-        index=0,
-        key="ownership_filter_choice",
+    st.sidebar.subheader("Eligible land filter")
+    # Always-on exclusions — display only; the per-pixel engine enforces
+    # these via the convertible-pixel pool (developed minus
+    # buildings/roads), so they aren't selectable.
+    st.sidebar.markdown(
+        "**Conversions can never be placed on:**\n"
+        "- Building footprints (always excluded)\n"
+        "- Roads (always excluded)\n"
+        "- Existing natural land (always excluded)"
+    )
+    # Locked text — the honesty crux for the panel. Edits to this string
+    # must update OWNERSHIP_FINER_CLASSES_SPEC.md and DATA_INVENTORY in
+    # lockstep — the spec quotes it verbatim.
+    st.sidebar.caption(
+        "Ownership filters are feasibility constraints. They limit "
+        "where conversions may be placed but do not change the "
+        "biophysical model equations."
+    )
+    # KNOWN_DIVERGENCES surface — the rule-derived caveat lives in the
+    # export bundle's metadata.json (entry id `ownership_rule_derived`,
+    # locked + asserted complete by `verify_baselines.py`'s honesty-
+    # surface block). Surface the same caveat HERE on the panel so a
+    # user choosing a finer class sees the disclosure where they make
+    # the choice, not only after exporting a bundle.
+    st.sidebar.caption(
+        "Classes are derived from BCAD owner-name + exemption rules "
+        "(see `data/sa/sa_ownership_2band_30m.tif` provenance in "
+        "DATA_INVENTORY). NOT validated against a title registry — a "
+        "planning screen, not verified ownership. `School` = ISD / "
+        "SCHOOL DISTRICT name matches only (public districts; "
+        "charters and private K-12 schools fall through to "
+        "private). `University` spans both public (UT / A&M / Alamo) "
+        "and private (Trinity / St. Mary's / OLLU) campuses — kept "
+        "OUT of the public rollup for that reason."
+    )
+    # Multi-class checkboxes (Batch 4 v2). One checkbox per finer
+    # ownership class + a vacant-overlay toggle + quick-set buttons for
+    # the coarse rollups. Mask = union of checked classes (∩ vacant if
+    # toggled). Single-class selections collapse to existing
+    # OWNERSHIP_MODES keys for backward compat; multi-class persists as
+    # a small composite dict.
+    st.sidebar.markdown("**Restrict to (check classes to include):**")
+    _elf_finer = ('city', 'county', 'state_federal', 'school', 'university')
+
+    # Quick-set buttons — set the matching combination of checkboxes via
+    # session_state before the checkboxes render. `st.rerun()` after each
+    # so the new defaults take effect.
+    _qcol_a, _qcol_b, _qcol_c = st.sidebar.columns(3)
+    if _qcol_a.button("Public", help="Check city + county + state-federal + school (the public rollup)."):
+        for _cls in _elf_finer:
+            st.session_state[f"elf_check_{_cls}"] = (_cls != "university")
+        st.session_state["elf_check_vacant"] = False
+        st.rerun()
+    if _qcol_b.button("Vacant + Public", help="Check the public rollup AND the vacant-only overlay."):
+        for _cls in _elf_finer:
+            st.session_state[f"elf_check_{_cls}"] = (_cls != "university")
+        st.session_state["elf_check_vacant"] = True
+        st.rerun()
+    if _qcol_c.button("Clear", help="Uncheck every class and the vacant overlay."):
+        for _cls in _elf_finer:
+            st.session_state[f"elf_check_{_cls}"] = False
+        st.session_state["elf_check_vacant"] = False
+        st.rerun()
+
+    _own_classes_checked = []
+    for _cls in _elf_finer:
+        _label = OWNERSHIP_MODES[_cls]['label']
+        if st.sidebar.checkbox(_label, value=False, key=f"elf_check_{_cls}"):
+            _own_classes_checked.append(_cls)
+    _vacant_overlay = st.sidebar.checkbox(
+        "Limit to vacant parcels only",
+        value=False,
+        key="elf_check_vacant",
         help=(
-            "Constrain conversions to a specific ownership class or rollup "
-            "(coarse: publicly-owned land / vacant land / vacant + public; "
-            "finer: city / county / state-federal / school / university). "
-            "Composes with Region Selection above; the per-pixel engine is "
-            "unchanged. Ownership classes are used as a planning screen "
-            "only; parcel availability and legal feasibility are not "
-            "verified. 'Publicly-owned land' is city + county + "
-            "state-federal + school (K-12 public districts). "
-            "'University' is kept separate from the public rollup because "
-            "that bucket spans both public institutions (UT, A&M, Alamo "
-            "CCD) and private ones (Trinity, St. Mary's, OLLU); pick it "
-            "directly if you want it."
+            "Narrow the selection above to parcels flagged as vacant "
+            "(no improvement value, exempt-keyed; see the vacancy "
+            "methodology in DATA_INVENTORY). Composable with any "
+            "checked class — e.g. School district + vacant = vacant ISD "
+            "parcels."
         ),
     )
-    if _own_choice != "No filter":
-        # Resolve the choice label back to its mode key, then build the mask.
-        _own_mode = next(k for k, v in OWNERSHIP_MODES.items()
-                         if v['label'] == _own_choice)
-        # Finer Ownership Classes Pass — two-band raster, helper resolves
-        # the mode's band1_eq / band1_in / band2_eq selectors.
+
+    # Resolve the (checked classes, vacant overlay) UI state. Storage
+    # value collapses to a single OWNERSHIP_MODES key when possible
+    # (single class with or without overlay), else a composite dict.
+    _own_mode, _own_cfg, _own_label, _own_allowed = _resolve_eligible_filter_state(
+        _own_classes_checked, _vacant_overlay,
+    )
+    if _own_mode is not None:
+        # `_own_cfg` from the resolver is OWNERSHIP_MODES-compatible whether
+        # the mode is a string key or a composite dict — pass it directly,
+        # don't re-look-up by key (composite dicts aren't in OWNERSHIP_MODES).
         _own_mask = _build_ownership_mask(
             _CURRENT_CITY_STATE.ownership_raster,
             _CURRENT_CITY_STATE.ownership_vacant_raster,
-            OWNERSHIP_MODES[_own_mode],
+            _own_cfg,
         )
         # Eligible-under-all-constraints denominator. If the region UI above
         # already set a mask, intersect; otherwise use ownership alone.
@@ -4580,7 +4887,7 @@ if _ownership_available:
         _own_combined_label = (
             "within the selected region(s) AND on " if _region_mask_active is not None
             else "on "
-        ) + _own_choice.lower()
+        ) + _own_label.lower()
         if _own_eligible_count == 0:
             st.sidebar.warning(
                 f"No convertible pixels {_own_combined_label} — conversions "
@@ -4999,20 +5306,31 @@ def _build_invest_bundle_for_current_scenario():
     # stays a bare mode string (all existing consumers read it as such);
     # the rich shape lives only in the export bundle, so metadata.json is
     # self-describing without forcing an all-consumer audit.
-    _of_mode = results.get('ownership_filter')
-    if _of_mode and OWNERSHIP_MODES.get(_of_mode):
-        _of_cfg = OWNERSHIP_MODES[_of_mode]
+    # Finer Ownership Classes Pass — `allowed_classes` is the list of
+    # band-1 class-enum values that satisfy the mode (e.g. [1] for
+    # 'city', [1,2,3,4] for the 'public' rollup, or the union for a
+    # multi-class composite). Empty list means the mode keys only on
+    # band 2 (vacant); the consumer reads `vacant_required` to detect
+    # that. The normalizer handles all three storage shapes (None / str
+    # mode key / composite dict from Batch 4 v2's checkbox panel).
+    _of_norm = _normalize_ownership_filter(results.get('ownership_filter'))
+    if _of_norm is not None:
         _of_layer_meta = (city_cfg.get('ownership_layer') or {})
-        # Finer Ownership Classes Pass — `allowed_classes` is the list of
-        # band-1 class-enum values that satisfy the mode (e.g. [1] for
-        # 'city', [1,2,3] for the 'public' rollup). Empty list means the
-        # mode keys only on band 2 (vacant); the consumer reads
-        # `vacant_required` to detect that.
+        # Allowed band-1 class enum values, derived from the normalized
+        # class list. Use each class's `band1_eq` from OWNERSHIP_MODES.
+        _of_allowed = sorted({
+            OWNERSHIP_MODES[c]['band1_eq']
+            for c in _of_norm['classes']
+            if c in OWNERSHIP_MODES and 'band1_eq' in OWNERSHIP_MODES[c]
+        })
+        # `mode` field carries the original storage shape — either a
+        # string mode key or a small composite dict. Downstream readers
+        # can either use it directly or fall back to label + allowed_classes.
         _bundle_ownership_filter = {
-            'mode':              _of_mode,
-            'label':             _of_cfg['label'],
-            'allowed_classes':   _ownership_allowed_band1_values(_of_cfg),
-            'vacant_required':   _of_cfg.get('band2_eq') == 1,
+            'mode':              results.get('ownership_filter'),
+            'label':             _of_norm['label'],
+            'allowed_classes':   _of_allowed,
+            'vacant_required':   _of_norm['vacant_only'],
             'source':            _of_layer_meta.get('source'),
             'data_date':         _of_layer_meta.get('data_date'),
         }
@@ -5263,6 +5581,28 @@ _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
 # `_cs_area_for_row` / `_cs_ownership_for_row` compose the Area / Ownership
 # cells (same rule the comparison-table columns use).
 with st.expander("Scenario audit", expanded=False):
+    # UI feedback #3 — open with a prose sentence (mirroring the main
+    # scenario caption rendered below the tabs) so the audit reads as
+    # human description first, then the structured fields. None of the
+    # interpolated values carry `$`, so no escape needed; if that ever
+    # changes (e.g. cost is interpolated into the sentence), escape.
+    _audit_area_inline = _cs_area_for_row(results)
+    _audit_own_inline  = _cs_ownership_for_row(results)
+    _audit_pct_hd      = 100 - green_infrastructure_pct - food_forest_pct
+    _audit_strategy    = PLACEMENT_STRATEGY_LABELS.get(
+        placement_strategy, placement_strategy)
+    _audit_own_clause  = (
+        "" if _audit_own_inline == "None"
+        else f" restricted to {_audit_own_inline.lower()}"
+    )
+    st.write(
+        f"This scenario converts **{pct_converted}%** of the eligible "
+        f"convertible pool in **{_audit_area_inline}**"
+        f"{_audit_own_clause}, allocating **{green_infrastructure_pct}%** "
+        f"to green infrastructure, **{food_forest_pct}%** to food forest, "
+        f"and **{_audit_pct_hd}%** to high-density development, using "
+        f"**{_audit_strategy}**."
+    )
     _audit_rs = results.get('region_selection') or {}
     _audit_eligible_acres = (
         (_audit_rs.get('eligible_pixels_in_region') or 0) * PIXEL_AREA_ACRES
@@ -5892,17 +6232,32 @@ if _region_local:
     def _fmt_pp(n):    return f"{int(n):,} people" if n is not None else "—"
     def _fmt_cases(n): return f"{n:.0f} cases" if n is not None else "—"
     def _fmt_cost(m):  return f"${m:.1f}M" if m is not None else "—"
+    # UI feedback #6 — when the active city has no flood-damage valuation
+    # method (SA's case: no damage_table_file → TOTAL_POTENTIAL_DAMAGE_USD
+    # == 0), don't render "$0" — render the n/a sentinel so the dashboard
+    # doesn't claim a precise dollar figure where none can be computed.
+    # MN has the InVEST UFR damage table and renders the real dollar value.
+    def _fmt_flood_dmg(d):
+        if TOTAL_POTENTIAL_DAMAGE_USD <= 0:
+            return "n/a — no damage valuation available"
+        return _fmt_money(d)
 
+    # UI feedback #5 — carbon row label matches per-city method:
+    # SA = four-pool stock change (one-time, t CO2e), MN = annual
+    # sequestration flow (t CO2e/yr). Same `_CARBON_IS_STOCK` switch
+    # the main carbon card uses.
+    _rl_carbon_label = ('Carbon Storage Change' if _CARBON_IS_STOCK
+                        else 'Carbon Sequestration')
     _rl_rows = [
         ("Flood Retention",          f"{_region_local['flood_reduction']:.1f}",                       f"{results['flood_reduction']:.1f}"),
         ("Temperature Change",       _fmt_temp_change(_region_local['temp_change_f']),                _fmt_temp_change(results['temp_change_f'])),
         ("Runoff Volume",            _fmt_runoff(_region_local['runoff_acre_feet']),                  _fmt_runoff(results['runoff_acre_feet'])),
         ("Mean NDVI",                f"{_region_local['mean_ndvi']:.3f}",                             f"{results['mean_ndvi']:.3f}"),
-        ("Carbon Storage Change",    _fmt_co2(_region_local['carbon_tons_co2']),                      _fmt_co2(results['carbon_tons_co2'])),
+        (_rl_carbon_label,           _fmt_co2(_region_local['carbon_tons_co2']),                      _fmt_co2(results['carbon_tons_co2'])),
         ("Food Production",          _fmt_food(_region_local['food_mln_lbs']),                       _fmt_food(results['food_mln_lbs'])),
         ("Cost",                     _fmt_cost(_region_local['total_cost_mln']),                      _fmt_cost(results['total_cost_mln'])),
         ("Cooling Energy Savings",   _fmt_money(_region_local['cooling_energy_savings_usd']),        _fmt_money(results['cooling_energy_savings_usd'])),
-        ("Flood Damage Avoided",     _fmt_money(_region_local['flood_damage_avoided_usd']),          _fmt_money(results['flood_damage_avoided_usd'])),
+        ("Flood Damage Avoided",     _fmt_flood_dmg(_region_local['flood_damage_avoided_usd']),       _fmt_flood_dmg(results['flood_damage_avoided_usd'])),
         ("Nature Access",            _fmt_pct(_region_local['nature_access_pct']),                   _fmt_pct(results['nature_access_pct'])),
         ("People with Nature Access", _fmt_pp(_region_local['people_with_nature_access']),           _fmt_pp(results['people_with_nature_access'])),
         ("Preventable MH Cases",     _fmt_cases(_region_local['preventable_mh_cases']),              _fmt_cases(results['preventable_mh_cases'])),
@@ -5910,6 +6265,25 @@ if _region_local:
     ]
     _rl_df = pd.DataFrame(_rl_rows, columns=["Metric", f"Region ({_rs_label})", "Citywide"])
     st.dataframe(_rl_df, use_container_width=True, hide_index=True)
+
+    # UI feedback #6 — "why" tooltip for the flood-damage row. Triggers
+    # on the city PROPERTY (TOTAL_POTENTIAL_DAMAGE_USD <= 0 is set by
+    # the `damage_table_file` config — None on SA, the InVEST UFR table
+    # on MN). Does NOT key on the computed value, so an MN scenario
+    # that legitimately produces $0 avoided still renders the dollar
+    # column, not n/a.
+    if TOTAL_POTENTIAL_DAMAGE_USD <= 0:
+        st.caption(
+            "_Flood Damage Avoided reads n/a because this city has no "
+            "infrastructure damage valuation table — the InVEST UFR "
+            "damage-loss table maps building type → \\$/m² damage; "
+            "without it the dollar figure can't be computed. San "
+            "Antonio currently lacks this table (NatCap's Vibrant Land "
+            "report used InVEST UFRM for SA but explicitly did not "
+            "enable damage valuation; the prototype matches that "
+            "methodology). The Flood Retention row above carries the "
+            "physical signal (volume reduction)._"
+        )
 
     # Honesty-Surface Pass Commit 1 — make the validation-state inheritance
     # explicit. The Region-Local table has no per-row validation badge
@@ -5960,16 +6334,26 @@ st.divider()
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
 st.markdown("#### Cost Effectiveness")
 st.caption(
-    "Shows N/A when the scenario performs worse than the baseline on that metric, "
-    "or when no land is converted. Try adding more green infrastructure or food "
-    "forest to see values appear."
+    "Screening metrics — implementation cost divided by the selected "
+    "benefit. Sensitive to small denominators: when a region scenario "
+    "produces only a tiny improvement (e.g. a fraction of an acre-foot "
+    "of runoff reduction, or hundredths of a degree of cooling), the "
+    "ratio's precision is illusory and the cell reads N/A instead of "
+    "a spuriously sharp dollar figure. Also N/A when the scenario "
+    "performs worse than the baseline on that metric or when no land "
+    "is converted."
 )
 ceff1, ceff2, ceff3 = st.columns(3)
 ceff1.metric(
     "Cost / Acre-Foot Runoff Prevented",
     _fmt_ce(ce['cost_per_acft']),
     delta=None,
-    help=f"Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by runoff reduction vs baseline ({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario increases runoff or has no cost."
+    help=(f"Confidence: Medium — see 'How this prototype works' for tier definitions. "
+          f"Implementation cost divided by runoff reduction vs baseline "
+          f"({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario "
+          f"increases runoff, has no cost, or reduces runoff by less than "
+          f"~10 ac-ft (below that floor the ratio is too sensitive to "
+          f"small-denominator noise to be informative).")
 )
 _render_validation_caption(ceff1, "cost_per_acft", _validation_scenario_context, explicit_status="prototype")
 ceff2.metric(
@@ -5977,14 +6361,23 @@ ceff2.metric(
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
     delta_color="off" if _temp_change_f >= 0 else "normal",
-    help="Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by degrees F of city-average cooling vs baseline (the °F is a citywide mean, not a per-person or per-site value). N/A if no cooling improvement. InVEST UCM canonical units are °C — to translate, this is approximately (Cost / °F) × 1.8 per °C."
+    help=("Confidence: Medium — see 'How this prototype works' for tier definitions. "
+          "Implementation cost divided by degrees F of city-average cooling "
+          "vs baseline (the °F is a citywide mean, not a per-person or "
+          "per-site value). N/A if no cooling improvement or if the "
+          "cooling magnitude is below ~0.05 °F (too small to divide "
+          "reliably). InVEST UCM canonical units are °C — to translate, "
+          "this is approximately (Cost / °F) × 1.8 per °C.")
 )
 _render_validation_caption(ceff2, "cost_per_degf", _validation_scenario_context, explicit_status="prototype")
 ceff3.metric(
     "Cost / 1,000 People Fed",
     _fmt_ce(ce['cost_per_1k_people']),
     delta=None,
-    help="Confidence: Medium — see 'How this prototype works' for tier definitions. Implementation cost divided by (people fed ÷ 1,000). N/A if no food production."
+    help=("Confidence: Medium — see 'How this prototype works' for tier definitions. "
+          "Implementation cost divided by (people fed ÷ 1,000). N/A if no "
+          "food production or if fewer than 100 people fed (too small to "
+          "produce an informative per-1k-people ratio).")
 )
 _render_validation_caption(ceff3, "cost_per_1k_people", _validation_scenario_context, explicit_status="prototype")
 
@@ -6463,6 +6856,22 @@ with tab2:
     def _cs_short_validation(prov):
         return _CS_SHORT_VAL.get(prov, "—")
 
+    # UI feedback #5 — carbon column labels match per-city method AND
+    # the canonical phrasing used by the main Economic metric card +
+    # the Selected-region impact row, so the same quantity reads under
+    # one label everywhere in the app (Batch 4 v2 #8 harmonization).
+    # SA = four-pool stock change (one-time, t CO2e): "Carbon Storage
+    # Change" + "Carbon Storage Value $". MN = annual sequestration
+    # flow (t CO2e/yr): "Carbon Sequestration" + "Avoided Carbon Cost
+    # $/yr".
+    _CS_CARBON_TONS_LABEL    = ('Carbon Storage Change'
+                                 if _CARBON_IS_STOCK else 'Carbon Sequestration')
+    _CS_CARBON_TONS_UNIT     = ('t CO2e' if _CARBON_IS_STOCK else 't CO2e/yr')
+    _CS_CARBON_DOLLAR_LABEL  = ('Carbon Storage Value $ (derived)'
+                                 if _CARBON_IS_STOCK
+                                 else 'Avoided Carbon Cost $/yr (derived)')
+    _CS_CARBON_DOLLAR_PERIOD = '' if _CARBON_IS_STOCK else '/yr'
+
     def _cs_row_metrics(r):
         """Metric cells for a row drawn from a results-shaped dict (current
         or saved). Each cell returns "—" when the value is missing; 0 is
@@ -6475,10 +6884,16 @@ with tab2:
         v_food     = r.get('food_mln_lbs')
         v_mh       = r.get('preventable_mh_cases')
         v_cost     = r.get('total_cost_mln')
+        # UI feedback #5 — carbon column labels match per-city method:
+        # SA = four-pool stock change (one-time, t CO2e), MN = annual
+        # sequestration flow (t CO2e/yr). The dollar column is
+        # correspondingly "Carbon Storage Value $" (SA) vs "Avoided
+        # Carbon Cost $/yr" (MN) — same vocabulary the Economic metric
+        # card uses (`_carbon_dollar_label` at app.py:5969).
         return {
             "Temperature":              _fmt_temp_change(v_temp) if v_temp is not None else "—",
-            "Carbon stock":             f"{v_carbon/1e6:+.2f}M t CO2e" if v_carbon is not None else "—",
-            "Carbon Value $ (derived)": f"${v_carbon_d/1e6:+.0f}M"     if v_carbon_d is not None else "—",
+            _CS_CARBON_TONS_LABEL:      f"{v_carbon/1e6:+.2f}M {_CS_CARBON_TONS_UNIT}" if v_carbon is not None else "—",
+            _CS_CARBON_DOLLAR_LABEL:    f"${v_carbon_d/1e6:+.0f}M{_CS_CARBON_DOLLAR_PERIOD}" if v_carbon_d is not None else "—",
             "Cooling Energy $":         f"${v_cool/1e6:.2f}M/yr"       if v_cool is not None else "—",
             "Nature Access %":          f"{v_una:.1f}%"                if v_una is not None else "—",
             "Food (M lbs)":             f"{v_food:.2f}"                if v_food is not None else "—",
@@ -6523,8 +6938,8 @@ with tab2:
                 "Area":                     "Citywide",
                 "Ownership":                "None",
                 "Temperature":              _t_str,
-                "Carbon stock":             _c_str,
-                "Carbon Value $ (derived)": _cv_str,
+                _CS_CARBON_TONS_LABEL:      _c_str,
+                _CS_CARBON_DOLLAR_LABEL:    _cv_str,
                 "Cooling Energy $":         "—",
                 "Nature Access %":          "—",
                 "Food (M lbs)":             "—",
@@ -6656,11 +7071,36 @@ with tab2:
 
     def _csv_row_from_scenario(d, label, provenance, source_label, validation_label):
         rs = d.get('region_selection') or {}
-        own_mode = d.get('ownership_filter')
-        own_cfg = OWNERSHIP_MODES.get(own_mode) if own_mode else None
+        # Batch 4 v2 — ownership_filter is now str / composite-dict / None.
+        # The normalizer collapses all three shapes; the CSV serializes
+        # `ownership_classes` as a pipe-joined list (e.g. "city|school"
+        # for a multi-class composite). The `ownership_mode` column
+        # carries the storage shape for round-trip — string mode key
+        # when single-class, JSON-encoded for the composite.
+        own_raw  = d.get('ownership_filter')
+        own_norm = _normalize_ownership_filter(own_raw)
         city_for_row = d.get('city', selected_city)
         own_layer_meta = (CITIES.get(city_for_row, {}).get('ownership_layer') or {})
         rl = d.get('region_local') or {}
+        if own_norm is None:
+            _csv_own_mode    = ''
+            _csv_own_label   = ''
+            _csv_own_classes = ''
+            _csv_own_vacant  = ''
+            _csv_own_src     = ''
+            _csv_own_date    = ''
+        else:
+            # Round-tripable mode column: string when storage is str,
+            # else a JSON-style dict literal so the consumer can ast.literal_eval.
+            if isinstance(own_raw, str):
+                _csv_own_mode = own_raw
+            else:
+                _csv_own_mode = repr(own_raw)
+            _csv_own_label   = own_norm['label']
+            _csv_own_classes = '|'.join(own_norm['classes'])
+            _csv_own_vacant  = 'true' if own_norm['vacant_only'] else 'false'
+            _csv_own_src     = own_layer_meta.get('source') or ''
+            _csv_own_date    = own_layer_meta.get('data_date') or ''
         row = {
             'scenario_label':             label,
             'city':                       city_for_row,
@@ -6673,17 +7113,14 @@ with tab2:
                                             if rs.get('mode') == 'selected_regions' else ''),
             'region_eligible_acres':      (rs.get('eligible_pixels_in_region') or 0) * PIXEL_AREA_ACRES,
             'region_converted_acres':     rs.get('converted_acres', 0.0),
-            'ownership_mode':             own_mode or '',
-            # CSV-round-trip safety: empty cell (not the literal "None" sentinel)
-            # when no ownership filter is active. Pandas read_csv's default
-            # na_values list includes "None"; writing the literal string here
-            # would silently coerce to NaN on parse. The comparison-table
-            # column and audit expander still display "None" via
-            # _cs_ownership_for_row at render time — only this serialization
-            # path stays empty for no-filter rows.
-            'ownership_label':            own_cfg['label'] if own_cfg else '',
-            'ownership_source':           own_layer_meta.get('source') if own_mode else '',
-            'ownership_data_date':        own_layer_meta.get('data_date') if own_mode else '',
+            'ownership_mode':             _csv_own_mode,
+            # CSV-round-trip safety: empty cell (not "None" sentinel) when no
+            # filter is active — pandas read_csv treats "None" as NaN.
+            'ownership_label':            _csv_own_label,
+            'ownership_classes':          _csv_own_classes,  # NEW: pipe-joined for multi-class
+            'ownership_vacant_only':      _csv_own_vacant,   # NEW: 'true'/'false'/'' tri-state
+            'ownership_source':           _csv_own_src,
+            'ownership_data_date':        _csv_own_date,
             'pct_converted':              d.get('pct_converted'),
             'green_infrastructure_pct':   d.get('green_infrastructure_pct'),
             'food_forest_pct':            d.get('food_forest_pct'),
@@ -6819,55 +7256,76 @@ with tab2:
         else:
             st.caption(f"No {_polygon_unit_singular}-level data could be computed for this scenario.")
 
-    st.divider()
-    st.markdown("#### Best scenarios by goal")
-    st.caption("From the pre-computed scenario library — not surrogate predictions.")
+    # UI feedback #4 — the "Best scenarios by goal" library is the
+    # citywide precomputed lookup; its rankings are computed at citywide
+    # scope and don't reflect any active region or ownership filter.
+    # Showing it under a region/ownership scenario would imply rankings
+    # that account for the filter when they don't. Hide it in that
+    # case; show it only in citywide-no-filter mode.
+    _best_by_goal_filter_active = (
+        st.session_state.get('selected_region_mask') is not None
+        or st.session_state.get('selected_ownership_mask') is not None
+    )
+    if _best_by_goal_filter_active:
+        # Single-line note so the user knows why the section is missing,
+        # plus the action that brings it back.
+        st.divider()
+        st.caption(
+            "_'Best scenarios by goal' is hidden under a region or "
+            "ownership filter — the precomputed library is citywide "
+            "and its rankings don't reflect your filter. Clear the "
+            "region selection and ownership filter to see it._"
+        )
+    else:
+        st.divider()
+        st.markdown("#### Best scenarios by goal")
+        st.caption("From the pre-computed scenario library — not surrogate predictions.")
 
-    # Best-scenarios-by-goal uses the lookup table when High Resolution mode
-    # built one; otherwise falls back to the scenario_df the active mode is
-    # using (Fast prototype: ~90 scenarios; Balanced: ~726 scenarios).
-    lookup_df = pd.DataFrame(lookup_table.values()) if lookup_table else scenario_df
-    _norm_flood = lookup_df['flood_reduction'] / max(lookup_df['flood_reduction'].max(), 1e-9)
-    _norm_hm    = lookup_df['mean_hm']         / max(lookup_df['mean_hm'].max(),         1e-9)
-    _norm_food  = lookup_df['food_mln_lbs']    / max(lookup_df['food_mln_lbs'].max(),    1e-9)
-    _balanced_score = _norm_flood + _norm_hm + _norm_food
+        # Best-scenarios-by-goal uses the lookup table when High Resolution mode
+        # built one; otherwise falls back to the scenario_df the active mode is
+        # using (Fast prototype: ~90 scenarios; Balanced: ~726 scenarios).
+        lookup_df = pd.DataFrame(lookup_table.values()) if lookup_table else scenario_df
+        _norm_flood = lookup_df['flood_reduction'] / max(lookup_df['flood_reduction'].max(), 1e-9)
+        _norm_hm    = lookup_df['mean_hm']         / max(lookup_df['mean_hm'].max(),         1e-9)
+        _norm_food  = lookup_df['food_mln_lbs']    / max(lookup_df['food_mln_lbs'].max(),    1e-9)
+        _balanced_score = _norm_flood + _norm_hm + _norm_food
 
-    best_by_goal = {
-        "Best for flood reduction": lookup_df.loc[lookup_df['flood_reduction'].idxmax()],
-        "Best for cooling":         lookup_df.loc[lookup_df['mean_hm'].idxmax()],
-        "Best for food production": lookup_df.loc[lookup_df['food_mln_lbs'].idxmax()],
-        "Best for carbon":          lookup_df.loc[lookup_df['carbon_tons_co2'].idxmax()],
-        "Best balanced":            lookup_df.loc[_balanced_score.idxmax()],
-    }
+        best_by_goal = {
+            "Best for flood reduction": lookup_df.loc[lookup_df['flood_reduction'].idxmax()],
+            "Best for cooling":         lookup_df.loc[lookup_df['mean_hm'].idxmax()],
+            "Best for food production": lookup_df.loc[lookup_df['food_mln_lbs'].idxmax()],
+            "Best for carbon":          lookup_df.loc[lookup_df['carbon_tons_co2'].idxmax()],
+            "Best balanced":            lookup_df.loc[_balanced_score.idxmax()],
+        }
 
-    for i, (goal, row) in enumerate(best_by_goal.items()):
-        text_col, btn_col = st.columns([4, 1])
-        with text_col:
-            st.markdown(
-                f"**{goal}:** {int(row.pct_converted)}% converted — "
-                f"{int(row.green_infrastructure_pct)}% GI / {int(row.food_forest_pct)}% FF"
-            )
-        with btn_col:
-            if st.button("Apply", key=f"apply_best_goal_{i}"):
-                st.session_state._pending_pct = int(round(row.pct_converted / 5) * 5)
-                st.session_state._pending_gi  = int(round(row.green_infrastructure_pct / 5) * 5)
-                st.session_state._pending_ff  = int(round(row.food_forest_pct / 5) * 5)
-                if st.session_state._pending_gi + st.session_state._pending_ff > 100:
-                    st.session_state._pending_ff = 100 - st.session_state._pending_gi
-                # Brief #4: Best-by-Goal comes from the precomputed scenario
-                # grid, not the surrogate optimizer — make sure a previously-
-                # set Applied-from-Optimizer flag is cleared, so a best-goal
-                # scenario that happens to share pct/gi/ff with a prior
-                # optimizer Apply doesn't inherit OPTIMIZER provenance via the
-                # auto-clear's "values match" path.
-                st.session_state.applied_from_optimizer = False
-                st.session_state._applied_optimizer_values = None
-                st.session_state._show_apply_toast = True
-                st.rerun()
+        for i, (goal, row) in enumerate(best_by_goal.items()):
+            text_col, btn_col = st.columns([4, 1])
+            with text_col:
+                st.markdown(
+                    f"**{goal}:** {int(row.pct_converted)}% converted — "
+                    f"{int(row.green_infrastructure_pct)}% GI / {int(row.food_forest_pct)}% FF"
+                )
+            with btn_col:
+                if st.button("Apply", key=f"apply_best_goal_{i}"):
+                    st.session_state._pending_pct = int(round(row.pct_converted / 5) * 5)
+                    st.session_state._pending_gi  = int(round(row.green_infrastructure_pct / 5) * 5)
+                    st.session_state._pending_ff  = int(round(row.food_forest_pct / 5) * 5)
+                    if st.session_state._pending_gi + st.session_state._pending_ff > 100:
+                        st.session_state._pending_ff = 100 - st.session_state._pending_gi
+                    # Brief #4: Best-by-Goal comes from the precomputed scenario
+                    # grid, not the surrogate optimizer — make sure a previously-
+                    # set Applied-from-Optimizer flag is cleared, so a best-goal
+                    # scenario that happens to share pct/gi/ff with a prior
+                    # optimizer Apply doesn't inherit OPTIMIZER provenance via the
+                    # auto-clear's "values match" path.
+                    st.session_state.applied_from_optimizer = False
+                    st.session_state._applied_optimizer_values = None
+                    st.session_state._show_apply_toast = True
+                    st.rerun()
 
-    if st.session_state.get("_show_apply_toast"):
-        st.success("Applied — check the Scenario tab to see updated results.")
-        st.session_state._show_apply_toast = False
+        if st.session_state.get("_show_apply_toast"):
+            st.success("Applied — check the Scenario tab to see updated results.")
+            st.session_state._show_apply_toast = False
 
     st.divider()
 

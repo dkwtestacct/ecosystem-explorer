@@ -771,15 +771,15 @@ def main(update: bool) -> int:
     # `optimized['food_mln_lbs']` access raised. Tests both halves of
     # the fix (call-site coercion + plot_tradeoff defensive backstop).
     # Render-path only; the engine never sees the bug, so the 40/40
-    # snapshots don't catch it. Populated case also exercises the
-    # overlay render path to lock in the live column name
-    # (surrogate.py:172 — `food_mln_lbs`).
+    # snapshots don't catch it.
     print(f"\n{'=' * 60}")
     print("Tradeoff chart — empty-optimizer regression test")
     print(f"{'=' * 60}")
     tradeoff_diffs = 0
     try:
         import pandas as _pd
+        # Build a minimal results-shaped dict + scenario_df that
+        # plot_tradeoff can render against.
         _fake_results = {
             'flood_reduction':  50.0,
             'mean_hm':           0.4,
@@ -801,10 +801,20 @@ def main(update: bool) -> int:
             'food_forest_pct': [50, 50, 50],
             'scenario_name':   ['a', 'b', 'c'],
         })
+        # The bug shape: optimize_scenario's no-scenarios return.
         _no_scenarios_marker = {
             'found': False, 'max_flood': 60.0, 'max_cool': 0.5,
             'max_food': 0.1, 'max_carbon': 1000,
         }
+
+        # Populated-case payload — confirms the overlay render path
+        # actually exercises (not just the empty-skip backstop). Column
+        # names must match what `surrogate.optimize_scenario` returns
+        # for the Pareto-frontier DataFrame (see surrogate.py:172 — the
+        # canonical live column name for the food-bubble axis is
+        # `food_mln_lbs`). If a rename ever lands, this cell flips from
+        # OK to FAIL because the `plot_tradeoff` backstop will silently
+        # skip the overlay on populated input.
         _populated_opt = _pd.DataFrame({
             'pct_converted':             [10, 20, 30],
             'green_infrastructure_pct':  [50, 60, 40],
@@ -822,11 +832,16 @@ def main(update: bool) -> int:
             'carbon_tons_co2':           [400.0, 800.0, 1200.0],
             'scenario_name':             ['a', 'b', 'c'],
         })
+
         cases = [
-            ('optimized=None',                                       None),
-            ('optimized={no-scenarios dict marker}',                 _no_scenarios_marker),
-            ('optimized=empty DataFrame',                            _pd.DataFrame()),
-            ('optimized=populated DataFrame (exercises overlay path)', _populated_opt),
+            ('optimized=None',
+                None),
+            ('optimized={no-scenarios dict marker}',
+                _no_scenarios_marker),
+            ('optimized=empty DataFrame',
+                _pd.DataFrame()),
+            ('optimized=populated DataFrame (exercises overlay path)',
+                _populated_opt),
         ]
         for label, opt_arg in cases:
             try:
@@ -1038,6 +1053,16 @@ def main(update: bool) -> int:
         sa_school        = _ownership_mask_from(sa_state, "school")
         sa_university    = _ownership_mask_from(sa_state, "university")
         sa_county        = _ownership_mask_from(sa_state, "county")
+        # Batch 4 v2 — union mask via the production helpers
+        # (_compose_eligible_filter_cfg + _build_ownership_mask). This
+        # exercises the multi-class checkbox UI's mask-build path: the
+        # cfg dict synthesized by the composite resolver feeds the same
+        # `_build_ownership_mask` the single-class path uses.
+        sa_city_school_union = app._build_ownership_mask(
+            sa_state.ownership_raster, sa_state.ownership_vacant_raster,
+            app._compose_eligible_filter_cfg(['city', 'school'],
+                                              vacant_overlay=False),
+        )
         for _cell_args in [
             (sa_state, "SA / region-only (D5)", sa_region, None, _SUBSET_RECIPE_PCT10),
             (sa_state, "SA / region + ownership (D5 + vacant_public)", sa_region, sa_ownership, _SUBSET_RECIPE_PCT10),
@@ -1067,10 +1092,39 @@ def main(update: bool) -> int:
              sa_region, sa_university, _SUBSET_RECIPE_PCT10),
             (sa_state, "SA / region + county-only (D5 + county)",
              sa_region, sa_county, _SUBSET_RECIPE_PCT10),
+            # Batch 4 v2 — multi-class union cell. Exercises converted
+            # ⊆ eligible ∩ region ∩ (city ∪ school), built via the live
+            # `_compose_eligible_filter_cfg` + `_build_ownership_mask`
+            # path the checkbox UI uses. Non-empty-converted is asserted
+            # separately below — subset alone is vacuously satisfied
+            # by zero conversions, which would silently hide a bug
+            # where the union mask resolves to empty.
+            (sa_state, "SA / region + city ∪ school (D5 union)",
+             sa_region, sa_city_school_union, _SUBSET_RECIPE_PCT10),
         ]:
             _sd, _rd = _run_cell(*_cell_args)
             subset_diffs += _sd
             reconcile_diffs += _rd
+
+        # Union-cell non-empty assertion (Batch 4 v2): subset alone is
+        # vacuously satisfied by zero conversions. Re-run the union cell
+        # specifically and assert |converted| > 0 — otherwise a bug
+        # where the composite cfg resolves to an empty mask would
+        # silently pass.
+        _union_results = app.evaluate_scenario(
+            **_SUBSET_RECIPE_PCT10, seed=42, placement_strategy='random',
+            selected_region_mask=(sa_region & sa_city_school_union),
+        )
+        _union_converted = int(((sa_state.lulc != _union_results['scenario_lulc'])
+                                 & sa_city_school_union & sa_region).sum())
+        if _union_converted > 0:
+            print(f"  OK    SA union non-empty assertion: "
+                  f"{_union_converted:,} converted px inside D5 ∩ (city ∪ school)")
+        else:
+            print(f"  FAIL  SA union non-empty assertion: 0 converted px — "
+                  "the composite mask resolved empty; subset would pass "
+                  "vacuously.")
+            subset_diffs += 1
     except Exception as e:
         print(f"  ERROR SA matrix: {e}")
         import traceback; traceback.print_exc()
@@ -1277,8 +1331,12 @@ def main(update: bool) -> int:
             'region_labels_bexar_tracts':           [],
             'region_map_picker_event':              {'selection': {'points': [{'customdata': '5'}]}},
             'region_map_picker_layer':              'council_districts',
-            # Ownership widget state — SA user picked vacant_public.
-            'ownership_filter_choice':              'Vacant publicly-owned land',
+            # Ownership widget state — SA user picked the city class and
+            # checked the vacant overlay. After Batch 4 the selectbox
+            # stores a mode key (or None); the vacant overlay is its own
+            # boolean. Both must reset on a city change.
+            'ownership_filter_choice':              'city',
+            'ownership_filter_vacant_overlay':       True,
             # Slider + optimizer state that the existing reset block was
             # already clearing — re-asserted so a regression in either
             # half of the helper surfaces clearly.
@@ -1309,9 +1367,12 @@ def main(update: bool) -> int:
                 test_ss.get('region_map_picker_event'), None),
             ('region_map_picker_layer cleared',
                 test_ss.get('region_map_picker_layer'), None),
-            # Ownership widget key reset.
-            ('ownership_filter_choice = "No filter"',
-                test_ss.get('ownership_filter_choice'), 'No filter'),
+            # Ownership widget keys reset — selectbox to "All ownership"
+            # (None) and the vacant overlay checkbox unchecked (False).
+            ('ownership_filter_choice = None ("All ownership")',
+                test_ss.get('ownership_filter_choice'), None),
+            ('ownership_filter_vacant_overlay = False',
+                test_ss.get('ownership_filter_vacant_overlay'), False),
             # Slider state cleared so the new city renders against its
             # own defaults.
             ('slider_pct_converted cleared',

@@ -225,7 +225,7 @@ Every district has a non-zero county intersection. D5 (97 px ≈ 21.6 ac) is non
 
 **Goal:** One sidebar panel that says "where can conversions land" — exclusions first, ownership options second, with the finer classes.
 
-**Layout:**
+**Layout (as built):**
 ```
 Eligible land filter
 
@@ -234,15 +234,35 @@ Eligible land filter
     • Roads (always excluded)
     • Existing natural land (always excluded)
 
-  Ownership filter:                      [ All ownership ▼ ]
-    Options: All ownership / City-owned / County-owned /
-             State or federal / School or university /
-             Publicly-owned (any of the above) /
-             Privately-owned / Unknown ownership
+  Ownership filters are feasibility constraints. They limit
+  where conversions may be placed but do not change the
+  biophysical model equations.
+
+  Ownership class:                       [ All ownership ▼ ]
+    Options: All ownership /
+             Publicly-owned land /
+             City-owned land /
+             County-owned land /
+             State or federal land /
+             School district land (K-12 public) /
+             College or university land /
+             Privately-owned land /
+             Unknown ownership
     [ ] Limit to vacant parcels only        ← composable overlay
 ```
 
-The "Limit to vacant parcels only" checkbox composes with the ownership selectbox: an explicit AND. Vacant-only without an ownership filter is a valid mode (`vacant`).
+The "Limit to vacant parcels only" checkbox composes with the ownership selectbox: an explicit AND. The (selectbox, checkbox) pair resolves to an `OWNERSHIP_MODES` key via `_resolve_eligible_filter_mode` in `app.py`:
+
+```
+primary=None,            overlay=False → None              (no filter)
+primary=None,            overlay=True  → 'vacant'          (any-class vacant)
+primary='public',        overlay=False → 'public'          (rollup)
+primary='public',        overlay=True  → 'vacant_public'   (rollup + vacant)
+primary=<class>,         overlay=False → <class>           (city / county / …)
+primary=<class>,         overlay=True  → <class>_vacant    (composite — added in Batch 4)
+```
+
+`OWNERSHIP_MODES` gains 8 new keys in Batch 4: `private`, `unknown`, plus per-class vacant composites `city_vacant`, `county_vacant`, `state_federal_vacant`, `school_vacant`, `university_vacant`, `private_vacant`. Saved scenarios from earlier batches continue to resolve under their existing mode keys (`public`, `vacant`, `vacant_public`, etc.) — those still live in the dict.
 
 **Exact UI text (no paraphrasing):**
 
@@ -272,9 +292,14 @@ The `verify_baselines.py` completeness assertion already enforces that every KNO
 **Pairs with the funnel:** the panel is the *input* surface (where can conversions land); the funnel is the *resulting chain* (how the inputs flow through to converted acres). The two read consistently — same record, same masks, same numbers.
 
 **Verification (Batch 4):**
-- `verify_baselines.py` 40/40 byte-identical.
-- Honesty-Surface completeness assertion picks up the new divergence id (auto-checked by the existing block).
+- `verify_baselines.py` 40/40 byte-identical. ✓
+- Honesty-Surface completeness assertion picks up the new divergence id automatically — count went from 6 → **7 locked divergences**. ✓
+- City-switch guard test updated for the new selectbox semantics (`ownership_filter_choice` now stores a mode key or None; new `ownership_filter_vacant_overlay` boolean key). 18 checks pass.
 - Eyeball: finer classes filter correctly under the new panel; funnel reflects the finer-class drop in its "After ownership filter" row; tooltip text matches the spec.
+
+**What's New refresh** (folded into Batch 4 since this is the UI-surface pass):
+
+Under *Interactive scenario placement* — added "Eligibility breakdown" and rewrote the Ownership Filter entry for finer classes ("the coarse rollups (publicly-owned / vacant) and the finer classes (City / County / State-federal / School (K-12) / University) are all selectable; composes with Region Selection"). Under *Validation and handoff* — added "Scenario audit" and "Scenario CSV" (the funnel-batch deferred refresh). Optimizer-under-region change deliberately omitted from What's New per the user's earlier guidance — its honesty caveat lives in the optimizer caption, not advertised in the headline list.
 
 ## Sequencing
 
