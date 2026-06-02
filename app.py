@@ -258,6 +258,7 @@ WHATS_NEW_SECTIONS = [
         "**Selected-region impact** — alongside any region scenario, a paired table compares outcomes inside the selected area with the citywide result, with locked flood-routing and reach-effect caveats.",
         "**Eligibility breakdown** — see where a selected area's convertible land goes (developed → minus roads / buildings / existing nature → minus ownership filter → converted).",
         "**Ownership Filter (San Antonio)** — restrict conversions by ownership; the coarse rollups (publicly-owned / vacant) and the finer classes (City / County / State-federal / School (K-12) / University) are all selectable; composes with Region Selection.",
+        "**Optimize selected area** — when a region or ownership filter is active, the optimizer switches to engine-verified scenario search: a fast surrogate shortlists candidate mixes, the full engine then evaluates the shortlist on the selected area, and weight sliders rank the engine results. The top 5 are real (not predictions); the shortlist may not be exhaustive, so they're presented as top scenarios found rather than the optimum.",
     ]),
     ("Validation and handoff", [
         "**Provenance + validation badges** — every scenario shows its source at the top (NatCap reference, baseline, engine-validated Explorer, or surrogate-suggested optimizer), with per-metric validation badges on each card.",

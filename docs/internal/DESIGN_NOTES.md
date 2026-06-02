@@ -502,6 +502,38 @@ Path C chosen because it aligns with NatCap's documented stance and is the most 
 
 **Code touchpoints.** `applied_from_optimizer` and `_applied_optimizer_values` session-state keys; the `apply_opt_*` button handlers; `_render_scenario_provenance_header`; `_build_invest_bundle_for_current_scenario`; the sidebar Discover-scenarios subheader.
 
+### 7.3 Region-constrained optimizer — prefilter then verify
+
+**Decision.** When a region or ownership filter is active, the optimizer runs a two-stage pipeline: the Fast surrogate (~90 recipes, 100 trees) shortlists ~40 Pareto-efficient candidates citywide, then the full engine evaluates each shortlisted recipe on the active `region ∩ ownership` mask. Displayed values are engine-true region-local — no surrogate predictions surface. Records carry a new `PROVENANCE_REGION_OPTIMIZED` ("Engine-verified — region-optimized"), distinct from the citywide path's "Surrogate-suggested." Canonical internal spec is `docs/internal/REGION_OPTIMIZER_SPEC.md`.
+
+**Why prefilter-then-verify (vs either alone).** Two empirical findings from the Phase-0 and Phase-0.5 recon scripts under `scripts/`:
+
+- **Phase-0 (`phase0_region_eval.py`)** measured one full-engine eval over a region at ~2.1 s, **flat regardless of region size** (a 25-px synthetic, a 71 k-px small district, and a 252 k-px large district all came in within ±5 % of each other, and all 24–30 % *more* expensive than the citywide reference at 1.73 s). The biophysics is non-local — UCM HMI, UNA 2SFCA convolutions, NDVI, Carbon four-pool stocks, and SCS-CN runoff all integrate over the full AOI raster; a region mask only narrows the convertible sample and triggers a region-local clipping pass that adds the +24 % overhead. **A region cannot be cheaply isolated without leaving the validated tier** (sub-AOI biophysics would require re-validating against canonical InVEST on the sub-AOI). At 2.1 s per eval, the interactive budget is ~57–143 candidate evals at a 2–5 min target — a 5×5×5 = 125 grid fits comfortably but a 10×10×10 = 1,000 grid does not. So **engine-only is out** (too few candidates).
+- **Phase-0.5 (`phase0_5_surrogate_ranking.py`)** measured how well the citywide-trained Fast surrogate ranks region-scoped candidates compared to the engine ground truth on SA Council District 5. Across 32 candidates spanning the knob space, the surrogate's per-metric Spearman ρ landed at 0.83–0.98 across cooling / flood / runoff / carbon / food / nature-access, and recall@top-15 hit 1.00 for every metric — the engine's true top-5 winners on every objective sit within the surrogate's top-15 shortlist. So **surrogate-only is also out** (predictions are not engine-true) but **surrogate-as-shortlister is sound**: the ranking is good enough that a generous K = 40 prefilter doesn't drop true winners, and the weighting-agnostic property holds (every constituent metric ranks well → any user-weighted combination also ranks well).
+
+The combined budget — 1 surrogate prefilter (instant) + K × 2.1 s engine-verify — lands at ~85 s for K = 40 on SA. That's the only configuration that fits the interactive target while keeping the displayed values engine-true.
+
+**Why values are engine-verified, not predicted.** The Phase-0.5 ranking quality is strong but not perfect (ρ = 0.83 on food is the weakest axis). If displayed values were the surrogate's predictions, a user weighing food heavily could see a recipe whose ranked position is correct but whose absolute predicted food value diverges from the engine truth by a non-trivial margin. The honest path is to keep the surrogate's role limited to ordering — what it does well — and surface engine-true magnitudes for everything the user *reads*.
+
+**Spec-vs-v1 gap to flag: weight-slider rerank is not instant.** REGION_OPTIMIZER_SPEC.md §3 calls out the K-weight-robust property: moving a weight slider should re-rank the already-engine-evaluated K instantly without another K × 2.1 s pass. The v1 implementation falls short — the click handler runs the full pipeline (prefilter + K=40 engine-verify + rank + dedup) every time "Optimize selected area" is clicked, and a weight-slider change does not trigger anything until the next click. The shipped behavior: change weights → re-click Optimize → wait ~85 s for a fresh pass. Future: cache the engine-evaluated K alongside its mask + recipe set so subsequent clicks at the same `(mask, recipe set)` skip straight to rank+dedup. Not in v1 because it adds session-state surface area without affecting honesty — the displayed values are still engine-true.
+
+**The honest split — what's real, what's caveated.**
+
+- **Engine values are true.** Each returned record is the output of `evaluate_scenario` called with the same recipe + the same mask the user has active. The reconciliation assertion in `verify_baselines.py` locks this: a fresh engine eval on the record's recipe must reproduce the recorded metrics at rtol=1e-9. The meta-test (poisoning a record with the surrogate's citywide `mean_hm` prediction and asserting the reconciliation cell **fails**) proves the guard catches surrogate-vs-engine drift; the reconciliation isn't green-light theatre.
+- **The shortlist carries the completeness caveat.** Up to 40 candidates from a ~90-recipe surrogate Pareto. The remaining ~50 citywide-suboptimal recipes might score well on a specific user weighting under the region's specific biophysics — the recon validated *ranking*, not *frontier coverage*. The header reads *"Top scenarios found — selected area"* (not "the optimum"); the caption owns both the truth ("results shown are real") and the limit ("shortlist may not be exhaustive").
+
+**Why a distinct provenance constant (`PROVENANCE_REGION_OPTIMIZED`).** Conflating with `PROVENANCE_OPTIMIZER` would let region-optimized records inherit "Surrogate-suggested" — but the displayed values are engine-true, the opposite of what "Surrogate-suggested" implies. The distinct constant + label keeps the user-facing meaning honest: "Engine-verified — region-optimized" says "the data shown is real, the search scope was your region filter, and the candidate set was shortlisted." The verify_baselines optimizer cell asserts both constants and rendered Source labels remain distinct, and that the citywide `optimize_scenario` DataFrame doesn't emit the `source` / `validation` columns the region path uses — a both-ways collapse-prevention guard.
+
+**Alternatives considered.**
+- **Engine-only over a small region (no surrogate).** Phase-0 ruled out: per-eval cost is flat, not region-size-proportional. A brute-force 7×7×7 = 343 engine evals over a small region would take ~12 min — outside an interactive budget.
+- **Surrogate-only, no engine-verify.** Phase-0.5's ρ = 0.83 on food (the weakest axis) means absolute predicted values could mislead a user weighting food heavily. Engine-verify costs ~85 s and removes that risk.
+- **Reuse `PROVENANCE_OPTIMIZER`.** Conflates engine-true region-local values with the citywide path's surrogate predictions. The user-facing distinction is what the brief calls out, not just internal bookkeeping.
+- **Apply path running citywide values + flipping to engine-true only on Apply** (the pre-region-optimizer state). The user would pick among 5 records whose ordering is engine-correct but whose absolute values are not what they'll see after Apply — confusing and hides the per-axis-magnitude story.
+
+**Revisit if.** A region-aware surrogate becomes available (training data per-region is the limiting factor) — could move the engine-verify step earlier or replace it. Until then, the prefilter-then-verify shape is what fits the empirical budget envelope.
+
+**Code touchpoints.** `surrogate.optimize_scenario_region`; `app.py` sidebar mode switch keyed on `_filter_active`; `_cached_fast_surrogate_for_region` (Phase-0.5-validated Fast configuration regardless of active model-quality mode); `applied_from_region_optimizer` flag + auto-clear mirror of `applied_from_optimizer`; `PROVENANCE_REGION_OPTIMIZED` constant in `natcap_scenarios.py`; the `_PROVENANCE_HEADER_INFO` entry for the new constant; the region-optimizer cell in `verify_baselines.py` (subset / reconciliation / meta-test / provenance-distinction).
+
 ---
 
 ## 8. Validation and provenance design
@@ -511,7 +543,7 @@ Path C chosen because it aligns with NatCap's documented stance and is the most 
 **Decision.** The validation taxonomy uses two locked vocabularies, distinct by surface:
 
 - **Per-card badge (4 states):** `NatCap published value` / `≈ NatCap method` / `≈ Aligned method` / `Prototype`.
-- **Per-scenario provenance header (4 sources):** `Baseline` / `NatCap published reference` / `Explorer-generated` / `Surrogate-suggested`.
+- **Per-scenario provenance header (5 sources):** `Baseline` / `NatCap published reference` / `Explorer-generated` / `Surrogate-suggested` / `Engine-verified — region-optimized` (the fifth added by §7.3; distinct from `Surrogate-suggested` because the displayed values are engine-true region-local, not surrogate predictions).
 
 **The four-state badge taxonomy is the authoritative version in NATCAP_ALIGNMENT.md §2.** This section owns the *design rationale*; NATCAP_ALIGNMENT.md owns the per-metric assignment; REFERENCE.md owns the user-facing explanation; ARCHITECTURE.md §6 owns the rendering components.
 
