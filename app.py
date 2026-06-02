@@ -4263,32 +4263,59 @@ def _render_natcap_fixed_scenario_view(scenario_id):
             return "No change"
         return f"{abs(dt):.1f}°F warmer" if dt > 0 else f"{abs(dt):.1f}°F cooler"
 
-    # ── Header (Brief #3 — unified Source + Validation) ──
-    _render_scenario_provenance_header(
-        spec["provenance"],
-        scenario_label=spec["label"],
-        scenario_id=scenario_id,
-        trailing_caption=(
-            "Sidebar source = NatCap project scenario. "
-            "Flip to Explorer for custom scenarios."
-        ),
+    # ── Header — NatCap reference-view banner ───────────────────────────
+    # Inline banner (not _render_scenario_provenance_header) so the Source
+    # + Validation text can be the longer NatCap-specific honesty framing
+    # without changing _PROVENANCE_HEADER_INFO globally (the constant
+    # still drives shorter strings in the comparison table). scenario_id
+    # moves off the headline → audit expander below.
+    st.markdown(f"## {spec['label']}")
+    _natcap_banner_color = _VALIDATION_BADGE_COLOR_HEX.get("green", "#1a7f37")
+    st.markdown(
+        f'<div style="margin: 0.2em 0 1.0em 0; padding: 0.5em 0.75em; '
+        f'border-left: 4px solid {_natcap_banner_color}; background: #f6f8fa; '
+        f'color: #24292f; font-size: 0.92em; line-height: 1.4;">'
+        f'<strong>Source:</strong> NatCap published baseline reference<br/>'
+        f'<strong>Validation:</strong> canonical engine verified where '
+        f'inputs allow; NatCap published values shown as references.'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Sidebar source = NatCap project scenario. "
+        "Flip to Explorer for custom scenarios."
     )
 
+    with st.expander("Scenario audit", expanded=False):
+        st.markdown(
+            f"- **scenario_id:** `{scenario_id}`  \n"
+            f"- **Provenance constant:** "
+            f"`{spec['provenance']}` "
+            f"({_PROVENANCE_HEADER_INFO.get(spec['provenance'], ('Unknown',))[0]})  \n"
+            f"- **Scope:** NatCap published reference (San Antonio Vibrant "
+            f"Land fixed scenario)  \n"
+            f"- **Engine:** `evaluate_scenario` is NOT routed; published "
+            f"temperature + carbon shown as references; flood is computed "
+            f"by the prototype's `flood_reduction_from_nlcd_tree` helper "
+            f"on the NatCap-shipped flood raster (if present)."
+        )
+
     # ── Side-by-side (Tradeoff Analysis reorder) ────────────────────────
-    # Placed first under the provenance header so the user lands on the
+    # Placed first under the banner so the user lands on the
     # cross-scenario overview before the per-scenario detail. Tradeoff
     # Space plot is intentionally NOT rendered here — the plot's axes
     # (Flood Retention, Heat Mitigation Index) don't have published
-    # values for NatCap fixed scenarios beyond baseline, so plotting
-    # them would require the "not recomputed" compound inputs.
+    # values for NatCap fixed scenarios beyond baseline.
     st.markdown("#### NatCap reference scenarios — side by side")
     st.caption(
         "All values from NatCap's published scenario outputs "
         "(`nootenboom_results/citywide_results_UPDATED.xlsx` → "
-        "`natcap_reference_outputs.csv`). Flood is intentionally excluded "
-        "(different derivation between baseline and alternatives; see the "
-        "per-scenario flood card below)."
+        "`natcap_reference_outputs.csv`). Flood is excluded because the "
+        "Explorer and NatCap flood derivations differ."
     )
+    # Columns drop the "change" suffix per spec — Temperature / Carbon
+    # stock / Carbon value. Baseline row shows absolute published values;
+    # alternative rows show +Δ from baseline.
     _comp_rows = []
     for _sid in ns.SA_NATCAP_FIXED_SCENARIOS.keys():
         _, _bv_t_s, _dT_s = nv.published_delta(selected_city, _sid, "temp_change_f")
@@ -4298,28 +4325,32 @@ def _render_natcap_fixed_scenario_view(scenario_id):
             _label = f"▶ {_label}"
         if _sid == "baseline":
             _t_str = f"{_bv_t_s:.2f} °F" if _bv_t_s is not None else "—"
-            _c_str = f"{_bv_c_s / 1e6:.2f}M t CO2e" if _bv_c_s is not None else "—"
-            _cv_str = (f"\\${_bv_c_s * EPA_SOCIAL_COST_CARBON / 1e9:.2f}B"
+            _c_str = (f"{_bv_c_s / 1e6:.2f}M t CO2e"
+                      if _bv_c_s is not None else "—")
+            # DataFrame cells render plain — $ is safe unescaped.
+            _cv_str = (f"${_bv_c_s * EPA_SOCIAL_COST_CARBON / 1e9:.2f}B"
                        if _bv_c_s is not None else "—")
         else:
             _t_str = (f"{_fmt_dt(_dT_s)} ({_dT_s:+.3f} °F)"
                       if _dT_s is not None else "—")
             _c_str = (f"{_dC_s / 1e6:+.2f}M t CO2e"
                       if _dC_s is not None else "—")
-            _cv_str = (f"\\${_dC_s * EPA_SOCIAL_COST_CARBON / 1e6:+.0f}M"
+            _cv_str = (f"${_dC_s * EPA_SOCIAL_COST_CARBON / 1e6:+.0f}M"
                        if _dC_s is not None else "—")
         _comp_rows.append({
-            "Scenario": _label,
-            "Temperature (NatCap published)": _t_str,
-            "Carbon stock change (NatCap published)": _c_str,
-            "Carbon Value $ (derived)": _cv_str,
+            "Scenario":    _label,
+            "Temperature": _t_str,
+            "Carbon stock": _c_str,
+            "Carbon value": _cv_str,
         })
     st.dataframe(pd.DataFrame(_comp_rows),
                  use_container_width=True, hide_index=True)
     st.caption(
-        "Carbon \\$ derivation: NatCap-published carbon Δ × "
-        f"\\${EPA_SOCIAL_COST_CARBON}/t CO2e (EPA 2023, 2 % discount, 2030). "
-        "Baseline row shows absolute values; alternatives show Δ vs baseline."
+        "Baseline shows absolute published values; alternatives show "
+        "change from NatCap's baseline. Carbon \\$ is derived as carbon "
+        f"Δ × \\${EPA_SOCIAL_COST_CARBON}/t CO2e — not a NatCap-published "
+        "dollar value. Flood is excluded because the Explorer and NatCap "
+        "flood derivations differ."
     )
     st.divider()
 
@@ -4376,63 +4407,73 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         st.divider()
 
     # ── Card row — Ecological ──
+    # Card-label truncation fix: titles drop the "(baseline)" suffix and
+    # use compact names that fit in the metric chrome (Mean Air Temp,
+    # Carbon Stock, Carbon Value, Flood Retention). The baseline-vs-Δ
+    # distinction lives in the metric value (absolute on baseline rows;
+    # signed Δ on alternative rows), never in the title or badge string.
+    # The validation badge underneath each card is one of the locked four
+    # (NatCap published value / ≈ NatCap method / ≈ Aligned method /
+    # Prototype) — render_validation_badge returns the locked text, and
+    # the "baseline" framing never appears in the badge.
     st.markdown("#### Ecological")
     eco_a, eco_b, eco_c, eco_d = st.columns(4)
 
     sv_t, bv_t, dT = nv.published_delta(selected_city, scenario_id, "temp_change_f")
     if scenario_id == "baseline" and bv_t is not None:
-        eco_a.metric("Mean Air Temperature (baseline)", f"{bv_t:.2f}°F",
-                     delta="NatCap published baseline", delta_color="off")
+        eco_a.metric("Mean Air Temp", f"{bv_t:.2f}°F",
+                     delta=None, delta_color="off")
     elif dT is not None:
-        eco_a.metric("Temperature Change", _fmt_dt(dT),
-                     delta="NatCap published Δ (scenario − baseline)",
+        eco_a.metric("Mean Air Temp", _fmt_dt(dT),
+                     delta=f"Δ vs baseline: {dT:+.3f} °F",
                      delta_color="off")
     else:
-        eco_a.metric("Temperature Change", "—")
+        eco_a.metric("Mean Air Temp", "—")
     _render_validation_caption(eco_a, "temp_change_f", ctx_for_metrics)
 
     sv_c, bv_c, dC = nv.published_delta(selected_city, scenario_id, "carbon_tons_co2")
     if scenario_id == "baseline" and bv_c is not None:
-        eco_b.metric("Carbon Storage (baseline)",
+        eco_b.metric("Carbon Stock",
                      f"{bv_c / 1e6:.1f}M t CO2e",
-                     delta="NatCap published baseline", delta_color="off")
+                     delta=None, delta_color="off")
     elif dC is not None:
         _sign = "+" if dC >= 0 else ""
-        eco_b.metric("Carbon Storage Change",
+        eco_b.metric("Carbon Stock",
                      f"{_sign}{dC / 1e6:.2f}M t CO2e",
-                     delta="NatCap published Δ (scenario − baseline)",
+                     delta=f"Δ vs baseline",
                      delta_color="off")
     else:
-        eco_b.metric("Carbon Storage Change", "—")
+        eco_b.metric("Carbon Stock", "—")
     _render_validation_caption(eco_b, "carbon_tons_co2", ctx_for_metrics)
 
     if scenario_id == "baseline" and bv_c is not None:
-        eco_c.metric("Carbon Storage Value (baseline)",
-                     f"${bv_c * EPA_SOCIAL_COST_CARBON / 1e9:.1f}B",
-                     delta=f"@ ${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
+        eco_c.metric("Carbon Value",
+                     f"\\${bv_c * EPA_SOCIAL_COST_CARBON / 1e9:.1f}B",
+                     delta=f"@ \\${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
                      delta_color="off")
     elif dC is not None:
         _usd = dC * EPA_SOCIAL_COST_CARBON
         _sign = "+" if _usd >= 0 else ""
-        eco_c.metric("Carbon Storage Value",
-                     f"{_sign}${_usd / 1e6:.0f}M",
-                     delta=f"@ ${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
+        eco_c.metric("Carbon Value",
+                     f"{_sign}\\${_usd / 1e6:.0f}M",
+                     delta=f"@ \\${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
                      delta_color="off")
     else:
-        eco_c.metric("Carbon Storage Value", "—")
-    # Carbon $ is the prototype's derivation (NatCap-published carbon × EPA
-    # SC-CO2) — methodology-aligned, but the dollar figure is NOT itself a
-    # NatCap-published value. Use aligned_method so the badge stays honest
-    # (blue "≈ Aligned method") even in the fixed-scenario reference view.
+        eco_c.metric("Carbon Value", "—")
+    # Carbon Value badge: derived from NatCap-published carbon × EPA SC-CO2
+    # — NOT a NatCap-published dollar value. Explicit_status='aligned_method'
+    # surfaces as "≈ Aligned method" (the third locked badge). The
+    # "derived from NatCap carbon" framing lives in the tooltip below,
+    # never in the badge string itself.
     _render_validation_caption(eco_c, "carbon_value_usd", ctx_for_metrics,
                                explicit_status="aligned_method")
 
     if flood_red is not None:
-        _flood_delta_label = ("baseline" if scenario_id == "baseline"
-                              else "≈ invariant (design-storm saturation, NatCap finding)")
         eco_d.metric(
             "Flood Retention", f"{flood_red:.1f}",
-            delta=_flood_delta_label, delta_color="off",
+            delta=(None if scenario_id == "baseline"
+                   else "≈ invariant (design-storm saturation, NatCap finding)"),
+            delta_color="off",
             help=(
                 "Unitless index (100 − mean CN). Computed by the prototype "
                 "on the loaded scenario raster via the canonical SCS-CN "
@@ -4450,17 +4491,21 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         )
     else:
         eco_d.metric("Flood Retention", "—")
-    _render_validation_caption(eco_d, "flood_reduction", ctx_for_metrics)
+    # Flood badge: NatCap published no SA flood metric (UFRM without
+    # damage valuation, no published number); the prototype's flood
+    # value is a Prototype computation, not "≈ Aligned method." Override
+    # the CSV-derived status to keep the locked vocab honest here.
+    _render_validation_caption(eco_d, "flood_reduction", ctx_for_metrics,
+                               explicit_status="prototype")
 
-    # ── Compact "not available" summary ──
+    # ── Metrics not recomputed for NatCap reference scenarios ────────────
     st.divider()
-    st.markdown("#### Not available for this NatCap scenario")
+    st.markdown("#### Metrics not recomputed for NatCap reference scenarios")
     st.caption(
-        "These cards require the **compound** (NLCD × NLUD × tree-canopy) "
-        "scenario inputs, which NatCap built as unsaved pipeline "
-        "intermediates (see `docs/internal/OPEN_QUESTIONS.md` → \"Per-scenario compound "
-        "LULC inputs\"). Baseline reproduction + display of NatCap's "
-        "published reference values for temp / carbon is intact."
+        "Some metrics cannot be recomputed for NatCap reference scenarios "
+        "because the per-scenario compound LULC rasters weren't available "
+        "in the shared data. The app shows NatCap's published temperature "
+        "and carbon reference values where available."
     )
     st.markdown(
         "- **Nature Access** (UNA)  \n"
@@ -4470,6 +4515,16 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         "- **NDVI**  \n"
         "- **Implementation Cost** & **Cost-Effectiveness** ratios"
     )
+    with st.expander("Why are these unavailable?", expanded=False):
+        st.markdown(
+            "These cards require the **compound** "
+            "(NLCD × NLUD × tree-canopy) scenario inputs, which NatCap "
+            "built as unsaved pipeline intermediates "
+            "(see `docs/internal/OPEN_QUESTIONS.md` → "
+            "\"Per-scenario compound LULC inputs\"). Baseline reproduction "
+            "+ display of NatCap's published reference values for "
+            "temperature and carbon is intact."
+        )
 
     # ── Source / methodology footer ──
     st.divider()

@@ -1947,14 +1947,19 @@ def main(update: bool) -> int:
                     _ncf_end = _i + 1
                     break
             EXPECTED_NATCAP_ORDER = [
-                ("Provenance header",
-                 "_render_scenario_provenance_header("),
+                # Inline banner now replaces _render_scenario_provenance_header
+                # for the NatCap-fixed view (so the longer Source/Validation
+                # text doesn't leak into the comparison-table cells). The
+                # markdown "## {scenario_label}" line is the headline anchor.
+                ("Headline",
+                 'st.markdown(f"## {spec'),
                 ("Side-by-side table",
                  'st.markdown("#### NatCap reference scenarios — side by side"'),
                 ("Ecological card row",
                  'st.markdown("#### Ecological"'),
-                ("Not-available section",
-                 'st.markdown("#### Not available for this NatCap scenario"'),
+                ("Metrics-not-recomputed section",
+                 'st.markdown("#### Metrics not recomputed for NatCap '
+                 'reference scenarios"'),
             ]
             _prev_line = _ncf_start
             _prev_name = "function def"
@@ -1975,7 +1980,8 @@ def main(update: bool) -> int:
                 _prev_name = name
             if _ncf_diffs == 0:
                 print(f"  OK   NatCap view: 4 anchors in expected order "
-                      f"(Header → Side-by-side → Ecological → Not-available)")
+                      f"(Headline → Side-by-side → Ecological → "
+                      f"Metrics-not-recomputed)")
             section_order_diffs += _ncf_diffs
 
             # Side-by-side must come BEFORE Ecological — the literal
