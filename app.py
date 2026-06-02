@@ -4274,6 +4274,55 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         ),
     )
 
+    # ── Side-by-side (Tradeoff Analysis reorder) ────────────────────────
+    # Placed first under the provenance header so the user lands on the
+    # cross-scenario overview before the per-scenario detail. Tradeoff
+    # Space plot is intentionally NOT rendered here — the plot's axes
+    # (Flood Retention, Heat Mitigation Index) don't have published
+    # values for NatCap fixed scenarios beyond baseline, so plotting
+    # them would require the "not recomputed" compound inputs.
+    st.markdown("#### NatCap reference scenarios — side by side")
+    st.caption(
+        "All values from NatCap's published scenario outputs "
+        "(`nootenboom_results/citywide_results_UPDATED.xlsx` → "
+        "`natcap_reference_outputs.csv`). Flood is intentionally excluded "
+        "(different derivation between baseline and alternatives; see the "
+        "per-scenario flood card below)."
+    )
+    _comp_rows = []
+    for _sid in ns.SA_NATCAP_FIXED_SCENARIOS.keys():
+        _, _bv_t_s, _dT_s = nv.published_delta(selected_city, _sid, "temp_change_f")
+        _, _bv_c_s, _dC_s = nv.published_delta(selected_city, _sid, "carbon_tons_co2")
+        _label = ns.SA_NATCAP_FIXED_SCENARIOS[_sid]["label"]
+        if _sid == scenario_id:
+            _label = f"▶ {_label}"
+        if _sid == "baseline":
+            _t_str = f"{_bv_t_s:.2f} °F" if _bv_t_s is not None else "—"
+            _c_str = f"{_bv_c_s / 1e6:.2f}M t CO2e" if _bv_c_s is not None else "—"
+            _cv_str = (f"\\${_bv_c_s * EPA_SOCIAL_COST_CARBON / 1e9:.2f}B"
+                       if _bv_c_s is not None else "—")
+        else:
+            _t_str = (f"{_fmt_dt(_dT_s)} ({_dT_s:+.3f} °F)"
+                      if _dT_s is not None else "—")
+            _c_str = (f"{_dC_s / 1e6:+.2f}M t CO2e"
+                      if _dC_s is not None else "—")
+            _cv_str = (f"\\${_dC_s * EPA_SOCIAL_COST_CARBON / 1e6:+.0f}M"
+                       if _dC_s is not None else "—")
+        _comp_rows.append({
+            "Scenario": _label,
+            "Temperature (NatCap published)": _t_str,
+            "Carbon stock change (NatCap published)": _c_str,
+            "Carbon Value $ (derived)": _cv_str,
+        })
+    st.dataframe(pd.DataFrame(_comp_rows),
+                 use_container_width=True, hide_index=True)
+    st.caption(
+        "Carbon \\$ derivation: NatCap-published carbon Δ × "
+        f"\\${EPA_SOCIAL_COST_CARBON}/t CO2e (EPA 2023, 2 % discount, 2030). "
+        "Baseline row shows absolute values; alternatives show Δ vs baseline."
+    )
+    st.divider()
+
     # ── Compute flood on the loaded scenario raster (B1 helper) ──
     flood_red = mean_cn = None
     flood_source_label = None
@@ -4420,49 +4469,6 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         "- **Food Production**  \n"
         "- **NDVI**  \n"
         "- **Implementation Cost** & **Cost-Effectiveness** ratios"
-    )
-
-    # ── Cross-scenario comparison (B2 revised Phase 4) ──
-    st.divider()
-    st.markdown("#### NatCap scenarios — side-by-side")
-    st.caption(
-        "All values from NatCap's published scenario outputs "
-        "(`nootenboom_results/citywide_results_UPDATED.xlsx` → "
-        "`natcap_reference_outputs.csv`). Flood is intentionally excluded "
-        "(different derivation between baseline and alternatives; see the "
-        "per-scenario flood card)."
-    )
-    _comp_rows = []
-    for _sid in ns.SA_NATCAP_FIXED_SCENARIOS.keys():
-        _, _bv_t_s, _dT_s = nv.published_delta(selected_city, _sid, "temp_change_f")
-        _, _bv_c_s, _dC_s = nv.published_delta(selected_city, _sid, "carbon_tons_co2")
-        _label = ns.SA_NATCAP_FIXED_SCENARIOS[_sid]["label"]
-        if _sid == scenario_id:
-            _label = f"▶ {_label}"
-        if _sid == "baseline":
-            _t_str = f"{_bv_t_s:.2f} °F" if _bv_t_s is not None else "—"
-            _c_str = f"{_bv_c_s / 1e6:.2f}M t CO2e" if _bv_c_s is not None else "—"
-            _cv_str = (f"${_bv_c_s * EPA_SOCIAL_COST_CARBON / 1e9:.2f}B"
-                       if _bv_c_s is not None else "—")
-        else:
-            _t_str = (f"{_fmt_dt(_dT_s)} ({_dT_s:+.3f} °F)"
-                      if _dT_s is not None else "—")
-            _c_str = (f"{_dC_s / 1e6:+.2f}M t CO2e"
-                      if _dC_s is not None else "—")
-            _cv_str = (f"${_dC_s * EPA_SOCIAL_COST_CARBON / 1e6:+.0f}M"
-                       if _dC_s is not None else "—")
-        _comp_rows.append({
-            "Scenario": _label,
-            "Temperature (NatCap published)": _t_str,
-            "Carbon stock change (NatCap published)": _c_str,
-            "Carbon Value $ (derived)": _cv_str,
-        })
-    st.dataframe(pd.DataFrame(_comp_rows),
-                 use_container_width=True, hide_index=True)
-    st.caption(
-        "Carbon \\$ derivation: NatCap-published carbon Δ × "
-        f"\\${EPA_SOCIAL_COST_CARBON}/t CO2e (EPA 2023, 2 % discount, 2030). "
-        "Baseline row shows absolute values; alternatives show Δ vs baseline."
     )
 
     # ── Source / methodology footer ──
@@ -6993,6 +6999,50 @@ with tab2:
         if s.get("city", selected_city) == selected_city
     ]
 
+    # ── Tradeoff Space (Tradeoff Analysis reorder) ──
+    # Placed first in tab2 so the user lands on the visual mapping of
+    # current-scenario vs alternatives before the row-by-row comparison
+    # table. Both axes are higher-is-better (Flood Retention on x;
+    # Heat Mitigation Index on y — see `plot_tradeoff`'s
+    # xaxis_title / yaxis_title at the engine), so the top-right framing
+    # is axis-verified.
+    st.subheader("Tradeoff space: current scenario vs alternatives")
+    st.caption(
+        "Each point is a scenario. Better outcomes are toward the "
+        "**top-right** — both axes are higher-is-better (Flood Retention "
+        "on x, Heat Mitigation Index on y). The **purple star** is your "
+        "current scenario; **orange diamonds** are citywide surrogate "
+        "suggestions (with 10th–90th percentile uncertainty bars). "
+        "Bubble size shows food production for saved and optimizer "
+        "points. Region-optimizer results are engine-verified and have "
+        "their own table below — not plotted as diamonds, to keep "
+        "surrogate-predicted (citywide) and engine-verified (region) "
+        "visually distinct."
+    )
+    # The optimizer returns a `{'found': False, ...}` dict when no
+    # candidate meets the targets — don't pass that to the chart's
+    # optimizer-overlay path (the `plot_tradeoff` defensive backstop
+    # would skip it too, but coerce here so the intent is visible at
+    # the call site).
+    # When a filter is active the citywide optimizer is stale (it's
+    # citywide-scoped, predicted values); don't overlay it on a region
+    # tradeoff. The region-optimizer surfaces its results in its own table
+    # below — chart overlay for region values is not in v1.
+    if _filter_active:
+        _opt_for_chart = None
+    else:
+        _opt_for_chart = st.session_state.optimized_results
+        if not isinstance(_opt_for_chart, pd.DataFrame):
+            _opt_for_chart = None
+    st.plotly_chart(plot_tradeoff(
+        results, scenario_df,
+        lookup_table=lookup_table,
+        saved=_saved_for_city,
+        optimized=_opt_for_chart,
+    ), use_container_width=True)
+
+    st.divider()
+
     # ── Cross-source comparison table (Brief #5) ──
     # Always shows the active scenario as a row (marked ▶ Current), plus
     # NatCap fixed scenarios as anchor rows on SA, plus any saved scenarios
@@ -7389,32 +7439,6 @@ with tab2:
               "citywide and region-local metrics. NatCap reference rows are "
               "not included — they don't carry a complete record."),
     )
-
-    st.divider()
-
-    st.subheader("Tradeoff Space")
-    st.caption("Each point is a scenario. Better outcomes are toward the top-right — more cooling and greater flood-risk reduction. Bubble size shows food production for saved and optimized scenarios.")
-    # The optimizer returns a `{'found': False, ...}` dict when no
-    # candidate meets the targets — don't pass that to the chart's
-    # optimizer-overlay path (the `plot_tradeoff` defensive backstop
-    # would skip it too, but coerce here so the intent is visible at
-    # the call site).
-    # When a filter is active the citywide optimizer is stale (it's
-    # citywide-scoped, predicted values); don't overlay it on a region
-    # tradeoff. The region-optimizer surfaces its results in its own table
-    # below — chart overlay for region values is not in v1.
-    if _filter_active:
-        _opt_for_chart = None
-    else:
-        _opt_for_chart = st.session_state.optimized_results
-        if not isinstance(_opt_for_chart, pd.DataFrame):
-            _opt_for_chart = None
-    st.plotly_chart(plot_tradeoff(
-        results, scenario_df,
-        lookup_table=lookup_table,
-        saved=_saved_for_city,
-        optimized=_opt_for_chart,
-    ), use_container_width=True)
 
     if TRACTS_DATA_AVAILABLE:
         st.divider()

@@ -1860,6 +1860,150 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         scenario_state_diffs += 1
 
+    # ── Tradeoff Analysis tab section-order assertion ───────────────────────
+    # The Tradeoff Analysis tab + the NatCap reference-scenario view each have
+    # a locked section order. Explorer mode: Tradeoff Space (plot) → Compare
+    # scenarios (table) → Neighborhood breakdown → optimizer / saved /
+    # best-by-goal. NatCap mode: side-by-side (table) → notes / validation
+    # (Tradeoff Space plot intentionally absent — its axes (Flood Retention,
+    # HMI) have no published values for NatCap fixed scenarios). A reorder
+    # regression (e.g. a future edit that moves "Compare scenarios" above
+    # the plot) would flip the user-facing flow without changing any engine
+    # output; this cell catches that by scanning app.py for ordered markers.
+    print(f"\n{'=' * 60}")
+    print("Tradeoff Analysis tab — section-order assertion")
+    print(f"{'=' * 60}")
+    section_order_diffs = 0
+    try:
+        with open("app.py", "r") as _fh:
+            _src_lines = _fh.read().splitlines()
+
+        def _first_line_containing(needle, start_line=0, end_line=None):
+            """Return 1-indexed line number of the first line containing
+            `needle` between [start_line, end_line). 0 if not found."""
+            end_line = end_line if end_line is not None else len(_src_lines)
+            for i in range(start_line, end_line):
+                if needle in _src_lines[i]:
+                    return i + 1
+            return 0
+
+        # Explorer mode tab2 order.
+        # Anchor: the `with tab2:` block in the main panel. The block
+        # extends until tab3 opens.
+        _tab2_start = _first_line_containing("with tab2:")
+        _tab3_start = _first_line_containing("with tab3:", _tab2_start)
+        if _tab2_start == 0 or _tab3_start == 0:
+            print(f"  FAIL Explorer tab2 boundaries not found "
+                  f"(tab2={_tab2_start}, tab3={_tab3_start})")
+            section_order_diffs += 1
+        else:
+            # Expected sequence (each anchor must follow the previous).
+            EXPECTED_TAB2_ORDER = [
+                ("Tradeoff Space (plot)",
+                 'st.subheader("Tradeoff space: current scenario vs alternatives"'),
+                ("Compare-scenarios table",
+                 'st.markdown("#### Compare scenarios"'),
+                ("Neighborhood breakdown",
+                 'st.markdown("#### Neighborhood breakdown"'),
+                ("Best scenarios by goal",
+                 'st.markdown("#### Best scenarios by goal"'),
+            ]
+            _prev_line = _tab2_start
+            _prev_name = "tab2 open"
+            for name, needle in EXPECTED_TAB2_ORDER:
+                _here = _first_line_containing(needle, _prev_line, _tab3_start)
+                if _here == 0:
+                    print(f"  FAIL Explorer tab2: marker for {name!r} not "
+                          f"found between line {_prev_line} and tab3 open")
+                    section_order_diffs += 1
+                    continue
+                if _here < _prev_line:
+                    print(f"  FAIL Explorer tab2 order: {name!r} (line "
+                          f"{_here}) appears before {_prev_name!r} (line "
+                          f"{_prev_line})")
+                    section_order_diffs += 1
+                _prev_line = _here
+                _prev_name = name
+            if section_order_diffs == 0:
+                print(f"  OK   Explorer tab2: 4 anchors in expected order "
+                      f"(Tradeoff Space → Compare → Neighborhood → Best-by-goal)")
+
+        # NatCap reference-view order.
+        # Anchor: `def _render_natcap_fixed_scenario_view(`. The view's
+        # extent: from def line until the next top-level `def `.
+        _ncf_start = _first_line_containing(
+            "def _render_natcap_fixed_scenario_view("
+        )
+        if _ncf_start == 0:
+            print(f"  FAIL NatCap view: function def not found")
+            section_order_diffs += 1
+        else:
+            # End of the function — next top-level `def ` or end of file.
+            _ncf_end = len(_src_lines)
+            for _i in range(_ncf_start, len(_src_lines)):
+                _ln = _src_lines[_i]
+                if (_ln.startswith("def ")
+                        and _i + 1 > _ncf_start):
+                    _ncf_end = _i + 1
+                    break
+            EXPECTED_NATCAP_ORDER = [
+                ("Provenance header",
+                 "_render_scenario_provenance_header("),
+                ("Side-by-side table",
+                 'st.markdown("#### NatCap reference scenarios — side by side"'),
+                ("Ecological card row",
+                 'st.markdown("#### Ecological"'),
+                ("Not-available section",
+                 'st.markdown("#### Not available for this NatCap scenario"'),
+            ]
+            _prev_line = _ncf_start
+            _prev_name = "function def"
+            _ncf_diffs = 0
+            for name, needle in EXPECTED_NATCAP_ORDER:
+                _here = _first_line_containing(needle, _prev_line, _ncf_end)
+                if _here == 0:
+                    print(f"  FAIL NatCap view: marker for {name!r} not "
+                          f"found between line {_prev_line} and function end")
+                    _ncf_diffs += 1
+                    continue
+                if _here < _prev_line:
+                    print(f"  FAIL NatCap view order: {name!r} (line "
+                          f"{_here}) appears before {_prev_name!r} (line "
+                          f"{_prev_line})")
+                    _ncf_diffs += 1
+                _prev_line = _here
+                _prev_name = name
+            if _ncf_diffs == 0:
+                print(f"  OK   NatCap view: 4 anchors in expected order "
+                      f"(Header → Side-by-side → Ecological → Not-available)")
+            section_order_diffs += _ncf_diffs
+
+            # Side-by-side must come BEFORE Ecological — the literal
+            # Tradeoff-Analysis-reorder contract. Already asserted by the
+            # sequence above; a focused check here in case the order list
+            # ever grows.
+            _sbs_line = _first_line_containing(
+                'st.markdown("#### NatCap reference scenarios — side by side"',
+                _ncf_start, _ncf_end,
+            )
+            _eco_line = _first_line_containing(
+                'st.markdown("#### Ecological"',
+                _ncf_start, _ncf_end,
+            )
+            if (_sbs_line == 0 or _eco_line == 0 or _sbs_line > _eco_line):
+                print(f"  FAIL NatCap view: side-by-side must precede "
+                      f"per-scenario Ecological cards "
+                      f"(side-by-side={_sbs_line}, ecological={_eco_line})")
+                section_order_diffs += 1
+            else:
+                print(f"  OK   NatCap view: side-by-side at line "
+                      f"{_sbs_line} precedes Ecological cards at line "
+                      f"{_eco_line}")
+    except Exception as e:
+        print(f"  ERROR section-order assertion: {e}")
+        import traceback; traceback.print_exc()
+        section_order_diffs += 1
+
     # ── Sidebar wiring-survival assertion ────────────────────────────────────
     # The sidebar's grown dense and accreted layout refactors. Every Streamlit
     # widget that participates in app behavior carries a `key=` so its
@@ -1975,7 +2119,7 @@ def main(update: bool) -> int:
                    + round_trip_diffs + subset_diffs + reconcile_diffs
                    + guard_diffs + ownership_diffs_batch1 + tradeoff_diffs
                    + region_opt_diffs + sidebar_keys_diffs
-                   + scenario_state_diffs)
+                   + scenario_state_diffs + section_order_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -2025,6 +2169,10 @@ def main(update: bool) -> int:
             print(f"{scenario_state_diffs} default-scenario state "
                   "divergence(s) — title, sentence, or audit drifted from "
                   "the resolved-scenario dict (Relay A).")
+        if section_order_diffs:
+            print(f"{section_order_diffs} Tradeoff Analysis section-order "
+                  "divergence(s) — Explorer tab2 or NatCap view sections "
+                  "moved out of the expected sequence.")
         return 1
 
 
