@@ -340,26 +340,28 @@ CHANGE_COLORS = {
 # (curve numbers, land-cover sources, carbon framing) are implementation
 # history; they live in the changelog / "On the radar", not here.
 WHATS_NEW_SECTIONS = [
-    ("Interactive scenario placement", [
-        "**Region Selection** — constrain conversions to a selected council district (San Antonio) or census tract (Minneapolis); metric cards show citywide impact, paired with a Selected-region impact view.",
-        "**Selected-region impact** — alongside any region scenario, a paired table compares outcomes inside the selected area with the citywide result, with locked flood-routing and reach-effect caveats.",
-        "**Eligibility breakdown** — see where a selected area's convertible land goes (developed → minus roads / buildings / existing nature → minus ownership filter → converted).",
-        "**Ownership Filter (San Antonio)** — restrict conversions by ownership; the coarse rollups (publicly-owned / vacant) and the finer classes (City / County / State-federal / School (K-12) / University) are all selectable; composes with Region Selection.",
-        "**Optimize selected area** — when a region or ownership filter is active, the optimizer switches to engine-verified scenario search: a fast surrogate shortlists candidate mixes, the full engine then evaluates the shortlist on the selected area, and weight sliders rank the engine results. The 5 returned mixes are real (not predictions); the shortlist may not be exhaustive, so they're framed as the best tested mixes rather than the optimum.",
+    ("Spatial scenario placement", [
+        "Apply land-use changes inside a selected council district or census tract, then compare selected-area and citywide impacts.",
+        "See how much land remains eligible after roads, buildings, existing natural land, and ownership filters are excluded.",
     ]),
-    ("Validation and handoff", [
-        "**Provenance + validation badges** — every scenario shows its source at the top (NatCap reference, baseline, engine-validated Explorer, or surrogate-suggested optimizer), with per-metric validation badges on each card.",
-        "**Scenario audit** — source, area, ownership, placement, seed, and validation for any scenario, in one expander on the Scenario tab.",
-        "**Comparison table** — NatCap's published scenarios, the current scenario, and any you've saved side by side on the Tradeoff Analysis tab.",
-        "**Scenario CSV** — download the full scenario comparison (current + saved) with metrics and provenance.",
-        "**InVEST export** — download the current scenario as a runnable input bundle for canonical InVEST 3.19.0 (rasters, AOIs, biophysical tables, per-model args). San Antonio v1.",
+    ("Ownership-aware scenarios", [
+        "In San Antonio, restrict conversions to public, vacant, school, university, city, county, or state/federal land.",
+        "These are planning-screen filters — they do not verify parcel availability or legal feasibility.",
+    ]),
+    ("Scenario discovery", [
+        "Search citywide with a fast surrogate that suggests promising mixes.",
+        "For selected areas, use the full engine to find best tested mixes under the current filters, not guaranteed optima.",
+    ]),
+    ("Validation & handoff", [
+        "Compare NatCap reference, current, and saved scenarios with source and validation labels.",
+        "Export a runnable San Antonio bundle for canonical InVEST.",
     ]),
 ]
 
 UNDERWAY_ENTRIES = []
 
 ON_THE_RADAR = """\
-- **AlphaEarth Foundations satellite embeddings** as a future land-cover source — [feasibility research here](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md).
+- AlphaEarth-derived land-cover inputs, pixel-level spatial optimization, and nutrient retention (NDR) if canonical inputs become available.
 """
 
 def _build_whats_new():

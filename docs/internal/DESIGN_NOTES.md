@@ -918,7 +918,7 @@ Net per fixed scenario: ~4–5 cards carry a value; ~11 are "not available." Thi
 Sections that might land here when the relevant work happens. Listed so future sessions know this doc is the right home:
 
 - UCM cooling parameters (UHI_MAX_C, energy table, HMI vs energy aggregation)
-- NDVI source — synthetic proxy vs satellite-derived (AlphaEarth)
+- NDVI source — synthetic proxy vs satellite-derived (AlphaEarth Foundations; feasibility research at [ALPHAEARTH_FEASIBILITY.md](https://github.com/dkwtestacct/ecosystem-explorer/blob/main/ALPHAEARTH_FEASIBILITY.md))
 - Population data — Census 2020 block vs ACS block-group
 - Surrogate model architecture and hyperparameters
 - Real CDC / ATSDR Heat Vulnerability Index integration (replacing the development-intensity proxy)
