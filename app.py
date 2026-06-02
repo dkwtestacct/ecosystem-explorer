@@ -347,6 +347,7 @@ WHATS_NEW_SECTIONS = [
     ("Ownership-aware scenarios", [
         "In San Antonio, restrict conversions to public, vacant, school, university, city, county, or state/federal land.",
         "These are planning-screen filters — they do not verify parcel availability or legal feasibility.",
+        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access, cooling, and mental-health effects.",
     ]),
     ("Scenario discovery", [
         "Search citywide with a fast surrogate that suggests promising mixes.",
@@ -362,6 +363,7 @@ UNDERWAY_ENTRIES = []
 
 ON_THE_RADAR = """\
 - AlphaEarth-derived land-cover inputs, pixel-level spatial optimization, and nutrient retention (NDR) if canonical inputs become available.
+- School-targeted child nature access — add school-point locations and child population (ACS under-18) to prioritize interventions near schools and estimate children's access to nature directly.
 """
 
 def _build_whats_new():
@@ -5159,6 +5161,13 @@ if _eligibility_available:
             "where conversions can be placed but do not verify legal "
             "availability."
         )
+        # Caveat specific to school + university classes (split-preset RELAY).
+        # Surfaces the title-verification caveat at the panel level so the
+        # caveat is visible without opening the derivation popover.
+        st.caption(
+            "School and university classes are planning-screen filters, "
+            "not title-verified ownership."
+        )
         # KNOWN_DIVERGENCES honesty surface — same caveat as the export
         # bundle's metadata.json (entry id `ownership_rule_derived`,
         # asserted complete by verify_baselines). Tucked into a popover
@@ -5177,8 +5186,16 @@ if _eligibility_available:
                 "private K-12 schools fall through to private); "
                 "`University` spans both public (UT / A&M / Alamo) and "
                 "private (Trinity / St. Mary's / OLLU) campuses and is "
-                "kept OUT of the Public rollup for that reason. See "
-                "`data/sa/sa_ownership_2band_30m.tif` provenance in "
+                "kept OUT of the Public rollup for that reason.  \n"
+                "  \n"
+                "- School land is inferred from BCAD owner-name / "
+                "exemption patterns and may miss private schools or "
+                "include some district-owned non-school parcels.  \n"
+                "- College / university land spans public and private "
+                "campuses and is likewise name-pattern–inferred, not "
+                "title-verified.  \n"
+                "  \n"
+                "See `data/sa/sa_ownership_2band_30m.tif` provenance in "
                 "`docs/internal/DATA_INVENTORY.md`."
             )
         # Preset dropdown (Relay 2 #3). Replaces the 3 narrow quick-set
@@ -5198,7 +5215,8 @@ if _eligibility_available:
             "Public land",
             "Vacant land",
             "Vacant + public",
-            "School / university land",
+            "School land",
+            "College / university land",
             "Custom",
         ]
         # Default to None on first render; the preset selectbox isn't
@@ -5244,15 +5262,18 @@ if _eligibility_available:
                         _cls != "university"
                     )
                 st.session_state["elf_check_vacant"] = True
-            elif _elf_preset == "School / university land":
-                # Preset over the existing composite filter — check school
-                # and university; everything else off; no vacant overlay.
-                # Custom still exposes the two classes individually for
-                # anyone who wants them apart.
+            elif _elf_preset == "School land":
+                # Single-class preset — school only, no vacant overlay.
+                # The two classes are intentionally separately presetable
+                # (no combined "School + university" preset); to combine
+                # them, pick Custom and check both checkboxes.
                 for _cls in _elf_finer:
-                    st.session_state[f"elf_check_{_cls}"] = (
-                        _cls in ("school", "university")
-                    )
+                    st.session_state[f"elf_check_{_cls}"] = (_cls == "school")
+                st.session_state["elf_check_vacant"] = False
+            elif _elf_preset == "College / university land":
+                # Single-class preset — university only, no vacant overlay.
+                for _cls in _elf_finer:
+                    st.session_state[f"elf_check_{_cls}"] = (_cls == "university")
                 st.session_state["elf_check_vacant"] = False
             st.session_state["_elf_preset_applied"] = _elf_preset
 
