@@ -28,6 +28,8 @@ from surrogate import (
 import export_invest_bundle as eib   # Brief D1 — InVEST export bundle
 import natcap_validation as nv       # Brief B2 (revised) — validation badges
 import natcap_scenarios as ns        # Brief B1 + B2 — fixed-scenario loader/flood helper
+from ownership import OWNERSHIP_MODES, ELIGIBLE_FILTER_PRIMARY_MODES
+from region_local_metrics import _REGION_LOCAL_METRICS
 
 PIXEL_AREA_ACRES     = 0.2224  # 30 m × 30 m = 900 m² ÷ 4046.86 m²/acre. Same in EPSG:26915 (UTM) and EPSG:5070 (Albers); UTM ground-area distortion at MN is ~0.05 %, well within rounding.
 # FOOD_FOREST_LBS_ACRE is city-dependent — see "── City-derived constants ──" below.
@@ -38,129 +40,11 @@ CODE_FOOD_FOREST  = 41
 CODE_HIGH_DENSITY = 24
 NODATA            = -128
 
-# Ownership Integration (`OWNERSHIP_INTEGRATION_SPEC.md`) — locked code-to-mode
-# mapping for `data/sa/sa_public_vacant_30m.tif` (codes -1/0/1/2/3). The UI
-# selectbox surfaces `label`s; the caller composes a boolean mask via
-# `np.isin(ownership_raster, codes)`. SA-only.
-# Finer Ownership Classes Pass (`OWNERSHIP_FINER_CLASSES_SPEC.md`) — the
-# two-band raster encodes band 1 = class enum (0-6) and band 2 = vacant
-# flag (0/1). Each mode below resolves to a boolean mask via
-# `_build_ownership_mask` (selector keys: band1_eq / band1_in / band2_eq;
-# absent key = unconstrained on that axis).
-#
-# School / University Split (Batch 2 pre-push addendum): the combined
-# `school_university` class is split into two — `school` (K-12 public
-# districts; folded into the public rollup) and `university` (mixed
-# public + private higher-ed; kept out of public, flagged mixed in the
-# DATA_INVENTORY caveat).
-#
-# `public` rollup = city + county + state-federal + school. School
-# districts are government; folding them in restores the obvious case
-# the prior over-broad "public excludes all education" rollup missed.
-# University stays OUT of public — that bucket includes private campuses
-# (Trinity, St. Mary's, OLLU) and a planning-screen "Publicly-owned land"
-# filter shouldn't pretend a private campus is public land.
-OWNERSHIP_MODES = {
-    # ── Coarse rollups (unchanged keys; band1_in expanded to include
-    # school after the split) ──
-    'public': {
-        'label':    'Publicly-owned land',
-        'band1_in': (1, 2, 3, 4),  # city + county + state-federal + school
-    },
-    'vacant': {
-        'label':    'Vacant land',
-        'band2_eq': 1,
-    },
-    'vacant_public': {
-        'label':    'Vacant publicly-owned land',
-        'band1_in': (1, 2, 3, 4),
-        'band2_eq': 1,
-    },
-    # ── Finer modes ──
-    'city': {
-        'label':    'City-owned land',
-        'band1_eq': 1,
-    },
-    'county': {
-        'label':    'County-owned land',
-        'band1_eq': 2,
-    },
-    'state_federal': {
-        'label':    'State or federal land',
-        'band1_eq': 3,
-    },
-    'school': {
-        'label':    'School district land (K-12 public)',
-        'band1_eq': 4,
-    },
-    'university': {
-        'label':    'College or university land',
-        'band1_eq': 6,
-    },
-    'private': {
-        'label':    'Privately-owned land',
-        'band1_eq': 0,
-    },
-    'unknown': {
-        'label':    'Unknown ownership',
-        'band1_eq': 5,
-    },
-    # ── Vacant-overlay composites (Batch 4 of OWNERSHIP_FINER_CLASSES_SPEC.md) ──
-    # The sidebar's "Limit to vacant parcels only" checkbox composes the
-    # vacant flag (band2_eq=1) with the selected class. These per-class
-    # vacant variants are the resolved mode keys; the selectbox shows
-    # only the primary class options, the checkbox composes the variant.
-    # `vacant` (class-unconstrained) and `vacant_public` (rollup) live
-    # above with the coarse rollups and serve the All-ownership + vacant
-    # and Publicly-owned + vacant cases. Saved scenarios from before this
-    # batch resolve cleanly under their existing mode keys.
-    'city_vacant': {
-        'label':    'City-owned land (vacant only)',
-        'band1_eq': 1,
-        'band2_eq': 1,
-    },
-    'county_vacant': {
-        'label':    'County-owned land (vacant only)',
-        'band1_eq': 2,
-        'band2_eq': 1,
-    },
-    'state_federal_vacant': {
-        'label':    'State or federal land (vacant only)',
-        'band1_eq': 3,
-        'band2_eq': 1,
-    },
-    'school_vacant': {
-        'label':    'School district land (K-12 public, vacant only)',
-        'band1_eq': 4,
-        'band2_eq': 1,
-    },
-    'university_vacant': {
-        'label':    'College or university land (vacant only)',
-        'band1_eq': 6,
-        'band2_eq': 1,
-    },
-    'private_vacant': {
-        'label':    'Privately-owned land (vacant only)',
-        'band1_eq': 0,
-        'band2_eq': 1,
-    },
-}
-
-# Eligible land filter — selectbox primary modes (Batch 4). The "vacant"
-# overlay is a separate checkbox in the UI; per-class vacant composites
-# (city_vacant, school_vacant, …) are resolved at filter time from
-# (selected primary class, vacant overlay). Order = display order in the
-# selectbox; "(no filter)" prepended at render time.
-ELIGIBLE_FILTER_PRIMARY_MODES = (
-    "public",         # rollup
-    "city",
-    "county",
-    "state_federal",
-    "school",
-    "university",
-    "private",
-    "unknown",
-)
+# OWNERSHIP_MODES + ELIGIBLE_FILTER_PRIMARY_MODES — data-only ownership
+# mode tables — live in `ownership.py` (Constants Refactor / Task #52).
+# The mask builder, the composite resolver, the normalizer, and every
+# downstream consumer (export bundle, comparison table, audit expander,
+# CSV export) stay here in app.py.
 
 
 def _resolve_eligible_filter_mode(primary: str, vacant_overlay: bool) -> "Optional[str]":
@@ -334,44 +218,10 @@ def _ownership_allowed_band1_values(mode_cfg) -> "list[int]":
         return [int(v) for v in mode_cfg['band1_in']]
     return []
 
-# Region-Local Metrics (`REGION_LOCAL_METRICS_SPEC.md`) — per-metric
-# treatment table. Every entry is decomposable under the locked per-model
-# treatment from the spec; the field `clip` records which clip (pixel vs
-# population) is used, and `caveat` carries the locked honesty caption type
-# (`spillover` for UCM reach effects, `routing` for the flood routing
-# disclaimer, `cross_boundary` for UNA, `exposure_kernel` for UMH, None
-# for clean clips). Reconciliation assertion: for every entry, computing
-# region_local over the entire AOI must equal citywide.
-_REGION_LOCAL_METRICS = {
-    # Pixel-clip, clean (carbon / food / cost / conversions).
-    'n_wet':                {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'n_for':                {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'n_hd':                 {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'ff_fellback_pixels':   {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'gi_fellback_pixels':   {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'hd_fellback_pixels':   {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'food_mln_lbs':         {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'people_fed':           {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'carbon_tons_co2':      {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'carbon_value_usd':     {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'total_cost_mln':       {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    'mean_ndvi':            {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': None},
-    # Pixel-clip + flood routing caveat (per-pixel runoff retention, not routed hydrology).
-    'mean_cn':              {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
-    'flood_reduction':      {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
-    'runoff_acre_feet':     {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
-    'flood_damage_avoided_usd': {'decomposable': True,  'clip': 'pixel',  'reach_m': 0,   'caveat': 'routing'},
-    # Pixel-clip + UCM spillover caveat (~600 m reach).
-    'mean_hm':              {'decomposable': True,  'clip': 'pixel',      'reach_m': 600, 'caveat': 'spillover'},
-    'temp_change_f':        {'decomposable': True,  'clip': 'pixel',      'reach_m': 600, 'caveat': 'spillover'},
-    'cooling_energy_savings_usd': {'decomposable': True, 'clip': 'pixel', 'reach_m': 600, 'caveat': 'spillover'},
-    # Population-clip + UNA cross-boundary caveat (~800 m reach; supply/access can cross the edge).
-    'nature_access_pct':    {'decomposable': True,  'clip': 'population', 'reach_m': 800, 'caveat': 'cross_boundary'},
-    'people_with_nature_access': {'decomposable': True, 'clip': 'population', 'reach_m': 800, 'caveat': 'cross_boundary'},
-    # Population-clip + UMH exposure-kernel caveat (~300 m reach).
-    'preventable_mh_cases': {'decomposable': True,  'clip': 'population', 'reach_m': 300, 'caveat': 'exposure_kernel'},
-    'avoided_mh_cost_usd':  {'decomposable': True,  'clip': 'population', 'reach_m': 300, 'caveat': 'exposure_kernel'},
-}
+# _REGION_LOCAL_METRICS — per-metric treatment table (data-only) — lives
+# in `region_local_metrics.py` (Constants Refactor / Task #52). The
+# reconciliation invariant (region_local over the entire AOI ==
+# citywide) is asserted in verify_baselines.py.
 
 # ── Metric translation constants ───────────────────────────────────────────────
 # SCS design storm depth — per-city, set after city_cfg is built (see

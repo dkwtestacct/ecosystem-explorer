@@ -369,6 +369,11 @@ def main(update: bool) -> int:
     print("Importing app.py (triggers module-level startup)...")
     t0 = time.time()
     import app  # noqa: E402
+    # Constants Refactor / Task #52 — the pure-data tables live in
+    # standalone modules; pull them in directly rather than through
+    # `app.<NAME>` so the gate exercises the source-of-truth module.
+    from ownership import OWNERSHIP_MODES  # noqa: E402
+    from region_local_metrics import _REGION_LOCAL_METRICS  # noqa: E402
     print(f"  app.py import: {time.time() - t0:.1f}s")
 
     active_cities = [name for name, cfg in app.CITIES.items() if cfg.get("available")]
@@ -524,7 +529,7 @@ def main(update: bool) -> int:
             # any regression in the mask-build path itself.
             mask = app._build_ownership_mask(
                 state.ownership_raster, state.ownership_vacant_raster,
-                app.OWNERSHIP_MODES[mode],
+                OWNERSHIP_MODES[mode],
             )
             cp = state.convertible_pixels
             independent_count = int(mask[cp[:, 0], cp[:, 1]].sum())
@@ -571,7 +576,7 @@ def main(update: bool) -> int:
             )
             region_local = results.get("region_local") or {}
             mismatches = []
-            for key, cfg in app._REGION_LOCAL_METRICS.items():
+            for key, cfg in _REGION_LOCAL_METRICS.items():
                 if not cfg["decomposable"]:
                     continue
                 citywide = results.get(key)
@@ -583,7 +588,7 @@ def main(update: bool) -> int:
                     mismatches.append((key, citywide, rl, "diff"))
             label_str = f"{city_name}"
             if not mismatches:
-                n_decomp = sum(1 for c in app._REGION_LOCAL_METRICS.values()
+                n_decomp = sum(1 for c in _REGION_LOCAL_METRICS.values()
                                if c["decomposable"])
                 print(f"  OK  {label_str}: {n_decomp} decomposable metrics reconcile "
                       f"(region_local over entire AOI == citywide)")
@@ -625,7 +630,7 @@ def main(update: bool) -> int:
             smoke_diffs += 1
         else:
             missing_keys = [
-                k for k, cfg in app._REGION_LOCAL_METRICS.items()
+                k for k, cfg in _REGION_LOCAL_METRICS.items()
                 if cfg["decomposable"] and rl.get(k) is None
             ]
             if missing_keys:
@@ -922,7 +927,7 @@ def main(update: bool) -> int:
         # build path the live app uses.
         return app._build_ownership_mask(
             state.ownership_raster, state.ownership_vacant_raster,
-            app.OWNERSHIP_MODES[mode_key],
+            OWNERSHIP_MODES[mode_key],
         )
 
     def _run_cell(state, label, region_mask, ownership_mask, recipe):
