@@ -4383,8 +4383,27 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         unsafe_allow_html=True,
     )
     st.caption(
-        "Sidebar source = NatCap project scenario. "
+        "Sidebar source = NatCap reference scenario. "
         "Flip to Explorer for custom scenarios."
+    )
+
+    # NatCap fix #4 — anchor-and-launch framing. These are the scenarios
+    # NatCap already studied; the Explorer goes beyond them. Honesty
+    # guardrails baked in: "validate" = canonical-engine verification of
+    # Explorer scenarios (not reproduction of NatCap's published figures);
+    # "optimize" = "best tested mixes," not the global optimum. The
+    # framing must not imply the app reproduces or validates NatCap's
+    # numbers — only that the Explorer goes beyond NatCap's static
+    # reference set with its own engine.
+    st.markdown(
+        "**These are the NatCap reference scenarios for San Antonio** — "
+        "published project values used as anchors for comparison, not "
+        "Explorer-recomputed numbers. The Explorer lets you go beyond "
+        "them: explore variations on the sliders, compare against these "
+        "anchors, optimize for your selected area (best tested mixes — "
+        "not the global optimum), and validate Explorer scenarios via "
+        "the canonical engine. The app does not reproduce or validate "
+        "NatCap's published figures themselves."
     )
 
     with st.expander("Scenario audit", expanded=False):
@@ -4518,7 +4537,12 @@ def _render_natcap_fixed_scenario_view(scenario_id):
     # Prototype) — render_validation_badge returns the locked text, and
     # the "baseline" framing never appears in the badge.
     st.markdown("#### Ecological")
-    eco_a, eco_b, eco_c, eco_d = st.columns(4)
+    # NatCap fix #2 — card truncation. 4 cards in one row at sidebar-typical
+    # widths cut off the value + delta strings ("No ch…", "+0.43…", "↑ Δ vs
+    # baseline: -…"). Split into 2x2 — row 1 carries the NatCap-published
+    # values (green badges); row 2 carries derived/computed values.
+    # Each card now has ~50% width, enough for the value + delta to read.
+    eco_a, eco_b = st.columns(2)
 
     sv_t, bv_t, dT = nv.published_delta(selected_city, scenario_id, "temp_change_f")
     if scenario_id == "baseline" and bv_t is not None:
@@ -4526,7 +4550,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
                      delta=None, delta_color="off")
     elif dT is not None:
         eco_a.metric("Mean Air Temp", _fmt_dt(dT),
-                     delta=f"Δ vs baseline: {dT:+.3f} °F",
+                     delta=f"Δ {dT:+.3f} °F vs baseline",
                      delta_color="off")
     else:
         eco_a.metric("Mean Air Temp", "—")
@@ -4541,23 +4565,27 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         _sign = "+" if dC >= 0 else ""
         eco_b.metric("Carbon Stock",
                      f"{_sign}{dC / 1e6:.2f}M t CO2e",
-                     delta=f"Δ vs baseline",
+                     delta="Δ vs baseline",
                      delta_color="off")
     else:
         eco_b.metric("Carbon Stock", "—")
     _render_validation_caption(eco_b, "carbon_tons_co2", ctx_for_metrics)
 
+    # Row 2 — derived/computed cards. Carbon Value (≈ Aligned method) +
+    # Flood Retention (Prototype).
+    eco_c, eco_d = st.columns(2)
+
     if scenario_id == "baseline" and bv_c is not None:
         eco_c.metric("Carbon Value",
-                     f"\\${bv_c * EPA_SOCIAL_COST_CARBON / 1e9:.1f}B",
-                     delta=f"@ \\${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
+                     f"${bv_c * EPA_SOCIAL_COST_CARBON / 1e9:.1f}B",
+                     delta=f"@ ${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
                      delta_color="off")
     elif dC is not None:
         _usd = dC * EPA_SOCIAL_COST_CARBON
         _sign = "+" if _usd >= 0 else ""
         eco_c.metric("Carbon Value",
-                     f"{_sign}\\${_usd / 1e6:.0f}M",
-                     delta=f"@ \\${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
+                     f"{_sign}${_usd / 1e6:.0f}M",
+                     delta=f"@ ${EPA_SOCIAL_COST_CARBON}/t (EPA 2023)",
                      delta_color="off")
     else:
         eco_c.metric("Carbon Value", "—")
@@ -4572,8 +4600,11 @@ def _render_natcap_fixed_scenario_view(scenario_id):
     if flood_red is not None:
         eco_d.metric(
             "Flood Retention", f"{flood_red:.1f}",
+            # NatCap fix #2 — shortened delta. The "design-storm saturation,
+            # NatCap finding" detail lives in the help tooltip below, not
+            # in the delta-line which truncates aggressively at 2x2 width.
             delta=(None if scenario_id == "baseline"
-                   else "≈ invariant (design-storm saturation, NatCap finding)"),
+                   else "≈ invariant"),
             delta_color="off",
             help=(
                 "Unitless index (100 − mean CN). Computed by the prototype "
@@ -4653,14 +4684,25 @@ st.session_state.setdefault("scenario_source", "Explorer")
 st.session_state.setdefault("natcap_fixed_scenario_id", "baseline")
 
 if selected_city.startswith("San Antonio"):
+    # NatCap fix #3 — relabel "project" → "reference" everywhere user-
+    # facing. The radio's STORAGE VALUE stays 'NatCap project scenario'
+    # (session_state key 'scenario_source' carries it; the mode-switch
+    # check below compares against it) so a saved session with the old
+    # value still wires through; format_func renders the new "reference"
+    # label without orphaning state.
+    _SCENARIO_SOURCE_LABELS = {
+        "Explorer": "Explorer",
+        "NatCap project scenario": "NatCap reference scenario",
+    }
     _src = st.sidebar.radio(
         "Scenario source",
         options=["Explorer", "NatCap project scenario"],
+        format_func=lambda v: _SCENARIO_SOURCE_LABELS[v],
         key="scenario_source",
         help=(
             "Explorer: build a custom scenario with the sliders below. "
-            "NatCap project scenario: load one of NatCap's published SA "
-            "Urban Agriculture scenarios and see the validated outputs."
+            "NatCap reference scenarios are published project values used "
+            "as anchors for comparison — not recomputed Explorer scenarios."
         ),
     )
     if _src == "NatCap project scenario":
@@ -4668,7 +4710,7 @@ if selected_city.startswith("San Antonio"):
         _fixed_labels = {sid: ns.SA_NATCAP_FIXED_SCENARIOS[sid]["label"]
                          for sid in _fixed_ids}
         _picked = st.sidebar.selectbox(
-            "NatCap scenario",
+            "NatCap reference scenario",
             options=_fixed_ids,
             format_func=lambda sid: _fixed_labels[sid],
             key="natcap_fixed_scenario_id",
@@ -7095,9 +7137,9 @@ with st.expander("Assumptions and limitations"):
     with _assumption_tabs[5]:
         st.markdown(
             "- **Order-of-magnitude only:** total cost = "
-            "`$/acre slider × converted acres`, summed across green "
+            "`\\$/acre slider × converted acres`, summed across green "
             "infrastructure, food forest, and high-density development. "
-            "Default $/acre ranges come from broad planning literature, not "
+            "Default \\$/acre ranges come from broad planning literature, not "
             "site-specific bids.\n"
             "- **Cost-effectiveness ratios** divide the cost by a per-unit "
             "benefit (acre-foot prevented, °F cooling, 1,000 people fed). "

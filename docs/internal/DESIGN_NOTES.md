@@ -749,6 +749,32 @@ Negative-case labels: "Preventable MH Cases" → "Additional MH Cases"; "Avoided
 
 **Code touchpoints.** The card / chart / tooltip render sites in `app.py`; `_CONFIDENCE_BADGES` carries the SA-carbon methodology descriptor.
 
+### 10.3a `$`-escape rule — markdown-rendered elements only
+
+**Decision.** Escape `$` as `\$` ONLY in markdown-rendered Streamlit elements (`st.markdown` / `st.write` / `st.caption` / `st.expander` labels / `st.subheader` / `st.radio` / `st.slider` / `st.button` labels / `help=` tooltips). Do NOT escape `$` in `st.metric` value, label, or delta arguments — `st.metric` renders as plain text, and `\$` in that context prints a literal backslash.
+
+**Why.** Streamlit's markdown renderer supports LaTeX via paired `$…$`. An unescaped paired `$…$` inside a markdown-rendered string can silently flip into LaTeX math (the chars between the `$` get stripped and re-rendered). Escaping with `\$` defuses the pairing. But `st.metric` does NOT pass its arguments through the markdown renderer — the `\` is rendered verbatim, producing the literal `\$` the user sees on screen (caught in post-push eyeball on the NatCap Carbon Value card: "+\$82M" / delta "@ \$190/t").
+
+**Rule (mnemonic).**
+
+- `st.metric(value, …, delta=…)` — plain text. **Bare `$`. Never escape.**
+- `st.markdown / write / caption / subheader / help=` — markdown. **`\$` for any literal `$`** (paired or not — paired-`$` is the bug, but a single bare `$` could also surprise a future edit that adds a second one nearby).
+- DataFrame cells (`st.dataframe(df)`) — plain text. **Bare `$`. Never escape.**
+- DataFrame column headers — typically plain (older Streamlit) but treat as plain. **Bare `$`.**
+
+**Alternatives considered.**
+- Always escape everywhere (safe but produces literal `\$` in metric / DataFrame cells — the bug).
+- Never escape (paired-`$` LaTeX flip in markdown).
+- A per-element lookup table with hard-coded escape rules per call (over-engineered; the renderer behavior is the canonical reference).
+
+**Consequences.**
+- The `verify_baselines.py` `$`-discipline static lint enforces this both ways: (a) no `\$` inside any `st.metric` value/label/delta arg; (b) no paired unescaped `$…$` in any `st.markdown` / `write` / `caption` string. Meta-test: a seeded violation MUST trip the check, otherwise the lint is green-light theatre.
+- Card-value truncation fixes (NatCap fix #2 — 4-card row → 2×2) are independent of this rule but landed in the same commit because both were caught in the same eyeball pass.
+
+**Revisit if.** Streamlit changes the renderer for `st.metric` or DataFrame cells to support markdown — the rule needs to invert for those surfaces. Until then, lock the current behavior.
+
+**Code touchpoints.** The 4 `st.metric` un-escape sites in `_render_natcap_fixed_scenario_view` (Carbon Value baseline + alt, value + delta); the `$`-discipline lint cell in `verify_baselines.py`.
+
 ### 10.4 Sidebar order — configure-then-optimize workflow
 
 **Decision.** Sidebar order: **City → Land Use Scenario → Conversion Mix (with Quick Start buttons) → Placement Strategy → Discover scenarios to validate → Implementation Costs → Advanced Settings.**

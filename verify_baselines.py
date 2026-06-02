@@ -2107,6 +2107,157 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         shared_fire_diffs += 1
 
+    # ── $-discipline static lint (DESIGN_NOTES §10.3a) ───────────────────────
+    # Two halves enforce the markdown-vs-plain $ rule:
+    #   (a) No `\$` inside any st.metric label / value / delta arg —
+    #       st.metric is plain text; `\$` prints a literal backslash (the
+    #       eyeball bug on the NatCap Carbon Value card).
+    #   (b) No paired unescaped `$...$` in any st.markdown / write / caption /
+    #       subheader / info / warning / error / success / title / header
+    #       string — paired-`$` flips into LaTeX math in Streamlit's
+    #       markdown renderer.
+    # Help= tooltips on st.metric ARE markdown-rendered, so `\$` is correct
+    # there and stays — the lint only checks label/value/delta on st.metric.
+    # Meta-test (load-bearing): seed a synthetic violation of each half and
+    # assert the lint flags it. Without this, the lint would be green-light
+    # theatre — it might silently miss real violations.
+    print(f"\n{'=' * 60}")
+    print("$-discipline static lint — markdown vs metric")
+    print(f"{'=' * 60}")
+    dollar_lint_diffs = 0
+    try:
+        import ast as _ast
+        import re as _re
+
+        _MARKDOWN_CALLS = {"markdown", "write", "caption", "subheader",
+                            "title", "header", "info", "warning", "error",
+                            "success"}
+        _METRIC_CALLS = {"metric"}
+        _METRIC_PLAIN_ARGS = {"label", "value", "delta"}
+        _PAIRED_DOLLAR_RE = _re.compile(
+            r'(?<!\\)\$[^$\n]*?(?<!\\)\$'
+        )
+
+        def _extract_string(node):
+            """Best-effort literal-string extraction from an AST node.
+            Returns None for non-literals; for f-strings, joins literal
+            parts (interpolations become empty so the surrounding text
+            still gets scanned)."""
+            if isinstance(node, _ast.Constant) and isinstance(node.value, str):
+                return node.value
+            if isinstance(node, _ast.JoinedStr):
+                parts = []
+                for v in node.values:
+                    if (isinstance(v, _ast.Constant)
+                            and isinstance(v.value, str)):
+                        parts.append(v.value)
+                    else:
+                        parts.append("")
+                return "".join(parts)
+            if isinstance(node, _ast.BinOp) and isinstance(node.op, _ast.Add):
+                a = _extract_string(node.left)
+                b = _extract_string(node.right)
+                if a is None or b is None:
+                    return None
+                return a + b
+            return None
+
+        def _call_attr(node):
+            if (isinstance(node, _ast.Call)
+                    and isinstance(node.func, _ast.Attribute)):
+                return node.func.attr
+            return None
+
+        def _scan_source_for_violations(src):
+            """Returns (markdown_paired_dollar_hits, metric_backslash_dollar_hits).
+            Each list element: (lineno, location_label, sample_text_80)."""
+            tree = _ast.parse(src)
+            mv, mtv = [], []
+
+            class V(_ast.NodeVisitor):
+                def visit_Call(self, node):
+                    fn = _call_attr(node)
+                    if fn in _MARKDOWN_CALLS and node.args:
+                        s = _extract_string(node.args[0])
+                        if s and _PAIRED_DOLLAR_RE.search(s):
+                            mv.append((node.lineno, fn, s[:80]))
+                    if fn in _METRIC_CALLS:
+                        # st.metric(label, value, delta=None, ...)
+                        for i, arg in enumerate(node.args):
+                            if i > 1:
+                                continue
+                            pname = "label" if i == 0 else "value"
+                            s = _extract_string(arg)
+                            if s and "\\$" in s:
+                                mtv.append((node.lineno, pname, s[:80]))
+                        for kw in node.keywords:
+                            if kw.arg not in _METRIC_PLAIN_ARGS:
+                                continue
+                            s = _extract_string(kw.value)
+                            if s and "\\$" in s:
+                                mtv.append(
+                                    (node.lineno, "kw=%s" % kw.arg, s[:80])
+                                )
+                    self.generic_visit(node)
+
+            V().visit(tree)
+            return mv, mtv
+
+        # ── Half (b): paired `$...$` in markdown ──
+        # ── Half (a): `\$` in st.metric label/value/delta ──
+        with open("app.py", "r") as _fh:
+            _app_src = _fh.read()
+        _mv, _mtv = _scan_source_for_violations(_app_src)
+        if _mv:
+            print(f"  FAIL {len(_mv)} paired-`$` violation(s) in "
+                  "st.markdown/write/caption etc — LaTeX flip risk:")
+            for line, fn, s in _mv:
+                print(f"    line {line} ({fn}): {s!r}")
+            dollar_lint_diffs += len(_mv)
+        else:
+            print(f"  OK   no paired-`$` violations in markdown calls")
+        if _mtv:
+            print(f"  FAIL {len(_mtv)} `\\$` violation(s) in "
+                  "st.metric label/value/delta — renders literal backslash:")
+            for line, fn, s in _mtv:
+                print(f"    line {line} ({fn}): {s!r}")
+            dollar_lint_diffs += len(_mtv)
+        else:
+            print(f"  OK   no `\\$` violations in st.metric label/value/delta")
+
+        # ── Meta-test (load-bearing) ──
+        # Seed one violation of EACH half and assert the lint flags it.
+        # Otherwise the lint would be green-light theatre — it might miss
+        # real violations because the scan is broken or the regex is wrong.
+        _seed_markdown = '''
+import streamlit as st
+st.caption("Cost is $5/acre on average; $10/acre with premium materials.")
+'''
+        _seed_metric = '''
+import streamlit as st
+st.metric("Test", "\\$100M", delta="@\\$190/t")
+'''
+        _mv_seed, _mtv_seed = _scan_source_for_violations(_seed_markdown)
+        if not _mv_seed:
+            print(f"  FAIL meta-test (markdown half): seeded paired `$` "
+                  f"violation NOT flagged — lint guards nothing")
+            dollar_lint_diffs += 1
+        else:
+            print(f"  OK   meta-test (markdown half): seeded paired `$` "
+                  f"flagged ({len(_mv_seed)} hit(s))")
+        _mv_seed2, _mtv_seed2 = _scan_source_for_violations(_seed_metric)
+        if not _mtv_seed2:
+            print(f"  FAIL meta-test (metric half): seeded `\\$` in "
+                  f"st.metric NOT flagged — lint guards nothing")
+            dollar_lint_diffs += 1
+        else:
+            print(f"  OK   meta-test (metric half): seeded `\\$` flagged "
+                  f"({len(_mtv_seed2)} hit(s))")
+    except Exception as e:
+        print(f"  ERROR $-discipline lint: {e}")
+        import traceback; traceback.print_exc()
+        dollar_lint_diffs += 1
+
     # ── Sidebar wiring-survival assertion ────────────────────────────────────
     # The sidebar's grown dense and accreted layout refactors. Every Streamlit
     # widget that participates in app behavior carries a `key=` so its
@@ -2232,7 +2383,7 @@ def main(update: bool) -> int:
                    + guard_diffs + ownership_diffs_batch1 + tradeoff_diffs
                    + region_opt_diffs + sidebar_keys_diffs
                    + scenario_state_diffs + section_order_diffs
-                   + shared_fire_diffs)
+                   + shared_fire_diffs + dollar_lint_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -2290,6 +2441,11 @@ def main(update: bool) -> int:
             print(f"{shared_fire_diffs} Optimizer Promotion shared-fire "
                   "divergence(s) — _fire_citywide_optimize / "
                   "_fire_region_optimize helper contract broke.")
+        if dollar_lint_diffs:
+            print(f"{dollar_lint_diffs} $-discipline lint divergence(s) "
+                  "— paired-`$` in markdown (LaTeX flip risk) or `\\$` "
+                  "in st.metric label/value/delta (literal backslash). "
+                  "See DESIGN_NOTES §10.3a.")
         return 1
 
 
