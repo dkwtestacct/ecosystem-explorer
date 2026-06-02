@@ -331,6 +331,11 @@ def optimize_scenario_region(
             + (rl.get('n_for') or res.get('n_for') or 0)
             + (rl.get('n_hd') or res.get('n_hd') or 0)
         )
+        # Converted-acres is published by `evaluate_scenario` on the
+        # results['region_selection'] block; carry it through so the
+        # render layer can display "Converted acres" without recomputing.
+        _rs = res.get('region_selection') or {}
+        engine_row['converted_acres'] = float(_rs.get('converted_acres') or 0.0)
         engine_rows.append(engine_row)
         if progress_cb is not None:
             progress_cb(i + 1, K)

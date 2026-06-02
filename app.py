@@ -4762,7 +4762,14 @@ if _picker_event is not None:
 # WHERE conversions can land (region) → narrows by WHAT KIND (ownership)
 # → optionally searches for promising mixes (Discover).
 _region_layers_available = bool(_CURRENT_CITY_STATE.region_rasters)
-with st.sidebar.expander("Where changes happen", expanded=False):
+# Relay B: Where-changes-happen default-expand by mode. Citywide (no
+# region mask) → collapsed; region active → expanded so the user can see
+# the current selection at a glance. NatCap mode is short-circuited
+# earlier via st.stop(), so the expander never renders in that mode.
+_where_expanded = (
+    st.session_state.get('selected_region_mask') is not None
+)
+with st.sidebar.expander("Where changes happen", expanded=_where_expanded):
     _apply_within = st.radio(
         "Apply changes within",
         options=["Entire analysis area", "Selected regions"],
@@ -5027,17 +5034,13 @@ min_carbon = 0
 
 with st.sidebar.expander("Discover scenarios", expanded=False):
     if not _filter_active:
+        # Citywide-mode Discover copy (Relay B). Honest framing: surrogate
+        # predictions, not engine results — verify via Apply.
         st.caption(
-            "**Searches for promising scenarios to validate further.** The surrogate "
-            "explores ~10,000 candidate strategies in seconds and surfaces a ranked "
-            "shortlist — these are *predicted* values, not final answers. Apply a "
-            "suggestion to compute it with the full prototype engine; export the "
-            "evaluated scenario for canonical InVEST when you want full-resolution "
-            "validation."
+            "Uses a surrogate model to quickly search many citywide mixes. "
+            "Suggestions are **predicted values**; apply one to evaluate it "
+            "with the full raster engine."
         )
-        # The "How this works" sub-expander was unwrapped to an always-visible
-        # caption — Streamlit disallows nested expanders, and the Sidebar Reorg
-        # wraps this whole block in one.
         st.caption(
             "_How this works:_ the optimizer is trained on the prototype's "
             "pre-computed scenario library (~90 full-resolution simulations in "
@@ -5050,9 +5053,9 @@ with st.sidebar.expander("Discover scenarios", expanded=False):
             "verify any optimized scenario in detail."
         )
         st.caption(
-            "Optimizer uses a fast citywide surrogate to search many candidate mixes. "
-            "Set the minimum performance each slider below must meet (or cap runoff); "
-            "the optimizer returns scenarios that satisfy all targets at once."
+            "Set the minimum performance each slider below must meet (or cap "
+            "runoff); the optimizer returns scenarios that satisfy all targets "
+            "at once."
         )
 
         with st.container(border=True):
@@ -5142,14 +5145,17 @@ with st.sidebar.expander("Discover scenarios", expanded=False):
         # on the active region∩ownership mask. Displayed values are engine-true
         # region-local — no surrogate predictions surface. See
         # docs/internal/REGION_OPTIMIZER_SPEC.md.
+        # Region/ownership-mode Discover copy (Relay B). Honesty-critical:
+        # results are computed (not predicted) AND a coarse search (not a
+        # global-optimality guarantee). Both halves stay visible — the
+        # mode-distinction line above and the "coarse search" caveat both
+        # belong here, not buried in the How-this-works detail.
         st.caption(
-            "The fast model shortlists candidate mixes, then the full model "
-            "evaluates the finalists on your selected area. "
-            "**The results shown are real (engine-verified); "
-            "the shortlist may not be exhaustive.**"
+            "**Tests a bounded set of candidate mixes with the full raster "
+            "engine under the current region and eligibility filters.** "
+            "Results are computed, not surrogate-predicted — a coarse "
+            "search, not a guarantee of global optimality."
         )
-        # "How this works" unwrapped to caption (Streamlit disallows nested
-        # expanders inside the Sidebar Reorg's Discover wrapper).
         st.caption(
             "_How this works:_ when a region or ownership filter is active, "
             "the optimizer runs in two stages. Stage 1 — the citywide "
@@ -6533,11 +6539,11 @@ st.divider()
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
 st.markdown("#### Cost Effectiveness")
 st.caption(
-    "Screening metrics — implementation cost divided by the selected "
-    "benefit. Sensitive to small denominators: when a region scenario "
-    "produces only a tiny improvement (e.g. a fraction of an acre-foot "
-    "of runoff reduction, or hundredths of a degree of cooling), the "
-    "ratio's precision is illusory and the cell reads N/A instead of "
+    "Screening metrics — estimated implementation cost divided by each "
+    "measured benefit. Sensitive to small denominators: when a region "
+    "scenario produces only a tiny improvement (e.g. a fraction of an "
+    "acre-foot of runoff reduction, or hundredths of a degree of cooling), "
+    "the ratio's precision is illusory and the cell reads N/A instead of "
     "a spuriously sharp dollar figure. Also N/A when the scenario "
     "performs worse than the baseline on that metric or when no land "
     "is converted."
@@ -7633,36 +7639,49 @@ with tab2:
             and st.session_state.region_optimized_results is not None
             and not st.session_state.region_optimized_results.empty):
         st.divider()
-        st.subheader("Best tested mixes — selected area")
+        # Relay B: header + caption + column set. "Best tested mixes for
+        # selected area" framing keeps the user honest that this is "best
+        # among what we tested," not "the optimum." The caption is the
+        # short engine-vs-prediction reminder; the "coarse search" caveat
+        # is owned by the sidebar Discover copy above. Columns: Rank / Mix
+        # / Score / Converted acres / Cooling / Flood retention / Carbon /
+        # Food / Cost / Apply.
+        st.subheader("Best tested mixes for selected area")
         st.caption(
-            "Best among the candidates the engine tested inside your "
-            "selected area — not the optimum across all possible mixes. "
-            "A fast surrogate shortlists ≈40 candidates and the full "
-            "pixel-level engine evaluates each in-region; the values "
-            "shown are engine outputs, not predictions. The shortlist may "
-            "not be exhaustive. Click Apply to load a recipe into the sliders."
+            "Evaluated with the full raster engine under current region "
+            "and eligibility filters."
         )
-        _ropt = st.session_state.region_optimized_results
+        _ropt = st.session_state.region_optimized_results.copy()
+        # Synthesize Rank + Mix columns for display. Mix folds the three
+        # knob percentages into one cell so the table is readable at
+        # sidebar widths.
+        _ropt = _ropt.reset_index(drop=True)
+        _ropt.insert(0, 'Rank', _ropt.index + 1)
+        _ropt['Mix'] = _ropt.apply(
+            lambda r: (
+                f"{int(r.pct_converted)}% conv — "
+                f"GI {int(r.green_infrastructure_pct)}% / "
+                f"FF {int(r.food_forest_pct)}%"
+            ),
+            axis=1,
+        )
         _opt_carbon_col_label_r = (
             "Carbon (tons CO2e stock)" if _CARBON_IS_STOCK
             else "Carbon (tons CO2e/yr)"
         )
         _r_display_cols = [
-            'scenario_name', 'pct_converted', 'green_infrastructure_pct',
-            'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs',
-            'carbon_tons_co2', 'total_cost_mln', 'weighted_score',
+            'Rank', 'Mix', 'weighted_score', 'converted_acres',
+            'mean_hm', 'flood_reduction', 'carbon_tons_co2',
+            'food_mln_lbs', 'total_cost_mln',
         ]
         _r_col_rename = {
-            'scenario_name':            'Scenario',
-            'pct_converted':            'Total Conversion (%)',
-            'green_infrastructure_pct': 'Green Infra %',
-            'food_forest_pct':          'Food Forest %',
-            'flood_reduction':          'Flood Index',
-            'mean_hm':                  'Cooling HM',
-            'food_mln_lbs':             'Food (M lbs)',
+            'weighted_score':           'Score',
+            'converted_acres':          'Converted acres',
+            'mean_hm':                  'Cooling',
+            'flood_reduction':          'Flood retention',
             'carbon_tons_co2':          _opt_carbon_col_label_r,
-            'total_cost_mln':           'Cost (\\$M)',
-            'weighted_score':           'Weighted score',
+            'food_mln_lbs':             'Food (M lbs)',
+            'total_cost_mln':           'Cost ($M)',
         }
         _r_present = [c for c in _r_display_cols if c in _ropt.columns]
         st.dataframe(_ropt[_r_present].rename(columns=_r_col_rename),
