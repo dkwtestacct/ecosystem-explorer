@@ -5111,11 +5111,10 @@ with _sec_where:
                     f"{_display.lower()}{_plural}."
                 )
                 st.caption(
-                    "Conversions will be placed only inside the selected region, "
-                    "after excluding roads, buildings, and existing natural land. "
-                    "**Metric cards show citywide impact. The Selected-region "
-                    "impact table compares outcomes inside the selected area "
-                    "with the citywide result.**"
+                    "Conversions placed only inside the selected region "
+                    "(after excluding roads, buildings, existing nature). "
+                    "**Cards show citywide; the Selected-region impact "
+                    "table shows in-region vs citywide.**"
                 )
             # Push to session_state for Commit 2's lookup bypass and Commit 1's
             # caller-stamping of results['region_selection']. Note: even with
@@ -6211,7 +6210,7 @@ eco1.metric(
 )
 _render_validation_caption(eco1, "flood_reduction", _validation_scenario_context)
 eco2.metric(
-    "Temperature Change",
+    "Temp change",
     _temp_change_label,
     delta=None,
     delta_color="off",
@@ -6219,7 +6218,7 @@ eco2.metric(
 )
 _render_validation_caption(eco2, "temp_change_f", _validation_scenario_context)
 eco3.metric(
-    "Runoff Volume",
+    "Runoff volume",
     _fmt_runoff(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
     delta_color=_runoff_delta_color,
@@ -6780,8 +6779,8 @@ if _region_local:
                         else 'Carbon Sequestration')
     _rl_rows = [
         ("Flood Retention",          f"{_region_local['flood_reduction']:.1f}",                       f"{results['flood_reduction']:.1f}"),
-        ("Temperature Change",       _fmt_temp_change(_region_local['temp_change_f']),                _fmt_temp_change(results['temp_change_f'])),
-        ("Runoff Volume",            _fmt_runoff(_region_local['runoff_acre_feet']),                  _fmt_runoff(results['runoff_acre_feet'])),
+        ("Temp change",              _fmt_temp_change(_region_local['temp_change_f']),                _fmt_temp_change(results['temp_change_f'])),
+        ("Runoff volume",            _fmt_runoff(_region_local['runoff_acre_feet']),                  _fmt_runoff(results['runoff_acre_feet'])),
         ("Mean NDVI",                f"{_region_local['mean_ndvi']:.3f}",                             f"{results['mean_ndvi']:.3f}"),
         (_rl_carbon_label,           _fmt_co2(_region_local['carbon_tons_co2']),                      _fmt_co2(results['carbon_tons_co2'])),
         ("Food Production",          _fmt_food(_region_local['food_mln_lbs']),                       _fmt_food(results['food_mln_lbs'])),
@@ -6887,7 +6886,7 @@ ceff1.metric(
 )
 _render_validation_caption(ceff1, "cost_per_acft", _validation_scenario_context, explicit_status="prototype")
 ceff2.metric(
-    "Cost / Citywide °F Cooling",
+    "Cost / °F cooling",
     _fmt_ce(ce['cost_per_degf']),
     delta=None,
     delta_color="off" if _temp_change_f >= 0 else "normal",
@@ -7392,8 +7391,16 @@ with tab2:
     _has_comparison_rows = (
         selected_city.startswith("San Antonio") or bool(_saved_for_city)
     )
+    # Adaptive title: under an active region/ownership filter the current-row
+    # values reflect the filter scope, but NatCap fixed scenarios and saved
+    # scenarios were computed under their own scopes (filter-time for saves;
+    # no-filter for NatCap anchors). Surface that in the title so the user
+    # doesn't read across rows as same-scope numbers.
     if _has_comparison_rows:
-        st.markdown("#### Compare scenarios")
+        if _filter_active:
+            st.markdown("#### Compare scenarios — current row reflects active filter")
+        else:
+            st.markdown("#### Compare scenarios")
         st.caption(
             ("NatCap-published reference scenarios, t"
              if selected_city.startswith("San Antonio") else "T")
@@ -7401,6 +7408,8 @@ with tab2:
             "**Source** says where the value comes from; **Validation** says how "
             "it's grounded. Different sources are not directly comparable as "
             "precision numbers; the columns make the difference visible."
+            + (" The current row reflects your active region/ownership filter; "
+               "anchor and saved rows do not." if _filter_active else "")
         )
     else:
         st.markdown("#### Current scenario summary")

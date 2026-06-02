@@ -2603,6 +2603,127 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         sidebar_keys_diffs += 1
 
+    # ── Metric-label char budget — regression guard for FIX BUNDLE #77 ───────
+    # The Fix Bundle shortened three Explorer metric labels:
+    #   "Temperature Change"          → "Temp change"
+    #   "Runoff Volume"               → "Runoff volume"
+    #   "Cost / Citywide °F Cooling"  → "Cost / °F cooling"
+    # The honesty qualifier "Citywide" was dropped from the cost label's
+    # surface but is preserved in that metric's help= tooltip ("the °F is
+    # a citywide mean"). This cell locks both halves:
+    #   (a) the long-form labels must NEVER reappear as an st.metric label
+    #       (positional first arg or label=kwarg) — that's the char-budget
+    #       contract;
+    #   (b) the corresponding short-form labels must still be present (else
+    #       the labels disappeared entirely, also a regression).
+    # Both halves are AST-checked. Meta-test seeds a synthetic violation of
+    # each and asserts the lint catches it.
+    print(f"\n{'=' * 60}")
+    print("Metric-label char budget — FIX BUNDLE #77 regression guard")
+    print(f"{'=' * 60}")
+    label_budget_diffs = 0
+    try:
+        import ast as _ast2
+        # long_form → short_form. The shortened text IS the char budget; if
+        # any long-form text reappears as an st.metric label literal, fail.
+        _LABEL_REGRESSIONS = {
+            "Temperature Change":         "Temp change",
+            "Runoff Volume":              "Runoff volume",
+            "Cost / Citywide °F Cooling": "Cost / °F cooling",
+        }
+
+        def _scan_metric_labels(source: str) -> list[tuple[int, str]]:
+            """Return [(lineno, label_literal)] for every st.metric(...) call
+            in `source` where the label arg is a string literal."""
+            out = []
+            try:
+                tree = _ast2.parse(source)
+            except SyntaxError:
+                return out
+            for node in _ast2.walk(tree):
+                if not isinstance(node, _ast2.Call):
+                    continue
+                f = node.func
+                if not (isinstance(f, _ast2.Attribute) and f.attr == "metric"):
+                    continue
+                # label is positional arg 0 OR kwarg label=
+                lit = None
+                if node.args and isinstance(node.args[0], _ast2.Constant) \
+                        and isinstance(node.args[0].value, str):
+                    lit = node.args[0].value
+                else:
+                    for kw in node.keywords:
+                        if kw.arg == "label" and isinstance(kw.value, _ast2.Constant) \
+                                and isinstance(kw.value.value, str):
+                            lit = kw.value.value
+                            break
+                if lit is not None:
+                    out.append((node.lineno, lit))
+            return out
+
+        with open("app.py", "r") as _f:
+            _app_src = _f.read()
+        _metric_labels = _scan_metric_labels(_app_src)
+
+        # Half (a) — long-form labels must not reappear.
+        _regressions = [(ln, lab) for (ln, lab) in _metric_labels
+                        if lab in _LABEL_REGRESSIONS]
+        if _regressions:
+            for ln, lab in _regressions:
+                print(f"  FAIL line {ln}: st.metric label '{lab}' "
+                      f"reverted to long form (budget: '{_LABEL_REGRESSIONS[lab]}')")
+            label_budget_diffs += len(_regressions)
+        else:
+            print(f"  OK   no long-form labels reappeared in {len(_metric_labels)} "
+                  "st.metric call(s) scanned (3 regression strings checked).")
+
+        # Half (b) — short-form labels must still be present.
+        _present_short = {lab for (_ln, lab) in _metric_labels}
+        _missing = [s for s in _LABEL_REGRESSIONS.values()
+                    if s not in _present_short]
+        if _missing:
+            for s in _missing:
+                print(f"  FAIL short-form label '{s}' is missing from "
+                      "app.py st.metric calls (label disappeared entirely?)")
+            label_budget_diffs += len(_missing)
+        else:
+            print(f"  OK   all 3 shortened labels still present in st.metric calls")
+
+        # Meta-test (load-bearing): synthesize a snippet that reintroduces
+        # one long form and one missing short form; confirm the scan catches
+        # both. If meta-test fails, the lint above is green-light theatre.
+        _seed = (
+            "import streamlit as st\n"
+            "st.metric('Temperature Change', '0.5')\n"  # half (a) — regression
+            "st.metric('Cost / °F cooling', 'N/A')\n"   # half (b) — keep this present
+        )
+        _seed_labels = _scan_metric_labels(_seed)
+        _seed_regs = [(ln, lab) for (ln, lab) in _seed_labels
+                      if lab in _LABEL_REGRESSIONS]
+        _seed_short = {lab for (_ln, lab) in _seed_labels}
+        # Meta seed reintroduces "Temperature Change" (should flag) and
+        # omits "Temp change" + "Runoff volume" (should both flag as missing).
+        _seed_missing = [s for s in _LABEL_REGRESSIONS.values()
+                         if s not in _seed_short]
+        if not _seed_regs:
+            print(f"  FAIL meta-test (a): seeded 'Temperature Change' was "
+                  "NOT flagged — long-form scan is blind")
+            label_budget_diffs += 1
+        else:
+            print(f"  OK   meta-test (a): seeded long-form label correctly "
+                  f"flagged ({len(_seed_regs)} hit)")
+        if len(_seed_missing) < 2:
+            print(f"  FAIL meta-test (b): seeded missing labels were NOT "
+                  f"flagged (expected ≥2, got {len(_seed_missing)})")
+            label_budget_diffs += 1
+        else:
+            print(f"  OK   meta-test (b): seeded missing short-form labels "
+                  f"correctly flagged ({len(_seed_missing)} hit(s))")
+    except Exception as e:
+        print(f"  ERROR metric-label budget scan: {e}")
+        import traceback; traceback.print_exc()
+        label_budget_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -2611,7 +2732,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + region_opt_diffs + sidebar_keys_diffs
                    + scenario_state_diffs + section_order_diffs
                    + shared_fire_diffs + dollar_lint_diffs
-                   + two_relay_diffs)
+                   + two_relay_diffs + label_budget_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -2678,6 +2799,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"{two_relay_diffs} Two-RELAY lock divergence(s) — "
                   "result label / button-paired / provenance Source "
                   "distinction broke. See DESIGN_NOTES §7.3 + §8.3.")
+        if label_budget_diffs:
+            print(f"{label_budget_diffs} metric-label budget divergence(s) "
+                  "— FIX BUNDLE #77 shortened labels reverted (long form "
+                  "reappeared) or short form disappeared from st.metric.")
         return 1
 
 
