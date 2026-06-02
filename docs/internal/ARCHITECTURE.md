@@ -58,14 +58,17 @@ For deeper detail: REFERENCE.md covers methodology (what each metric means); DES
 
 ## 2. Scenario sources
 
-Every scenario carries one of four **provenance** values from `natcap_scenarios.PROVENANCE_*` (re-exported via `export_invest_bundle` as `eib.PROVENANCE_*`):
+Every scenario carries one of five **provenance** values from `natcap_scenarios.PROVENANCE_*` (re-exported via `export_invest_bundle` as `eib.PROVENANCE_*`):
 
 | Constant | Source label (rendered) | Where it fires |
 |---|---|---|
 | `PROVENANCE_BASELINE` | `Baseline` | `results['pct_converted'] == 0` |
 | `PROVENANCE_NATCAP_FIXED` | `NatCap published reference` | the fixed-scenario reference view (SA only) |
 | `PROVENANCE_EXPLORER` | `Explorer-generated` | slider-driven scenarios |
-| `PROVENANCE_OPTIMIZER` | `Surrogate-suggested` | `st.session_state['applied_from_optimizer']` is set (the user clicked Apply on an optimizer suggestion) |
+| `PROVENANCE_OPTIMIZER` | `Citywide surrogate suggestion — engine-evaluated on apply` | `st.session_state['applied_from_optimizer']` is set (the user clicked Apply on a citywide-surrogate suggestion; the main panel reruns `evaluate_scenario` with the applied recipe, so displayed values are engine-true) |
+| `PROVENANCE_REGION_OPTIMIZED` | `Engine-verified — region-optimized` | `st.session_state['applied_from_region_optimizer']` is set (the user clicked Apply on a selected-area full-engine search result; the candidate set was surrogate-shortlisted, the displayed values are engine-true region-local) |
+
+The two optimizer constants are **deliberately distinct** because they describe different search topologies — see `DESIGN_NOTES.md` §7.3 and the Two-RELAY lock cell in `verify_baselines.py` (Assertion C machine-locks the source-label distinction).
 
 **SA-only scope for `PROVENANCE_NATCAP_FIXED`.** The fixed-scenario taxonomy `SA_NATCAP_FIXED_SCENARIOS` lives only for SA — MN has no NatCap fixed-scenario corpus, and the reference view is gated by `selected_city.startswith("San Antonio")`. For SA fixed alternatives (FF_20ac, FF_40ac, FF_MAX, UA_20ac, UA_40ac, UA_MAX), the rasters NatCap provided are **flood-only**: compound LULC inputs for those alternatives weren't shipped (see OPEN_QUESTIONS.md). The export bundle for fixed alternatives is gated accordingly — flood-only, with compound-model args explicitly marked unavailable in `metadata.json` (see §7).
 
@@ -410,6 +413,6 @@ For MN downtown the dollar Flood Damage Avoided card computes against `Damage_lo
 
 ## 11. Future architecture hooks
 
-The current `evaluate_scenario` signature is extensible. A future addition: a `selected_region_mask: np.ndarray | None` parameter that intersects with `CONVERTIBLE_PIXELS` to constrain candidates to a user-drawn polygon or a per-tract opt-in mask. The conceptual seam already exists — `candidate_pixels = CONVERTIBLE_PIXELS ∩ selected_region_mask` — but no UI surface yet drives it.
+The `evaluate_scenario` signature now accepts `selected_region_mask: np.ndarray | None` — intersected with `CONVERTIBLE_PIXELS` to constrain candidates to a polygon or per-tract mask (`candidate_pixels = CONVERTIBLE_PIXELS ∩ selected_region_mask`). The sidebar's Region Selection radio + region-layer dropdown drive it; SA layers are council districts and Bexar tracts, MN is downtown tracts. The Ownership Filter mask composes on top (mask = `selected_region_mask ∩ ownership_mask`), and the selected-area optimizer (`PROVENANCE_REGION_OPTIMIZED`) runs its two-stage surrogate-shortlist + engine-verify pipeline against the same composed mask. Sub-AOI biophysics is **not** isolated — the non-local engine integrates over the full raster, the mask only narrows the convertible sample (see DESIGN_NOTES.md §7.3 for the Phase-0 measurement that pinned this).
 
-This is the one architectural hook worth noting today; other future directions (additional InVEST models, a stratified-impervious-intensity placement option, real CDC/ATSDR Heat Vulnerability Index integration, AlphaEarth NDVI replacement) live in `DESIGN_NOTES` and `OPEN_QUESTIONS` because they're rationale + status rather than architectural seams.
+Open hooks worth noting today: an additional click-to-select region UI on the Map View (already shipped — see REFERENCE.md §2), a stratified-impervious-intensity placement option, real CDC/ATSDR Heat Vulnerability Index integration, AlphaEarth NDVI replacement, and a region-aware surrogate that would let the K=40 engine-verify step earlier or replace it. Rationale + status live in `DESIGN_NOTES` and `OPEN_QUESTIONS`.
