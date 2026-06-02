@@ -3760,7 +3760,16 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             name='Most efficient tradeoffs (saved)',
         ))
 
-    if optimized is not None and len(optimized) > 0:
+    # Defensive backstop: `optimize_scenario` returns a Pareto-frontier
+    # DataFrame on success but a `{'found': False, 'max_*': ...}` dict
+    # when no candidate scenarios meet the targets. The dict has
+    # len > 0 (it has keys) and would slip past a `len(optimized) > 0`
+    # check, then explode at the DataFrame-style `['food_mln_lbs']`
+    # access. Skip the overlay unless `optimized` is actually a
+    # DataFrame with rows.
+    if (isinstance(optimized, pd.DataFrame)
+            and len(optimized) > 0
+            and 'food_mln_lbs' in optimized.columns):
         opt_sizes = np.clip(food_to_size(optimized['food_mln_lbs'].values, max_food), 6, 18)
         # Error bars from uncertainty bands
         flood_err_minus = (optimized['flood_reduction'] - optimized['flood_lower']).values
@@ -6746,11 +6755,19 @@ with tab2:
 
     st.subheader("Tradeoff Space")
     st.caption("Each point is a scenario. Better outcomes are toward the top-right — more cooling and greater flood-risk reduction. Bubble size shows food production for saved and optimized scenarios.")
+    # The optimizer returns a `{'found': False, ...}` dict when no
+    # candidate meets the targets — don't pass that to the chart's
+    # optimizer-overlay path (the `plot_tradeoff` defensive backstop
+    # would skip it too, but coerce here so the intent is visible at
+    # the call site).
+    _opt_for_chart = st.session_state.optimized_results
+    if not isinstance(_opt_for_chart, pd.DataFrame):
+        _opt_for_chart = None
     st.plotly_chart(plot_tradeoff(
         results, scenario_df,
         lookup_table=lookup_table,
         saved=_saved_for_city,
-        optimized=st.session_state.optimized_results
+        optimized=_opt_for_chart,
     ), use_container_width=True)
 
     if TRACTS_DATA_AVAILABLE:

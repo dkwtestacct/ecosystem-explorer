@@ -762,6 +762,94 @@ def main(update: bool) -> int:
             import traceback; traceback.print_exc()
             round_trip_diffs += 1
 
+    # ── Tradeoff-chart empty-optimizer guard ────────────────────────────
+    # Regression test for the KeyError('food_mln_lbs') crash on
+    # plot_tradeoff when `optimize_scenario` returns a no-scenarios
+    # marker (a `{'found': False, ...}` dict, not a DataFrame). The
+    # `len(optimized) > 0` guard in plot_tradeoff was passing the dict
+    # through (dict has keys = len > 0), then the DataFrame-style
+    # `optimized['food_mln_lbs']` access raised. Tests both halves of
+    # the fix (call-site coercion + plot_tradeoff defensive backstop).
+    # Render-path only; the engine never sees the bug, so the 40/40
+    # snapshots don't catch it. Populated case also exercises the
+    # overlay render path to lock in the live column name
+    # (surrogate.py:172 — `food_mln_lbs`).
+    print(f"\n{'=' * 60}")
+    print("Tradeoff chart — empty-optimizer regression test")
+    print(f"{'=' * 60}")
+    tradeoff_diffs = 0
+    try:
+        import pandas as _pd
+        _fake_results = {
+            'flood_reduction':  50.0,
+            'mean_hm':           0.4,
+            'food_mln_lbs':      0.05,
+            'total_cost_mln':    1.5,
+            'scenario_name':    'regression test',
+            'pct_converted':     10,
+            'green_infrastructure_pct': 50,
+            'food_forest_pct':   50,
+        }
+        _fake_scenario_df = _pd.DataFrame({
+            'flood_reduction': [40.0, 50.0, 60.0],
+            'mean_hm':         [0.30, 0.40, 0.50],
+            'food_mln_lbs':    [0.02, 0.05, 0.10],
+            'runoff_acre_feet':[1500, 1400, 1300],
+            'carbon_tons_co2': [100, 500, 1000],
+            'pct_converted':   [5, 10, 20],
+            'green_infrastructure_pct': [50, 50, 50],
+            'food_forest_pct': [50, 50, 50],
+            'scenario_name':   ['a', 'b', 'c'],
+        })
+        _no_scenarios_marker = {
+            'found': False, 'max_flood': 60.0, 'max_cool': 0.5,
+            'max_food': 0.1, 'max_carbon': 1000,
+        }
+        _populated_opt = _pd.DataFrame({
+            'pct_converted':             [10, 20, 30],
+            'green_infrastructure_pct':  [50, 60, 40],
+            'food_forest_pct':           [50, 30, 40],
+            'pct_highdensity':           [ 0, 10, 20],
+            'flood_reduction':           [45.0, 55.0, 60.0],
+            'flood_lower':               [40.0, 50.0, 55.0],
+            'flood_upper':               [50.0, 60.0, 65.0],
+            'mean_hm':                   [0.35, 0.42, 0.48],
+            'hm_lower':                  [0.32, 0.39, 0.45],
+            'hm_upper':                  [0.38, 0.45, 0.51],
+            'food_mln_lbs':              [0.04, 0.06, 0.05],
+            'food_lower':                [0.03, 0.05, 0.04],
+            'food_upper':                [0.05, 0.07, 0.06],
+            'carbon_tons_co2':           [400.0, 800.0, 1200.0],
+            'scenario_name':             ['a', 'b', 'c'],
+        })
+        cases = [
+            ('optimized=None',                                       None),
+            ('optimized={no-scenarios dict marker}',                 _no_scenarios_marker),
+            ('optimized=empty DataFrame',                            _pd.DataFrame()),
+            ('optimized=populated DataFrame (exercises overlay path)', _populated_opt),
+        ]
+        for label, opt_arg in cases:
+            try:
+                _fig = app.plot_tradeoff(
+                    _fake_results, _fake_scenario_df, optimized=opt_arg,
+                )
+                if _fig is None:
+                    print(f"  FAIL  {label}: plot_tradeoff returned None")
+                    tradeoff_diffs += 1
+                else:
+                    print(f"  OK    {label}: plot_tradeoff returned a figure "
+                          f"without raising")
+            except KeyError as e:
+                print(f"  FAIL  {label}: KeyError {e!r} — the bug regressed")
+                tradeoff_diffs += 1
+            except Exception as e:
+                print(f"  FAIL  {label}: unexpected {type(e).__name__}: {e!r}")
+                tradeoff_diffs += 1
+    except Exception as e:
+        print(f"  ERROR setting up tradeoff-chart regression test: {e!r}")
+        import traceback; traceback.print_exc()
+        tradeoff_diffs += 1
+
     # ── Subset Invariants Pass — placement-stage spatial assertions ─────────
     # The 40/40 metric snapshots above verify that engine outputs are
     # reproducible; they DON'T verify that conversions land inside the
@@ -1272,7 +1360,7 @@ def main(update: bool) -> int:
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
                    + round_trip_diffs + subset_diffs + reconcile_diffs
-                   + guard_diffs + ownership_diffs_batch1)
+                   + guard_diffs + ownership_diffs_batch1 + tradeoff_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -1305,6 +1393,10 @@ def main(update: bool) -> int:
             print(f"{ownership_diffs_batch1} ownership finer-classes "
                   "divergence(s) — raster or rule output drifted; see "
                   "OWNERSHIP_FINER_CLASSES_SPEC.md for expected values.")
+        if tradeoff_diffs:
+            print(f"{tradeoff_diffs} tradeoff-chart empty-optimizer "
+                  "regression(s) — plot_tradeoff raised on a no-scenarios "
+                  "or empty optimizer argument.")
         return 1
 
 
