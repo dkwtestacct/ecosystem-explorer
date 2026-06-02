@@ -196,7 +196,40 @@ def _metrics(canon, proto, active):
     return mae_all, mae_act, r, proto_tot, canon_tot
 
 
-def run_compare(fix_dir, cities, slug_fn) -> int:
+# Parity pass criterion. Three thresholds composed as AND — a regression in
+# kernel formula, radius, or per-pixel arithmetic must trip at least one.
+# Justification (measured values; see git log of this file for the run):
+#   MN dep/anx: MAE(active) ≤ 1.1e-9, r = 1.000000, |Δtotal|/total = 0
+#   SA dep/anx: MAE(active) ≤ 2.3e-6, r ≥ 0.99876,  |Δtotal|/total ≤ 0.15%
+# The SA residual is canonical's radius padding + edge-crop alignment +
+# pygeoprocessing FFT noise on the 1713×1984 grid, not a metric divergence
+# (DESIGN_NOTES §6.3). The thresholds sit ~3–5× looser than the measured
+# worst-case so normal noise passes but a real kernel/constant regression
+# (radius bump, wrong RR, wrong baseline_prevalence) tips at least one.
+_PARITY_MAX_MAE_ACT      = 1.0e-5   # cases / pixel
+_PARITY_MIN_R            = 0.99
+_PARITY_MAX_REL_TOTAL    = 0.005    # 0.5% relative total divergence
+
+# Synthetic perturbation factor for --meta-test mode. 0.5% bias is the
+# smallest scaling that confidently trips _PARITY_MAX_REL_TOTAL on every
+# city/outcome — see meta-test logic in run_compare.
+_META_TEST_PROTO_SCALE   = 1.005
+
+
+def _parity_check(city, oc, mae_act, r, proto_tot, canon_tot):
+    """Return (ok, fail_reasons[]). Compose three thresholds as AND."""
+    fails = []
+    if not (mae_act < _PARITY_MAX_MAE_ACT):
+        fails.append(f"MAE(active)={mae_act:.3g} ≥ {_PARITY_MAX_MAE_ACT:.0e}")
+    if not (r > _PARITY_MIN_R):
+        fails.append(f"r={r:.6f} ≤ {_PARITY_MIN_R}")
+    rel = abs(proto_tot - canon_tot) / abs(canon_tot) if canon_tot != 0 else float("inf")
+    if not (rel < _PARITY_MAX_REL_TOTAL):
+        fails.append(f"|Δtotal|/total={rel:.3%} ≥ {_PARITY_MAX_REL_TOTAL:.1%}")
+    return len(fails) == 0, fails
+
+
+def run_compare(fix_dir, cities, slug_fn, meta_test: bool = False) -> int:
     import tempfile
     from natcap.invest import urban_mental_health as umh
 
@@ -243,6 +276,8 @@ def run_compare(fix_dir, cities, slug_fn) -> int:
                 if canon.shape != (h, w):
                     print(f"  [{oc}] WARN aligned canonical {canon.shape} != proto "
                           f"{(h, w)} (dx={dx}, dy={dy}) — skipping"); rc = 1; continue
+                if meta_test:
+                    proto = proto.astype("float64") * _META_TEST_PROTO_SCALE
                 mae_all, mae_act, r, ptot, ctot = _metrics(canon, proto, active)
                 rel = (mae_act / (abs(proto[active]).mean()) if active.any()
                        and abs(proto[active]).mean() > 0 else float("nan"))
@@ -250,25 +285,55 @@ def run_compare(fix_dir, cities, slug_fn) -> int:
                 print(f"       proto total cases = {ptot:,.2f} | canonical = {ctot:,.2f}")
                 print(f"       MAE(active px) = {mae_act:.6g}  (rel {rel:.2%})  "
                       f"| MAE(all px) = {mae_all:.6g} | Pearson r = {r:.6f}")
+                ok, fails = _parity_check(city, oc, mae_act, r, ptot, ctot)
+                if ok:
+                    print(f"       parity: OK  (mae<{_PARITY_MAX_MAE_ACT:.0e}, "
+                          f"r>{_PARITY_MIN_R}, |Δtotal|<{_PARITY_MAX_REL_TOTAL:.1%})")
+                else:
+                    print(f"       parity: FAIL — {'; '.join(fails)}")
+                    rc = 1
     print("\n" + "=" * 70)
+    if meta_test:
+        print(f"META-TEST mode: proto rasters scaled by {_META_TEST_PROTO_SCALE} "
+              "before metrics. Expected: at least one outcome trips the parity "
+              "assert (proves the threshold is sharp).")
+        if rc == 0:
+            print("META-TEST FAILED: every outcome passed despite synthetic "
+                  f"+{(_META_TEST_PROTO_SCALE - 1) * 100:.1f}% bias — the parity "
+                  "threshold is too loose to be a guard.")
+            return 2
+        print("META-TEST OK: synthetic bias correctly tripped the parity assert.")
+        return 0
     print("Algorithmic-fidelity numbers above use matched inputs (uniform CDC "
-          "rate, per-outcome effect_size). The NE kernel itself differs "
-          "(prototype Gaussian sigma=radius/px vs canonical in-radius buffer "
-          "mean) and CANNOT be matched away — it is the divergence being "
-          "measured. Default-input MAE coincides (no per-tract MH-prevalence "
-          "data exists for MN/SA to populate a per-admin prevalence vector).")
+          "rate, per-outcome effect_size). The shipped NE kernel (binary-disk "
+          "buffer mean, app._umh_neighborhood_exposure) matches canonical "
+          "UMH 3.19's ndvi_*_buffer_mean to per-pixel parity: MN MAE(active) "
+          "≤ 1.1e-9 cases/px and r = 1.000000 on both outcomes; SA MAE(active) "
+          "≤ 2.3e-6 cases/px, r ≥ 0.99876, totals diverge by ≤ 0.15% — a "
+          "residual from canonical's radius padding + edge-crop alignment + "
+          "pygeoprocessing FFT noise on the 1713×1984 grid, not a kernel-"
+          "formula divergence (DESIGN_NOTES §6.3). A defensible parity assert "
+          f"fires above MAE(active) ≥ {_PARITY_MAX_MAE_ACT:.0e}, "
+          f"r ≤ {_PARITY_MIN_R}, or |Δtotal|/total ≥ "
+          f"{_PARITY_MAX_REL_TOTAL:.1%}. Run `--meta-test` to confirm the "
+          "assert fires under a small synthetic bias. Default-input MAE "
+          "coincides (no per-tract MH-prevalence data exists for MN/SA to "
+          "populate a per-admin prevalence vector).")
     return rc
 
 
 def main() -> int:
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
+    meta_test = ("--meta-test" in sys.argv[2:])
     if mode == "export":
         return run_export()
     elif mode == "compare":
-        return run_compare(FIX, CITIES_TO_RUN, _slug)
+        return run_compare(FIX, CITIES_TO_RUN, _slug, meta_test=meta_test)
     else:
         print(__doc__)
-        print("ERROR: specify a mode — 'export' (app .venv) or 'compare' (isolated env).")
+        print("ERROR: specify a mode — 'export' (app .venv) or 'compare' "
+              "(isolated env). Add --meta-test to compare to verify the "
+              "parity assert is sharp.")
         return 2
 
 

@@ -1825,9 +1825,13 @@ UMH_SEARCH_RADIUS_M          = 300   # Li et al. 2025; ~10 px at 30 m NLCD
 # a flat disk of radius `search_radius / pixel_size`, matching canonical InVEST
 # UMH 3.19.0's NE kernel exactly — a binary-disk convolution with edge
 # correction, i.e. pygeoprocessing.convolve_2d(ignore_nodata_and_edges=True).
-# Validated to per-pixel parity (MAE ≈ 0, Pearson r ≈ 1.0) against
-# `natcap.invest.urban_mental_health.execute()` via compare_umh_invest.py — see
-# docs/internal/DESIGN_NOTES.md §6.3 "UMH validation against canonical InVEST 3.19.0".
+# Validated to per-pixel parity against `natcap.invest.urban_mental_health.execute()`
+# via compare_umh_invest.py: MN MAE(active) ≤ 1.1e-9 cases/px, r = 1.000000 on
+# both outcomes; SA MAE(active) ≤ 2.3e-6 cases/px, r ≥ 0.998 (SA residual is
+# canonical's radius padding + edge-crop alignment, not a kernel divergence).
+# Locked by the harness's parity-assert pass criterion (MAE < 1e-5, r > 0.99,
+# |Δtotal|/total < 0.5%) with a --meta-test mode that perturbs proto by +0.5%
+# to prove the assert is sharp. See docs/internal/DESIGN_NOTES.md §6.3.
 # (Brief A's Gaussian σ=radius kernel diverged per-pixel; Brief B switched it.)
 _UMH_RADIUS_PX = UMH_SEARCH_RADIUS_M / PIXEL_SIZE_M     # = 10.0 at 30 m / 300 m
 _UMH_APOTHEM   = int(np.floor(_UMH_RADIUS_PX))
@@ -6367,8 +6371,11 @@ hs3.metric(
         "and for scenarios with no greenness change. Negative values mean the "
         "scenario INDUCED cases (e.g. converting open space to high-density "
         "development) — shown in red. "
-        "Validated to per-pixel parity (MAE ≈ 0, r = 1.0) against canonical "
-        "InVEST UMH 3.19.0 (compare_umh_invest.py). NDVI here is a synthetic "
+        "Validated to per-pixel parity against canonical InVEST UMH 3.19.0 "
+        "(compare_umh_invest.py): MN MAE(active) ≤ 1.1e-9 cases/px, r = "
+        "1.000000; SA MAE(active) ≤ 2.3e-6 cases/px, r ≥ 0.998 (the SA "
+        "residual is canonical's radius padding + edge-crop alignment, "
+        "not a kernel-formula divergence). NDVI here is a synthetic "
         "per-land-cover proxy, not satellite-derived — an input-quality caveat "
         "separate from the validated algorithm. "
         "Underlying model: [InVEST Urban Mental Health]"
