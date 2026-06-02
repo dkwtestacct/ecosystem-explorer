@@ -149,20 +149,13 @@ See `NATCAP_COLLABORATION.md §6` Q11.
 
 Planned work that's been scoped but not yet shipped. Not blockers — forward-looking.
 
-### 3.1 Region Selection (Phase 1)
+### 3.1 Region Selection (Phase 1) — Shipped 2026-05
 
-- **Status:** Planned — spec ready, build queued after the doc-batch push
-- **Owner:** In-house
-- **Impact:** Moves the app from "scenario sketchpad" toward "spatial planning workbench" — lets users choose *where* land-use changes are placed from existing polygon layers (council districts / census tracts), instead of relying solely on algorithmic placement strategies. Reduces overclaiming because *where* becomes planner-driven and transparent.
-- **Ask (design decisions already settled):**
-  - **Metric aggregation: citywide.** Region-constrained placement, citywide-impact metrics ("Conversions placed within [region]; metrics show citywide impact"). Honest for non-local models (UNA 800 m, UCM ~600 m, UMH 300 m).
-  - **Polygon source for SA:** council districts (~10, primary) with Bexar census tracts (375) as fallback.
-  - **Polygon source for MN:** downtown census tracts (27).
-  - **Provenance:** `PROVENANCE_EXPLORER` with a "selected-region placement" label — exploratory placement, validated per-pixel engine.
-
-**Build plan:** 6 commits — Phase 0 (investigate) → Commit 1 region-mask infrastructure (GATE) → Commit 2 lookup bypass (GATE) → Commit 3 sidebar UI (batch) → Commit 4 map overlay (batch) → Commit 5 provenance + metadata + optimizer guard (GATE) → Commit 6 testing + edges (batch). `verify_baselines.py` 40/40 on every code commit. Task tracker reference: #34.
-
-**Explicitly out of Phase 1:** click-to-select polygons on the map, freehand polygons, parcel editing, region-clipped per-area metric scorecards, region-specific lookup/surrogate.
+- **Status:** Shipped. Live sidebar Region Selection radio + region-layer dropdown + multiselect drive a `selected_region_mask: np.ndarray | None` parameter on `evaluate_scenario`. Composes with the SA Eligible-land ownership filter (mask = `selected_region_mask ∩ ownership_mask`). The Map View tab carries an interactive click-to-select polygon picker on top of the sidebar selector (originally listed as out-of-Phase-1; promoted in during build).
+- **Polygon sources live:** SA council districts (primary) + Bexar census tracts (fallback); MN downtown census tracts.
+- **Region-local metrics shipped beyond original Phase 1 scope:** a Selected-region impact table on the Scenario tab pairs region-clipped values with citywide for every decomposable metric (reconciliation contract: full-AOI region-local = citywide, machine-checked by `verify_baselines.py`). Two locked caveats render in-app: closed-form SCS-CN flood routing, and reach-model spillover (UCM ~600 m / UNA 800 m / UMH 300 m).
+- **Optimizer integration:** the selected-area path runs surrogate-shortlist + engine-verify against the composed mask and emits `PROVENANCE_REGION_OPTIMIZED` ("Engine-verified — region-optimized"), distinct from the citywide `PROVENANCE_OPTIMIZER`. See `DESIGN_NOTES.md` §7.3 and `REGION_OPTIMIZER_SPEC.md`.
+- **Still out of scope:** freehand polygons, parcel editing, region-specific lookup tables / region-aware surrogate (the engine integrates over the full raster — see §11 of `ARCHITECTURE.md`).
 
 ---
 
