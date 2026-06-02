@@ -225,9 +225,18 @@ def optimize_scenario_region(
         region-local), weighted_score, weights_used (dict serialized per row).
     """
     # ── Prefilter: surrogate score every candidate ────────────────────────
+    # Layer (a): drop pct_converted=0 candidates before Pareto. Zero-
+    # conversion is mathematically a Pareto-efficient frontier point (it
+    # dominates anything strictly worse on every metric — by doing nothing)
+    # but is not a useful discovery suggestion: it's just the baseline the
+    # user already starts from. Filtering here saves the engine eval and
+    # keeps the |converted| > 0 anti-vacuous assertion sharp for the
+    # remaining recipes. Layer (b) below catches the residual case where
+    # pct > 0 still produces zero pixels in a small region.
     grid = candidate_grid[
-        ['pct_converted', 'green_infrastructure_pct', 'food_forest_pct']
-    ].drop_duplicates().reset_index(drop=True)
+        candidate_grid['pct_converted'] > 0
+    ][['pct_converted', 'green_infrastructure_pct', 'food_forest_pct']]\
+        .drop_duplicates().reset_index(drop=True)
     X = grid.to_numpy(dtype=float)
     mean_preds, _, _ = predict_with_uncertainty(surrogate_model, X)
     # Output column order from train_surrogate:
@@ -310,11 +319,34 @@ def optimize_scenario_region(
             rl.get('cooling_energy_savings_usd')
             or res.get('cooling_energy_savings_usd', 0)
         )
+        # Region-local converted count — n_wet + n_for + n_hd — is the
+        # canonical measure of "did this recipe actually place pixels in
+        # the selected area." Layer (b) of the zero-conversion filter
+        # drops rows where this is 0 before dedup/top-5. Catches the
+        # residual case Layer (a) misses: a small region where pct > 0
+        # rounds n_convert down to zero (e.g. region with 4 eligible px
+        # and pct_converted=10 → n_convert = 0).
+        engine_row['_converted_pixels_in_region'] = int(
+            (rl.get('n_wet') or res.get('n_wet') or 0)
+            + (rl.get('n_for') or res.get('n_for') or 0)
+            + (rl.get('n_hd') or res.get('n_hd') or 0)
+        )
         engine_rows.append(engine_row)
         if progress_cb is not None:
             progress_cb(i + 1, K)
 
     engine_df = pd.DataFrame(engine_rows)
+
+    # Layer (b): drop any K-row whose engine eval converted zero pixels
+    # in-region. Always drops alongside Layer (a)'s pct=0 (defense in
+    # depth) and additionally catches pct > 0 / rounds-to-zero cases.
+    # The remaining records all have |converted| > 0; the assertion in
+    # verify_baselines passes for the right reason, not vacuously.
+    engine_df = engine_df[engine_df['_converted_pixels_in_region'] > 0]\
+        .drop(columns=['_converted_pixels_in_region'])\
+        .reset_index(drop=True)
+    if engine_df.empty:
+        return engine_df
 
     # ── Rank by weighted sum over min-max normalized engine values ────────
     norm_cols = {}
