@@ -2107,6 +2107,233 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         shared_fire_diffs += 1
 
+    # ── Two-RELAY lock — Discover surfaces / results / button pairing ───────
+    # Three assertions machine-lock the two-optimizer distinction across the
+    # sidebar Discover surface, the main-panel CTA, and the result-panel
+    # headers. Each has a meta-test that seeds a violation and asserts the
+    # check trips — without the meta-test the assertions would be green-light
+    # theatre.
+    #   A — Result labels: every result-panel st.subheader/markdown title in
+    #       the Discover-result render path is in {"Suggested scenarios",
+    #       "Best tested mixes …"}. No "Optimized" / "Optimal" / "optimum"
+    #       on result-panel labels. Meta-test: seeded "Optimized suggestions"
+    #       trips the check.
+    #   B — Button paired: every st.button("Optimize", …) in the Discover
+    #       surfaces co-renders with a known mode-label string ("Citywide
+    #       surrogate search" or "Selected-area full-engine search") within
+    #       N lines before it. Meta-test: removing the mode label trips the
+    #       check.
+    #   C — Provenance Source distinction: the applied-result Source line
+    #       (PROVENANCE_OPTIMIZER vs PROVENANCE_REGION_OPTIMIZED via
+    #       _PROVENANCE_HEADER_INFO) maps citywide-origin → "surrogate
+    #       suggestion" string; region-origin → "region-optimized" string.
+    #       Never collapsed/swapped. Meta-test: a swapped mapping trips the
+    #       check.
+    print(f"\n{'=' * 60}")
+    print("Two-RELAY lock — Discover surfaces / results / button pairing")
+    print(f"{'=' * 60}")
+    two_relay_diffs = 0
+    try:
+        import re as _re2
+        with open("app.py", "r") as _fh:
+            _src2 = _fh.read()
+
+        # ── Assertion A: result-label lint ──
+        # The result-panel titles are rendered via:
+        #   st.subheader("Suggested scenarios")     — citywide
+        #   st.subheader("Best tested mixes for selected area") — region
+        # Anything matching "Optimized [Ss]uggestion" or "[Oo]ptimal" on a
+        # result-label site would be a regression.
+        ALLOWED_RESULT_PREFIXES = (
+            "Suggested scenarios",
+            "Best tested mixes",
+        )
+        FORBIDDEN_RESULT_TOKENS = (
+            "Optimized",   # capital — "Optimized Scenario Suggestions"
+            "the optimum",  # we framed as "not the optimum" — caveat OK,
+                            # the assertion below excludes that phrasing
+        )
+
+        def _scan_result_labels(src):
+            """Find st.subheader/st.markdown call sites whose first-arg
+            string starts with a forbidden 'Optimized '/'Optimal' token —
+            a result-label shaped regression. Pure-regex scan; no AST
+            helpers (those live inside another try-block scope)."""
+            issues = []
+            for _m in _re2.finditer(
+                r'st\.(?:subheader|markdown)\(\s*"((?:Optimized|Optimal)[^"\n]{0,80})"',
+                src,
+            ):
+                line = src[:_m.start()].count("\n") + 1
+                issues.append((line, "result_label_token", _m.group(1)))
+            return issues
+
+        _label_issues = _scan_result_labels(_src2)
+        if _label_issues:
+            print(f"  FAIL {len(_label_issues)} result-label violation(s) — "
+                  "no 'Optimized'/'Optimal' on result-panel headers:")
+            for line, kind, s in _label_issues:
+                print(f"    line {line} ({kind}): {s!r}")
+            two_relay_diffs += len(_label_issues)
+        else:
+            print(f"  OK   no 'Optimized'/'Optimal' on result-panel "
+                  f"headers (de-optimize sweep holds)")
+
+        # Confirm the two canonical result headers ARE present.
+        _has_suggested = 'st.subheader("Suggested scenarios"' in _src2
+        _has_best_tested = (
+            'st.subheader("Best tested mixes for selected area"' in _src2
+        )
+        if not _has_suggested:
+            print(f"  FAIL canonical citywide result header 'Suggested "
+                  f"scenarios' missing")
+            two_relay_diffs += 1
+        if not _has_best_tested:
+            print(f"  FAIL canonical region result header 'Best tested "
+                  f"mixes for selected area' missing")
+            two_relay_diffs += 1
+        if _has_suggested and _has_best_tested:
+            print(f"  OK   both canonical result headers present "
+                  f"('Suggested scenarios', 'Best tested mixes for "
+                  f"selected area')")
+
+        # Meta-test (A): seed an "Optimized suggestions" subheader and
+        # assert the scanner flags it.
+        _seed_a = (
+            'import streamlit as st\n'
+            'st.subheader("Optimized suggestions")\n'
+        )
+        _seed_a_issues = _scan_result_labels(_seed_a)
+        if not _seed_a_issues:
+            print(f"  FAIL meta-test (A): seeded 'Optimized suggestions' "
+                  f"NOT flagged — result-label scanner is broken")
+            two_relay_diffs += 1
+        else:
+            print(f"  OK   meta-test (A): seeded 'Optimized suggestions' "
+                  f"correctly flagged ({len(_seed_a_issues)} hit(s))")
+
+        # ── Assertion B: button-paired with mode label ──
+        # Find every st.button("Optimize"...) call and confirm a known
+        # mode-label string appears within the preceding ~120 lines (the
+        # window is generous because the sidebar branch includes the
+        # slider widgets between the mode label and the button — all
+        # within the same st.container scope). Both surfaces have mode
+        # labels:
+        #   "Citywide surrogate search"   (citywide)
+        #   "Selected-area full-engine search"  (region)
+        MODE_LABEL_STRINGS = (
+            "Citywide surrogate search",
+            "Selected-area full-engine search",
+        )
+        # Find Optimize button call sites.
+        _button_lines = []
+        for _m in _re2.finditer(
+            r'st\.button\(\s*"Optimize"', _src2
+        ):
+            # Compute line number from offset.
+            _line = _src2[:_m.start()].count("\n") + 1
+            _button_lines.append(_line)
+        if not _button_lines:
+            print(f"  FAIL Two-RELAY lock — no st.button(\"Optimize\") "
+                  f"call sites found")
+            two_relay_diffs += 1
+        else:
+            _src_lines = _src2.splitlines()
+            _unpaired = []
+            for _btn_line in _button_lines:
+                # Look back N lines for a mode-label string.
+                _start = max(0, _btn_line - 121)
+                _window = "\n".join(_src_lines[_start:_btn_line])
+                _has_label = any(lbl in _window
+                                 for lbl in MODE_LABEL_STRINGS)
+                if not _has_label:
+                    _unpaired.append(_btn_line)
+            if _unpaired:
+                print(f"  FAIL {len(_unpaired)} Optimize button(s) without "
+                      f"a mode label in the preceding 120 lines:")
+                for _l in _unpaired:
+                    print(f"    line {_l}: no 'Citywide surrogate search' "
+                          f"or 'Selected-area full-engine search' nearby")
+                two_relay_diffs += len(_unpaired)
+            else:
+                print(f"  OK   all {len(_button_lines)} Optimize "
+                      f"button(s) paired with mode label "
+                      f"within 120 lines")
+
+        # Meta-test (B): seed an Optimize button without a mode label
+        # nearby; assert it gets flagged.
+        _seed_b = (
+            'import streamlit as st\n'
+            '# no mode label here on purpose\n'
+            'if st.button("Optimize", key="meta_test_btn"):\n'
+            '    pass\n'
+        )
+        # Run the same heuristic on _seed_b.
+        _seed_b_btns = []
+        for _m in _re2.finditer(
+            r'st\.button\(\s*"Optimize"', _seed_b
+        ):
+            _line = _seed_b[:_m.start()].count("\n") + 1
+            _seed_b_btns.append(_line)
+        _seed_b_lines = _seed_b.splitlines()
+        _seed_b_unpaired = []
+        for _btn_line in _seed_b_btns:
+            _start = max(0, _btn_line - 121)
+            _window = "\n".join(_seed_b_lines[_start:_btn_line])
+            _has_label = any(lbl in _window
+                             for lbl in MODE_LABEL_STRINGS)
+            if not _has_label:
+                _seed_b_unpaired.append(_btn_line)
+        if not _seed_b_unpaired:
+            print(f"  FAIL meta-test (B): seeded unpaired Optimize button "
+                  f"NOT flagged — button-paired scanner is broken")
+            two_relay_diffs += 1
+        else:
+            print(f"  OK   meta-test (B): seeded unpaired Optimize button "
+                  f"correctly flagged ({len(_seed_b_unpaired)} hit(s))")
+
+        # ── Assertion C: provenance Source distinction extension ──
+        # The applied-scenario Source rendered by the banner reads from
+        # app._PROVENANCE_HEADER_INFO via the locked provenance constants.
+        # Citywide-origin Source MUST contain "surrogate suggestion";
+        # region-origin Source MUST contain "region-optimized".
+        import natcap_scenarios as _ns2
+        _cw_source = app._PROVENANCE_HEADER_INFO.get(
+            _ns2.PROVENANCE_OPTIMIZER, (None,))[0]
+        _rg_source = app._PROVENANCE_HEADER_INFO.get(
+            _ns2.PROVENANCE_REGION_OPTIMIZED, (None,))[0]
+        _cw_ok = (_cw_source is not None
+                   and "surrogate suggestion" in _cw_source.lower())
+        _rg_ok = (_rg_source is not None
+                   and "region-optimized" in _rg_source.lower())
+        if not _cw_ok:
+            print(f"  FAIL Citywide-origin Source string missing "
+                  f"'surrogate suggestion': {_cw_source!r}")
+            two_relay_diffs += 1
+        if not _rg_ok:
+            print(f"  FAIL Region-origin Source string missing "
+                  f"'region-optimized': {_rg_source!r}")
+            two_relay_diffs += 1
+        if _cw_ok and _rg_ok:
+            print(f"  OK   provenance Source distinction: citywide → "
+                  f"{_cw_source!r}; region → {_rg_source!r}")
+
+        # Meta-test (C): swap the two and confirm both checks would fail.
+        _swap_cw_ok = "region-optimized" in (_cw_source or "").lower()
+        _swap_rg_ok = "surrogate suggestion" in (_rg_source or "").lower()
+        if _swap_cw_ok or _swap_rg_ok:
+            print(f"  FAIL meta-test (C): swapped mapping would still "
+                  f"satisfy the checks — the distinction isn't tight")
+            two_relay_diffs += 1
+        else:
+            print(f"  OK   meta-test (C): swapped mapping (citywide → "
+                  f"'region-optimized', region → 'surrogate suggestion') "
+                  f"correctly FAILS both checks — distinction is tight")
+    except Exception as e:
+        print(f"  ERROR Two-RELAY lock: {e}")
+        import traceback; traceback.print_exc()
+        two_relay_diffs += 1
+
     # ── $-discipline static lint (DESIGN_NOTES §10.3a) ───────────────────────
     # Two halves enforce the markdown-vs-plain $ rule:
     #   (a) No `\$` inside any st.metric label / value / delta arg —
@@ -2383,7 +2610,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + guard_diffs + ownership_diffs_batch1 + tradeoff_diffs
                    + region_opt_diffs + sidebar_keys_diffs
                    + scenario_state_diffs + section_order_diffs
-                   + shared_fire_diffs + dollar_lint_diffs)
+                   + shared_fire_diffs + dollar_lint_diffs
+                   + two_relay_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -2446,6 +2674,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "— paired-`$` in markdown (LaTeX flip risk) or `\\$` "
                   "in st.metric label/value/delta (literal backslash). "
                   "See DESIGN_NOTES §10.3a.")
+        if two_relay_diffs:
+            print(f"{two_relay_diffs} Two-RELAY lock divergence(s) — "
+                  "result label / button-paired / provenance Source "
+                  "distinction broke. See DESIGN_NOTES §7.3 + §8.3.")
         return 1
 
 

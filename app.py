@@ -4268,7 +4268,14 @@ _PROVENANCE_HEADER_INFO = {
     # engine. The validation line reflects that: "full-raster evaluated" rules
     # out the misread that the displayed cards are still surrogate predictions.
     eib.PROVENANCE_OPTIMIZER: (
-        "Surrogate-suggested",
+        # Two-RELAY lock — applied-result Source line. The applied citywide
+        # scenario is engine-evaluated on apply (the main panel reruns
+        # evaluate_scenario with the applied recipe), so the Source surface
+        # frames it precisely: "Citywide surrogate suggestion —
+        # engine-evaluated on apply." Distinct from the region path's
+        # "Engine-verified — region-optimized" below (Assertion C in
+        # verify_baselines machine-locks the distinction).
+        "Citywide surrogate suggestion — engine-evaluated on apply",
         "engine-validated; full-raster evaluated — exploratory candidate "
         "for further validation",
         "blue",
@@ -4769,6 +4776,8 @@ _carbon_rates_available = not _CARBON_IS_STOCK
 _sec_scenario          = st.sidebar.expander("Scenario", expanded=True)
 _sec_discover          = st.sidebar.expander("Discover scenarios",
                                               expanded=True)
+_sec_advanced_quality  = st.sidebar.expander("Advanced model quality",
+                                              expanded=False)
 _sec_where             = st.sidebar.expander("Where changes happen",
                                               expanded=_where_expanded)
 _sec_eligibility       = (
@@ -5353,29 +5362,28 @@ min_carbon = 0
 
 with _sec_discover:
     if not _filter_active:
-        # Citywide-mode Discover copy — Relay 1 locked pair: this caption
-        # matches the main-panel CTA's caption verbatim so the two surfaces
-        # carry the same one-line honesty framing.
-        st.caption(
-            "Citywide surrogate search — predicted suggestions; apply "
-            "to verify."
-        )
-        st.caption(
-            "_How this works:_ the optimizer is trained on the prototype's "
-            "pre-computed scenario library (~90 full-resolution simulations in "
-            "Fast mode; more in the higher-quality modes). It explores "
-            "combinations of conversion percentage and conversion mix far faster "
-            "than running the full model — but each returned scenario is a "
-            "surrogate prediction, not a full simulation. It targets flood "
-            "retention, cooling, food production, and carbon; cost and placement "
-            "strategy are not part of the surrogate. Use the controls above to "
-            "verify any suggested scenario in detail."
-        )
-        st.caption(
-            "Set the minimum performance each slider below must meet (or cap "
-            "runoff); the optimizer returns scenarios that satisfy all targets "
-            "at once."
-        )
+        # Two-RELAY lock — citywide mode label + caption + Optimize button
+        # co-render in the same block (Assertion B in verify_baselines).
+        # Mode label is promoted markdown (visible), not a faint caption.
+        st.markdown("**Citywide surrogate search**")
+        st.caption("Predicted suggestions — apply one to verify.")
+        with st.popover("How this works"):
+            st.markdown(
+                "The optimizer is trained on the prototype's pre-computed "
+                "scenario library (~90 full-resolution simulations in Fast "
+                "mode; more in the higher-quality modes). It explores "
+                "combinations of conversion percentage and conversion mix "
+                "far faster than running the full model — but each returned "
+                "scenario is a **surrogate prediction**, not a full "
+                "simulation. It targets flood retention, cooling, food "
+                "production, and carbon; cost and placement strategy are "
+                "not part of the surrogate.  \n"
+                "  \n"
+                "Set the minimum performance each slider below must meet "
+                "(or cap runoff); the optimizer returns scenarios that "
+                "satisfy all targets at once. Use the controls above to "
+                "verify any suggested scenario in detail."
+            )
 
         with st.container(border=True):
             # Flood slider max uses the precomputed grid's actual achievable maximum
@@ -5443,12 +5451,14 @@ with _sec_discover:
                     "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
                 )
 
-            # Optimizer Promotion — secondary-styled sidebar trigger. The
-            # main-panel CTA is the primary; both share _fire_citywide_optimize
-            # with identical args. Verb aligned with the CTA ("Find promising
-            # scenarios"). Both write to st.session_state.optimized_results.
-            if st.button("Find promising scenarios",
-                         key="sidebar_citywide_opt_button"):
+            # Two-RELAY lock — sidebar "Optimize" trigger. Co-renders with
+            # the mode label + caption above in the same st.container
+            # (Assertion B in verify_baselines locks the pairing).
+            # use_container_width=True gives the button full sidebar
+            # width so the short "Optimize" verb can't wrap.
+            if st.button("Optimize",
+                         key="sidebar_citywide_opt_button",
+                         use_container_width=True):
                 _fire_citywide_optimize(
                     surrogate, min_flood, min_cool, min_food, max_runoff,
                     min_carbon, MAX_FOOD, MAX_FLOOD, MAX_COOL,
@@ -5461,24 +5471,28 @@ with _sec_discover:
         # on the active region∩ownership mask. Displayed values are engine-true
         # region-local — no surrogate predictions surface. See
         # docs/internal/REGION_OPTIMIZER_SPEC.md.
-        # Region/ownership-mode Discover copy — Relay 1 locked pair: matches
-        # the main-panel CTA's caption verbatim. The "coarse search, not
-        # global optimum" honesty caveat lives in the How-this-works detail
-        # below and in the "Best tested mixes" result-panel framing.
+        # Two-RELAY lock — selected-area mode label + caption + Optimize
+        # button co-render in the same block (Assertion B). Mode label is
+        # promoted markdown (visible), not a faint caption. Caption
+        # carries the "bounded search, not global optimum" honesty
+        # qualifier — never let "full-engine" read as exhaustive.
+        st.markdown("**Selected-area full-engine search**")
         st.caption(
-            "Selected-area full-engine search — best tested mixes under "
-            "current filters."
+            "Best tested mixes under current filters — bounded search, "
+            "not a guaranteed global optimum."
         )
-        st.caption(
-            "_How this works:_ when a region or ownership filter is active, "
-            "the optimizer runs in two stages. Stage 1 — the citywide "
-            "surrogate ranks every candidate mix and picks a Pareto-efficient "
-            "shortlist (≈ 40 candidates). Stage 2 — each shortlisted mix is "
-            "evaluated by the full per-pixel engine inside your selected area. "
-            "Values shown on each returned scenario are engine-true region-"
-            "local (not surrogate predictions). To re-rank under new weights, "
-            "click Optimize selected area again (v1 reruns the full pipeline)."
-        )
+        with st.popover("How this works"):
+            st.markdown(
+                "When a region or ownership filter is active, the optimizer "
+                "runs in two stages. **Stage 1** — the citywide surrogate "
+                "ranks every candidate mix and picks a Pareto-efficient "
+                "shortlist (≈ 40 candidates). **Stage 2** — each shortlisted "
+                "mix is evaluated by the full per-pixel engine inside your "
+                "selected area. Values shown on each returned scenario are "
+                "engine-true region-local (not surrogate predictions). To "
+                "re-rank under new weights, click Optimize again (v1 reruns "
+                "the full pipeline)."
+            )
 
         with st.container(border=True):
             st.markdown("**Weight each objective** (0 = ignore, 1 = full weight)")
@@ -5500,12 +5514,11 @@ with _sec_discover:
                 'runoff_acre_feet': w_flood,  # piggyback flood weight onto runoff
             }
 
-            # Optimizer Promotion — secondary sidebar trigger. Main-panel CTA
-            # is the primary; both share _fire_region_optimize with identical
-            # args, so clicking either produces the same engine pass + result
-            # state. Verb aligned with the CTA ("Find best tested mixes").
-            if st.button("Find best tested mixes",
-                         key="region_opt_button"):
+            # Two-RELAY lock — sidebar region "Optimize" trigger paired
+            # with the mode label + caption above (Assertion B).
+            if st.button("Optimize",
+                         key="region_opt_button",
+                         use_container_width=True):
                 _fire_region_optimize(
                     _CURRENT_CITY_STATE, selected_city,
                     DATA_DIR_FLOOD, DATA_DIR_COOLING,
@@ -5515,14 +5528,14 @@ with _sec_discover:
                     _region_opt_weights,
                 )
 
-    # ── Model-quality controls (folded in from prior Advanced Settings) ──
-    # Live at the bottom of Discover scenarios so the optimizer's training-
-    # set size is configurable in the same place the user runs Optimize.
-    # Brief C.2: High Resolution mode is gated behind an explicit opt-in
-    # checkbox; the compute_lookup_table build takes 25–50 minutes on SA
-    # and is fatal on Streamlit Cloud's 1 GB tier.
-    st.divider()
-    st.markdown("**Model quality**")
+# ── Sidebar section: Advanced model quality (Two-RELAY lock) ──────────────
+# Model-quality controls extracted out of Discover into their own collapsed
+# expander below Discover. The Discover surface stays focused on the
+# action (mode label / caption / Optimize). The "Active: N training
+# scenarios" indicator stays as a quiet honest-mode disclosure inside this
+# expander — N reflects the current scenario_df (live), not a hardcoded
+# value. Brief C.2: High Resolution opt-in checkbox preserved.
+with _sec_advanced_quality:
     st.radio(
         "Model quality mode",
         options=MODEL_QUALITY_OPTIONS,
@@ -6041,66 +6054,44 @@ _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
                                     source_suffix=_source_suffix)
 
 # ── Optimizer Promotion — main-panel CTA (centerpiece) ──────────────────────
-# Compact callout right after the banner ("Explorer scenario · …"), above
-# the first metric section (#### Ecological). Action surface only: dynamic
-# header + primary button + one-line mode caption. Both the sidebar Discover
-# button and this CTA route through the same _fire_citywide_optimize /
-# _fire_region_optimize helpers — no duplicate fire state; the
-# verify_baselines shared-fire assertion locks the contract. NatCap mode
-# never reaches here (the scenario-source selector calls st.stop() earlier
-# when "NatCap reference scenario" is picked).
-_cta_rs_info = (results.get('region_selection') or {})
-_cta_rs_layer_key = _cta_rs_info.get('layer')
-_cta_rs_ids = _cta_rs_info.get('selected_ids') or []
-if _filter_active:
-    if _cta_rs_layer_key and _cta_rs_ids:
-        _cta_rs_display = _CURRENT_CITY_STATE.region_layer_display_names.get(
-            _cta_rs_layer_key, "region",
-        )
-        _cta_region_label = (
-            f"{_cta_rs_display}"
-            f"{'s' if len(_cta_rs_ids) != 1 else ''} "
-            f"{', '.join(_cta_rs_ids)}"
-        )
-        _cta_header = f"Discover scenarios for {_cta_region_label}"
-    else:
-        _cta_header = "Discover scenarios for selected area"
-    _cta_button = "Find best tested mixes"
-    _cta_caption = (
-        "Selected-area full-engine search — best tested mixes under "
-        "current filters."
-    )
-else:
-    _cta_header = "Discover scenarios"
-    _cta_button = "Find promising scenarios"
-    _cta_caption = (
-        "Citywide surrogate search — predicted suggestions; apply "
-        "to verify."
-    )
-
+# Two-RELAY lock structure: card title "Discover scenarios" (constant) +
+# promoted mode label (visible markdown, NOT a faint caption) + honesty
+# caption + short "Optimize" button at full container width. The mode
+# label + caption + button co-render in the same st.container — Assertion
+# B in verify_baselines machine-locks this pairing so the big button can
+# never detach from its honesty framing. Both the sidebar Discover button
+# and this CTA route through the same _fire_*_optimize helpers; the
+# shared-fire assertion locks that contract. NatCap mode never reaches
+# here (st.stop() short-circuits the scenario-source selector).
 with st.container(border=True):
-    _cta_col_text, _cta_col_btn = st.columns([3, 1])
-    with _cta_col_text:
-        st.markdown(f"### {_cta_header}")
-    with _cta_col_btn:
-        if st.button(_cta_button, type="primary",
-                     key="main_cta_optimize_button"):
-            if _filter_active:
-                _fire_region_optimize(
-                    _CURRENT_CITY_STATE, selected_city,
-                    DATA_DIR_FLOOD, DATA_DIR_COOLING,
-                    st.session_state.get('selected_region_mask'),
-                    st.session_state.get('selected_ownership_mask'),
-                    cost_gi, cost_ff, cost_hd,
-                    _region_opt_weights,
-                )
-            else:
-                _fire_citywide_optimize(
-                    surrogate, min_flood, min_cool, min_food,
-                    max_runoff, min_carbon,
-                    MAX_FOOD, MAX_FLOOD, MAX_COOL,
-                )
-    st.caption(_cta_caption)
+    st.markdown("### Discover scenarios")
+    if _filter_active:
+        st.markdown("**Selected-area full-engine search**")
+        st.caption(
+            "Best tested mixes under current filters — bounded search, "
+            "not a guaranteed global optimum."
+        )
+    else:
+        st.markdown("**Citywide surrogate search**")
+        st.caption("Predicted suggestions — apply one to verify.")
+    if st.button("Optimize", type="primary",
+                  key="main_cta_optimize_button",
+                  use_container_width=True):
+        if _filter_active:
+            _fire_region_optimize(
+                _CURRENT_CITY_STATE, selected_city,
+                DATA_DIR_FLOOD, DATA_DIR_COOLING,
+                st.session_state.get('selected_region_mask'),
+                st.session_state.get('selected_ownership_mask'),
+                cost_gi, cost_ff, cost_hd,
+                _region_opt_weights,
+            )
+        else:
+            _fire_citywide_optimize(
+                surrogate, min_flood, min_cool, min_food,
+                max_runoff, min_carbon,
+                MAX_FOOD, MAX_FLOOD, MAX_COOL,
+            )
 
 # ── Scenario audit expander ───────────────────────────────────────────────────
 # Single-place view of the current scenario's record. Every field reads the
