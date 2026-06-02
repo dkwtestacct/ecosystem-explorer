@@ -5067,77 +5067,130 @@ if _eligibility_available:
             "- Roads (always excluded)\n"
             "- Existing natural land (always excluded)"
         )
-        # Locked text — the honesty crux for the panel. Edits to this string
-        # must update OWNERSHIP_FINER_CLASSES_SPEC.md and DATA_INVENTORY in
-        # lockstep — the spec quotes it verbatim.
+        # Locked planning-screen caveat — Relay 2 #2 short version stays
+        # visible. The longer derivation detail moves under the
+        # "How ownership classes are derived" expander below.
         st.caption(
-            "Ownership filters are feasibility constraints. They limit "
-            "where conversions may be placed but do not change the "
-            "biophysical model equations."
+            "Ownership filters are planning-screen constraints. They limit "
+            "where conversions can be placed but do not verify legal "
+            "availability."
         )
-        # KNOWN_DIVERGENCES surface — the rule-derived caveat lives in the
-        # export bundle's metadata.json (entry id `ownership_rule_derived`,
-        # locked + asserted complete by `verify_baselines.py`'s honesty-
-        # surface block). Surface the same caveat HERE on the panel so a
-        # user choosing a finer class sees the disclosure where they make
-        # the choice, not only after exporting a bundle.
-        st.caption(
-            "Classes are derived from BCAD owner-name + exemption rules "
-            "(see `data/sa/sa_ownership_2band_30m.tif` provenance in "
-            "DATA_INVENTORY). NOT validated against a title registry — a "
-            "planning screen, not verified ownership. `School` = ISD / "
-            "SCHOOL DISTRICT name matches only (public districts; "
-            "charters and private K-12 schools fall through to "
-            "private). `University` spans both public (UT / A&M / Alamo) "
-            "and private (Trinity / St. Mary's / OLLU) campuses — kept "
-            "OUT of the public rollup for that reason."
-        )
-        # Multi-class checkboxes (Batch 4 v2). One checkbox per finer
-        # ownership class + a vacant-overlay toggle + quick-set buttons for
-        # the coarse rollups. Mask = union of checked classes (∩ vacant if
-        # toggled). Single-class selections collapse to existing
-        # OWNERSHIP_MODES keys for backward compat; multi-class persists as
-        # a small composite dict.
-        st.markdown("**Restrict to (check classes to include):**")
+        # KNOWN_DIVERGENCES honesty surface — same caveat as the export
+        # bundle's metadata.json (entry id `ownership_rule_derived`,
+        # asserted complete by verify_baselines). Tucked into a popover
+        # (not an expander — Streamlit disallows nested expanders, and
+        # this block already lives inside _sec_eligibility) so the
+        # visible caption above stays short; the full derivation detail
+        # (BCAD rules, school/university approximate, public rollup
+        # excludes university) is one click away rather than five lines
+        # of preamble.
+        with st.popover("How ownership classes are derived"):
+            st.markdown(
+                "Classes are derived from BCAD owner-name and exemption "
+                "rules. **School** and **university** classes are "
+                "approximate and not title-verified — `School` matches "
+                "ISD / SCHOOL DISTRICT name patterns only (charters and "
+                "private K-12 schools fall through to private); "
+                "`University` spans both public (UT / A&M / Alamo) and "
+                "private (Trinity / St. Mary's / OLLU) campuses and is "
+                "kept OUT of the Public rollup for that reason. See "
+                "`data/sa/sa_ownership_2band_30m.tif` provenance in "
+                "`docs/internal/DATA_INVENTORY.md`."
+            )
+        # Preset dropdown (Relay 2 #3). Replaces the 3 narrow quick-set
+        # buttons with a single selector — cleaner at sidebar width and
+        # keeps the most-used coarse rollups one click away. Custom keeps
+        # the per-class checkboxes visible for manual control. The preset
+        # writes to the same `elf_check_<cls>` / `elf_check_vacant` session
+        # state keys the checkboxes own, so the composite-filter wiring
+        # (mask = union of checked classes ∩ vacant overlay; single-class
+        # collapses to OWNERSHIP_MODES key; multi-class persists as
+        # composite dict) is unchanged — the dropdown is a way to SET the
+        # checkboxes, not a parallel filter source.
         _elf_finer = ('city', 'county', 'state_federal', 'school', 'university')
 
-        # Quick-set buttons — set the matching combination of checkboxes via
-        # session_state before the checkboxes render. `st.rerun()` after each
-        # so the new defaults take effect.
-        _qcol_a, _qcol_b, _qcol_c = st.columns(3)
-        if _qcol_a.button("Public", help="Check city + county + state-federal + school (the public rollup)."):
-            for _cls in _elf_finer:
-                st.session_state[f"elf_check_{_cls}"] = (_cls != "university")
-            st.session_state["elf_check_vacant"] = False
-            st.rerun()
-        if _qcol_b.button("Vacant + Public", help="Check the public rollup AND the vacant-only overlay."):
-            for _cls in _elf_finer:
-                st.session_state[f"elf_check_{_cls}"] = (_cls != "university")
-            st.session_state["elf_check_vacant"] = True
-            st.rerun()
-        if _qcol_c.button("Clear", help="Uncheck every class and the vacant overlay."):
-            for _cls in _elf_finer:
-                st.session_state[f"elf_check_{_cls}"] = False
-            st.session_state["elf_check_vacant"] = False
-            st.rerun()
-
-        _own_classes_checked = []
-        for _cls in _elf_finer:
-            _label = OWNERSHIP_MODES[_cls]['label']
-            if st.checkbox(_label, value=False, key=f"elf_check_{_cls}"):
-                _own_classes_checked.append(_cls)
-        _vacant_overlay = st.checkbox(
-            "Limit to vacant parcels only",
-            value=False,
-            key="elf_check_vacant",
+        _PRESET_OPTIONS = [
+            "None",
+            "Public land",
+            "Vacant land",
+            "Vacant + public",
+            "Custom",
+        ]
+        # Default to None on first render; the preset selectbox isn't
+        # session_state-keyed because the checkboxes ARE the canonical
+        # state — the preset writes through to them and then renders the
+        # checkbox values.
+        st.markdown("**Preset:**")
+        _elf_preset = st.selectbox(
+            "Ownership preset", options=_PRESET_OPTIONS, index=0,
+            label_visibility="collapsed",
             help=(
-                "Narrow the selection above to parcels flagged as vacant "
-                "(no improvement value, exempt-keyed; see the vacancy "
-                "methodology in DATA_INVENTORY). Composable with any "
-                "checked class — e.g. School district + vacant = vacant ISD "
-                "parcels."
+                "Quick-set the checkboxes below. Public rollup = "
+                "city + county + state-federal + school (university is "
+                "kept out — mixed public + private). Vacant overlays the "
+                "vacancy filter. Pick 'Custom' to set the checkboxes "
+                "individually."
             ),
+            key="elf_preset",
         )
+        # Apply the preset's check pattern by writing the checkboxes'
+        # session_state. The checkboxes render below and pick up the new
+        # values. Tracking the prior preset lets us write-through only on
+        # change so manual checkbox edits aren't clobbered every rerun.
+        _prev_preset = st.session_state.get("_elf_preset_applied")
+        if _elf_preset != _prev_preset and _elf_preset != "Custom":
+            if _elf_preset == "None":
+                for _cls in _elf_finer:
+                    st.session_state[f"elf_check_{_cls}"] = False
+                st.session_state["elf_check_vacant"] = False
+            elif _elf_preset == "Public land":
+                for _cls in _elf_finer:
+                    st.session_state[f"elf_check_{_cls}"] = (
+                        _cls != "university"
+                    )
+                st.session_state["elf_check_vacant"] = False
+            elif _elf_preset == "Vacant land":
+                for _cls in _elf_finer:
+                    st.session_state[f"elf_check_{_cls}"] = False
+                st.session_state["elf_check_vacant"] = True
+            elif _elf_preset == "Vacant + public":
+                for _cls in _elf_finer:
+                    st.session_state[f"elf_check_{_cls}"] = (
+                        _cls != "university"
+                    )
+                st.session_state["elf_check_vacant"] = True
+            st.session_state["_elf_preset_applied"] = _elf_preset
+
+        # Checkboxes — visible only under "Custom" to keep the panel
+        # uncluttered for the coarse rollups. Their session_state still
+        # exists across modes (the preset just writes through), so the
+        # composite-filter resolver below sees the same values either way.
+        _own_classes_checked = []
+        if _elf_preset == "Custom":
+            st.markdown("**Restrict to (check classes to include):**")
+            for _cls in _elf_finer:
+                _label = OWNERSHIP_MODES[_cls]['label']
+                if st.checkbox(_label, value=False, key=f"elf_check_{_cls}"):
+                    _own_classes_checked.append(_cls)
+            _vacant_overlay = st.checkbox(
+                "Limit to vacant parcels only",
+                value=False,
+                key="elf_check_vacant",
+                help=(
+                    "Narrow the selection above to parcels flagged as vacant "
+                    "(no improvement value, exempt-keyed; see the vacancy "
+                    "methodology in DATA_INVENTORY). Composable with any "
+                    "checked class — e.g. School district + vacant = vacant "
+                    "ISD parcels."
+                ),
+            )
+        else:
+            # Non-Custom: read the session_state values the preset set
+            # (or that were left over from a previous Custom session).
+            for _cls in _elf_finer:
+                if st.session_state.get(f"elf_check_{_cls}", False):
+                    _own_classes_checked.append(_cls)
+            _vacant_overlay = st.session_state.get("elf_check_vacant", False)
 
         # Resolve the (checked classes, vacant overlay) UI state. Storage
         # value collapses to a single OWNERSHIP_MODES key when possible
@@ -6606,10 +6659,16 @@ if _region_local:
     _rs_plural = "s" if len(_rs_ids) != 1 else ""
     _rs_label = f"{_rs_display}{_rs_plural} {', '.join(_rs_ids)}" if _rs_ids else _rs_display
     st.markdown(f"#### Selected-region impact — {_rs_label}")
+    # Relay 2 #4 — short locked visible caption. Region-local summary +
+    # reach-effect honesty (cooling / nature access / mental-health
+    # exposure may extend beyond the selected boundary). The
+    # flood-routing and food/cost/carbon-matching detail moves below
+    # into expanders.
     st.caption(
-        f"What the scenario does **inside the selected {_rs_display.lower()}{_rs_plural}** "
-        "specifically — paired with the citywide reading so the pairing keeps it honest. "
-        "Citywide cards above are the system-level reading; this is the within-region complement."
+        "Region-local values summarize the selected area; citywide "
+        "values show the system-level result. Reach effects for "
+        "cooling, nature access, and mental-health exposure may "
+        "extend beyond the selected boundary."
     )
 
     # Locked per-metric display rows. Each row pulls citywide from `results`,
@@ -6702,22 +6761,22 @@ if _region_local:
             "treatment. The equality is correct, not a rounding artifact."
         )
 
-    # Locked caveats from REGION_LOCAL_METRICS_SPEC.md.
-    st.caption(
-        "**Flood routing caveat.** The flood metrics are a closed-form "
-        "SCS-CN volume derived from the region's mean curve number scaled to "
-        "its developed area — they are a regional rate, NOT a per-pixel sum, "
-        "and NOT routed hydrology. The region values legitimately differ from "
-        "citywide because the mean CN and developed area are computed over a "
-        "smaller pixel set; they don't measure flood protection *delivered to* "
-        "the region."
-    )
-    st.caption(
-        "**Reach-effect caveat.** Cooling, nature access, and mental-health "
-        "exposure effects can extend beyond the selected boundary. The region-local "
-        "column summarizes people/pixels inside the selected area; spillover "
-        "effects outside the boundary are reflected in the citywide column."
-    )
+    # Relay 2 #4 — flood-routing detail moved into an expander; the
+    # reach-effect caveat moved into the short visible caption at the top
+    # of the Selected-region impact section (above the table).
+    with st.expander(
+        "Flood routing — why region and citywide flood values differ",
+        expanded=False,
+    ):
+        st.caption(
+            "The flood metrics are a closed-form SCS-CN volume derived "
+            "from the region's mean curve number scaled to its developed "
+            "area — a regional rate, NOT a per-pixel sum, and NOT routed "
+            "hydrology. Region values legitimately differ from citywide "
+            "because the mean CN and developed area are computed over a "
+            "smaller pixel set; they don't measure flood protection "
+            "*delivered to* the region."
+        )
 
 st.divider()
 

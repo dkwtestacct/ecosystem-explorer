@@ -2129,6 +2129,11 @@ def main(update: bool) -> int:
         _SIDEBAR_STATIC_KEYS_EXPECTED = frozenset({
             'carbon_rate_ff', 'carbon_rate_gi',
             'elf_check_vacant',
+            # Relay 2 #3 — Ownership preset dropdown. Sets the per-class
+            # `elf_check_<cls>` + `elf_check_vacant` session-state values;
+            # the checkboxes are the canonical source, the preset is a
+            # write-through convenience selector.
+            'elf_preset',
             'hi_res_confirmed',
             'model_quality',
             'natcap_fixed_scenario_id',
