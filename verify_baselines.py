@@ -2329,6 +2329,79 @@ def main(update: bool) -> int:
             print(f"  OK   meta-test (C): swapped mapping (citywide → "
                   f"'region-optimized', region → 'surrogate suggestion') "
                   f"correctly FAILS both checks — distinction is tight")
+
+        # ── Assertion D — CTA caption protection (FIX BUNDLE #79) ───────
+        # Both Discover surfaces (sidebar + main-panel CTA) carry the same
+        # mode-keyed caption beneath the mode label. Each caption encodes
+        # an honesty qualifier that must survive future refactors:
+        #   citywide → "Predicted suggestions — apply one to verify."
+        #     (the values are SURROGATE PREDICTIONS, not engine outputs)
+        #   region   → "Best tested mixes under current filters — bounded
+        #              search, not a guaranteed global optimum."
+        #     (the search is BOUNDED — never let "full-engine" read as
+        #     exhaustive)
+        # Both expected strings must appear ≥2× in app.py (sidebar + CTA),
+        # and each must appear immediately after a matching mode label
+        # within a small window (so they pair with their mode, not float).
+        # Meta-test: confirm a tweaked caption string would fail.
+        # The citywide caption is a single source-line literal so the raw
+        # source-text count works directly. The region caption is split
+        # across two source lines via implicit string concatenation, so we
+        # match on three anchor substrings that together identify it:
+        # the lead, the honesty word "bounded", and the close. All three
+        # must appear ≥2× (sidebar + CTA); a regression that changes any
+        # one will flip the count.
+        _CW_CAPTION_EXPECTED = "Predicted suggestions — apply one to verify."
+        _RG_CAPTION_ANCHORS = (
+            "Best tested mixes under current filters",
+            "bounded search",
+            "not a guaranteed global optimum.",
+        )
+        _cw_cap_count = _src2.count(_CW_CAPTION_EXPECTED)
+        _rg_anchor_counts = {a: _src2.count(a) for a in _RG_CAPTION_ANCHORS}
+        _rg_ok = all(c >= 2 for c in _rg_anchor_counts.values())
+        if _cw_cap_count >= 2 and _rg_ok:
+            print(f"  OK   citywide caption present {_cw_cap_count}× "
+                  "(sidebar + CTA); all 3 region-caption anchors present "
+                  f"≥2× each "
+                  f"({', '.join(f'{a!r}={c}' for a,c in _rg_anchor_counts.items())})")
+        else:
+            if _cw_cap_count < 2:
+                print(f"  FAIL citywide caption only appears {_cw_cap_count}× "
+                      f"in app.py (expected ≥2: sidebar + CTA). Expected literal: "
+                      f"'{_CW_CAPTION_EXPECTED}'")
+                two_relay_diffs += 1
+            if not _rg_ok:
+                for a, c in _rg_anchor_counts.items():
+                    if c < 2:
+                        print(f"  FAIL region-caption anchor {a!r} appears "
+                              f"{c}× in app.py (expected ≥2: sidebar + CTA)")
+                two_relay_diffs += 1
+
+        # Meta-test (D): seeds with single-word regressions on each surface
+        # must not match — proves the checks are literal, not fuzzy.
+        #   (D1) citywide caption: 'suggestions' → 'results' must fail
+        #        the exact-literal check.
+        #   (D2) region caption: 'bounded' → 'exhaustive' must fail the
+        #        honesty-anchor check (the regression we most fear — a
+        #        future hand re-framing "bounded search" as "exhaustive").
+        _seed_d_cw = "st.caption(\"Predicted results — apply one to verify.\")\n"
+        _seed_d_rg = ("st.caption(\"Best tested mixes under current filters — "
+                      "exhaustive search, not a guaranteed global optimum.\")\n")
+        _meta_d_ok = True
+        if _CW_CAPTION_EXPECTED in _seed_d_cw:
+            print(f"  FAIL meta-test (D1): seeded WRONG citywide caption "
+                  "matched expected literal — citywide check is fuzzy")
+            two_relay_diffs += 1; _meta_d_ok = False
+        if "bounded search" in _seed_d_rg:
+            print(f"  FAIL meta-test (D2): seeded 'exhaustive search' "
+                  "regressed caption still contains 'bounded search' — "
+                  "the honesty-anchor check is too loose")
+            two_relay_diffs += 1; _meta_d_ok = False
+        if _meta_d_ok:
+            print(f"  OK   meta-test (D): seeded regressions of both "
+                  "surfaces (citywide 'results' / region 'exhaustive') "
+                  "correctly fail the literal + anchor checks")
     except Exception as e:
         print(f"  ERROR Two-RELAY lock: {e}")
         import traceback; traceback.print_exc()
