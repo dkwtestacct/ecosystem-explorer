@@ -1,7 +1,7 @@
 {
   "avoided_mh_cost_usd": -10647155.0,
-  "carbon_tons_co2": -838409.4,
-  "carbon_value_usd": -159297786.0,
+  "carbon_tons_co2": -838409.2,
+  "carbon_value_usd": -159297748.0,
   "cooling_energy_savings_usd": 0.0,
   "ff_fellback_pixels": 0,
   "flood_damage_avoided_usd": 0.0,
@@ -23,7 +23,7 @@
   "people_fed": 0,
   "people_with_nature_access": 1795476,
   "preventable_mh_cases": -1443.0,
-  "runoff_acre_feet": 53944.6,
+  "runoff_acre_feet": 102059.4,
   "scenario_lulc__md5": "0087912ae5e20a00bb9e273bf7c15146",
   "scenario_lulc_carbon__md5": "ec36bc1c14ce228db859a248e387f754",
   "scenario_lulc_ucm__md5": "ec36bc1c14ce228db859a248e387f754",

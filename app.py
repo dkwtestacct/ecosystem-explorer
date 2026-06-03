@@ -3698,11 +3698,40 @@ with st.spinner("Loading data and pre-computing scenarios..."):
             )
         ACTIVE_MODEL_QUALITY = "balanced"
     else:  # Fast prototype
+        # Lever 1 — Fast mode reads the precomputed dense grid when it
+        # exists (same source as Balanced). The 726-row dense grid is
+        # strictly richer than Fast's historical 91-row coarse grid (pct
+        # step 5/10 vs 10/25); the Fast surrogate trains on the same data
+        # as Balanced but with fewer trees (N_ESTIMATORS distinction
+        # preserved in the SURROGATE_TREES dict). Containment: changes
+        # ONLY the surrogate's training source — the validated full-engine
+        # apply path is untouched, and the 91-row historical surrogate
+        # was itself an exploratory predictor, not an authoritative metric.
+        # Cold start savings on SA: ~130 s of compute_scenario_grid removed.
+        # Falls back to live grid if the CSV is missing (printed warning,
+        # not a hard fail — keeps cold start usable in dev workflows).
         lookup_table = {}
-        scenario_df = compute_scenario_grid(
-            _CURRENT_CITY_STATE, selected_city,
-            DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=10, step_alloc=25,
-        )
+        _dense_configured = city_cfg.get("dense_scenarios_file")
+        if _dense_configured and os.path.exists(_dense_configured):
+            scenario_df = pd.read_csv(_dense_configured)
+        else:
+            if _dense_configured:
+                print(
+                    f"[FAST] dense_scenarios_file {_dense_configured!r} not "
+                    f"found for {selected_city!r} — recomputing on the fly. "
+                    f"Run `python3 precompute_scenarios.py --city "
+                    f"{selected_city!r} --output {_dense_configured}` once "
+                    "to skip this on future cold starts."
+                )
+            else:
+                print(
+                    f"[FAST] no dense_scenarios_file configured for "
+                    f"{selected_city!r} — recomputing on the fly."
+                )
+            scenario_df = compute_scenario_grid(
+                _CURRENT_CITY_STATE, selected_city,
+                DATA_DIR_FLOOD, DATA_DIR_COOLING, step_pct=10, step_alloc=25,
+            )
         ACTIVE_MODEL_QUALITY = "fast"
 
 MAX_FOOD  = float(scenario_df['food_mln_lbs'].max())

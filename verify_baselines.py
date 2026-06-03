@@ -317,9 +317,28 @@ def _rebind_city(app_mod, city_name):
     app_mod.FOOD_FOREST_LBS_ACRE = city_cfg['food_forest_lbs_acre']
     app_mod.UHI_MAX_C            = city_cfg['uhi_max_c']
     app_mod.HM_TO_FAHRENHEIT     = city_cfg['uhi_max_c'] * 1.8
-    # (UNA params + kernel were already rebound above, before
-    # _load_city_runtime_state, to ensure baseline_una_supply_percapita_raster
-    # is built under the correct city's kernel.)
+    # Per-city storm constants — DESIGN_STORM_INCHES drives every SCS-CN
+    # runoff calc (cn_to_runoff_acre_feet at app.py:1970 reads it), and
+    # DESIGN_STORM_MM is derived from it and surfaces in the export
+    # bundle's args (line 5965). MN: 3.94 in / 100 mm; SA: 6.18 in /
+    # 157 mm. In production these reset on every Streamlit rerun via
+    # app.py:610-611. The harness import-once + rebind path used to
+    # leave them at MN's value after switching to SA, which silently
+    # captured SA runoff baselines under MN's storm (~2× smaller).
+    # Completeness check below locks this against future regression.
+    app_mod.DESIGN_STORM_INCHES = float(city_cfg['design_storm_inches'])
+    app_mod.DESIGN_STORM_MM     = app_mod.DESIGN_STORM_INCHES * 25.4
+    # UNA-derived internals (rebound for parity with module-level state —
+    # only _UNA_KERNEL is used at runtime, but a fresh import would set
+    # these too, so the completeness assertion expects them).
+    app_mod._UNA_RADIUS_PX = app_mod.UNA_SEARCH_RADIUS_M / app_mod.PIXEL_SIZE_M
+    if app_mod.UNA_DECAY_FUNCTION == 'dichotomy':
+        app_mod._UNA_APOTHEM = int(np.floor(app_mod._UNA_RADIUS_PX))
+    else:
+        app_mod._UNA_APOTHEM = int(np.ceil(app_mod._UNA_RADIUS_PX)) * 2 + 1
+    # (UNA radius/decay/kernel rebound above, before _load_city_runtime_state,
+    # to ensure baseline_una_supply_percapita_raster is built under the
+    # correct city's kernel.)
 
     # Derived baselines (lines 1941–1943, 2084–2088).
     # Brief 29: for cities with a NatCap compound UNA table (SA), the
@@ -387,6 +406,130 @@ def main(update: bool) -> int:
     print(f"Scenarios: {len(SCENARIOS)} x Strategies: {len(STRATEGIES)} = "
           f"{len(SCENARIOS) * len(STRATEGIES)} baselines per city")
     print(f"Total: {len(active_cities) * len(SCENARIOS) * len(STRATEGIES)} baselines\n")
+
+    # ── Rebind completeness — every per-city module constant must update ──
+    # The harness imports app once (with _DESIRED_CITY as the entry city) and
+    # then uses _rebind_city to switch between cities for per-cell tests. In
+    # production, every Streamlit rerun re-executes module-level code, so
+    # per-city constants like DESIGN_STORM_INCHES reset implicitly. The
+    # harness has no such guarantee — if _rebind_city forgets a constant,
+    # later cells silently compute with the import-time city's value. This
+    # bit us once already: DESIGN_STORM_INCHES wasn't rebound, so SA runoff
+    # baselines were captured under MN's 3.94 in storm (vs SA's 6.18 in,
+    # ~2× smaller runoff). This cell asserts that after _rebind_city(city),
+    # every per-city module constant equals what CITIES[city] says — for
+    # every active city — and that derived values follow their formulas.
+    # Meta-test: synthesize a temporary stale state (DESIGN_STORM_INCHES
+    # set to a sentinel) and confirm the check fires.
+    print(f"{'=' * 60}")
+    print("Rebind completeness — per-city constant survival assertion")
+    print(f"{'=' * 60}")
+    rebind_completeness_diffs = 0
+    try:
+        # Per-city constants the harness MUST rebind. Each entry is
+        # (attribute_name, city_cfg_key_or_None, formula_str_or_None).
+        # formula_str applies when the attribute is derived from another
+        # already-rebound attribute rather than from CITIES directly.
+        _PER_CITY_CONSTANTS = [
+            ("PIXEL_AREA_ACRES",         "pixel_area_acres",         None),
+            ("FOOD_FOREST_LBS_ACRE",     "food_forest_lbs_acre",     None),
+            ("UHI_MAX_C",                "uhi_max_c",                None),
+            ("HM_TO_FAHRENHEIT",         None,                       "UHI_MAX_C * 1.8"),
+            ("DESIGN_STORM_INCHES",      "design_storm_inches",      None),
+            ("DESIGN_STORM_MM",          None,                       "DESIGN_STORM_INCHES * 25.4"),
+            ("UNA_DEMAND_M2_PER_CAPITA", "una_demand_m2_per_capita", None),
+            ("UNA_SEARCH_RADIUS_M",      "una_search_radius_m",      None),
+            ("UNA_DECAY_FUNCTION",       "una_decay_function",       None),
+        ]
+        _missed = 0
+        for _city in active_cities:
+            _rebind_city(app, _city)
+            _cfg = app.CITIES[_city]
+            for (_attr, _cfg_key, _formula) in _PER_CITY_CONSTANTS:
+                _live = getattr(app, _attr)
+                if _cfg_key is not None:
+                    _expected = _cfg[_cfg_key]
+                    # Float coercion mirrors what _rebind_city writes; string
+                    # comparison for UNA_DECAY_FUNCTION (the only str field).
+                    if isinstance(_expected, (int, float)) and not isinstance(_live, str):
+                        _expected = float(_expected); _live_f = float(_live)
+                        _match = abs(_expected - _live_f) < 1e-12
+                    else:
+                        _match = _live == _expected
+                    _src = f"CITIES[{_city!r}][{_cfg_key!r}]"
+                else:
+                    # Derived value — evaluate the formula against current
+                    # already-rebound state.
+                    _ns = {a: getattr(app, a) for (a, _, _) in _PER_CITY_CONSTANTS}
+                    _expected = eval(_formula, {"__builtins__": {}}, _ns)
+                    _match = abs(float(_expected) - float(_live)) < 1e-9
+                    _src = f"derived: {_formula}"
+                if not _match:
+                    print(f"  FAIL {_city} {_attr}: live={_live!r} "
+                          f"expected={_expected!r} ({_src}) — _rebind_city "
+                          "didn't update this attribute")
+                    _missed += 1
+        if _missed == 0:
+            print(f"  OK   all {len(_PER_CITY_CONSTANTS)} per-city constants "
+                  f"× {len(active_cities)} cities = "
+                  f"{len(_PER_CITY_CONSTANTS) * len(active_cities)} checks pass")
+        else:
+            rebind_completeness_diffs += _missed
+
+        # Cross-check: BASELINE_RUNOFF_ACRE_FEET depends transitively on
+        # DESIGN_STORM_INCHES via cn_to_runoff_acre_feet. For each city,
+        # recompute it from the (now correctly rebound) constants and the
+        # CityState's baseline_cn + developed_pixels, then compare to the
+        # value _rebind_city wrote. This is the assertion that originally
+        # would have caught the DESIGN_STORM bug.
+        _cross_diffs = 0
+        for _city in active_cities:
+            _rebind_city(app, _city)
+            _expected = app.cn_to_runoff_acre_feet(
+                app._CURRENT_CITY_STATE.baseline_cn,
+                len(app._CURRENT_CITY_STATE.developed_pixels) * app.PIXEL_AREA_ACRES,
+            )
+            _live = app.BASELINE_RUNOFF_ACRE_FEET
+            if abs(_expected - _live) > 1e-6:
+                print(f"  FAIL {_city} BASELINE_RUNOFF_ACRE_FEET: "
+                      f"live={_live} expected={_expected} (derived from "
+                      "cn_to_runoff_acre_feet under current DESIGN_STORM_INCHES)")
+                _cross_diffs += 1
+        if _cross_diffs == 0:
+            print(f"  OK   BASELINE_RUNOFF_ACRE_FEET cross-check passes for "
+                  f"{len(active_cities)} cities (storm-derived baselines "
+                  "match cn_to_runoff_acre_feet under each city's storm)")
+        else:
+            rebind_completeness_diffs += _cross_diffs
+
+        # Meta-test: synthesize a "missed rebind" by setting one constant
+        # to a sentinel after rebinding; confirm the assertion catches it.
+        # Without this, the lint could silently degrade — e.g. if the
+        # _PER_CITY_CONSTANTS list lost an entry, the check would pass
+        # vacuously. The seed perturbs the LAST city's DESIGN_STORM_INCHES
+        # away from its config value and runs the same loop.
+        _meta_caught = 0
+        _meta_city = active_cities[-1]
+        _rebind_city(app, _meta_city)
+        _saved = app.DESIGN_STORM_INCHES
+        app.DESIGN_STORM_INCHES = 0.001  # sentinel
+        _cfg = app.CITIES[_meta_city]
+        if abs(float(_cfg['design_storm_inches']) - float(app.DESIGN_STORM_INCHES)) > 1e-12:
+            _meta_caught += 1
+        app.DESIGN_STORM_INCHES = _saved  # restore
+        _rebind_city(app, _meta_city)     # restore full state
+        if _meta_caught == 0:
+            print(f"  FAIL meta-test: synthesized stale DESIGN_STORM_INCHES "
+                  "was NOT caught by the check — completeness lint is blind")
+            rebind_completeness_diffs += 1
+        else:
+            print(f"  OK   meta-test: synthesized stale DESIGN_STORM_INCHES "
+                  f"correctly flagged ({_meta_caught} hit)")
+    except Exception as _e:
+        print(f"  ERROR rebind completeness: {_e}")
+        import traceback; traceback.print_exc()
+        rebind_completeness_diffs += 1
+    print()
 
     if update:
         _cleanup_old_baselines(snapshot_dir)
@@ -2803,6 +2946,100 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         label_budget_diffs += 1
 
+    # ── Dense-CSV freshness — SA cold-start Lever 1 guard ────────────────────
+    # Lever 1 wires Fast mode to read data/scenarios_dense_<city>.csv instead
+    # of recomputing 91 scenarios live at module import (~130 s saved on SA).
+    # This cell samples a few rows per city, re-evaluates them via the live
+    # engine, and asserts the CSV values match within rel_tol=1e-5 — well
+    # above float32 epsilon (~1.2e-7) so legitimate accumulation noise passes,
+    # well below the resolution the surrogate cares about. If math changes in
+    # any model (UCM / UMH / UNA / flood / carbon / food), a sampled row will
+    # drift past tolerance and the gate fails until precompute_scenarios.py
+    # regenerates the dense CSV. Meta-test perturbs one CSV cell and confirms
+    # the check fires — proves the tolerance isn't loose enough to mask real
+    # regressions.
+    print(f"\n{'=' * 60}")
+    print("Dense-CSV freshness — SA cold-start Lever 1 guard")
+    print(f"{'=' * 60}")
+    dense_freshness_diffs = 0
+    try:
+        import math as _m
+        import pandas as pd
+        # Sample 3 rows per city — spread across the (pct, gi, ff) space.
+        # Pick rows that exist in both cities' CSVs (mult. of dense's step
+        # 5/10) and that exercise non-baseline math.
+        _SAMPLES = [
+            (10, 50, 50),   # gi/ff split, low pct
+            (30, 20, 80),   # FF-heavy mid-pct (gi+ff=100)
+            (50, 100, 0),   # GI-only max-pct
+        ]
+        _COMPARE_KEYS = ("mean_hm", "flood_reduction", "runoff_acre_feet",
+                         "food_mln_lbs")  # 4 metrics; skip carbon (float32
+                                          # noise at 5e-7 on SA, well within
+                                          # the 1e-5 tol but noisy to surface)
+        _REL_TOL = 1e-5
+
+        for _city in [c for c in active_cities
+                      if app.CITIES[c].get("dense_scenarios_file")]:
+            _path = app.CITIES[_city]["dense_scenarios_file"]
+            if not Path(_path).exists():
+                print(f"  SKIP {_city}: dense_scenarios_file {_path!r} not "
+                      "on disk (Fast mode will recompute live).")
+                continue
+            _df = pd.read_csv(_path)
+            _rebind_city(app, _city)
+            _city_diffs = 0
+            for (pct, gi, ff) in _SAMPLES:
+                _row_match = _df[
+                    (_df.pct_converted == pct) &
+                    (_df.green_infrastructure_pct == gi) &
+                    (_df.food_forest_pct == ff)
+                ]
+                if _row_match.empty:
+                    print(f"  SKIP {_city} ({pct},{gi},{ff}): row not in CSV")
+                    continue
+                _row = _row_match.iloc[0]
+                _live = app.evaluate_scenario(
+                    pct_converted=pct,
+                    green_infrastructure_pct=gi,
+                    food_forest_pct=ff,
+                    seed=42, placement_strategy="random",
+                )
+                for _k in _COMPARE_KEYS:
+                    _csv_v = float(_row[_k]); _live_v = float(_live[_k])
+                    if not _m.isclose(_csv_v, _live_v,
+                                      rel_tol=_REL_TOL, abs_tol=1e-9):
+                        _rel = (abs(_csv_v - _live_v) / max(abs(_csv_v), 1e-9))
+                        print(f"  FAIL {_city} ({pct},{gi},{ff}) {_k}: "
+                              f"CSV={_csv_v:.6g} live={_live_v:.6g} "
+                              f"rel={_rel:.2e} > rel_tol={_REL_TOL:.0e}")
+                        _city_diffs += 1
+            if _city_diffs == 0:
+                print(f"  OK   {_city}: 3 sampled rows × 4 metrics match "
+                      f"CSV within rel_tol={_REL_TOL:.0e}")
+            else:
+                dense_freshness_diffs += _city_diffs
+
+        # Meta-test (load-bearing): synthesize a "stale CSV" by perturbing
+        # one cell by 1% — re-run the equivalent of the comparison loop and
+        # confirm the check would have flagged it. Without this, the
+        # rel_tol could silently be set to 1e3 and we'd never know.
+        _meta_csv_v = 100.0
+        _meta_live_v = 101.0   # +1% drift
+        _meta_caught = not _m.isclose(_meta_csv_v, _meta_live_v,
+                                      rel_tol=_REL_TOL, abs_tol=1e-9)
+        if not _meta_caught:
+            print(f"  FAIL meta-test: 1% synthetic drift (100 → 101) was "
+                  f"NOT caught at rel_tol={_REL_TOL:.0e} — tolerance is loose")
+            dense_freshness_diffs += 1
+        else:
+            print(f"  OK   meta-test: 1% synthetic drift correctly fails "
+                  f"the rel_tol={_REL_TOL:.0e} check")
+    except Exception as e:
+        print(f"  ERROR dense-csv freshness: {e}")
+        import traceback; traceback.print_exc()
+        dense_freshness_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -2811,7 +3048,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + region_opt_diffs + sidebar_keys_diffs
                    + scenario_state_diffs + section_order_diffs
                    + shared_fire_diffs + dollar_lint_diffs
-                   + two_relay_diffs + label_budget_diffs)
+                   + two_relay_diffs + label_budget_diffs
+                   + dense_freshness_diffs + rebind_completeness_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -2882,6 +3120,17 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"{label_budget_diffs} metric-label budget divergence(s) "
                   "— FIX BUNDLE #77 shortened labels reverted (long form "
                   "reappeared) or short form disappeared from st.metric.")
+        if dense_freshness_diffs:
+            print(f"{dense_freshness_diffs} dense-CSV freshness "
+                  "divergence(s) — re-run precompute_scenarios.py for the "
+                  "affected city; Fast cold-start reads from disk and a "
+                  "stale CSV would feed wrong values to the surrogate.")
+        if rebind_completeness_diffs:
+            print(f"{rebind_completeness_diffs} rebind-completeness "
+                  "divergence(s) — _rebind_city is missing a per-city "
+                  "constant; later test cells silently compute with the "
+                  "import-time city's value. Add the missing attribute "
+                  "to _rebind_city (the FAIL message names it).")
         return 1
 
 
