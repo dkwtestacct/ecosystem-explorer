@@ -455,6 +455,16 @@ Path C chosen because it aligns with NatCap's documented stance and is the most 
 
 **Code touchpoints.** `config.py` SA `damage_table_file = None`; the SA-branch dashboard card; the comparison-table city-conditional row.
 
+### 6.6 Children's nature access — share-only reweight
+
+**Decision.** Reweight only the *access share* of the UNA metric by under-18 population. Do not alter the 2SFCA supply/demand calculation; do not touch UMH.
+
+**Why.** The 2SFCA supply model and UMH's burden-of-illness rate + effect sizes are total-/adult-calibrated. Reweighting the supply convolution or the UMH dose-response by child population would manufacture a number with no calibrated basis. The access *share* is different — it's a clean reweight of an already-valid per-pixel adequacy classification (the same adequate mask the adult metric uses), so "what fraction of *children* live on adequately-served pixels" is well-defined without re-deriving any model. Honest by construction: a real question answered only with quantities the engine already computes validly.
+
+**Source.** Census 2020 PL 94-171 block-level under-18 (`P1_001N − P3_001N`) — chosen over ACS B09001 precisely so the child and total rasters are the same product (no cross-source drift). Per-city extent share anchored in verify_baselines (MN 20.2 %, SA 24.5 %).
+
+**Code touchpoints.** `_invest_una_pct_pop_supply_ge_demand` (optional `child_pop_count_raster` kwarg → 6-tuple return); `calculate_nature_access` (mirrors the extension); `evaluate_scenario` populates `children_nature_access_pct` + `children_with_nature_access` (citywide + region_local); `child_pop_count_raster` on `CityState`; `_load_city_runtime_state` Phase 2b; `scripts/data/download_census_pop*.py`; child-pop staleness cell in `verify_baselines.py` with halve-the-raster meta-test.
+
 ---
 
 ## 7. Lookup table and surrogate optimizer

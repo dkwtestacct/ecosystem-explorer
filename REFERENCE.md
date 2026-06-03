@@ -266,6 +266,14 @@ InVEST UNA implements a Two-Step Floating Catchment Area (2SFCA) method: Step 1 
 
 **Reference:** [InVEST UNA User Guide](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)
 
+#### Children's Nature Access
+
+- **What it measures** — Share of the *modelable-extent under-18 population* whose per-capita urban-nature supply meets the per-city demand standard. The child-facing counterpart to Nature Access.
+- **How it is computed** — Identical 2SFCA pipeline and *adequate* mask as Nature Access. The supply/demand calculation stays on **total** population (the InVEST UNA convention); only the access **share** is reweighted by under-18 population. A pixel is "adequately served" by the same rule as the adult metric — the headline diverges only when the residential distribution of under-18s differs from the total (e.g. school-zone interventions can lift this without moving the citywide adult metric). Returns `children_nature_access_pct` and `children_with_nature_access`; region-local reports both. Reads "—" where no child-population raster is configured (MN + SA configured; Mpls Full unset).
+- **Validation status** — `≈ Aligned method`. Inherits Nature Access's canonical-InVEST 2SFCA validation (MAE 0.0234 m²/person, MN baseline); the child reweight touches only the final share, so no separate per-pixel parity claim. Not a surrogate target — computed deterministically (like UMH), so it carries no P10/P90 band.
+- **Source** — US Census 2020 PL 94-171, block-level. Under-18 = `P1_001N − P3_001N` (total − 18-and-over), uniform-spread to the NLCD grid by the same method as the total-population raster — same source, vintage, resolution; **not** ACS. Per-city extent share anchored in `verify_baselines.py` (MN 20.2 %, SA 24.5 %, ±2 pp, halve-the-raster meta-test).
+- **Caveats** — Block-level counts (uniform within-block density); 2020 vintage. The per-pixel `child ≤ total` invariant holds by construction. Child population is *not* fed into the supply model or UMH — those stay total-/adult-calibrated by design (rationale in DESIGN_NOTES).
+
 #### Preventable MH Cases & Avoided MH Costs
 
 - **What it shows** — Two paired metrics from the InVEST Urban Mental Health Model (v3.19.0): per-year preventable depression-and-anxiety cases attributable to the scenario's NDVI exposure change, and the avoided healthcare cost in $. Both are zero at baseline by construction (ΔNE = 0 → PF = 0). Card displays the value alone; conditional caption below distinguishes "cases prevented" / "cases induced" (and avoided / added costs) based on sign.

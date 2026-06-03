@@ -456,16 +456,16 @@ if 'entry_city' not in st.session_state:
     # Recent updates — short, true as of THIS push. Each bullet names a
     # capability the returning visitor will recognize on their next session;
     # no internal refactors. Items roll off as they age out of the visitor's
-    # "since I last looked" window.
-    st.markdown(
-        "**Recent updates**  \n"
-        "• San Antonio is now the flagship demo.  \n"
-        "• School and university filters are separated.  \n"
-        "• Children's nature access is now reported alongside total "
-        "nature access — most useful with the school-land filter.  \n"
-        "• Selected-area optimization finds best-tested mixes under "
-        "current region and ownership filters."
-    )
+    # "since I last looked" window. Bordered container visually separates
+    # the updates from the primary city-picker decision above.
+    with st.container(border=True):
+        st.markdown(
+            "**Recent updates**  \n"
+            "• San Antonio is now the flagship demo  \n"
+            "• Children's nature access is now reported  \n"
+            "• Optimize within a selected region or ownership filter  \n"
+            "• Separate school and university land filters"
+        )
     st.stop()
 
 # ── Session state ──────────────────────────────────────────────────────────────

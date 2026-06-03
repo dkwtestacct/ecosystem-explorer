@@ -22,7 +22,7 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 - Custom ownership classes: city / county / state-federal / school / university, plus vacant-only overlay
 - *Caveat:* school and university classes are planning-screen filters, not title-verified ownership
 - Eligibility breakdown: selected area → developed land → eligible land → converted acres
-- **School-related scenarios** — restrict conversions to school-related parcels where identified, then evaluate nature access, cooling, and validated Urban Mental Health outcomes
+- **School-related scenarios** — restrict conversions to school-related parcels where identified, then evaluate nature access, **children's nature access**, cooling, and validated Urban Mental Health outcomes
 
 ## Outcome models
 - **Urban Cooling** — temperature change, °F cooling, cooling energy savings
@@ -30,6 +30,7 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 - **Carbon** — carbon storage / sequestration change, carbon value
 - **Urban Nature Access** — nature access %, nature exposure / NDVI indicators
 - **Urban Mental Health** — validated InVEST UMH estimates of preventable depression/anxiety cases and avoided costs
+- **Children's Nature Access** — under-18 share of nature access (Census 2020 PL 94-171 under-18; access share child-weighted, supply stays on total pop)
 - **Food** — annual production, people fed
 - **Cost-effectiveness** — $/acre-foot runoff · $/°F cooling · $/1,000 people fed
 
