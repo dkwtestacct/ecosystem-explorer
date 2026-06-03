@@ -7124,8 +7124,20 @@ _render_validation_caption(econ5, "carbon_value_usd", _validation_scenario_conte
 # when no region is selected. Honesty contract from REGION_LOCAL_METRICS_SPEC.md:
 # never show a region-local number without its citywide companion — that's
 # what the side-by-side rows enforce.
+#
+# Map-click stability fix (post-multi-select RELAY): this section is gated on
+# the active main_tab being 'Scenario'. Page-root content like this used to
+# emit unconditionally and appear above the tabs UI on every rerun. Clicking
+# a district on the Map View tab triggers a rerun, and when the first
+# clicked district populated _region_local for the first time, this section
+# appeared at page-root and grew the page above the tabs — the browser
+# preserves scroll position by pixel offset, so the map shifted out of the
+# viewport while the new impact section landed where the user was looking.
+# Confining the section to the Scenario tab keeps the Map View page-root
+# unchanged across map-click reruns: scroll position stays on the map so
+# the user can click another district without scrolling back.
 _region_local = results.get('region_local')
-if _region_local:
+if _main_tab == 'Scenario' and _region_local:
     st.divider()
     _rs = results.get('region_selection') or {}
     _rs_layer = _rs.get('layer')
