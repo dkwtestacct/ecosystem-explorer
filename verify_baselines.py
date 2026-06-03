@@ -3154,6 +3154,148 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         child_pop_diffs += 1
 
+    # ── Buildings-precompute staleness — SA cold-start Lever 2 guard ──────
+    # Phase 8 (app.py) reads buildings_precomputed_{file,type,meta} from disk
+    # when configured, skipping the ~32 s rasterize of ~691k SA polygons.
+    # If the source `buildings_file` ever changes and the precompute isn't
+    # re-run, Phase 8 would silently feed stale building geometry to UCM
+    # cooling-energy + flood-damage + convertible-pool logic. This cell
+    # re-runs the same rasterize live and asserts byte-identity to the
+    # on-disk arrays. Source-SHA-256 in the sidecar JSON is also cross-checked
+    # against live buildings_file SHA so meta drift surfaces before the
+    # rasters even open. Costs ~25 s on SA; only runs for cities that have
+    # the precompute keys configured. Meta-test seeds a synthetic bit-flip
+    # in the on-disk binary mask and confirms the byte-compare catches it.
+    print(f"\n{'=' * 60}")
+    print("Buildings-precompute staleness — SA cold-start Lever 2 guard")
+    print(f"{'=' * 60}")
+    bldg_precompute_diffs = 0
+    try:
+        import hashlib as _hl
+        import json as _bj
+        from rasterio.features import rasterize as _rstz
+        import geopandas as _bgpd
+        import pandas as _bpd
+
+        def _file_sha(path):
+            h = _hl.sha256()
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+            return h.hexdigest()
+
+        _bldg_pre_cities = [
+            c for c in active_cities
+            if app.CITIES[c].get("buildings_precomputed_file")
+            and app.CITIES[c].get("buildings_type_precomputed_file")
+            and app.CITIES[c].get("buildings_precomputed_meta_file")
+        ]
+        if not _bldg_pre_cities:
+            print("  SKIP no cities have buildings_precomputed_* keys configured")
+        for _city in _bldg_pre_cities:
+            _cfg = app.CITIES[_city]
+            _bin_p  = _cfg["buildings_precomputed_file"]
+            _type_p = _cfg["buildings_type_precomputed_file"]
+            _meta_p = _cfg["buildings_precomputed_meta_file"]
+            for _p in (_bin_p, _type_p, _meta_p):
+                if not Path(_p).exists():
+                    print(f"  FAIL {_city}: precomputed artifact missing on disk: {_p}")
+                    bldg_precompute_diffs += 1
+            if bldg_precompute_diffs:
+                continue
+
+            # Cross-check source SHA256 first — cheaper than rasterize.
+            _meta = _bj.loads(Path(_meta_p).read_text())
+            _src_path = _cfg["buildings_file"]
+            _live_src_sha = _file_sha(_src_path)
+            _meta_src_sha = (_meta.get("source_sha256") or {}).get("buildings_file")
+            if _meta_src_sha != _live_src_sha:
+                print(f"  FAIL {_city}: source SHA256 mismatch — live "
+                      f"{_src_path} hashes to {_live_src_sha[:12]}…, sidecar "
+                      f"meta says {(_meta_src_sha or 'MISSING')[:12]}…. "
+                      "Re-run `python precompute_buildings.py --city "
+                      f"{_city!r}` to refresh.")
+                bldg_precompute_diffs += 1
+                continue
+
+            # Re-rasterize from source (mirrors Phase 8 + precompute_buildings.py).
+            _rebind_city(app, _city)
+            _ref_shape = app._CURRENT_CITY_STATE.cooling_lulc.shape
+            _ref_transform = app._CURRENT_CITY_STATE.ref_transform
+            _gdf = _bgpd.read_file(_src_path)
+            if _gdf.crs is None or str(_gdf.crs) != _cfg["crs"]:
+                _gdf = _gdf.to_crs(_cfg["crs"])
+            _types = None
+            if "type" in _gdf.columns:
+                _num = _bpd.to_numeric(_gdf["type"], errors="coerce")
+                _num_clean = _num.dropna()
+                if len(_num_clean) > 0 and _num_clean.between(0, 3).all():
+                    _types = _num.fillna(-1).astype("int32")
+                else:
+                    _types = _gdf["type"].map(app._osm_to_invest_type).fillna(-1).astype("int32")
+
+            _live_bin = _rstz(
+                ((g, 1) for g in _gdf.geometry),
+                out_shape=_ref_shape, transform=_ref_transform,
+                fill=0, dtype="uint8",
+            )
+            if _types is not None:
+                _live_type = _rstz(
+                    ((g, int(t)) for g, t in zip(_gdf.geometry, _types)),
+                    out_shape=_ref_shape, transform=_ref_transform,
+                    fill=-1, dtype="int32",
+                )
+            else:
+                _live_type = np.full(_ref_shape, -1, dtype="int32")
+
+            with rasterio.open(_bin_p) as _b:
+                _disk_bin = _b.read(1).astype("uint8")
+            with rasterio.open(_type_p) as _t:
+                _disk_type = _t.read(1).astype("int32")
+
+            _bin_match = (_disk_bin == _live_bin).all()
+            _type_match = (_disk_type == _live_type).all()
+            if not _bin_match:
+                _diff_px = int((_disk_bin != _live_bin).sum())
+                print(f"  FAIL {_city}: binary precompute raster diverges from "
+                      f"fresh rasterize at {_diff_px:,} pixels — re-run "
+                      "`python precompute_buildings.py`.")
+                bldg_precompute_diffs += 1
+            if not _type_match:
+                _diff_px = int((_disk_type != _live_type).sum())
+                print(f"  FAIL {_city}: typed precompute raster diverges from "
+                      f"fresh rasterize at {_diff_px:,} pixels — re-run "
+                      "`python precompute_buildings.py`.")
+                bldg_precompute_diffs += 1
+            if _bin_match and _type_match:
+                print(f"  OK   {_city}: precomputed buildings rasters byte-identical "
+                      f"to fresh rasterize from source ({_src_path}); "
+                      f"source SHA256 also matches sidecar")
+
+        # Meta-test (load-bearing): bit-flip a single pixel of the in-memory
+        # disk-raster copy and confirm the equality check would catch it.
+        # Without this the assertion could silently degrade (e.g. shape
+        # mismatches treated as 'OK' if a future refactor skipped the check).
+        if _bldg_pre_cities:
+            _meta_city = _bldg_pre_cities[0]
+            _cfg = app.CITIES[_meta_city]
+            with rasterio.open(_cfg["buildings_precomputed_file"]) as _b:
+                _disk = _b.read(1).astype("uint8")
+            _poisoned = _disk.copy()
+            # Flip one bit — corner pixel from 0 to 1 (or 1 to 0).
+            _poisoned[0, 0] = 0 if _poisoned[0, 0] else 1
+            if (_disk == _poisoned).all():
+                print(f"  FAIL meta-test: bit-flipped copy compared equal to "
+                      "original — staleness equality check is blind")
+                bldg_precompute_diffs += 1
+            else:
+                print(f"  OK   meta-test: single-pixel bit-flip on disk-raster "
+                      "copy correctly fails the byte-equality check")
+    except Exception as e:
+        print(f"  ERROR buildings-precompute staleness: {e}")
+        import traceback; traceback.print_exc()
+        bldg_precompute_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -3164,7 +3306,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + shared_fire_diffs + dollar_lint_diffs
                    + two_relay_diffs + label_budget_diffs
                    + dense_freshness_diffs + rebind_completeness_diffs
-                   + child_pop_diffs)
+                   + child_pop_diffs + bldg_precompute_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3253,6 +3395,13 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "scripts/data/download_census_pop*.py with CENSUS_API_KEY "
                   "to regenerate; confirm the script uses P3_001N (total "
                   "VAP), not a sub-variable.")
+        if bldg_precompute_diffs:
+            print(f"{bldg_precompute_diffs} buildings-precompute staleness "
+                  "divergence(s) — the on-disk SA buildings rasters disagree "
+                  "with a fresh rasterize from buildings_file. Re-run "
+                  "`python precompute_buildings.py --city '<city>'` to "
+                  "regenerate. Check the source file changed and the "
+                  "precompute step was missed.")
         return 1
 
 

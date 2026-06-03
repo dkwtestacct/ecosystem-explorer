@@ -1,0 +1,19 @@
+{
+  "city": "San Antonio, TX",
+  "schema_version": 34,
+  "generated_at": "2026-06-03T22:59:22.986275Z",
+  "grid_shape": [
+    1713,
+    1984
+  ],
+  "crs": "EPSG:5070",
+  "total_potential_damage_usd": 0.0,
+  "buildings_have_types": true,
+  "buildings_type_coverage": 0.2866697775703842,
+  "source_files": {
+    "buildings_file": "data/sa/buildings_sa.gpkg"
+  },
+  "source_sha256": {
+    "buildings_file": "bd3f21a815b9ced25f313ce03bc9e0463d962f546b8b9d0ff033643e6919edb6"
+  }
+}
