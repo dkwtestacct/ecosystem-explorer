@@ -453,14 +453,14 @@ if 'entry_city' not in st.session_state:
             "no ownership layer"
         )
     st.markdown("&nbsp;")  # spacer
-    # Recent updates — short, true as of THIS push. Each bullet names a
+    # Latest updates — short, true as of THIS push. Each bullet names a
     # capability the returning visitor will recognize on their next session;
     # no internal refactors. Items roll off as they age out of the visitor's
     # "since I last looked" window. Bordered container visually separates
     # the updates from the primary city-picker decision above.
     with st.container(border=True):
         st.markdown(
-            "**Recent updates**  \n"
+            "**Latest updates**  \n"
             "• San Antonio is now the flagship demo  \n"
             "• Children's nature access is now reported  \n"
             "• Optimize within a selected region or ownership filter  \n"
