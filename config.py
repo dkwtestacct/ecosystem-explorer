@@ -25,6 +25,15 @@ CITIES = {
         'soil_file':            'soil_group_MN.tif',
         'cooling_lulc_file':    'land_use_2021.tif',
         'pop_file':             'data/population/minneapolis_pop_2020.tif',
+        # Children's nature access (under-18 = P1 - P3 from Census PL 94-171,
+        # uniform-block-spread, same source/vintage/resolution/CRS as pop_file).
+        # Built by `python scripts/data/download_census_pop.py`.
+        'child_pop_file':       'data/population/minneapolis_child_pop_2020.tif',
+        # Published per-extent under-18 share — measured 2026-06-03 at MN
+        # downtown extent. Hennepin County overall is ~22% (Census QuickFacts);
+        # downtown tracts run slightly lower. Anchored value for the gate's
+        # child-pop staleness assertion.
+        'child_pop_extent_share': 0.202,
         'roads_file':           'data/osm/minneapolis_roads.geojson',
         'dense_scenarios_file': 'data/scenarios_dense_mpls.csv',
         'buildings_file':       'data/invest/flood/UFR_sample_data_MN/buildings.shp',
@@ -217,6 +226,14 @@ CITIES = {
         # duplicate the 4 MB file.
         'cooling_lulc_file':    '../flood/land_use_2021_sa.tif',
         'pop_file':             'data/sa/population/sa_pop_2020.tif',
+        # Children's nature access (under-18 = P1 - P3 from Census PL 94-171).
+        # Built by `python scripts/data/download_census_pop_sa.py`.
+        'child_pop_file':       'data/sa/population/sa_child_pop_2020.tif',
+        # Published per-extent under-18 share — measured 2026-06-03 at the
+        # SA modeled extent. Bexar County overall is ~27% (Census QuickFacts);
+        # SA skews younger than the national average. Anchored value for the
+        # gate's child-pop staleness assertion.
+        'child_pop_extent_share': 0.245,
         'roads_file':           'data/sa/roads_sa.geojson',
         'dense_scenarios_file': 'data/scenarios_dense_sa.csv',  # built by precompute_scenarios.py
         'buildings_file':       'data/sa/buildings_sa.gpkg',

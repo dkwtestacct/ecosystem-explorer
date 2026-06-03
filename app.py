@@ -347,7 +347,7 @@ WHATS_NEW_SECTIONS = [
     ("Ownership-aware scenarios", [
         "In San Antonio, restrict conversions to public, vacant, school, university, city, county, or state/federal land.",
         "These are planning-screen filters — they do not verify parcel availability or legal feasibility.",
-        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access, cooling, and mental-health effects.",
+        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access, children's nature access, cooling, and mental-health effects.",
     ]),
     ("Scenario discovery", [
         "Search citywide with a fast surrogate that suggests promising mixes.",
@@ -812,6 +812,15 @@ class CityState(NamedTuple):
     # Population
     pop_count_raster: np.ndarray
     population_data_available: bool
+    # Children's nature access (RELAY) — under-18 population per pixel,
+    # uniform-block-spread from Census 2020 PL 94-171 P1 - P3. Used ONLY
+    # to weight the access share in calculate_nature_access (not for the
+    # 2SFCA supply/demand on total pop, and not for UMH). None for cities
+    # without a child_pop_file configured — calculate_nature_access then
+    # falls back to a None children's-access return, surfaced as "—" in
+    # the UI.
+    child_pop_count_raster: Optional[np.ndarray]
+    child_population_data_available: bool
     # Reference ET
     et_resized: np.ndarray
     max_et_ref: float
@@ -1744,7 +1753,9 @@ def _una_supply_percapita(scenario_lulc, pop_count_raster):
         scenario_lulc, pop_count_raster, urban_nature_arr)
 
 
-def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster, mask=None):
+def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster,
+                                         mask=None,
+                                         child_pop_count_raster=None):
     """Headline UNA metric: the share of the modelable-extent population whose
     per-capita urban-nature supply meets `UNA_DEMAND_M2_PER_CAPITA`.
 
@@ -1756,6 +1767,18 @@ def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster, mask=N
     the returned numbers are population-clipped to the masked pixels — the
     locked UNA region-local treatment is "clip to population inside region".
     `mask=None` reproduces the citywide behavior exactly.
+
+    Children's nature access RELAY — when `child_pop_count_raster` is provided,
+    ALSO returns child access metrics computed against the **same adequate
+    mask** (which is built on the SAME 2SFCA supply, demand, and valid-LULC
+    rules using TOTAL pop). The only difference is the weighting: child access
+    asks "what fraction of under-18 residents live where total-pop per-capita
+    supply meets demand", not "what's the supply when only kids are counted as
+    demand." Per the brief: keep 2SFCA on total pop; the child weighting is
+    in the *access share*, never in the supply calculation. Returns 6-tuple
+    `(adult_pct, adult_modelable, adult_supplied, child_pct, child_modelable,
+    child_supplied)`. UMH is NOT child-weighted (adult-calibrated incidence
+    + effect sizes; child × adult is meaningless).
     """
     supply_percapita, valid = _una_supply_percapita(
         scenario_lulc, pop_count_raster)
@@ -1764,13 +1787,27 @@ def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster, mask=N
         valid = valid & mask
     modelable_pop = float(pop[valid].sum())
     if modelable_pop <= 0:
-        return 0.0, 0.0, 0.0
+        if child_pop_count_raster is None:
+            return 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     adequate = valid & (supply_percapita >= UNA_DEMAND_M2_PER_CAPITA)
     people_supplied = float(pop[adequate].sum())
-    return 100.0 * people_supplied / modelable_pop, modelable_pop, people_supplied
+    adult_pct = 100.0 * people_supplied / modelable_pop
+    if child_pop_count_raster is None:
+        return adult_pct, modelable_pop, people_supplied
+    # Children's access — same adequate mask, weighted by under-18 population.
+    child = np.asarray(child_pop_count_raster, dtype=np.float64)
+    child_modelable = float(child[valid].sum())
+    if child_modelable <= 0:
+        return adult_pct, modelable_pop, people_supplied, 0.0, 0.0, 0.0
+    child_supplied = float(child[adequate].sum())
+    child_pct = 100.0 * child_supplied / child_modelable
+    return (adult_pct, modelable_pop, people_supplied,
+            child_pct, child_modelable, child_supplied)
 
 
-def calculate_nature_access(scenario_lulc, pop_count_raster, mask=None):
+def calculate_nature_access(scenario_lulc, pop_count_raster, mask=None,
+                            child_pop_count_raster=None):
     """Canonical InVEST Urban Nature Access for the given scenario LULC.
 
     Re-implements `natcap.invest.urban_nature_access` (uniform search
@@ -1788,12 +1825,26 @@ def calculate_nature_access(scenario_lulc, pop_count_raster, mask=None):
     mask ∩ valid ∩ supply-adequate). Per the locked UNA treatment, this is
     a population-clip not a pixel-clip. `mask=None` reproduces citywide.
 
-    Returns a 3-tuple `(access_pct, _legacy_slot, people_with_access)`.
+    Returns a 3-tuple `(access_pct, _legacy_slot, people_with_access)` when
+    `child_pop_count_raster` is None (preserves all existing 4 call sites).
+    When `child_pop_count_raster` is provided, returns a 5-tuple
+    `(access_pct, _legacy_slot, people_with_access,
+      children_access_pct, children_with_access)`.
     """
-    pct, _modelable_pop, people_supplied = _invest_una_pct_pop_supply_ge_demand(
-        scenario_lulc, pop_count_raster, mask=mask
+    if child_pop_count_raster is None:
+        pct, _modelable_pop, people_supplied = _invest_una_pct_pop_supply_ge_demand(
+            scenario_lulc, pop_count_raster, mask=mask
+        )
+        return round(float(pct), 1), 0.0, int(round(people_supplied))
+    (pct, _modelable_pop, people_supplied,
+     child_pct, _child_modelable, child_supplied) = (
+        _invest_una_pct_pop_supply_ge_demand(
+            scenario_lulc, pop_count_raster, mask=mask,
+            child_pop_count_raster=child_pop_count_raster,
+        )
     )
-    return round(float(pct), 1), 0.0, int(round(people_supplied))
+    return (round(float(pct), 1), 0.0, int(round(people_supplied)),
+            round(float(child_pct), 1), int(round(child_supplied)))
 
 
 # Baseline food production is zero by definition (no conversions means no
@@ -2395,9 +2446,22 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 
     # Brief 29: `scenario_lulc_una` is the compound view for SA (indexes
     # the compound-keyed `urban_nature_arr`) and the NLCD view for MN.
-    nat_pct, _nat_quality, nat_people = calculate_nature_access(
-        scenario_lulc_una, pop_count_raster
-    )
+    # Children's nature access RELAY — when child_pop_count_raster is
+    # available, the same call also returns the under-18 access share
+    # (same adequate mask, child-weighted). None when no child raster
+    # configured for this city.
+    if child_pop_count_raster is not None:
+        (nat_pct, _nat_quality, nat_people,
+         children_nat_pct, children_nat_people) = calculate_nature_access(
+            scenario_lulc_una, pop_count_raster,
+            child_pop_count_raster=child_pop_count_raster,
+        )
+    else:
+        nat_pct, _nat_quality, nat_people = calculate_nature_access(
+            scenario_lulc_una, pop_count_raster
+        )
+        children_nat_pct = None
+        children_nat_people = None
 
     # Build the scenario NDVI raster once and pass to both consumers. Saves
     # one full-AOI float32 allocation per evaluate_scenario call.
@@ -2458,10 +2522,24 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         # Cooling energy savings — per-pixel kWh × $/kWh sum, masked.
         _rl_cooling_energy_savings_usd = compute_cooling_energy_savings(hmi_map, mask=rm)
 
-        # UNA population-clip + UMH population-clip.
-        _rl_nat_pct, _, _rl_nat_people = calculate_nature_access(
-            scenario_lulc_una, pop_count_raster, mask=rm,
-        )
+        # UNA population-clip + UMH population-clip. Children's nature access
+        # RELAY — pass child_pop too so the region-clipped child access
+        # share is computed under the same adequate mask. Strongest pairing
+        # is with the school-land ownership filter (the brief's intended use).
+        if child_pop_count_raster is not None:
+            (_rl_nat_pct, _, _rl_nat_people,
+             _rl_children_nat_pct, _rl_children_nat_people) = (
+                calculate_nature_access(
+                    scenario_lulc_una, pop_count_raster, mask=rm,
+                    child_pop_count_raster=child_pop_count_raster,
+                )
+            )
+        else:
+            _rl_nat_pct, _, _rl_nat_people = calculate_nature_access(
+                scenario_lulc_una, pop_count_raster, mask=rm,
+            )
+            _rl_children_nat_pct = None
+            _rl_children_nat_people = None
         _rl_preventable_mh_cases, _rl_avoided_mh_cost_usd = calculate_mental_health_impact(
             scenario_lulc, _BASELINE_NE_RASTER, pop_count_raster,
             ndvi_raster=scenario_ndvi, mask=rm,
@@ -2513,6 +2591,8 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
             'carbon_value_usd':     _rl_carbon_value_usd,
             'nature_access_pct':            _rl_nat_pct,
             'people_with_nature_access':    _rl_nat_people,
+            'children_nature_access_pct':   _rl_children_nat_pct,
+            'children_with_nature_access':  _rl_children_nat_people,
             'preventable_mh_cases':         _rl_preventable_mh_cases,
             'avoided_mh_cost_usd':          _rl_avoided_mh_cost_usd,
         }
@@ -2542,6 +2622,11 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'carbon_value_usd':         carbon_value_usd,
         'nature_access_pct':        nat_pct,
         'people_with_nature_access': nat_people,
+        # Children's nature access RELAY — under-18 share of access. None
+        # on cities without a child_pop_file configured. Same adequate
+        # mask as nature_access_pct; just child-pop-weighted.
+        'children_nature_access_pct':   children_nat_pct,
+        'children_with_nature_access':  children_nat_people,
         'preventable_mh_cases':     preventable_mh_cases,
         'avoided_mh_cost_usd':      avoided_mh_cost_usd,
         'food_mln_lbs':             food_mln_lbs,
@@ -2629,7 +2714,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 33  # bumped: Batch 4 v2 of Finer Ownership Classes — results['ownership_filter'] (and therefore the saved-scenario record) now accepts a third shape — a composite dict `{'classes': [...], 'vacant': bool}` — in addition to the existing `None` / single-mode-string shapes. The multi-class checkbox UI synthesizes the composite when ≥2 classes are checked or when a single class + vacant overlay has no pre-baked `_vacant` entry. Single-class selections still collapse to existing OWNERSHIP_MODES keys so Batch-2-era saves round-trip identically. Re-tag only — engine outputs are byte-identical; verify_baselines 40/40 stays unchanged. (32 was Scenario Record Pass — metadata.json's ownership_filter dict + region_selection.converted_acres. 31 was Honesty-Surface Pass Commits 2+3.)
+SCENARIO_SCHEMA_VERSION = 34  # bumped: Children's nature access RELAY — evaluate_scenario's return dict gains two new fields: `children_nature_access_pct` (the under-18 share of the modelable-extent population whose per-capita nature supply meets demand, computed under the SAME adequate mask as `nature_access_pct` but child-pop-weighted) and `children_with_nature_access` (count). region_local picks up the same two fields. None on cities without a `child_pop_file` configured (currently MN + SA configured; Mpls Full unset). All 40 SA + MN baselines re-snapshotted; reconciliation invariant (region_local over full AOI == citywide) holds for the new fields too. Child-pop staleness assertion in verify_baselines anchors each city's raster share to per-city `child_pop_extent_share` (MN 20.2%, SA 24.5% — measured from Census PL 94-171), tolerance ±2pp, with a halve-the-raster meta-test. (33 was Batch 4 v2 of Finer Ownership Classes — composite ownership_filter dict shape.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -2981,6 +3066,24 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     except (FileNotFoundError, rasterio.errors.RasterioIOError, TypeError):
         pop_count_raster = np.ones(l_cooling_lulc.shape, dtype=np.float32)
         population_data_available = False
+
+    # ── Phase 2b: Child population raster (RELAY) ──────────────────────────
+    # Under-18 per pixel, same source/vintage/resolution/CRS as pop_file.
+    # Used ONLY by calculate_nature_access to compute the access share
+    # weighted by child population; 2SFCA supply/demand stays on total
+    # pop, UMH stays on total pop. None for cities without a child_pop_file
+    # configured.
+    child_pop_file = cfg.get("child_pop_file")
+    try:
+        if child_pop_file is None:
+            raise FileNotFoundError("child_pop_file not configured")
+        child_pop_count_raster = load_population_data(
+            child_pop_file, l_cooling_lulc.shape, cfg['crs']
+        )
+        child_population_data_available = True
+    except (FileNotFoundError, rasterio.errors.RasterioIOError, TypeError):
+        child_pop_count_raster = None
+        child_population_data_available = False
 
     # ── Phase 3: Reference ET ───────────────────────────────────────────────
     et_file = cfg.get("et_file")
@@ -3378,6 +3481,8 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         c_soil_arr=l_c_soil_arr, c_dead_arr=l_c_dead_arr,
         pop_count_raster=pop_count_raster,
         population_data_available=population_data_available,
+        child_pop_count_raster=child_pop_count_raster,
+        child_population_data_available=child_population_data_available,
         et_resized=et_resized, max_et_ref=max_et_ref,
         et_data_available=et_data_available,
         energy_by_type=energy_by_type,
@@ -3488,6 +3593,8 @@ c_dead_arr          = _CURRENT_CITY_STATE.c_dead_arr
 # Population
 pop_count_raster          = _CURRENT_CITY_STATE.pop_count_raster
 POPULATION_DATA_AVAILABLE = _CURRENT_CITY_STATE.population_data_available
+child_pop_count_raster          = _CURRENT_CITY_STATE.child_pop_count_raster
+CHILD_POPULATION_DATA_AVAILABLE = _CURRENT_CITY_STATE.child_population_data_available
 # ET
 ET_RESIZED        = _CURRENT_CITY_STATE.et_resized
 MAX_ET_REF        = _CURRENT_CITY_STATE.max_et_ref
@@ -6413,7 +6520,7 @@ st.markdown("#### Human & Social")
 # for negative deltas. Both are internally consistent answers to
 # st.metric's sign-parses-arrow constraint; the MH framing is the
 # right one for healthcare burden specifically.
-hs_na, hs3, hs4 = st.columns(3)
+hs_na, hs_cna, hs3, hs4 = st.columns(4)
 
 # Nature Access — canonical InVEST Urban Nature Access (2SFCA), re-implemented
 # in numpy by `calculate_nature_access`. See docs/internal/DESIGN_NOTES.md.
@@ -6445,6 +6552,50 @@ hs_na.metric(
     ),
 )
 _render_validation_caption(hs_na, "nature_access_pct", _validation_scenario_context)
+
+# Children's nature access (RELAY) — same adequate mask as Nature Access,
+# weighted by Census 2020 block-level under-18 population (P1 - P3 from
+# PL 94-171, uniform-block-spread). Renders "—" when no child raster is
+# configured for the active city. Strongest paired with the school-land
+# ownership filter — that combination targets conversions to school-land
+# parcels and reports how many children gain access as a result.
+_child_nat = results.get('children_nature_access_pct')
+if _child_nat is None:
+    _child_nat_value = "—"
+    _child_nat_help_tail = (
+        " (no Census child-population raster configured for this city; "
+        "card hides the value rather than showing zero.)"
+    )
+else:
+    _child_nat_value = f'{_child_nat:.1f}%'
+    _child_nat_help_tail = ""
+hs_cna.metric(
+    "Children's nature access",
+    _child_nat_value,
+    help=(
+        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
+        "% of the modelable-extent **under-18** population whose per-capita "
+        f"nature supply meets the {UNA_DEMAND_M2_PER_CAPITA:g} m²/capita demand "
+        "standard. Same adequate mask as the adult Nature Access metric — the "
+        "2SFCA supply/demand calculation stays on total population (the InVEST "
+        "UNA convention), only the access SHARE is reweighted by child "
+        "population. Children may diverge from adults when residential "
+        "distribution of under-18s differs from total — e.g. school-zone "
+        "interventions can lift this without moving the citywide adult metric. "
+        "**Source:** US Census 2020 PL 94-171, block-level — under-18 derived "
+        "as `P1_001N - P3_001N` (total − 18+), uniform-spread to NLCD grid via "
+        "the same method as the total-pop raster. "
+        "**Method:** UNA access share, child-population-weighted. "
+        "**Tier:** derived (≈ aligned method). "
+        "**Caveats:** block-level counts (uniform within-block density), 2020 "
+        "vintage; per-pixel child ≤ total invariant holds by construction "
+        "(same blocks, same uniform spread)." + _child_nat_help_tail
+    ),
+)
+_render_validation_caption(
+    hs_cna, "children_nature_access_pct", _validation_scenario_context,
+    explicit_status="aligned_method",
+)
 
 _mh_cases = results.get('preventable_mh_cases', 0.0)
 _mh_cost  = results.get('avoided_mh_cost_usd', 0.0)
@@ -6900,6 +7051,11 @@ if _region_local:
         ("Flood Damage Avoided",     _fmt_flood_dmg(_region_local['flood_damage_avoided_usd']),       _fmt_flood_dmg(results['flood_damage_avoided_usd'])),
         ("Nature Access",            _fmt_pct(_region_local['nature_access_pct']),                   _fmt_pct(results['nature_access_pct'])),
         ("People with Nature Access", _fmt_pp(_region_local['people_with_nature_access']),           _fmt_pp(results['people_with_nature_access'])),
+        ("Children's nature access",
+            _fmt_pct(_region_local['children_nature_access_pct'])
+                if _region_local.get('children_nature_access_pct') is not None else "—",
+            _fmt_pct(results['children_nature_access_pct'])
+                if results.get('children_nature_access_pct') is not None else "—"),
         ("Preventable MH Cases",     _fmt_cases(_region_local['preventable_mh_cases']),              _fmt_cases(results['preventable_mh_cases'])),
         ("Avoided MH Cost",          _fmt_money(_region_local['avoided_mh_cost_usd']),               _fmt_money(results['avoided_mh_cost_usd'])),
     ]

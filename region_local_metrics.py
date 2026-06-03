@@ -43,6 +43,12 @@ _REGION_LOCAL_METRICS = {
     # Population-clip + UNA cross-boundary caveat (~800 m reach; supply/access can cross the edge).
     'nature_access_pct':    {'decomposable': True,  'clip': 'population', 'reach_m': 800, 'caveat': 'cross_boundary'},
     'people_with_nature_access': {'decomposable': True, 'clip': 'population', 'reach_m': 800, 'caveat': 'cross_boundary'},
+    # Children's nature access (RELAY) — same population-clip + UNA cross-boundary
+    # caveat as adult; just child-pop-weighted. None values appear on cities
+    # without a child_pop_file configured — the reconciliation assertion skips
+    # None values, so these decompose only when child data is available.
+    'children_nature_access_pct':   {'decomposable': True, 'clip': 'population', 'reach_m': 800, 'caveat': 'cross_boundary'},
+    'children_with_nature_access':  {'decomposable': True, 'clip': 'population', 'reach_m': 800, 'caveat': 'cross_boundary'},
     # Population-clip + UMH exposure-kernel caveat (~300 m reach).
     'preventable_mh_cases': {'decomposable': True,  'clip': 'population', 'reach_m': 300, 'caveat': 'exposure_kernel'},
     'avoided_mh_cost_usd':  {'decomposable': True,  'clip': 'population', 'reach_m': 300, 'caveat': 'exposure_kernel'},

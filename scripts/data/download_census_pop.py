@@ -1,26 +1,34 @@
 """
-Build a Minneapolis population raster from the 2020 US Census, aligned to the
+Build Minneapolis population rasters from the 2020 US Census, aligned to the
 NLCD grid that the rest of the app uses.
 
 Pipeline:
-  1. Pull block-level population (P1_001N) for Hennepin County (FIPS 27053)
-     via the Census decennial PL API — small JSON response, no key needed.
+  1. Pull block-level total population (P1_001N) AND 18+ voting-age population
+     (P3_001N) for Hennepin County (FIPS 27053) via the Census decennial PL
+     94-171 API. Both come from the SAME table — small JSON response, no key
+     needed.
   2. Download the TIGER 2020 tabulation-block shapefile for Minnesota
      (`tl_2020_27_tabblock20.zip`), unzip into data/population/tiger/.
   3. Filter blocks to Hennepin County and to the NLCD raster's bounding box
-     (after reprojection), then attach the Census population by GEOID20.
-  4. Rasterize: each block's total population is spread **uniformly** across
-     the NLCD pixels that fall inside it, so summing the output reproduces the
-     block totals (and therefore the Census total).
-  5. Write data/population/minneapolis_pop_2020.tif at the same CRS / extent /
-     transform / shape as data/cooling/land_use_2021.tif.
+     (after reprojection), then attach Census P1 + P3 by GEOID20.
+  4. Rasterize: each block's value is spread **uniformly** across the NLCD
+     pixels that fall inside it, so summing the output reproduces the block
+     totals (and therefore the Census total). Both total pop and under-18
+     (P1 - P3) get the same uniform-spread treatment over the same blocks.
+  5. Write data/population/minneapolis_pop_2020.tif (total) and
+     data/population/minneapolis_child_pop_2020.tif (under-18) at the same
+     CRS / extent / transform / shape as data/cooling/land_use_2021.tif.
 
-Sanity check: Minneapolis proper ≈ 425,000 in 2020. If the NLCD extent covers
-more of Hennepin County, the printed total will be higher.
+Sanity checks (printed at the end):
+  - Minneapolis proper total ≈ 425,000 in 2020.
+  - Hennepin County under-18 share ≈ 22 % (Census QuickFacts). Downtown
+    tracts will likely run lower (less family housing).
 """
 from __future__ import annotations
 
 import io
+import os
+import sys
 import zipfile
 from pathlib import Path
 
@@ -30,37 +38,65 @@ import rasterio
 import requests
 from rasterio.features import rasterize
 
-ROOT       = Path(__file__).resolve().parent
+ROOT       = Path(__file__).resolve().parents[2]  # repo root (scripts/data/X → repo)
 TEMPLATE   = ROOT / "data" / "cooling" / "land_use_2021.tif"
 POP_DIR    = ROOT / "data" / "population"
 TIGER_DIR  = POP_DIR / "tiger"
 TIGER_SHP  = TIGER_DIR / "tl_2020_27_tabblock20.shp"
 TIGER_URL  = "https://www2.census.gov/geo/tiger/TIGER2020/TABBLOCK20/tl_2020_27_tabblock20.zip"
-DST_TIF    = POP_DIR / "minneapolis_pop_2020.tif"
+DST_TIF      = POP_DIR / "minneapolis_pop_2020.tif"
+DST_CHILD_TIF = POP_DIR / "minneapolis_child_pop_2020.tif"
 
 CENSUS_API = "https://api.census.gov/data/2020/dec/pl"
 STATE_FIPS  = "27"   # Minnesota
 COUNTY_FIPS = "053"  # Hennepin
 
 
-def fetch_census_population() -> dict[str, int]:
-    """Return {GEOID20 (15-digit str): population (int)} for Hennepin blocks."""
+def fetch_census_population() -> dict[str, tuple[int, int]]:
+    """Return {GEOID20 (15-digit str): (total_pop, vap_18_plus)} per block.
+
+    P1_001N = total population; P3_001N = voting-age (18+) population. Both
+    from the same PL 94-171 table at the same source/vintage. Under-18 is
+    derived as P1 - P3 — keeps the child raster in the same source as the
+    total raster (no ACS substitution, no different vintage).
+
+    Requires the CENSUS_API_KEY env var (https://api.census.gov/data/key_signup.html).
+    Treat as secret — never logged, never written to disk."""
+    api_key = os.environ.get("CENSUS_API_KEY")
+    if not api_key:
+        print("ERROR: CENSUS_API_KEY not set. Get a free key from "
+              "https://api.census.gov/data/key_signup.html, then re-run with "
+              "`CENSUS_API_KEY=<key> python scripts/data/download_census_pop.py`.")
+        sys.exit(2)
     params = {
-        "get": "P1_001N,NAME",
+        "get": "P1_001N,P3_001N,NAME",
         "for": "block:*",
         "in":  f"state:{STATE_FIPS} county:{COUNTY_FIPS}",
+        "key": api_key,
     }
-    print(f"Fetching Census 2020 block populations for Hennepin County...")
+    print(f"Fetching Census 2020 block totals + VAP for Hennepin County...")
     r = requests.get(CENSUS_API, params=params, timeout=60)
-    r.raise_for_status()
+    # Don't print response.url on errors — it would leak the key. Raise the
+    # status code; the body's HTML title is enough to diagnose 4xx without
+    # leaking secrets.
+    if not r.ok:
+        print(f"  Census API returned HTTP {r.status_code}.")
+        sys.exit(2)
     rows = r.json()
     header, *records = rows
     cols = {name: i for i, name in enumerate(header)}
-    pops: dict[str, int] = {}
+    pops: dict[str, tuple[int, int]] = {}
     for rec in records:
         geoid = rec[cols["state"]] + rec[cols["county"]] + rec[cols["tract"]] + rec[cols["block"]]
-        pops[geoid] = int(rec[cols["P1_001N"]])
-    print(f"  Got {len(pops):,} blocks; total pop = {sum(pops.values()):,}")
+        total = int(rec[cols["P1_001N"]])
+        vap   = int(rec[cols["P3_001N"]])
+        pops[geoid] = (total, vap)
+    total_sum = sum(t for t, _ in pops.values())
+    vap_sum   = sum(v for _, v in pops.values())
+    child_sum = total_sum - vap_sum
+    share = child_sum / total_sum if total_sum > 0 else 0.0
+    print(f"  Got {len(pops):,} blocks; total pop = {total_sum:,}; "
+          f"VAP(18+) = {vap_sum:,}; under-18 = {child_sum:,} ({share:.1%})")
     return pops
 
 
@@ -112,10 +148,16 @@ def main() -> None:
     blocks = blocks.cx[xmin:xmax, ymin:ymax].copy()
     print(f"  {len(blocks):,} blocks intersect the NLCD extent")
 
-    blocks["pop"] = blocks["GEOID20"].map(pops).fillna(0).astype(int)
-    matched = (blocks["pop"] > 0).sum()
+    # Map (total, vap) per block; under-18 = total - vap.
+    blocks["pop_total"] = blocks["GEOID20"].map(
+        lambda g: pops.get(g, (0, 0))[0]).fillna(0).astype(int)
+    blocks["pop_vap"]   = blocks["GEOID20"].map(
+        lambda g: pops.get(g, (0, 0))[1]).fillna(0).astype(int)
+    blocks["pop_child"] = (blocks["pop_total"] - blocks["pop_vap"]).clip(lower=0)
+    matched = (blocks["pop_total"] > 0).sum()
     print(f"  {matched:,} blocks matched to Census population "
-          f"(total in extent: {blocks['pop'].sum():,})")
+          f"(total in extent: {blocks['pop_total'].sum():,}; "
+          f"under-18 in extent: {blocks['pop_child'].sum():,})")
 
     # Each block gets a unique 0-based index; we rasterize the index and use it
     # to look up the per-block per-pixel population (block_pop / pixel_count).
@@ -135,11 +177,19 @@ def main() -> None:
 
     valid = idx_raster >= 0
     counts = np.bincount(idx_raster[valid], minlength=len(blocks))
-    pop_per_pixel = np.zeros(len(blocks), dtype=np.float32)
     nonzero = counts > 0
-    pop_per_pixel[nonzero] = blocks["pop"].values[nonzero] / counts[nonzero]
 
+    # Total pop raster (unchanged shape from prior behavior).
+    pop_per_pixel = np.zeros(len(blocks), dtype=np.float32)
+    pop_per_pixel[nonzero] = blocks["pop_total"].values[nonzero] / counts[nonzero]
     pop_raster = np.where(valid, pop_per_pixel[idx_raster], 0.0).astype(np.float32)
+
+    # Under-18 raster — same uniform-spread method over the same blocks, so
+    # per-pixel: child_pop_pixel ≤ total_pop_pixel by construction (no block
+    # has more children than people). Asserted by the gate's staleness cell.
+    child_per_pixel = np.zeros(len(blocks), dtype=np.float32)
+    child_per_pixel[nonzero] = blocks["pop_child"].values[nonzero] / counts[nonzero]
+    child_raster = np.where(valid, child_per_pixel[idx_raster], 0.0).astype(np.float32)
 
     profile = {
         "driver":    "GTiff",
@@ -155,12 +205,21 @@ def main() -> None:
     }
     with rasterio.open(DST_TIF, "w", **profile) as dst:
         dst.write(pop_raster, 1)
+    with rasterio.open(DST_CHILD_TIF, "w", **profile) as dst:
+        dst.write(child_raster, 1)
 
-    total = float(pop_raster.sum())
+    total       = float(pop_raster.sum())
+    child_total = float(child_raster.sum())
+    child_share = child_total / total if total > 0 else 0.0
     print(f"\nWrote: {DST_TIF}")
     print(f"  Pixels with population: {(pop_raster > 0).sum():,}")
     print(f"  Total population (sanity check): {total:,.0f}")
     print(f"  Expected Minneapolis proper ≈ 425,000")
+    print(f"\nWrote: {DST_CHILD_TIF}")
+    print(f"  Pixels with under-18 population: {(child_raster > 0).sum():,}")
+    print(f"  Under-18 population total: {child_total:,.0f} "
+          f"({child_share:.1%} of total)")
+    print(f"  Reference: Hennepin County under-18 share ≈ 22% (Census QuickFacts).")
 
 
 if __name__ == "__main__":

@@ -272,6 +272,10 @@ def _rebind_city(app_mod, city_name):
     app_mod.c_dead_arr          = state.c_dead_arr
     app_mod.pop_count_raster    = state.pop_count_raster
     app_mod.POPULATION_DATA_AVAILABLE = state.population_data_available
+    # Children's nature access RELAY — under-18 raster, parallel to pop.
+    # None on cities without a child_pop_file configured.
+    app_mod.child_pop_count_raster = state.child_pop_count_raster
+    app_mod.CHILD_POPULATION_DATA_AVAILABLE = state.child_population_data_available
     app_mod.ET_RESIZED          = state.et_resized
     app_mod.MAX_ET_REF          = state.max_et_ref
     app_mod.ET_DATA_AVAILABLE   = state.et_data_available
@@ -3040,6 +3044,116 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         dense_freshness_diffs += 1
 
+    # ── Child-pop raster staleness — per-city anchored ─────────────────────
+    # The under-18 raster is derived as P1_001N - P3_001N (PL 94-171, same
+    # source as total pop). The single most likely failure mode is grabbing
+    # a wrong P3 sub-variable (e.g. P3_002N male-only ≈ half of total VAP,
+    # producing a derived "under-18" ~half the true value, far outside the
+    # 1-2 pp natural variation between county and modeled extent). A loose
+    # 0.2-0.3 sanity band would pass that failure silently for SA (true
+    # share ~24.5%) and possibly for MN too. So this cell anchors each city's
+    # raster share to a per-city published figure (config: child_pop_extent_share,
+    # measured at precompute time from the same Census source). Tolerance:
+    # ±2 pp absolute — tight enough to catch a wrong-variable derivation,
+    # loose enough to absorb 0.5-1 pp block-rasterization edge effects.
+    # Also asserts the per-pixel invariant child ≤ total (no block can have
+    # more children than people) and shape equality with the total-pop raster.
+    print(f"\n{'=' * 60}")
+    print("Child-pop staleness — per-city anchor + per-pixel invariants")
+    print(f"{'=' * 60}")
+    child_pop_diffs = 0
+    try:
+        _SHARE_TOL_PP = 0.02   # ±2 percentage points absolute
+        for _city in active_cities:
+            _cfg = app.CITIES[_city]
+            if not _cfg.get("child_pop_file"):
+                print(f"  SKIP {_city}: no child_pop_file configured")
+                continue
+            _rebind_city(app, _city)
+            _child = app.child_pop_count_raster
+            _total = app.pop_count_raster
+            if _child is None:
+                print(f"  FAIL {_city}: child_pop_file configured but loader "
+                      "returned None (file missing or read failed?)")
+                child_pop_diffs += 1
+                continue
+            # Shape match
+            if _child.shape != _total.shape:
+                print(f"  FAIL {_city}: child raster shape {_child.shape} "
+                      f"!= total raster shape {_total.shape}")
+                child_pop_diffs += 1
+                continue
+            # Per-pixel invariant: child ≤ total (within float epsilon)
+            _violators = int(((_child - _total) > 1e-6).sum())
+            if _violators > 0:
+                print(f"  FAIL {_city}: {_violators:,} pixels have "
+                      "child_pop > total_pop (invariant child ≤ total broken)")
+                child_pop_diffs += 1
+                continue
+            # Per-city anchored share check
+            _total_sum = float(_total.sum())
+            if _total_sum <= 0:
+                print(f"  SKIP {_city}: total pop is zero — anchor "
+                      "check skipped")
+                continue
+            _share = float(_child.sum()) / _total_sum
+            _anchor = float(_cfg.get("child_pop_extent_share", 0.0))
+            if not _anchor:
+                print(f"  FAIL {_city}: no child_pop_extent_share anchor "
+                      "configured — staleness can't be enforced")
+                child_pop_diffs += 1
+                continue
+            if abs(_share - _anchor) > _SHARE_TOL_PP:
+                print(f"  FAIL {_city}: child share {_share:.1%} differs "
+                      f"from per-city anchor {_anchor:.1%} by "
+                      f"{abs(_share - _anchor):.1%} > tol "
+                      f"{_SHARE_TOL_PP:.1%}. Re-run "
+                      f"download_census_pop*.py with the correct "
+                      "P3 variable (P3_001N for total VAP).")
+                child_pop_diffs += 1
+            else:
+                print(f"  OK   {_city}: shape match; child ≤ total per "
+                      f"pixel; share {_share:.1%} within ±{_SHARE_TOL_PP:.1%} "
+                      f"of per-city anchor {_anchor:.1%}")
+
+        # Meta-test (load-bearing): simulate the wrong-variable failure mode
+        # by halving the child raster (≈ what'd happen if a sub-variable like
+        # P3_002N male-only VAP was used to compute under-18). The anchor
+        # check must catch it; otherwise the lint is loose.
+        if active_cities:
+            _meta_city = next(
+                (c for c in active_cities if app.CITIES[c].get("child_pop_file")),
+                None,
+            )
+            if _meta_city is not None:
+                _rebind_city(app, _meta_city)
+                _saved = app.child_pop_count_raster
+                # Halve the raster — simulates a "wrong variable" derivation.
+                app.child_pop_count_raster = (_saved * 0.5).astype(_saved.dtype)
+                _meta_share = float(app.child_pop_count_raster.sum()) / \
+                              float(app.pop_count_raster.sum())
+                _meta_anchor = float(app.CITIES[_meta_city]["child_pop_extent_share"])
+                _meta_caught = abs(_meta_share - _meta_anchor) > _SHARE_TOL_PP
+                app.child_pop_count_raster = _saved  # restore
+                if _meta_caught:
+                    print(f"  OK   meta-test: halved child raster (simulated "
+                          f"wrong-variable derivation) → share {_meta_share:.1%} "
+                          f"correctly flagged vs anchor {_meta_anchor:.1%} "
+                          f"(tol {_SHARE_TOL_PP:.1%})")
+                else:
+                    print(f"  FAIL meta-test: halved child raster (share "
+                          f"{_meta_share:.1%}) was NOT caught at tol "
+                          f"{_SHARE_TOL_PP:.1%} vs anchor {_meta_anchor:.1%} — "
+                          "tolerance is too loose to guard against wrong-variable.")
+                    child_pop_diffs += 1
+            else:
+                print(f"  SKIP meta-test: no active city has child_pop_file "
+                      "configured")
+    except Exception as e:
+        print(f"  ERROR child-pop staleness: {e}")
+        import traceback; traceback.print_exc()
+        child_pop_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -3049,7 +3163,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + scenario_state_diffs + section_order_diffs
                    + shared_fire_diffs + dollar_lint_diffs
                    + two_relay_diffs + label_budget_diffs
-                   + dense_freshness_diffs + rebind_completeness_diffs)
+                   + dense_freshness_diffs + rebind_completeness_diffs
+                   + child_pop_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3131,6 +3246,13 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "constant; later test cells silently compute with the "
                   "import-time city's value. Add the missing attribute "
                   "to _rebind_city (the FAIL message names it).")
+        if child_pop_diffs:
+            print(f"{child_pop_diffs} child-pop staleness divergence(s) — "
+                  "the under-18 raster's share diverges from the per-city "
+                  "anchor (config: child_pop_extent_share). Re-run "
+                  "scripts/data/download_census_pop*.py with CENSUS_API_KEY "
+                  "to regenerate; confirm the script uses P3_001N (total "
+                  "VAP), not a sub-variable.")
         return 1
 
 
