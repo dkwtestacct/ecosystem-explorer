@@ -5372,8 +5372,11 @@ with _sec_where:
         key="region_apply_within",
     )
 
-    # Default: clear any active region state. Set below only if both the mode is
-    # 'Selected regions' and at least one polygon is chosen.
+    # Default: clear any active region state. selected_region_layer is
+    # re-set below when the user enters 'Selected regions' mode (regardless
+    # of polygon selection) so the Map View tab can render the base layer.
+    # selected_region_mask + selected_region_ids stay None until at least
+    # one polygon is picked — that's what the engine reads.
     st.session_state['selected_region_mask']  = None
     st.session_state['selected_region_layer'] = None
     st.session_state['selected_region_ids']   = None
@@ -5393,6 +5396,14 @@ with _sec_where:
             key="region_layer",
             help="Pick a polygon layer to select from.",
         )
+        # Surface the active layer key as soon as the user enters 'Selected
+        # regions' mode, even before any polygons are picked. This lets the
+        # Map View tab render the base map (district boundaries, no
+        # conversions) instead of nothing — a bare opacity slider with no
+        # canvas above it is worse than seeing the choices to click. Mask +
+        # ids stay None until labels are picked (so the engine still runs
+        # citywide until the user actually selects).
+        st.session_state['selected_region_layer'] = _layer_key
         _labels = _CURRENT_CITY_STATE.region_layer_labels[_layer_key]
         _display = _CURRENT_CITY_STATE.region_layer_display_names[_layer_key]
         _selected_labels = st.multiselect(
@@ -8752,15 +8763,22 @@ if _main_tab == 'Map View':
                 # AFTER the sidebar, so without this the click would land one
                 # rerun late).
                 #
-                # Multi-select RELAY: new-click detection now compares the
-                # event's selection signature against the LAST-FORWARDED
-                # signature in session_state. The prior compare-against-current
-                # _ids approach broke toggle-off: after toggling A off the
-                # session_state holds [B] while Plotly's selection state is
-                # still [A], so the producer would have re-fired every rerun
-                # and the handler would have re-toggled. Signature de-dup
-                # forwards once per genuine click (different from last) and
-                # stays silent on stale reruns (same as last).
+                # Multi-select RELAY: new-click detection compares the event's
+                # selection signature against the LAST-FORWARDED signature in
+                # session_state. The prior compare-against-current_ids
+                # approach broke toggle-off (after toggling A off, current=[B]
+                # but Plotly=[A], so the producer kept re-firing). Pure
+                # signature de-dup ALONE broke the deploy-time auto-rerun
+                # cascade: on first run with no last_sig recorded, Plotly's
+                # sticky selection state from the prior session looks
+                # identical to a fresh click and forwards a phantom event
+                # that toggles the user's pre-existing selection OFF.
+                # Fix: when last_sig is uninitialized (None), check whether
+                # the event's signature already matches the user's existing
+                # selection state. If yes, this is a re-render of an
+                # already-aligned state — sync last_sig without forwarding.
+                # Genuine first-click from an empty state still forwards
+                # because evt_sig differs from the empty current selection.
                 if _t3_event:
                     _new_event = _t3_event if isinstance(_t3_event, dict) else dict(_t3_event)
                     _evt_points = _new_event.get('selection', {}).get('points') or []
@@ -8769,10 +8787,29 @@ if _main_tab == 'Map View':
                             p.get("customdata") for p in _evt_points
                             if p.get("customdata") is not None
                         ))
-                        _last_sig = tuple(
-                            st.session_state.get("region_map_picker_last_sig") or ()
-                        )
-                        if _evt_sig and _evt_sig != _last_sig:
+                        _ms_key = f"region_labels_{_t3_layer}"
+                        _last_sig_raw = st.session_state.get("region_map_picker_last_sig")
+                        if _last_sig_raw is None:
+                            # First time this session: distinguish stale
+                            # re-render (Plotly's sticky state already matches
+                            # the user's existing selection) from a genuine
+                            # first click (Plotly's state diverges from
+                            # session_state because the user just clicked
+                            # something into an empty/different selection).
+                            _current_sig = tuple(sorted(
+                                st.session_state.get(_ms_key, []) or []
+                            ))
+                            if _evt_sig == _current_sig:
+                                # Aligned — sync silently, don't toggle.
+                                st.session_state['region_map_picker_last_sig'] = list(_evt_sig)
+                            else:
+                                # Genuine click — forward + rerun.
+                                st.session_state['region_map_picker_event'] = _new_event
+                                st.session_state['region_map_picker_last_sig'] = list(_evt_sig)
+                                st.rerun()
+                        elif _evt_sig != tuple(_last_sig_raw):
+                            # Steady-state new click: signature differs from
+                            # what we last forwarded → forward + rerun.
                             st.session_state['region_map_picker_event'] = _new_event
                             st.session_state['region_map_picker_last_sig'] = list(_evt_sig)
                             st.rerun()
