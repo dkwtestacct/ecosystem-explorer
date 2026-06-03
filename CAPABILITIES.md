@@ -74,7 +74,7 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 - CSV download for comparison table
 
 ## Not yet / on the radar
-- **School-centered child nature access** — add school-point locations and child population (ACS under-18) to target interventions near schools and estimate children's access to nature directly
+- **School-point targeting** — use individual school locations to prioritize interventions near schools (beyond today's school-land filter), and make children's nature access an optimization target rather than only a reported metric
 - AlphaEarth-derived land-cover inputs
 - Pixel-level spatial optimization
 - NDR / nutrient retention, pending canonical inputs

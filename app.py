@@ -363,7 +363,7 @@ UNDERWAY_ENTRIES = []
 
 ON_THE_RADAR = """\
 - AlphaEarth-derived land-cover inputs, pixel-level spatial optimization, and nutrient retention (NDR) if canonical inputs become available.
-- School-targeted child nature access — add school-point locations and child population (ACS under-18) to prioritize interventions near schools and estimate children's access to nature directly.
+- School-point targeting — use individual school locations to prioritize interventions near schools (beyond today's school-land filter), and make children's nature access an optimization target rather than only a reported metric.
 """
 
 def _build_whats_new():
@@ -431,8 +431,16 @@ if 'entry_city' not in st.session_state:
             st.session_state['entry_city'] = "San Antonio, TX"
             st.rerun()
         st.caption(
-            "Bexar County area · ownership and school-land filters · "
-            "council districts · NatCap reference scenarios · InVEST export"
+            # Non-breaking spaces within phrases + plain spaces around the
+            # `·` separators → wraps land at separators only, never mid-phrase.
+            # The detail line previously broke awkwardly like
+            # 'NatCap reference / scenarios' or clipped 'InVEST exp…'
+            # in narrow viewports.
+            "Bexar County area · "
+            "ownership and school-land filters · "
+            "council districts · "
+            "NatCap reference scenarios · "
+            "InVEST export"
         )
     with _splash_col_b:
         if st.button("Explore Minneapolis — lightweight demo",
@@ -440,8 +448,9 @@ if 'entry_city' not in st.session_state:
             st.session_state['entry_city'] = "Minneapolis, MN"
             st.rerun()
         st.caption(
-            "Downtown extent · scenario exploration and biophysical "
-            "models · no ownership layer"
+            "Downtown extent · "
+            "scenario exploration and biophysical models · "
+            "no ownership layer"
         )
     st.markdown("&nbsp;")  # spacer
     # Recent updates — short, true as of THIS push. Each bullet names a
@@ -453,7 +462,7 @@ if 'entry_city' not in st.session_state:
         "• San Antonio is now the flagship demo.  \n"
         "• School and university filters are separated.  \n"
         "• Children's nature access is now reported alongside total "
-        "nature access (most useful with the school-land filter).  \n"
+        "nature access — most useful with the school-land filter.  \n"
         "• Selected-area optimization finds best-tested mixes under "
         "current region and ownership filters."
     )
@@ -3976,8 +3985,16 @@ def _fire_citywide_optimize(
         st.warning("No scenarios found — try lowering the targets.")
         st.session_state.just_optimized = False
     else:
-        st.success("Results ready — open the Tradeoff Analysis tab →")
+        # On success, jump directly to Tradeoff Analysis instead of nudging
+        # the user to switch tabs manually. Setting the segmented_control's
+        # session_state key + st.rerun() makes the switch happen on the
+        # very next rerun (before any tab body renders this turn). Toast
+        # replaces the prior 'open the Tradeoff Analysis tab →' success
+        # banner since the switch is the actual confirmation.
         st.session_state.just_optimized = True
+        st.session_state['main_tab'] = "Tradeoff Analysis"
+        st.toast("Results ready — opening Tradeoff Analysis ↓")
+        st.rerun()
 
 
 def _fire_region_optimize(
@@ -4041,10 +4058,12 @@ def _fire_region_optimize(
         st.session_state.just_optimized = False
     else:
         st.session_state.region_optimized_results = region_out
-        st.success(
-            "Results ready — open the Tradeoff Analysis tab →"
-        )
+        # Auto-switch to Tradeoff Analysis on success — same pattern as the
+        # citywide branch above. See its comment for why.
         st.session_state.just_optimized = True
+        st.session_state['main_tab'] = "Tradeoff Analysis"
+        st.toast("Results ready — opening Tradeoff Analysis ↓")
+        st.rerun()
 
 
 # ── Plotting helpers ───────────────────────────────────────────────────────────
@@ -6584,7 +6603,7 @@ else:
     _child_nat_value = f'{_child_nat:.1f}%'
     _child_nat_help_tail = ""
 hs_cna.metric(
-    "Children's nature access",
+    "Children's Nature Access",
     _child_nat_value,
     help=(
         "Confidence: Medium — see 'How this prototype works' for tier definitions. "
@@ -7065,7 +7084,7 @@ if _region_local:
         ("Flood Damage Avoided",     _fmt_flood_dmg(_region_local['flood_damage_avoided_usd']),       _fmt_flood_dmg(results['flood_damage_avoided_usd'])),
         ("Nature Access",            _fmt_pct(_region_local['nature_access_pct']),                   _fmt_pct(results['nature_access_pct'])),
         ("People with Nature Access", _fmt_pp(_region_local['people_with_nature_access']),           _fmt_pp(results['people_with_nature_access'])),
-        ("Children's nature access",
+        ("Children's Nature Access",
             _fmt_pct(_region_local['children_nature_access_pct'])
                 if _region_local.get('children_nature_access_pct') is not None else "—",
             _fmt_pct(results['children_nature_access_pct'])
@@ -7519,1268 +7538,1313 @@ st.write(_explorer_scenario_sentence(
     _resolved_scenario, _within_phrase, mode_text,
 ))
 
-tab1, tab2, tab3, tab4 = st.tabs(["Scenario", "Tradeoff Analysis", "Map View", "Reference"])
+_MAIN_TAB_NAMES = ["Scenario", "Tradeoff Analysis", "Map View", "Reference"]
+_main_tab = st.segmented_control(
+    "Main view",
+    options=_MAIN_TAB_NAMES,
+    default=_MAIN_TAB_NAMES[0],
+    label_visibility="collapsed",
+    key="main_tab",
+)
+# Persisted across reruns via the `main_tab` widget key — region/map-click
+# reruns no longer snap back to Scenario. Tab containers always rendered;
+# only the active tab's `with` block runs, so inactive tabs are zero-cost.
+tab1 = st.container()
+tab2 = st.container()
+tab3 = st.container()
+tab4 = st.container()
 
-with tab1:
-    st.subheader("Outcome Comparison")
-    col1, col2, col3, col4 = st.columns(4)
+if _main_tab == 'Scenario':
+    with tab1:
+        st.subheader("Outcome Comparison")
+        col1, col2, col3, col4 = st.columns(4)
 
-    with col1:
-        # read from state to avoid silent-staleness if city switches
-        _baseline_cn_local = _CURRENT_CITY_STATE.baseline_cn
-        fig, ax = plt.subplots(figsize=(5, 5))
-        ax.bar(['Baseline', 'This Scenario'],
-               [_baseline_cn_local, results['mean_cn']],
-               color=['#5b8db8', '#7b4fa6'])
-        ax.axhline(_baseline_cn_local, color='gray', linestyle='--', alpha=0.5)
-        ax.set_title('Flood Risk', fontsize=16, fontweight='bold')
-        ax.set_ylabel('Mean Curve Number\n(lower = less runoff)', fontsize=12)
-        ax.set_ylim(0, 100)
-        ax.tick_params(labelsize=12)
-        plt.tight_layout()
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
+        with col1:
+            # read from state to avoid silent-staleness if city switches
+            _baseline_cn_local = _CURRENT_CITY_STATE.baseline_cn
+            fig, ax = plt.subplots(figsize=(5, 5))
+            ax.bar(['Baseline', 'This Scenario'],
+                   [_baseline_cn_local, results['mean_cn']],
+                   color=['#5b8db8', '#7b4fa6'])
+            ax.axhline(_baseline_cn_local, color='gray', linestyle='--', alpha=0.5)
+            ax.set_title('Flood Risk', fontsize=16, fontweight='bold')
+            ax.set_ylabel('Mean Curve Number\n(lower = less runoff)', fontsize=12)
+            ax.set_ylim(0, 100)
+            ax.tick_params(labelsize=12)
+            plt.tight_layout()
+            st.pyplot(fig, width='stretch')
+            plt.close(fig)
 
-    with col2:
-        # read from state to avoid silent-staleness if city switches
-        _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
-        fig, ax = plt.subplots(figsize=(5, 5))
-        ax.bar(['Baseline', 'This Scenario'],
-               [_baseline_hm_local, results['mean_hm']],
-               color=['#5b8db8', '#7b4fa6'])
-        ax.axhline(_baseline_hm_local, color='gray', linestyle='--', alpha=0.5)
-        ax.set_title('Urban Cooling', fontsize=16, fontweight='bold')
-        ax.set_ylabel('Heat Mitigation Index\n(higher = more cooling)', fontsize=12)
-        ax.set_ylim(0, 1.1)
-        ax.tick_params(labelsize=12)
-        plt.tight_layout()
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
+        with col2:
+            # read from state to avoid silent-staleness if city switches
+            _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
+            fig, ax = plt.subplots(figsize=(5, 5))
+            ax.bar(['Baseline', 'This Scenario'],
+                   [_baseline_hm_local, results['mean_hm']],
+                   color=['#5b8db8', '#7b4fa6'])
+            ax.axhline(_baseline_hm_local, color='gray', linestyle='--', alpha=0.5)
+            ax.set_title('Urban Cooling', fontsize=16, fontweight='bold')
+            ax.set_ylabel('Heat Mitigation Index\n(higher = more cooling)', fontsize=12)
+            ax.set_ylim(0, 1.1)
+            ax.tick_params(labelsize=12)
+            plt.tight_layout()
+            st.pyplot(fig, width='stretch')
+            plt.close(fig)
 
-    with col3:
-        fig, ax = plt.subplots(figsize=(5, 5))
-        ax.bar(['Baseline', 'This Scenario'],
-               [BASELINE_FOOD_MLN_LBS, results['food_mln_lbs']],
-               color=['#5b8db8', '#7b4fa6'])
-        ax.set_title('Food Production', fontsize=16, fontweight='bold')
-        ax.set_ylabel('Food Production\n(million lbs/year)', fontsize=12)
-        ax.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
-        ax.tick_params(labelsize=12)
-        plt.tight_layout()
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
+        with col3:
+            fig, ax = plt.subplots(figsize=(5, 5))
+            ax.bar(['Baseline', 'This Scenario'],
+                   [BASELINE_FOOD_MLN_LBS, results['food_mln_lbs']],
+                   color=['#5b8db8', '#7b4fa6'])
+            ax.set_title('Food Production', fontsize=16, fontweight='bold')
+            ax.set_ylabel('Food Production\n(million lbs/year)', fontsize=12)
+            ax.set_ylim(0, max(MAX_FOOD * 1.1, 0.01))
+            ax.tick_params(labelsize=12)
+            plt.tight_layout()
+            st.pyplot(fig, width='stretch')
+            plt.close(fig)
 
-    with col4:
-        fig, ax = plt.subplots(figsize=(5, 5))
-        _max_carbon = max(scenario_df['carbon_tons_co2'].max() * 1.1, 1.0)
-        # Brief 30: SA = one-time stock change (Vibrant Land framework);
-        # MN = annual sequestration rate. Title + Y-label branch on framing.
-        _carbon_title = 'Carbon Storage Change' if _CARBON_IS_STOCK else 'Carbon Sequestration'
-        _carbon_ylabel = (
-            'Carbon stock change (tons CO2e)\n(higher = more carbon stored)'
-            if _CARBON_IS_STOCK
-            else 'Carbon (tons CO2e/year)\n(higher = more sequestration)'
-        )
-        ax.bar(['Baseline', 'This Scenario'],
-               [0, results['carbon_tons_co2']],
-               color=['#5b8db8', '#7b4fa6'])
-        ax.set_title(_carbon_title, fontsize=16, fontweight='bold')
-        ax.set_ylabel(_carbon_ylabel, fontsize=12)
-        ax.set_ylim(0, _max_carbon)
-        ax.tick_params(labelsize=12)
-        plt.tight_layout()
-        st.pyplot(fig, width='stretch')
-        plt.close(fig)
-
-with tab2:
-    # NOTE: We deliberately do NOT auto-clear `just_optimized` here. Streamlit
-    # executes every `with tabX:` block on every rerun (regardless of which
-    # tab is visible), so an auto-clear inside this block fires on the next
-    # rerun rather than only when the user actually opens this tab — which
-    # made the optimization banner vanish prematurely. The dismiss-X button
-    # on the banner is now the only way to clear the flag, plus running a
-    # new optimization (which sets it back to True or False).
-
-    # Brief A.3: filter saved scenarios to the active city. The .get("city",
-    # selected_city) default is backward-compatible — in-memory saves from
-    # before A.3 lacked the `city` key; treat them as belonging to the
-    # current city rather than orphaning them.
-    _saved_for_city = [
-        s for s in st.session_state.saved_scenarios
-        if s.get("city", selected_city) == selected_city
-    ]
-
-    # ── Tradeoff Space (Tradeoff Analysis reorder) ──
-    # Placed first in tab2 so the user lands on the visual mapping of
-    # current-scenario vs alternatives before the row-by-row comparison
-    # table. Both axes are higher-is-better (Flood Retention on x;
-    # Heat Mitigation Index on y — see `plot_tradeoff`'s
-    # xaxis_title / yaxis_title at the engine), so the top-right framing
-    # is axis-verified.
-    st.subheader("Tradeoff space: current scenario vs alternatives")
-    st.caption(
-        "Each point is a scenario. Better outcomes are toward the "
-        "**top-right** — both axes are higher-is-better (Flood Retention "
-        "on x, Heat Mitigation Index on y). The **purple star** is your "
-        "current scenario; **orange diamonds** are citywide surrogate "
-        "suggestions (with 10th–90th percentile uncertainty bars). "
-        "Bubble size shows food production for saved and optimizer "
-        "points. Region-optimizer results are engine-verified and have "
-        "their own table below — not plotted as diamonds, to keep "
-        "surrogate-predicted (citywide) and engine-verified (region) "
-        "visually distinct."
-    )
-    # The optimizer returns a `{'found': False, ...}` dict when no
-    # candidate meets the targets — don't pass that to the chart's
-    # optimizer-overlay path (the `plot_tradeoff` defensive backstop
-    # would skip it too, but coerce here so the intent is visible at
-    # the call site).
-    # When a filter is active the citywide optimizer is stale (it's
-    # citywide-scoped, predicted values); don't overlay it on a region
-    # tradeoff. The region-optimizer surfaces its results in its own table
-    # below — chart overlay for region values is not in v1.
-    if _filter_active:
-        _opt_for_chart = None
-    else:
-        _opt_for_chart = st.session_state.optimized_results
-        if not isinstance(_opt_for_chart, pd.DataFrame):
-            _opt_for_chart = None
-    st.plotly_chart(plot_tradeoff(
-        results, scenario_df,
-        lookup_table=lookup_table,
-        saved=_saved_for_city,
-        optimized=_opt_for_chart,
-    ), use_container_width=True)
-
-    st.divider()
-
-    # ── Cross-source comparison table (Brief #5) ──
-    # Always shows the active scenario as a row (marked ▶ Current), plus
-    # NatCap fixed scenarios as anchor rows on SA, plus any saved scenarios
-    # for the active city. Source / Validation columns drive off per-row
-    # provenance (Brief #3 wording). MN currently has no NatCap anchors;
-    # the rest of the table works unchanged. Flood is intentionally excluded
-    # (different derivations between baseline and NatCap alternatives —
-    # the per-scenario flood card is the right place for that). Carbon $
-    # column is labeled (derived) on every row because it's the prototype's
-    # own NatCap-carbon × EPA SC-CO2 multiplication, not itself a NatCap-
-    # published dollar value.
-    # UI-Text Pass — adaptive title. SA always has NatCap anchor rows so the
-    # table is genuinely a comparison; MN has anchors only when the user has
-    # saved scenarios. With no anchors and no saves the table is a single-row
-    # summary, so "Compare scenarios" overpromises.
-    _has_comparison_rows = (
-        selected_city.startswith("San Antonio") or bool(_saved_for_city)
-    )
-    # Adaptive title: under an active region/ownership filter the current-row
-    # values reflect the filter scope, but NatCap fixed scenarios and saved
-    # scenarios were computed under their own scopes (filter-time for saves;
-    # no-filter for NatCap anchors). Surface that in the title so the user
-    # doesn't read across rows as same-scope numbers.
-    if _has_comparison_rows:
-        if _filter_active:
-            st.markdown("#### Compare scenarios — current row reflects active filter")
-        else:
-            st.markdown("#### Compare scenarios")
-        st.caption(
-            ("NatCap-published reference scenarios, t"
-             if selected_city.startswith("San Antonio") else "T")
-            + "he current scenario, and any you've saved — side by side. "
-            "**Source** says where the value comes from; **Validation** says how "
-            "it's grounded. Different sources are not directly comparable as "
-            "precision numbers; the columns make the difference visible."
-            + (" The current row reflects your active region/ownership filter; "
-               "anchor and saved rows do not." if _filter_active else "")
-        )
-    else:
-        st.markdown("#### Current scenario summary")
-        st.caption(
-            "Just the current scenario for now — save scenarios from below to "
-            "build up a side-by-side comparison. **Source** and **Validation** "
-            "columns describe where each value comes from and how it's grounded."
-        )
-
-    def _cs_source_validation(prov):
-        info = _PROVENANCE_HEADER_INFO.get(
-            prov, ("Unknown", "provenance not recorded", "gray"))
-        return info[0], info[1]
-
-    # Short Validation cell labels. The full Brief #3 wording (kept in
-    # `_PROVENANCE_HEADER_INFO`) is moved to the column-header tooltip via
-    # column_config to keep the table from getting cramped.
-    _CS_SHORT_VAL = {
-        eib.PROVENANCE_BASELINE:     "engine verified",
-        eib.PROVENANCE_NATCAP_FIXED: "displayed (NatCap)",
-        eib.PROVENANCE_EXPLORER:     "engine verified",
-        eib.PROVENANCE_OPTIMIZER:    "engine + full-raster",
-        # Region-constrained optimizer (variant B). The displayed values are
-        # engine-true region-local; the surrogate's role stopped at
-        # shortlisting. Distinct from PROVENANCE_OPTIMIZER's "engine +
-        # full-raster" (citywide).
-        eib.PROVENANCE_REGION_OPTIMIZED: "engine verified (region)",
-    }
-    def _cs_short_validation(prov):
-        return _CS_SHORT_VAL.get(prov, "—")
-
-    # UI feedback #5 — carbon column labels match per-city method AND
-    # the canonical phrasing used by the main Economic metric card +
-    # the Selected-region impact row, so the same quantity reads under
-    # one label everywhere in the app (Batch 4 v2 #8 harmonization).
-    # SA = four-pool stock change (one-time, t CO2e): "Carbon Storage
-    # Change" + "Carbon Storage Value $". MN = annual sequestration
-    # flow (t CO2e/yr): "Carbon Sequestration" + "Avoided Carbon Cost
-    # $/yr".
-    _CS_CARBON_TONS_LABEL    = ('Carbon Storage Change'
-                                 if _CARBON_IS_STOCK else 'Carbon Sequestration')
-    _CS_CARBON_TONS_UNIT     = ('t CO2e' if _CARBON_IS_STOCK else 't CO2e/yr')
-    _CS_CARBON_DOLLAR_LABEL  = ('Carbon Storage Value $ (derived)'
-                                 if _CARBON_IS_STOCK
-                                 else 'Avoided Carbon Cost $/yr (derived)')
-    _CS_CARBON_DOLLAR_PERIOD = '' if _CARBON_IS_STOCK else '/yr'
-
-    def _cs_row_metrics(r):
-        """Metric cells for a row drawn from a results-shaped dict (current
-        or saved). Each cell returns "—" when the value is missing; 0 is
-        a legitimate value and renders normally."""
-        v_temp     = r.get('temp_change_f')
-        v_carbon   = r.get('carbon_tons_co2')
-        v_carbon_d = r.get('carbon_value_usd')
-        v_cool     = r.get('cooling_energy_savings_usd')
-        v_una      = r.get('nature_access_pct')
-        v_food     = r.get('food_mln_lbs')
-        v_mh       = r.get('preventable_mh_cases')
-        v_cost     = r.get('total_cost_mln')
-        # UI feedback #5 — carbon column labels match per-city method:
-        # SA = four-pool stock change (one-time, t CO2e), MN = annual
-        # sequestration flow (t CO2e/yr). The dollar column is
-        # correspondingly "Carbon Storage Value $" (SA) vs "Avoided
-        # Carbon Cost $/yr" (MN) — same vocabulary the Economic metric
-        # card uses (`_carbon_dollar_label` at app.py:5969).
-        return {
-            "Temperature":              _fmt_temp_change(v_temp) if v_temp is not None else "—",
-            _CS_CARBON_TONS_LABEL:      f"{v_carbon/1e6:+.2f}M {_CS_CARBON_TONS_UNIT}" if v_carbon is not None else "—",
-            _CS_CARBON_DOLLAR_LABEL:    f"${v_carbon_d/1e6:+.0f}M{_CS_CARBON_DOLLAR_PERIOD}" if v_carbon_d is not None else "—",
-            "Cooling Energy $":         f"${v_cool/1e6:.2f}M/yr"       if v_cool is not None else "—",
-            "Nature Access %":          f"{v_una:.1f}%"                if v_una is not None else "—",
-            "Food (M lbs)":             f"{v_food:.2f}"                if v_food is not None else "—",
-            "MH cases":                 f"{int(v_mh):,}"               if v_mh is not None else "—",
-            "Cost $M":                  f"${v_cost:.1f}M"              if v_cost is not None else "—",
-        }
-
-    # Scenario Record Pass — Area + Ownership columns compose at render via
-    # the module-level _cs_area_for_row / _cs_ownership_for_row helpers
-    # (extracted so the Scenario audit expander on tab1 and the CSV export
-    # below can reuse the same composition rule).
-    _cs_rows = []
-
-    # ── 1. NatCap anchor rows (SA only) ──
-    if selected_city.startswith("San Antonio"):
-        _src_natcap = _cs_source_validation(eib.PROVENANCE_NATCAP_FIXED)[0]
-        _val_natcap = _cs_short_validation(eib.PROVENANCE_NATCAP_FIXED)
-        for _sid in ns.SA_NATCAP_FIXED_SCENARIOS.keys():
-            _spec = ns.SA_NATCAP_FIXED_SCENARIOS[_sid]
-            _, _bv_t_s, _dT_s = nv.published_delta(selected_city, _sid, "temp_change_f")
-            _, _bv_c_s, _dC_s = nv.published_delta(selected_city, _sid, "carbon_tons_co2")
-            if _sid == "baseline":
-                # Every other row in these three columns is Δ-vs-baseline.
-                # Show "baseline" here rather than absolutes so each column
-                # is on a single basis. NatCap's absolute citywide anchors
-                # (90.08 °F, 107.32M t CO2e, $20.39B) are surfaced in the
-                # Tab 4 reference view, not mixed into this Δ-basis table.
-                _t_str  = "baseline"
-                _c_str  = "baseline"
-                _cv_str = "baseline"
-            else:
-                _t_str  = (f"{_fmt_temp_change(_dT_s)} ({_dT_s:+.3f} °F)"
-                           if _dT_s is not None else "—")
-                _c_str  = (f"{_dC_s / 1e6:+.2f}M t CO2e"
-                           if _dC_s is not None else "—")
-                _cv_str = (f"${_dC_s * EPA_SOCIAL_COST_CARBON / 1e6:+.0f}M"
-                           if _dC_s is not None else "—")
-            _cs_rows.append({
-                "Scenario":                 _spec["label"],
-                "Source":                   _src_natcap,
-                "Validation":               _val_natcap,
-                "Area":                     "Citywide",
-                "Ownership":                "None",
-                "Temperature":              _t_str,
-                _CS_CARBON_TONS_LABEL:      _c_str,
-                _CS_CARBON_DOLLAR_LABEL:    _cv_str,
-                "Cooling Energy $":         "—",
-                "Nature Access %":          "—",
-                "Food (M lbs)":             "—",
-                "MH cases":                 "—",
-                "Cost $M":                  "—",
-            })
-
-    # ── 2. Current scenario row ──
-    # Provenance detection mirrors the Brief #3 main-panel header at
-    # _scen_provenance below. (Re-derived locally here because tab2 runs on
-    # every rerun regardless of which tab is visible — we need a fresh read
-    # from results / session_state each time.)
-    if results['pct_converted'] == 0:
-        _cur_prov = eib.PROVENANCE_BASELINE
-        # Relay A — match the banner title's no-conversion framing so the
-        # comparison-table "▶ Current" cell stays in sync with the H2 above
-        # the metric grid. Provenance stays BASELINE.
-        _cur_label = f"▶ Current — {_explorer_scenario_label(_resolved_scenario)}"
-    elif st.session_state.get("applied_from_region_optimizer"):
-        _cur_prov = eib.PROVENANCE_REGION_OPTIMIZED
-        _cur_label = (f"▶ Current — Region-optimized · "
-                      f"{results['scenario_name']}")
-    elif st.session_state.get("applied_from_optimizer"):
-        _cur_prov = eib.PROVENANCE_OPTIMIZER
-        _cur_label = f"▶ Current — Optimizer suggestion · {results['scenario_name']}"
-    else:
-        _cur_prov = eib.PROVENANCE_EXPLORER
-        _cur_label = f"▶ Current — {results['scenario_name']}"
-    _cs_cur_src = _cs_source_validation(_cur_prov)[0]
-    # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3 —
-    # augment the Source column when an Explorer scenario is region- and/or
-    # ownership-constrained. Same suffixes the main panel header + export
-    # bundle metadata use. Baseline (pct=0) reads just 'Baseline' — don't
-    # augment. Optimizer can't be placement-active (Optimize is disabled
-    # when either constraint is set). Use the layer-present signal instead
-    # of mode=='selected_regions' so ownership-only doesn't false-trigger
-    # the region suffix.
-    if _cur_prov == eib.PROVENANCE_EXPLORER:
-        if (results.get('region_selection') or {}).get('layer') is not None:
-            _cs_cur_src = f"{_cs_cur_src} · selected-region placement"
-        _cs_cur_src = f"{_cs_cur_src}{_ownership_source_suffix(results)}"
-    _cs_rows.append({
-        "Scenario":   _cur_label,
-        "Source":     _cs_cur_src,
-        "Validation": _cs_short_validation(_cur_prov),
-        "Area":       _cs_area_for_row(results),
-        "Ownership":  _cs_ownership_for_row(results),
-        **_cs_row_metrics(results),
-    })
-
-    # ── 3. Saved scenarios for this city ──
-    for _saved in _saved_for_city:
-        _prov = _saved.get("provenance")
-        if _prov is None:
-            # Backfill for older in-memory saves predating Brief #5: best-
-            # effort guess from the scenario fields. The applied-from-
-            # optimizer flag was an in-memory state at save time, so we can't
-            # recover OPTIMIZER for older saves — they read as EXPLORER /
-            # BASELINE, which is the safer underclaim.
-            _prov = (eib.PROVENANCE_BASELINE if _saved.get("pct_converted", 0) == 0
-                     else eib.PROVENANCE_EXPLORER)
-        _src = _cs_source_validation(_prov)[0]
-        # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3
-        # — augment Source for saved Explorer scenarios that carry a region
-        # and/or ownership selection. The save handler preserves the full
-        # results dict (sans scenario_lulc), so both blocks flow through
-        # automatically. Pre-29 saves return None safely via .get().
-        if _prov == eib.PROVENANCE_EXPLORER:
-            if (_saved.get('region_selection') or {}).get('layer') is not None:
-                _src = f"{_src} · selected-region placement"
-            _src = f"{_src}{_ownership_source_suffix(_saved)}"
-        _label = _saved.get("display_name") or _saved.get("scenario_name") or "(unnamed save)"
-        _cs_rows.append({
-            "Scenario":   _label,
-            "Source":     _src,
-            "Validation": _cs_short_validation(_prov),
-            "Area":       _cs_area_for_row(_saved),
-            "Ownership":  _cs_ownership_for_row(_saved),
-            **_cs_row_metrics(_saved),
-        })
-
-    # Full Brief #3 wording lives in a column-header tooltip so the cells
-    # can stay compact. Source/Validation cell labels are the short form;
-    # hover the column header for the source-to-validation mapping.
-    _validation_help = (
-        "Each source has a different validation context:\n\n"
-        "• **NatCap reference** — displayed from NatCap published output; exact scenario raster / aggregation not available.\n\n"
-        "• **Baseline** — engine verified vs canonical InVEST; absolute NatCap citywide figures not reproduced.\n\n"
-        "• **Explorer-generated** — canonical engine verified; scenario itself not NatCap-published.\n\n"
-        "• **Surrogate-suggested** — engine-validated; full-raster evaluated — exploratory candidate for further validation."
-    )
-    st.dataframe(
-        pd.DataFrame(_cs_rows),
-        width='stretch',
-        hide_index=True,
-        column_config={
-            "Scenario":   st.column_config.TextColumn("Scenario", width="medium"),
-            "Source":     st.column_config.TextColumn(
-                "Source",
-                width="medium",
-                help="What kind of scenario this row represents. See the Validation column for how that source is grounded.",
-            ),
-            "Validation": st.column_config.TextColumn(
-                "Validation",
-                width="medium",
-                help=_validation_help,
-            ),
-            "Area":       st.column_config.TextColumn(
-                "Area",
-                width="small",
-                help="Where conversions were placed. 'Citywide' = no region constraint; otherwise the selected region(s).",
-            ),
-            "Ownership":  st.column_config.TextColumn(
-                "Ownership",
-                width="small",
-                help="Ownership / vacancy screen applied to the placement pool. 'None' = no screen. SA-only today.",
-            ),
-        },
-    )
-    st.caption(
-        "Notes: Temperature, carbon stock, and carbon value are shown as changes "
-        "from each row's own baseline. NatCap-published rows use NatCap's published "
-        "baseline; Explorer-generated rows use the prototype baseline. Flood is "
-        "shown separately because NatCap reference and Explorer scenarios use "
-        "different derivations."
-    )
-
-    # ── Scenario CSV export ───────────────────────────────────────────────
-    # Data-complete download of the comparison set: one row per scenario
-    # (current + saved-for-city). Full record + computed metrics; every
-    # value reads results / _saved directly — no recomputation. NatCap
-    # anchors intentionally excluded (no full record; would force "—" on
-    # most columns and dilute the round-trip guarantee).
-    import io as _csv_io
-    from datetime import datetime as _csv_dt, timezone as _csv_tz
-
-    def _csv_row_from_scenario(d, label, provenance, source_label, validation_label):
-        rs = d.get('region_selection') or {}
-        # Batch 4 v2 — ownership_filter is now str / composite-dict / None.
-        # The normalizer collapses all three shapes; the CSV serializes
-        # `ownership_classes` as a pipe-joined list (e.g. "city|school"
-        # for a multi-class composite). The `ownership_mode` column
-        # carries the storage shape for round-trip — string mode key
-        # when single-class, JSON-encoded for the composite.
-        own_raw  = d.get('ownership_filter')
-        own_norm = _normalize_ownership_filter(own_raw)
-        city_for_row = d.get('city', selected_city)
-        own_layer_meta = (CITIES.get(city_for_row, {}).get('ownership_layer') or {})
-        rl = d.get('region_local') or {}
-        if own_norm is None:
-            _csv_own_mode    = ''
-            _csv_own_label   = ''
-            _csv_own_classes = ''
-            _csv_own_vacant  = ''
-            _csv_own_src     = ''
-            _csv_own_date    = ''
-        else:
-            # Round-tripable mode column: string when storage is str,
-            # else a JSON-style dict literal so the consumer can ast.literal_eval.
-            if isinstance(own_raw, str):
-                _csv_own_mode = own_raw
-            else:
-                _csv_own_mode = repr(own_raw)
-            _csv_own_label   = own_norm['label']
-            _csv_own_classes = '|'.join(own_norm['classes'])
-            _csv_own_vacant  = 'true' if own_norm['vacant_only'] else 'false'
-            _csv_own_src     = own_layer_meta.get('source') or ''
-            _csv_own_date    = own_layer_meta.get('data_date') or ''
-        row = {
-            'scenario_label':             label,
-            'city':                       city_for_row,
-            'provenance':                 provenance,
-            'source_label':               source_label,
-            'validation':                 validation_label,
-            'region_layer':               rs.get('layer') or '',
-            'region_selected_ids':        '|'.join(rs.get('selected_ids') or []),
-            'region_selected_area_acres': (rs.get('selected_area_acres')
-                                            if rs.get('mode') == 'selected_regions' else ''),
-            'region_eligible_acres':      (rs.get('eligible_pixels_in_region') or 0) * PIXEL_AREA_ACRES,
-            'region_converted_acres':     rs.get('converted_acres', 0.0),
-            'ownership_mode':             _csv_own_mode,
-            # CSV-round-trip safety: empty cell (not "None" sentinel) when no
-            # filter is active — pandas read_csv treats "None" as NaN.
-            'ownership_label':            _csv_own_label,
-            'ownership_classes':          _csv_own_classes,  # NEW: pipe-joined for multi-class
-            'ownership_vacant_only':      _csv_own_vacant,   # NEW: 'true'/'false'/'' tri-state
-            'ownership_source':           _csv_own_src,
-            'ownership_data_date':        _csv_own_date,
-            'pct_converted':              d.get('pct_converted'),
-            'green_infrastructure_pct':   d.get('green_infrastructure_pct'),
-            'food_forest_pct':            d.get('food_forest_pct'),
-            'pct_highdensity':            100 - (d.get('green_infrastructure_pct') or 0)
-                                              - (d.get('food_forest_pct') or 0),
-            'placement_strategy':         d.get('placement_strategy', placement_strategy),
-            'random_seed':                d.get('random_seed', 42),
-            'scenario_schema_version':    SCENARIO_SCHEMA_VERSION,
-        }
-        for k in ('flood_reduction', 'temp_change_f', 'mean_hm', 'mean_ndvi',
-                  'food_mln_lbs', 'carbon_tons_co2', 'carbon_value_usd',
-                  'cooling_energy_savings_usd', 'nature_access_pct',
-                  'people_with_nature_access', 'preventable_mh_cases',
-                  'avoided_mh_cost_usd', 'total_cost_mln', 'runoff_acre_feet'):
-            row[k] = d.get(k)
-        for k, cfg in _REGION_LOCAL_METRICS.items():
-            if cfg.get('decomposable'):
-                row[f'region_local__{k}'] = rl.get(k) if rl else ''
-        return row
-
-    _csv_cur_val = _PROVENANCE_HEADER_INFO.get(
-        _cur_prov, ("Unknown", "provenance not recorded", "gray")
-    )[1]
-    _csv_rows = [
-        _csv_row_from_scenario(
-            results, _cur_label, _cur_prov, _cs_cur_src, _csv_cur_val,
-        )
-    ]
-    for _saved in _saved_for_city:
-        _prov_save = _saved.get("provenance")
-        if _prov_save is None:
-            _prov_save = (eib.PROVENANCE_BASELINE
-                          if _saved.get("pct_converted", 0) == 0
-                          else eib.PROVENANCE_EXPLORER)
-        _src_save = _cs_source_validation(_prov_save)[0]
-        if _prov_save == eib.PROVENANCE_EXPLORER:
-            if (_saved.get('region_selection') or {}).get('layer') is not None:
-                _src_save = f"{_src_save} · selected-region placement"
-            _src_save = f"{_src_save}{_ownership_source_suffix(_saved)}"
-        _label_save = (_saved.get("display_name")
-                       or _saved.get("scenario_name") or "(unnamed save)")
-        _val_save = _PROVENANCE_HEADER_INFO.get(
-            _prov_save, ("Unknown", "provenance not recorded", "gray")
-        )[1]
-        _csv_rows.append(
-            _csv_row_from_scenario(_saved, _label_save, _prov_save,
-                                    _src_save, _val_save)
-        )
-
-    _csv_buf = _csv_io.StringIO()
-    pd.DataFrame(_csv_rows).to_csv(_csv_buf, index=False)
-    _csv_filename = (
-        f"scenario_summary_"
-        f"{selected_city.split(',')[0].lower().replace(' ', '_')}"
-        f"_{_csv_dt.now(_csv_tz.utc).strftime('%Y-%m-%d')}.csv"
-    )
-    st.download_button(
-        label="Download scenario summary (CSV)",
-        data=_csv_buf.getvalue(),
-        file_name=_csv_filename,
-        mime="text/csv",
-        help=("Current scenario plus every saved scenario for this city as a "
-              "CSV. Full record (region, ownership, placement, seed) plus "
-              "citywide and region-local metrics. NatCap reference rows are "
-              "not included — they don't carry a complete record."),
-    )
-
-    if TRACTS_DATA_AVAILABLE:
-        st.divider()
-        st.markdown("#### Neighborhood breakdown")
-        # Brief 31: SA uses ACS block-group polygons (NatCap-canonical, matches
-        # Vibrant Land Figure 10 framing); MN uses Census tracts. The
-        # aggregation code is polygon-name-agnostic — only the user-facing
-        # caption changes per city.
-        _polygon_unit_plural = (
-            "Census block groups" if selected_city.startswith("San Antonio")
-            else "Census tracts"
-        )
-        _polygon_unit_singular = (
-            "block group" if selected_city.startswith("San Antonio") else "tract"
-        )
-        st.caption(
-            f"Top 5 most-improved {_polygon_unit_plural} under this scenario, ranked by "
-            f"cooling. The 'vs city avg' columns show each {_polygon_unit_singular}'s "
-            f"temperature relative to the city-wide average (positive = warmer); the "
-            f"Temperature change column shows the scenario's effect. Population-weighted "
-            f"within each {_polygon_unit_singular}."
-        )
-        _tracts_summary = compute_per_tract_summary(results['scenario_lulc_ucm'])
-        if not _tracts_summary.empty:
-            # Most cooling first: _change_f is negative for cooling under the
-            # ΔT convention (positive = warmer), so sort ascending.
-            _top5 = (
-                _tracts_summary
-                .sort_values("_change_f", ascending=True)
-                .head(5)
-                .reset_index(drop=True)
+        with col4:
+            fig, ax = plt.subplots(figsize=(5, 5))
+            _max_carbon = max(scenario_df['carbon_tons_co2'].max() * 1.1, 1.0)
+            # Brief 30: SA = one-time stock change (Vibrant Land framework);
+            # MN = annual sequestration rate. Title + Y-label branch on framing.
+            _carbon_title = 'Carbon Storage Change' if _CARBON_IS_STOCK else 'Carbon Sequestration'
+            _carbon_ylabel = (
+                'Carbon stock change (tons CO2e)\n(higher = more carbon stored)'
+                if _CARBON_IS_STOCK
+                else 'Carbon (tons CO2e/year)\n(higher = more sequestration)'
             )
-            # Display layer: render the signed ΔT as natural language (no bare
-            # signed numbers for the user) and color the change column —
-            # cooler = green, warmer = red.
-            _top5["Temperature change"] = _top5["_change_f"].apply(_fmt_temp_change)
-            _top5 = _top5.drop(columns=["_change_f"])
+            ax.bar(['Baseline', 'This Scenario'],
+                   [0, results['carbon_tons_co2']],
+                   color=['#5b8db8', '#7b4fa6'])
+            ax.set_title(_carbon_title, fontsize=16, fontweight='bold')
+            ax.set_ylabel(_carbon_ylabel, fontsize=12)
+            ax.set_ylim(0, _max_carbon)
+            ax.tick_params(labelsize=12)
+            plt.tight_layout()
+            st.pyplot(fig, width='stretch')
+            plt.close(fig)
 
-            def _color_temp_change(val):
-                if isinstance(val, str) and "cooler" in val:
-                    return "color: #1a7f37; font-weight: 600"   # green
-                if isinstance(val, str) and "warmer" in val:
-                    return "color: #cf222e; font-weight: 600"   # red
-                return ""
+if _main_tab == 'Tradeoff Analysis':
+    with tab2:
+        # NOTE: We deliberately do NOT auto-clear `just_optimized` here. Streamlit
+        # executes every `with tabX:` block on every rerun (regardless of which
+        # tab is visible), so an auto-clear inside this block fires on the next
+        # rerun rather than only when the user actually opens this tab — which
+        # made the optimization banner vanish prematurely. The dismiss-X button
+        # on the banner is now the only way to clear the flag, plus running a
+        # new optimization (which sets it back to True or False).
 
-            _styled = _top5.style.map(_color_temp_change, subset=["Temperature change"])
-            st.dataframe(_styled, width='stretch', hide_index=True)
-        else:
-            st.caption(f"No {_polygon_unit_singular}-level data could be computed for this scenario.")
-
-    # UI feedback #4 — the "Best scenarios by goal" library is the
-    # citywide precomputed lookup; its rankings are computed at citywide
-    # scope and don't reflect any active region or ownership filter.
-    # Showing it under a region/ownership scenario would imply rankings
-    # that account for the filter when they don't. Hide it in that
-    # case; show it only in citywide-no-filter mode.
-    _best_by_goal_filter_active = (
-        st.session_state.get('selected_region_mask') is not None
-        or st.session_state.get('selected_ownership_mask') is not None
-    )
-    if _best_by_goal_filter_active:
-        # Single-line note so the user knows why the section is missing,
-        # plus the action that brings it back.
-        st.divider()
-        st.caption(
-            "_'Best scenarios by goal' is hidden under a region or "
-            "ownership filter — the precomputed library is citywide "
-            "and its rankings don't reflect your filter. Clear the "
-            "region selection and ownership filter to see it._"
-        )
-    else:
-        st.divider()
-        st.markdown("#### Best scenarios by goal")
-        st.caption("From the pre-computed scenario library — not surrogate predictions.")
-
-        # Best-scenarios-by-goal uses the lookup table when High Resolution mode
-        # built one; otherwise falls back to the scenario_df the active mode is
-        # using (Fast prototype: ~90 scenarios; Balanced: ~726 scenarios).
-        lookup_df = pd.DataFrame(lookup_table.values()) if lookup_table else scenario_df
-        _norm_flood = lookup_df['flood_reduction'] / max(lookup_df['flood_reduction'].max(), 1e-9)
-        _norm_hm    = lookup_df['mean_hm']         / max(lookup_df['mean_hm'].max(),         1e-9)
-        _norm_food  = lookup_df['food_mln_lbs']    / max(lookup_df['food_mln_lbs'].max(),    1e-9)
-        _balanced_score = _norm_flood + _norm_hm + _norm_food
-
-        best_by_goal = {
-            "Best for flood reduction": lookup_df.loc[lookup_df['flood_reduction'].idxmax()],
-            "Best for cooling":         lookup_df.loc[lookup_df['mean_hm'].idxmax()],
-            "Best for food production": lookup_df.loc[lookup_df['food_mln_lbs'].idxmax()],
-            "Best for carbon":          lookup_df.loc[lookup_df['carbon_tons_co2'].idxmax()],
-            "Best balanced":            lookup_df.loc[_balanced_score.idxmax()],
-        }
-
-        for i, (goal, row) in enumerate(best_by_goal.items()):
-            text_col, btn_col = st.columns([4, 1])
-            with text_col:
-                st.markdown(
-                    f"**{goal}:** {int(row.pct_converted)}% converted — "
-                    f"{int(row.green_infrastructure_pct)}% GI / {int(row.food_forest_pct)}% FF"
-                )
-            with btn_col:
-                if st.button("Apply", key=f"apply_best_goal_{i}"):
-                    st.session_state._pending_pct = int(round(row.pct_converted / 5) * 5)
-                    st.session_state._pending_gi  = int(round(row.green_infrastructure_pct / 5) * 5)
-                    st.session_state._pending_ff  = int(round(row.food_forest_pct / 5) * 5)
-                    if st.session_state._pending_gi + st.session_state._pending_ff > 100:
-                        st.session_state._pending_ff = 100 - st.session_state._pending_gi
-                    # Brief #4: Best-by-Goal comes from the precomputed scenario
-                    # grid, not the surrogate optimizer — make sure a previously-
-                    # set Applied-from-Optimizer flag is cleared, so a best-goal
-                    # scenario that happens to share pct/gi/ff with a prior
-                    # optimizer Apply doesn't inherit OPTIMIZER provenance via the
-                    # auto-clear's "values match" path. Same defense for the
-                    # region-optimizer flag.
-                    st.session_state.applied_from_optimizer = False
-                    st.session_state._applied_optimizer_values = None
-                    st.session_state.applied_from_region_optimizer = False
-                    st.session_state._applied_region_optimizer_values = None
-                    st.session_state._show_apply_toast = True
-                    st.rerun()
-
-        if st.session_state.get("_show_apply_toast"):
-            st.success("Applied — check the Scenario tab to see updated results.")
-            st.session_state._show_apply_toast = False
-
-    st.divider()
-
-    if st.button("Save this scenario"):
-        st.session_state.show_save_input = True
-
-    if st.session_state.get("show_save_input"):
-        scenario_name_input = st.text_input(
-            "Name this scenario:",
-            placeholder="e.g. High GI / Low Cost",
-            key="scenario_name_input",
-        )
-        confirm_col, cancel_col = st.columns([1, 5])
-        with confirm_col:
-            confirm_clicked = st.button("Confirm save")
-        with cancel_col:
-            if st.button("Cancel", key="cancel_save"):
-                st.session_state.show_save_input = False
-                st.rerun()
-        if confirm_clicked and scenario_name_input:
-            saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
-            saved["display_name"] = scenario_name_input
-            saved["placement_strategy"] = placement_strategy
-            saved["heat_priority"] = use_heat_priority  # backward compat for older saves
-            # Scenario Record Pass — capture the seed even though it's
-            # hardcoded to 42 today. All five placement strategies route
-            # through rng (the ranking strategies sample stochastically with
-            # weights), so capturing the seed forward-compats any future
-            # seed-variation work and makes the record self-reproducing.
-            saved["random_seed"] = 42
-            # Brief A.3: tag the city this scenario was saved in. Display sites
-            # filter by active city so MN saves don't show up in SA's view.
-            saved["city"] = selected_city
-            saved["cost_gi"] = cost_gi
-            saved["cost_ff"] = cost_ff
-            saved["cost_hd"] = cost_hd
-            _ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
-            saved["cost_per_acft"]      = _ce['cost_per_acft']
-            saved["cost_per_degf"]      = _ce['cost_per_degf']
-            saved["cost_per_1k_people"] = _ce['cost_per_1k_people']
-            # Brief #5 — record the scenario's provenance so the cross-source
-            # comparison table can read it back later. Uses the same detection
-            # as the Brief #3 main-panel header / Brief #4 D1 export branch.
-            # Older in-memory saves predating this brief get an explicit None
-            # backfill in the table itself, so this is safe to add without a
-            # schema bump.
-            if results['pct_converted'] == 0:
-                saved["provenance"] = eib.PROVENANCE_BASELINE
-            elif st.session_state.get("applied_from_region_optimizer"):
-                saved["provenance"] = eib.PROVENANCE_REGION_OPTIMIZED
-            elif st.session_state.get("applied_from_optimizer"):
-                saved["provenance"] = eib.PROVENANCE_OPTIMIZER
-            else:
-                saved["provenance"] = eib.PROVENANCE_EXPLORER
-            st.session_state.saved_scenarios.append(saved)
-            st.session_state.show_save_input = False
-            st.success(f"Saved: {scenario_name_input}")
-            st.rerun()
-        elif confirm_clicked and not scenario_name_input:
-            st.warning("Please enter a name before saving.")
-
-    # Mode-switch render. Filter-active → render the region-optimized
-    # results (engine-true region-local values, no surrogate bands). Otherwise
-    # → render the existing citywide surrogate suggestions. The two paths
-    # write to distinct session-state slots (`optimized_results` /
-    # `region_optimized_results`) so each is mode-safe. See
-    # docs/internal/REGION_OPTIMIZER_SPEC.md §6.
-    if (_filter_active
-            and st.session_state.region_optimized_results is not None
-            and not st.session_state.region_optimized_results.empty):
-        st.divider()
-        # Relay B: header + caption + column set. "Best tested mixes for
-        # selected area" framing keeps the user honest that this is "best
-        # among what we tested," not "the optimum." The caption is the
-        # short engine-vs-prediction reminder; the "coarse search" caveat
-        # is owned by the sidebar Discover copy above. Columns: Rank / Mix
-        # / Score / Converted acres / Cooling / Flood retention / Carbon /
-        # Food / Cost / Apply.
-        st.subheader("Best tested mixes for selected area")
-        st.caption(
-            "Evaluated with the full raster engine under current region "
-            "and eligibility filters."
-        )
-        _ropt = st.session_state.region_optimized_results.copy()
-        # Synthesize Rank + Mix columns for display. Mix folds the three
-        # knob percentages into one cell so the table is readable at
-        # sidebar widths.
-        _ropt = _ropt.reset_index(drop=True)
-        _ropt.insert(0, 'Rank', _ropt.index + 1)
-        _ropt['Mix'] = _ropt.apply(
-            lambda r: (
-                f"{int(r.pct_converted)}% conv — "
-                f"GI {int(r.green_infrastructure_pct)}% / "
-                f"FF {int(r.food_forest_pct)}%"
-            ),
-            axis=1,
-        )
-        _opt_carbon_col_label_r = (
-            "Carbon (tons CO2e stock)" if _CARBON_IS_STOCK
-            else "Carbon (tons CO2e/yr)"
-        )
-        _r_display_cols = [
-            'Rank', 'Mix', 'weighted_score', 'converted_acres',
-            'mean_hm', 'flood_reduction', 'carbon_tons_co2',
-            'food_mln_lbs', 'total_cost_mln',
+        # Brief A.3: filter saved scenarios to the active city. The .get("city",
+        # selected_city) default is backward-compatible — in-memory saves from
+        # before A.3 lacked the `city` key; treat them as belonging to the
+        # current city rather than orphaning them.
+        _saved_for_city = [
+            s for s in st.session_state.saved_scenarios
+            if s.get("city", selected_city) == selected_city
         ]
-        _r_col_rename = {
-            'weighted_score':           'Score',
-            'converted_acres':          'Converted acres',
-            'mean_hm':                  'Cooling',
-            'flood_reduction':          'Flood retention',
-            'carbon_tons_co2':          _opt_carbon_col_label_r,
-            'food_mln_lbs':             'Food (M lbs)',
-            'total_cost_mln':           'Cost ($M)',
-        }
-        _r_present = [c for c in _r_display_cols if c in _ropt.columns]
-        st.dataframe(_ropt[_r_present].rename(columns=_r_col_rename),
-                     width='stretch', hide_index=True)
 
-        st.markdown("#### Apply a suggestion")
+        # ── Tradeoff Space (Tradeoff Analysis reorder) ──
+        # Placed first in tab2 so the user lands on the visual mapping of
+        # current-scenario vs alternatives before the row-by-row comparison
+        # table. Both axes are higher-is-better (Flood Retention on x;
+        # Heat Mitigation Index on y — see `plot_tradeoff`'s
+        # xaxis_title / yaxis_title at the engine), so the top-right framing
+        # is axis-verified.
+        st.subheader("Tradeoff space: current scenario vs alternatives")
         st.caption(
-            "Loading a recipe into the sliders re-runs the engine on your "
-            "selected area — provenance flips to Surrogate-suggested."
+            "Each point is a scenario. Better outcomes are toward the "
+            "**top-right** — both axes are higher-is-better (Flood Retention "
+            "on x, Heat Mitigation Index on y). The **purple star** is your "
+            "current scenario; **orange diamonds** are citywide surrogate "
+            "suggestions (with 10th–90th percentile uncertainty bars). "
+            "Bubble size shows food production for saved and optimizer "
+            "points. Region-optimizer results are engine-verified and have "
+            "their own table below — not plotted as diamonds, to keep "
+            "surrogate-predicted (citywide) and engine-verified (region) "
+            "visually distinct."
         )
-        _r_btn_cols = st.columns(len(_ropt))
-        for i, (_, row) in enumerate(_ropt.iterrows()):
-            with _r_btn_cols[i]:
-                _prefix = ("✓ " if st.session_state.get("applied_suggestion") == i
-                           else "")
-                _label = f"{_prefix}#{i+1}: {int(row.pct_converted)}% conv"
-                if st.button(_label, key=f"apply_region_opt_{i}"):
-                    st.session_state._pending_pct = int(
-                        round(row.pct_converted / 5) * 5)
-                    st.session_state._pending_gi = int(
-                        round(row.green_infrastructure_pct / 5) * 5)
-                    st.session_state._pending_ff = int(
-                        round(row.food_forest_pct / 5) * 5)
-                    if (st.session_state._pending_gi
-                            + st.session_state._pending_ff > 100):
-                        st.session_state._pending_ff = (
-                            100 - st.session_state._pending_gi)
-                    st.session_state.applied_suggestion = i
-                    # Region-constrained optimizer (variant B) — set the
-                    # NEW flag so the header / Save / Export route to
-                    # PROVENANCE_REGION_OPTIMIZED ("Engine-verified —
-                    # region-optimized"), distinct from the citywide
-                    # surrogate's "Surrogate-suggested." Clear the citywide
-                    # flag so the two states never co-fire.
-                    st.session_state.applied_from_region_optimizer = True
-                    st.session_state._applied_region_optimizer_values = (
-                        st.session_state._pending_pct,
-                        st.session_state._pending_gi,
-                        st.session_state._pending_ff,
-                    )
-                    st.session_state.applied_from_optimizer = False
-                    st.session_state._applied_optimizer_values = None
-                    st.session_state._show_apply_toast = True
-                    st.rerun()
-
-        if st.session_state.get("_show_apply_toast"):
-            st.success("Applied — check the Scenario tab to see updated results.")
-            st.session_state._show_apply_toast = False
+        # The optimizer returns a `{'found': False, ...}` dict when no
+        # candidate meets the targets — don't pass that to the chart's
+        # optimizer-overlay path (the `plot_tradeoff` defensive backstop
+        # would skip it too, but coerce here so the intent is visible at
+        # the call site).
+        # When a filter is active the citywide optimizer is stale (it's
+        # citywide-scoped, predicted values); don't overlay it on a region
+        # tradeoff. The region-optimizer surfaces its results in its own table
+        # below — chart overlay for region values is not in v1.
+        if _filter_active:
+            _opt_for_chart = None
+        else:
+            _opt_for_chart = st.session_state.optimized_results
+            if not isinstance(_opt_for_chart, pd.DataFrame):
+                _opt_for_chart = None
+        st.plotly_chart(plot_tradeoff(
+            results, scenario_df,
+            lookup_table=lookup_table,
+            saved=_saved_for_city,
+            optimized=_opt_for_chart,
+        ), use_container_width=True)
 
         st.divider()
 
-    if (not _filter_active) and st.session_state.optimized_results is not None:
-        st.divider()
-        # Optimizer Promotion — de-optimize the heading: "Suggested
-        # scenarios" framed as predicted (not "Optimized"). Caption below
-        # still flags the surrogate-prediction nature.
-        st.subheader("Suggested scenarios")
-        st.caption("Scroll down to see suggestions and apply them to the sliders.")
-        opt = st.session_state.optimized_results
-        # Brief 30: SA optimizer reports stock-change; MN reports annual flow.
-        _opt_carbon_unit = "tons CO2e" if _CARBON_IS_STOCK else "tons CO2e/yr"
-        _opt_carbon_col_label = (
-            "Carbon (tons CO2e stock)" if _CARBON_IS_STOCK
-            else "Carbon (tons CO2e/yr)"
+        # ── Cross-source comparison table (Brief #5) ──
+        # Always shows the active scenario as a row (marked ▶ Current), plus
+        # NatCap fixed scenarios as anchor rows on SA, plus any saved scenarios
+        # for the active city. Source / Validation columns drive off per-row
+        # provenance (Brief #3 wording). MN currently has no NatCap anchors;
+        # the rest of the table works unchanged. Flood is intentionally excluded
+        # (different derivations between baseline and NatCap alternatives —
+        # the per-scenario flood card is the right place for that). Carbon $
+        # column is labeled (derived) on every row because it's the prototype's
+        # own NatCap-carbon × EPA SC-CO2 multiplication, not itself a NatCap-
+        # published dollar value.
+        # UI-Text Pass — adaptive title. SA always has NatCap anchor rows so the
+        # table is genuinely a comparison; MN has anchors only when the user has
+        # saved scenarios. With no anchors and no saves the table is a single-row
+        # summary, so "Compare scenarios" overpromises.
+        _has_comparison_rows = (
+            selected_city.startswith("San Antonio") or bool(_saved_for_city)
         )
-        if isinstance(opt, dict) and not opt.get('found'):
-            st.warning(
-                f"No scenarios found meeting all targets simultaneously.  \n"
-                f"Maximum achievable values across all candidates:  \n"
-                f"- Flood reduction: up to **{opt['max_flood']}** (your target: {min_flood})  \n"
-                f"- Cooling: up to **{opt['max_cool']:.4f} HMI** (your target: {min_cool:.4f})  \n"
-                f"- Food: up to **{opt['max_food']:.3f}M lbs** (your target: {min_food:.3f})  \n"
-                f"- Carbon: up to **{opt['max_carbon']:,.0f} {_opt_carbon_unit}** (your target: {min_carbon:,})  \n"
-                f"Try lowering the target for whichever metric is furthest from its maximum."
+        # Adaptive title: under an active region/ownership filter the current-row
+        # values reflect the filter scope, but NatCap fixed scenarios and saved
+        # scenarios were computed under their own scopes (filter-time for saves;
+        # no-filter for NatCap anchors). Surface that in the title so the user
+        # doesn't read across rows as same-scope numbers.
+        if _has_comparison_rows:
+            if _filter_active:
+                st.markdown("#### Compare scenarios — current row reflects active filter")
+            else:
+                st.markdown("#### Compare scenarios")
+            st.caption(
+                ("NatCap-published reference scenarios, t"
+                 if selected_city.startswith("San Antonio") else "T")
+                + "he current scenario, and any you've saved — side by side. "
+                "**Source** says where the value comes from; **Validation** says how "
+                "it's grounded. Different sources are not directly comparable as "
+                "precision numbers; the columns make the difference visible."
+                + (" The current row reflects your active region/ownership filter; "
+                   "anchor and saved rows do not." if _filter_active else "")
             )
         else:
+            st.markdown("#### Current scenario summary")
             st.caption(
-                f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
-                f"food ≥ {min_food:.3f}M lbs, carbon ≥ {min_carbon:,} {_opt_carbon_unit} "
-                "— ranked by balanced score. "
-                "Numbers are surrogate model predictions with 10th–90th percentile uncertainty bands."
+                "Just the current scenario for now — save scenarios from below to "
+                "build up a side-by-side comparison. **Source** and **Validation** "
+                "columns describe where each value comes from and how it's grounded."
             )
 
-            # Display table with uncertainty columns
-            display_cols = ['scenario_name', 'pct_converted', 'green_infrastructure_pct',
-                            'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs',
-                            'carbon_tons_co2']
-            # Add uncertainty columns if present
-            unc_cols = [c for c in ['flood_lower', 'flood_upper', 'hm_lower', 'hm_upper',
-                                    'food_lower', 'food_upper',
-                                    'carbon_lower', 'carbon_upper'] if c in opt.columns]
-            _col_rename = {
-                'scenario_name':            'Scenario',
-                'pct_converted':            'Total Conversion (%)',
-                'green_infrastructure_pct': 'Green Infra %',
-                'food_forest_pct':          'Food Forest %',
-                'flood_reduction':          'Flood Index',
-                'mean_hm':                  'Cooling HM',
-                'food_mln_lbs':             'Food (M lbs)',
-                'carbon_tons_co2':          _opt_carbon_col_label,
+        def _cs_source_validation(prov):
+            info = _PROVENANCE_HEADER_INFO.get(
+                prov, ("Unknown", "provenance not recorded", "gray"))
+            return info[0], info[1]
+
+        # Short Validation cell labels. The full Brief #3 wording (kept in
+        # `_PROVENANCE_HEADER_INFO`) is moved to the column-header tooltip via
+        # column_config to keep the table from getting cramped.
+        _CS_SHORT_VAL = {
+            eib.PROVENANCE_BASELINE:     "engine verified",
+            eib.PROVENANCE_NATCAP_FIXED: "displayed (NatCap)",
+            eib.PROVENANCE_EXPLORER:     "engine verified",
+            eib.PROVENANCE_OPTIMIZER:    "engine + full-raster",
+            # Region-constrained optimizer (variant B). The displayed values are
+            # engine-true region-local; the surrogate's role stopped at
+            # shortlisting. Distinct from PROVENANCE_OPTIMIZER's "engine +
+            # full-raster" (citywide).
+            eib.PROVENANCE_REGION_OPTIMIZED: "engine verified (region)",
+        }
+        def _cs_short_validation(prov):
+            return _CS_SHORT_VAL.get(prov, "—")
+
+        # UI feedback #5 — carbon column labels match per-city method AND
+        # the canonical phrasing used by the main Economic metric card +
+        # the Selected-region impact row, so the same quantity reads under
+        # one label everywhere in the app (Batch 4 v2 #8 harmonization).
+        # SA = four-pool stock change (one-time, t CO2e): "Carbon Storage
+        # Change" + "Carbon Storage Value $". MN = annual sequestration
+        # flow (t CO2e/yr): "Carbon Sequestration" + "Avoided Carbon Cost
+        # $/yr".
+        _CS_CARBON_TONS_LABEL    = ('Carbon Storage Change'
+                                     if _CARBON_IS_STOCK else 'Carbon Sequestration')
+        _CS_CARBON_TONS_UNIT     = ('t CO2e' if _CARBON_IS_STOCK else 't CO2e/yr')
+        _CS_CARBON_DOLLAR_LABEL  = ('Carbon Storage Value $ (derived)'
+                                     if _CARBON_IS_STOCK
+                                     else 'Avoided Carbon Cost $/yr (derived)')
+        _CS_CARBON_DOLLAR_PERIOD = '' if _CARBON_IS_STOCK else '/yr'
+
+        def _cs_row_metrics(r):
+            """Metric cells for a row drawn from a results-shaped dict (current
+            or saved). Each cell returns "—" when the value is missing; 0 is
+            a legitimate value and renders normally."""
+            v_temp     = r.get('temp_change_f')
+            v_carbon   = r.get('carbon_tons_co2')
+            v_carbon_d = r.get('carbon_value_usd')
+            v_cool     = r.get('cooling_energy_savings_usd')
+            v_una      = r.get('nature_access_pct')
+            v_food     = r.get('food_mln_lbs')
+            v_mh       = r.get('preventable_mh_cases')
+            v_cost     = r.get('total_cost_mln')
+            # UI feedback #5 — carbon column labels match per-city method:
+            # SA = four-pool stock change (one-time, t CO2e), MN = annual
+            # sequestration flow (t CO2e/yr). The dollar column is
+            # correspondingly "Carbon Storage Value $" (SA) vs "Avoided
+            # Carbon Cost $/yr" (MN) — same vocabulary the Economic metric
+            # card uses (`_carbon_dollar_label` at app.py:5969).
+            return {
+                "Temperature":              _fmt_temp_change(v_temp) if v_temp is not None else "—",
+                _CS_CARBON_TONS_LABEL:      f"{v_carbon/1e6:+.2f}M {_CS_CARBON_TONS_UNIT}" if v_carbon is not None else "—",
+                _CS_CARBON_DOLLAR_LABEL:    f"${v_carbon_d/1e6:+.0f}M{_CS_CARBON_DOLLAR_PERIOD}" if v_carbon_d is not None else "—",
+                "Cooling Energy $":         f"${v_cool/1e6:.2f}M/yr"       if v_cool is not None else "—",
+                "Nature Access %":          f"{v_una:.1f}%"                if v_una is not None else "—",
+                "Food (M lbs)":             f"{v_food:.2f}"                if v_food is not None else "—",
+                "MH cases":                 f"{int(v_mh):,}"               if v_mh is not None else "—",
+                "Cost $M":                  f"${v_cost:.1f}M"              if v_cost is not None else "—",
             }
 
-            st.markdown("#### Candidate scenarios")
-            st.caption(
-                "These are surrogate model predictions. Click Apply to run a "
-                "full pixel-level simulation and verify the result."
+        # Scenario Record Pass — Area + Ownership columns compose at render via
+        # the module-level _cs_area_for_row / _cs_ownership_for_row helpers
+        # (extracted so the Scenario audit expander on tab1 and the CSV export
+        # below can reuse the same composition rule).
+        _cs_rows = []
+
+        # ── 1. NatCap anchor rows (SA only) ──
+        if selected_city.startswith("San Antonio"):
+            _src_natcap = _cs_source_validation(eib.PROVENANCE_NATCAP_FIXED)[0]
+            _val_natcap = _cs_short_validation(eib.PROVENANCE_NATCAP_FIXED)
+            for _sid in ns.SA_NATCAP_FIXED_SCENARIOS.keys():
+                _spec = ns.SA_NATCAP_FIXED_SCENARIOS[_sid]
+                _, _bv_t_s, _dT_s = nv.published_delta(selected_city, _sid, "temp_change_f")
+                _, _bv_c_s, _dC_s = nv.published_delta(selected_city, _sid, "carbon_tons_co2")
+                if _sid == "baseline":
+                    # Every other row in these three columns is Δ-vs-baseline.
+                    # Show "baseline" here rather than absolutes so each column
+                    # is on a single basis. NatCap's absolute citywide anchors
+                    # (90.08 °F, 107.32M t CO2e, $20.39B) are surfaced in the
+                    # Tab 4 reference view, not mixed into this Δ-basis table.
+                    _t_str  = "baseline"
+                    _c_str  = "baseline"
+                    _cv_str = "baseline"
+                else:
+                    _t_str  = (f"{_fmt_temp_change(_dT_s)} ({_dT_s:+.3f} °F)"
+                               if _dT_s is not None else "—")
+                    _c_str  = (f"{_dC_s / 1e6:+.2f}M t CO2e"
+                               if _dC_s is not None else "—")
+                    _cv_str = (f"${_dC_s * EPA_SOCIAL_COST_CARBON / 1e6:+.0f}M"
+                               if _dC_s is not None else "—")
+                _cs_rows.append({
+                    "Scenario":                 _spec["label"],
+                    "Source":                   _src_natcap,
+                    "Validation":               _val_natcap,
+                    "Area":                     "Citywide",
+                    "Ownership":                "None",
+                    "Temperature":              _t_str,
+                    _CS_CARBON_TONS_LABEL:      _c_str,
+                    _CS_CARBON_DOLLAR_LABEL:    _cv_str,
+                    "Cooling Energy $":         "—",
+                    "Nature Access %":          "—",
+                    "Food (M lbs)":             "—",
+                    "MH cases":                 "—",
+                    "Cost $M":                  "—",
+                })
+
+        # ── 2. Current scenario row ──
+        # Provenance detection mirrors the Brief #3 main-panel header at
+        # _scen_provenance below. (Re-derived locally here because tab2 runs on
+        # every rerun regardless of which tab is visible — we need a fresh read
+        # from results / session_state each time.)
+        if results['pct_converted'] == 0:
+            _cur_prov = eib.PROVENANCE_BASELINE
+            # Relay A — match the banner title's no-conversion framing so the
+            # comparison-table "▶ Current" cell stays in sync with the H2 above
+            # the metric grid. Provenance stays BASELINE.
+            _cur_label = f"▶ Current — {_explorer_scenario_label(_resolved_scenario)}"
+        elif st.session_state.get("applied_from_region_optimizer"):
+            _cur_prov = eib.PROVENANCE_REGION_OPTIMIZED
+            _cur_label = (f"▶ Current — Region-optimized · "
+                          f"{results['scenario_name']}")
+        elif st.session_state.get("applied_from_optimizer"):
+            _cur_prov = eib.PROVENANCE_OPTIMIZER
+            _cur_label = f"▶ Current — Optimizer suggestion · {results['scenario_name']}"
+        else:
+            _cur_prov = eib.PROVENANCE_EXPLORER
+            _cur_label = f"▶ Current — {results['scenario_name']}"
+        _cs_cur_src = _cs_source_validation(_cur_prov)[0]
+        # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3 —
+        # augment the Source column when an Explorer scenario is region- and/or
+        # ownership-constrained. Same suffixes the main panel header + export
+        # bundle metadata use. Baseline (pct=0) reads just 'Baseline' — don't
+        # augment. Optimizer can't be placement-active (Optimize is disabled
+        # when either constraint is set). Use the layer-present signal instead
+        # of mode=='selected_regions' so ownership-only doesn't false-trigger
+        # the region suffix.
+        if _cur_prov == eib.PROVENANCE_EXPLORER:
+            if (results.get('region_selection') or {}).get('layer') is not None:
+                _cs_cur_src = f"{_cs_cur_src} · selected-region placement"
+            _cs_cur_src = f"{_cs_cur_src}{_ownership_source_suffix(results)}"
+        _cs_rows.append({
+            "Scenario":   _cur_label,
+            "Source":     _cs_cur_src,
+            "Validation": _cs_short_validation(_cur_prov),
+            "Area":       _cs_area_for_row(results),
+            "Ownership":  _cs_ownership_for_row(results),
+            **_cs_row_metrics(results),
+        })
+
+        # ── 3. Saved scenarios for this city ──
+        for _saved in _saved_for_city:
+            _prov = _saved.get("provenance")
+            if _prov is None:
+                # Backfill for older in-memory saves predating Brief #5: best-
+                # effort guess from the scenario fields. The applied-from-
+                # optimizer flag was an in-memory state at save time, so we can't
+                # recover OPTIMIZER for older saves — they read as EXPLORER /
+                # BASELINE, which is the safer underclaim.
+                _prov = (eib.PROVENANCE_BASELINE if _saved.get("pct_converted", 0) == 0
+                         else eib.PROVENANCE_EXPLORER)
+            _src = _cs_source_validation(_prov)[0]
+            # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3
+            # — augment Source for saved Explorer scenarios that carry a region
+            # and/or ownership selection. The save handler preserves the full
+            # results dict (sans scenario_lulc), so both blocks flow through
+            # automatically. Pre-29 saves return None safely via .get().
+            if _prov == eib.PROVENANCE_EXPLORER:
+                if (_saved.get('region_selection') or {}).get('layer') is not None:
+                    _src = f"{_src} · selected-region placement"
+                _src = f"{_src}{_ownership_source_suffix(_saved)}"
+            _label = _saved.get("display_name") or _saved.get("scenario_name") or "(unnamed save)"
+            _cs_rows.append({
+                "Scenario":   _label,
+                "Source":     _src,
+                "Validation": _cs_short_validation(_prov),
+                "Area":       _cs_area_for_row(_saved),
+                "Ownership":  _cs_ownership_for_row(_saved),
+                **_cs_row_metrics(_saved),
+            })
+
+        # Full Brief #3 wording lives in a column-header tooltip so the cells
+        # can stay compact. Source/Validation cell labels are the short form;
+        # hover the column header for the source-to-validation mapping.
+        _validation_help = (
+            "Each source has a different validation context:\n\n"
+            "• **NatCap reference** — displayed from NatCap published output; exact scenario raster / aggregation not available.\n\n"
+            "• **Baseline** — engine verified vs canonical InVEST; absolute NatCap citywide figures not reproduced.\n\n"
+            "• **Explorer-generated** — canonical engine verified; scenario itself not NatCap-published.\n\n"
+            "• **Surrogate-suggested** — engine-validated; full-raster evaluated — exploratory candidate for further validation."
+        )
+        st.dataframe(
+            pd.DataFrame(_cs_rows),
+            width='stretch',
+            hide_index=True,
+            column_config={
+                "Scenario":   st.column_config.TextColumn("Scenario", width="medium"),
+                "Source":     st.column_config.TextColumn(
+                    "Source",
+                    width="medium",
+                    help="What kind of scenario this row represents. See the Validation column for how that source is grounded.",
+                ),
+                "Validation": st.column_config.TextColumn(
+                    "Validation",
+                    width="medium",
+                    help=_validation_help,
+                ),
+                "Area":       st.column_config.TextColumn(
+                    "Area",
+                    width="small",
+                    help="Where conversions were placed. 'Citywide' = no region constraint; otherwise the selected region(s).",
+                ),
+                "Ownership":  st.column_config.TextColumn(
+                    "Ownership",
+                    width="small",
+                    help="Ownership / vacancy screen applied to the placement pool. 'None' = no screen. SA-only today.",
+                ),
+            },
+        )
+        st.caption(
+            "Notes: Temperature, carbon stock, and carbon value are shown as changes "
+            "from each row's own baseline. NatCap-published rows use NatCap's published "
+            "baseline; Explorer-generated rows use the prototype baseline. Flood is "
+            "shown separately because NatCap reference and Explorer scenarios use "
+            "different derivations."
+        )
+
+        # ── Scenario CSV export ───────────────────────────────────────────────
+        # Data-complete download of the comparison set: one row per scenario
+        # (current + saved-for-city). Full record + computed metrics; every
+        # value reads results / _saved directly — no recomputation. NatCap
+        # anchors intentionally excluded (no full record; would force "—" on
+        # most columns and dilute the round-trip guarantee).
+        import io as _csv_io
+        from datetime import datetime as _csv_dt, timezone as _csv_tz
+
+        def _csv_row_from_scenario(d, label, provenance, source_label, validation_label):
+            rs = d.get('region_selection') or {}
+            # Batch 4 v2 — ownership_filter is now str / composite-dict / None.
+            # The normalizer collapses all three shapes; the CSV serializes
+            # `ownership_classes` as a pipe-joined list (e.g. "city|school"
+            # for a multi-class composite). The `ownership_mode` column
+            # carries the storage shape for round-trip — string mode key
+            # when single-class, JSON-encoded for the composite.
+            own_raw  = d.get('ownership_filter')
+            own_norm = _normalize_ownership_filter(own_raw)
+            city_for_row = d.get('city', selected_city)
+            own_layer_meta = (CITIES.get(city_for_row, {}).get('ownership_layer') or {})
+            rl = d.get('region_local') or {}
+            if own_norm is None:
+                _csv_own_mode    = ''
+                _csv_own_label   = ''
+                _csv_own_classes = ''
+                _csv_own_vacant  = ''
+                _csv_own_src     = ''
+                _csv_own_date    = ''
+            else:
+                # Round-tripable mode column: string when storage is str,
+                # else a JSON-style dict literal so the consumer can ast.literal_eval.
+                if isinstance(own_raw, str):
+                    _csv_own_mode = own_raw
+                else:
+                    _csv_own_mode = repr(own_raw)
+                _csv_own_label   = own_norm['label']
+                _csv_own_classes = '|'.join(own_norm['classes'])
+                _csv_own_vacant  = 'true' if own_norm['vacant_only'] else 'false'
+                _csv_own_src     = own_layer_meta.get('source') or ''
+                _csv_own_date    = own_layer_meta.get('data_date') or ''
+            row = {
+                'scenario_label':             label,
+                'city':                       city_for_row,
+                'provenance':                 provenance,
+                'source_label':               source_label,
+                'validation':                 validation_label,
+                'region_layer':               rs.get('layer') or '',
+                'region_selected_ids':        '|'.join(rs.get('selected_ids') or []),
+                'region_selected_area_acres': (rs.get('selected_area_acres')
+                                                if rs.get('mode') == 'selected_regions' else ''),
+                'region_eligible_acres':      (rs.get('eligible_pixels_in_region') or 0) * PIXEL_AREA_ACRES,
+                'region_converted_acres':     rs.get('converted_acres', 0.0),
+                'ownership_mode':             _csv_own_mode,
+                # CSV-round-trip safety: empty cell (not "None" sentinel) when no
+                # filter is active — pandas read_csv treats "None" as NaN.
+                'ownership_label':            _csv_own_label,
+                'ownership_classes':          _csv_own_classes,  # NEW: pipe-joined for multi-class
+                'ownership_vacant_only':      _csv_own_vacant,   # NEW: 'true'/'false'/'' tri-state
+                'ownership_source':           _csv_own_src,
+                'ownership_data_date':        _csv_own_date,
+                'pct_converted':              d.get('pct_converted'),
+                'green_infrastructure_pct':   d.get('green_infrastructure_pct'),
+                'food_forest_pct':            d.get('food_forest_pct'),
+                'pct_highdensity':            100 - (d.get('green_infrastructure_pct') or 0)
+                                                  - (d.get('food_forest_pct') or 0),
+                'placement_strategy':         d.get('placement_strategy', placement_strategy),
+                'random_seed':                d.get('random_seed', 42),
+                'scenario_schema_version':    SCENARIO_SCHEMA_VERSION,
+            }
+            for k in ('flood_reduction', 'temp_change_f', 'mean_hm', 'mean_ndvi',
+                      'food_mln_lbs', 'carbon_tons_co2', 'carbon_value_usd',
+                      'cooling_energy_savings_usd', 'nature_access_pct',
+                      'people_with_nature_access', 'preventable_mh_cases',
+                      'avoided_mh_cost_usd', 'total_cost_mln', 'runoff_acre_feet'):
+                row[k] = d.get(k)
+            for k, cfg in _REGION_LOCAL_METRICS.items():
+                if cfg.get('decomposable'):
+                    row[f'region_local__{k}'] = rl.get(k) if rl else ''
+            return row
+
+        _csv_cur_val = _PROVENANCE_HEADER_INFO.get(
+            _cur_prov, ("Unknown", "provenance not recorded", "gray")
+        )[1]
+        _csv_rows = [
+            _csv_row_from_scenario(
+                results, _cur_label, _cur_prov, _cs_cur_src, _csv_cur_val,
             )
-            with st.expander("Show uncertainty bands", expanded=False):
-                st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
-                             width='stretch', hide_index=True)
-            st.dataframe(opt[display_cols].rename(columns=_col_rename),
-                         width='stretch', hide_index=True)
-            st.caption(
-                "Note: suggestions with small amounts of High Density (2–10%) may "
-                "reflect surrogate approximation — consider setting HD to 0% when applying."
+        ]
+        for _saved in _saved_for_city:
+            _prov_save = _saved.get("provenance")
+            if _prov_save is None:
+                _prov_save = (eib.PROVENANCE_BASELINE
+                              if _saved.get("pct_converted", 0) == 0
+                              else eib.PROVENANCE_EXPLORER)
+            _src_save = _cs_source_validation(_prov_save)[0]
+            if _prov_save == eib.PROVENANCE_EXPLORER:
+                if (_saved.get('region_selection') or {}).get('layer') is not None:
+                    _src_save = f"{_src_save} · selected-region placement"
+                _src_save = f"{_src_save}{_ownership_source_suffix(_saved)}"
+            _label_save = (_saved.get("display_name")
+                           or _saved.get("scenario_name") or "(unnamed save)")
+            _val_save = _PROVENANCE_HEADER_INFO.get(
+                _prov_save, ("Unknown", "provenance not recorded", "gray")
+            )[1]
+            _csv_rows.append(
+                _csv_row_from_scenario(_saved, _label_save, _prov_save,
+                                        _src_save, _val_save)
             )
 
-            st.markdown("#### Input Influence")
-            st.caption("**Influence Map** — which input drives outcomes most according to the surrogate model:")
-            st.plotly_chart(plot_feature_importance(surrogate), use_container_width=True)
+        _csv_buf = _csv_io.StringIO()
+        pd.DataFrame(_csv_rows).to_csv(_csv_buf, index=False)
+        _csv_filename = (
+            f"scenario_summary_"
+            f"{selected_city.split(',')[0].lower().replace(' ', '_')}"
+            f"_{_csv_dt.now(_csv_tz.utc).strftime('%Y-%m-%d')}.csv"
+        )
+        st.download_button(
+            label="Download scenario summary (CSV)",
+            data=_csv_buf.getvalue(),
+            file_name=_csv_filename,
+            mime="text/csv",
+            help=("Current scenario plus every saved scenario for this city as a "
+                  "CSV. Full record (region, ownership, placement, seed) plus "
+                  "citywide and region-local metrics. NatCap reference rows are "
+                  "not included — they don't carry a complete record."),
+        )
 
-            st.markdown("#### Apply a suggestion")
-            st.caption(
-                "Suggestions are ranked by balanced score across flood, cooling, "
-                "and food metrics. #1 is the top-ranked scenario."
+        if TRACTS_DATA_AVAILABLE:
+            st.divider()
+            st.markdown("#### Neighborhood breakdown")
+            # Brief 31: SA uses ACS block-group polygons (NatCap-canonical, matches
+            # Vibrant Land Figure 10 framing); MN uses Census tracts. The
+            # aggregation code is polygon-name-agnostic — only the user-facing
+            # caption changes per city.
+            _polygon_unit_plural = (
+                "Census block groups" if selected_city.startswith("San Antonio")
+                else "Census tracts"
             )
+            _polygon_unit_singular = (
+                "block group" if selected_city.startswith("San Antonio") else "tract"
+            )
+            st.caption(
+                f"Top 5 most-improved {_polygon_unit_plural} under this scenario, ranked by "
+                f"cooling. The 'vs city avg' columns show each {_polygon_unit_singular}'s "
+                f"temperature relative to the city-wide average (positive = warmer); the "
+                f"Temperature change column shows the scenario's effect. Population-weighted "
+                f"within each {_polygon_unit_singular}."
+            )
+            _tracts_summary = compute_per_tract_summary(results['scenario_lulc_ucm'])
+            if not _tracts_summary.empty:
+                # Most cooling first: _change_f is negative for cooling under the
+                # ΔT convention (positive = warmer), so sort ascending.
+                _top5 = (
+                    _tracts_summary
+                    .sort_values("_change_f", ascending=True)
+                    .head(5)
+                    .reset_index(drop=True)
+                )
+                # Display layer: render the signed ΔT as natural language (no bare
+                # signed numbers for the user) and color the change column —
+                # cooler = green, warmer = red.
+                _top5["Temperature change"] = _top5["_change_f"].apply(_fmt_temp_change)
+                _top5 = _top5.drop(columns=["_change_f"])
 
-            btn_cols = st.columns(len(opt))
-            for i, (_, row) in enumerate(opt.iterrows()):
-                with btn_cols[i]:
-                    prefix = "✓ " if st.session_state.get("applied_suggestion") == i else ""
-                    label = f"{prefix}#{i+1}: {int(row.pct_converted)}% conv"
-                    if st.button(label, key=f"apply_opt_{i}"):
+                def _color_temp_change(val):
+                    if isinstance(val, str) and "cooler" in val:
+                        return "color: #1a7f37; font-weight: 600"   # green
+                    if isinstance(val, str) and "warmer" in val:
+                        return "color: #cf222e; font-weight: 600"   # red
+                    return ""
+
+                _styled = _top5.style.map(_color_temp_change, subset=["Temperature change"])
+                st.dataframe(_styled, width='stretch', hide_index=True)
+            else:
+                st.caption(f"No {_polygon_unit_singular}-level data could be computed for this scenario.")
+
+        # UI feedback #4 — the "Best scenarios by goal" library is the
+        # citywide precomputed lookup; its rankings are computed at citywide
+        # scope and don't reflect any active region or ownership filter.
+        # Showing it under a region/ownership scenario would imply rankings
+        # that account for the filter when they don't. Hide it in that
+        # case; show it only in citywide-no-filter mode.
+        _best_by_goal_filter_active = (
+            st.session_state.get('selected_region_mask') is not None
+            or st.session_state.get('selected_ownership_mask') is not None
+        )
+        if _best_by_goal_filter_active:
+            # Single-line note so the user knows why the section is missing,
+            # plus the action that brings it back.
+            st.divider()
+            st.caption(
+                "_'Best scenarios by goal' is hidden under a region or "
+                "ownership filter — the precomputed library is citywide "
+                "and its rankings don't reflect your filter. Clear the "
+                "region selection and ownership filter to see it._"
+            )
+        else:
+            st.divider()
+            st.markdown("#### Best scenarios by goal")
+            st.caption("From the pre-computed scenario library — not surrogate predictions.")
+
+            # Best-scenarios-by-goal uses the lookup table when High Resolution mode
+            # built one; otherwise falls back to the scenario_df the active mode is
+            # using (Fast prototype: ~90 scenarios; Balanced: ~726 scenarios).
+            lookup_df = pd.DataFrame(lookup_table.values()) if lookup_table else scenario_df
+            _norm_flood = lookup_df['flood_reduction'] / max(lookup_df['flood_reduction'].max(), 1e-9)
+            _norm_hm    = lookup_df['mean_hm']         / max(lookup_df['mean_hm'].max(),         1e-9)
+            _norm_food  = lookup_df['food_mln_lbs']    / max(lookup_df['food_mln_lbs'].max(),    1e-9)
+            _balanced_score = _norm_flood + _norm_hm + _norm_food
+
+            best_by_goal = {
+                "Best for flood reduction": lookup_df.loc[lookup_df['flood_reduction'].idxmax()],
+                "Best for cooling":         lookup_df.loc[lookup_df['mean_hm'].idxmax()],
+                "Best for food production": lookup_df.loc[lookup_df['food_mln_lbs'].idxmax()],
+                "Best for carbon":          lookup_df.loc[lookup_df['carbon_tons_co2'].idxmax()],
+                "Best balanced":            lookup_df.loc[_balanced_score.idxmax()],
+            }
+
+            for i, (goal, row) in enumerate(best_by_goal.items()):
+                text_col, btn_col = st.columns([4, 1])
+                with text_col:
+                    st.markdown(
+                        f"**{goal}:** {int(row.pct_converted)}% converted — "
+                        f"{int(row.green_infrastructure_pct)}% GI / {int(row.food_forest_pct)}% FF"
+                    )
+                with btn_col:
+                    if st.button("Apply", key=f"apply_best_goal_{i}"):
                         st.session_state._pending_pct = int(round(row.pct_converted / 5) * 5)
                         st.session_state._pending_gi  = int(round(row.green_infrastructure_pct / 5) * 5)
                         st.session_state._pending_ff  = int(round(row.food_forest_pct / 5) * 5)
                         if st.session_state._pending_gi + st.session_state._pending_ff > 100:
                             st.session_state._pending_ff = 100 - st.session_state._pending_gi
-                        st.session_state.applied_suggestion = i
-                        # Brief #4: tag this scenario as Applied-from-Optimizer
-                        # so the main panel header reads "Surrogate-suggested"
-                        # and the D1 export records PROVENANCE_OPTIMIZER, not
-                        # Explorer. The clearing logic at the top of the script
-                        # resets the flag when slider values drift away. Clear
-                        # the region-optimizer flag so the two states can't
-                        # co-fire after a citywide Apply on a previous run.
-                        st.session_state.applied_from_optimizer = True
-                        st.session_state._applied_optimizer_values = (
-                            st.session_state._pending_pct,
-                            st.session_state._pending_gi,
-                            st.session_state._pending_ff,
-                        )
+                        # Brief #4: Best-by-Goal comes from the precomputed scenario
+                        # grid, not the surrogate optimizer — make sure a previously-
+                        # set Applied-from-Optimizer flag is cleared, so a best-goal
+                        # scenario that happens to share pct/gi/ff with a prior
+                        # optimizer Apply doesn't inherit OPTIMIZER provenance via the
+                        # auto-clear's "values match" path. Same defense for the
+                        # region-optimizer flag.
+                        st.session_state.applied_from_optimizer = False
+                        st.session_state._applied_optimizer_values = None
                         st.session_state.applied_from_region_optimizer = False
                         st.session_state._applied_region_optimizer_values = None
                         st.session_state._show_apply_toast = True
                         st.rerun()
 
-            # One-shot confirmation toast: rendered on the rerun immediately
-            # following an Apply click, then cleared so it doesn't persist
-            # through unrelated reruns.
+            if st.session_state.get("_show_apply_toast"):
+                st.success("Applied — check the Scenario tab to see updated results.")
+                st.session_state._show_apply_toast = False
+
+        st.divider()
+
+        if st.button("Save this scenario"):
+            st.session_state.show_save_input = True
+
+        if st.session_state.get("show_save_input"):
+            scenario_name_input = st.text_input(
+                "Name this scenario:",
+                placeholder="e.g. High GI / Low Cost",
+                key="scenario_name_input",
+            )
+            confirm_col, cancel_col = st.columns([1, 5])
+            with confirm_col:
+                confirm_clicked = st.button("Confirm save")
+            with cancel_col:
+                if st.button("Cancel", key="cancel_save"):
+                    st.session_state.show_save_input = False
+                    st.rerun()
+            if confirm_clicked and scenario_name_input:
+                saved = {k: v for k, v in results.items() if k != 'scenario_lulc'}
+                saved["display_name"] = scenario_name_input
+                saved["placement_strategy"] = placement_strategy
+                saved["heat_priority"] = use_heat_priority  # backward compat for older saves
+                # Scenario Record Pass — capture the seed even though it's
+                # hardcoded to 42 today. All five placement strategies route
+                # through rng (the ranking strategies sample stochastically with
+                # weights), so capturing the seed forward-compats any future
+                # seed-variation work and makes the record self-reproducing.
+                saved["random_seed"] = 42
+                # Brief A.3: tag the city this scenario was saved in. Display sites
+                # filter by active city so MN saves don't show up in SA's view.
+                saved["city"] = selected_city
+                saved["cost_gi"] = cost_gi
+                saved["cost_ff"] = cost_ff
+                saved["cost_hd"] = cost_hd
+                _ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
+                saved["cost_per_acft"]      = _ce['cost_per_acft']
+                saved["cost_per_degf"]      = _ce['cost_per_degf']
+                saved["cost_per_1k_people"] = _ce['cost_per_1k_people']
+                # Brief #5 — record the scenario's provenance so the cross-source
+                # comparison table can read it back later. Uses the same detection
+                # as the Brief #3 main-panel header / Brief #4 D1 export branch.
+                # Older in-memory saves predating this brief get an explicit None
+                # backfill in the table itself, so this is safe to add without a
+                # schema bump.
+                if results['pct_converted'] == 0:
+                    saved["provenance"] = eib.PROVENANCE_BASELINE
+                elif st.session_state.get("applied_from_region_optimizer"):
+                    saved["provenance"] = eib.PROVENANCE_REGION_OPTIMIZED
+                elif st.session_state.get("applied_from_optimizer"):
+                    saved["provenance"] = eib.PROVENANCE_OPTIMIZER
+                else:
+                    saved["provenance"] = eib.PROVENANCE_EXPLORER
+                st.session_state.saved_scenarios.append(saved)
+                st.session_state.show_save_input = False
+                st.success(f"Saved: {scenario_name_input}")
+                st.rerun()
+            elif confirm_clicked and not scenario_name_input:
+                st.warning("Please enter a name before saving.")
+
+        # Mode-switch render. Filter-active → render the region-optimized
+        # results (engine-true region-local values, no surrogate bands). Otherwise
+        # → render the existing citywide surrogate suggestions. The two paths
+        # write to distinct session-state slots (`optimized_results` /
+        # `region_optimized_results`) so each is mode-safe. See
+        # docs/internal/REGION_OPTIMIZER_SPEC.md §6.
+        if (_filter_active
+                and st.session_state.region_optimized_results is not None
+                and not st.session_state.region_optimized_results.empty):
+            st.divider()
+            # Relay B: header + caption + column set. "Best tested mixes for
+            # selected area" framing keeps the user honest that this is "best
+            # among what we tested," not "the optimum." The caption is the
+            # short engine-vs-prediction reminder; the "coarse search" caveat
+            # is owned by the sidebar Discover copy above. Columns: Rank / Mix
+            # / Score / Converted acres / Cooling / Flood retention / Carbon /
+            # Food / Cost / Apply.
+            st.subheader("Best tested mixes for selected area")
+            st.caption(
+                "Evaluated with the full raster engine under current region "
+                "and eligibility filters."
+            )
+            _ropt = st.session_state.region_optimized_results.copy()
+            # Synthesize Rank + Mix columns for display. Mix folds the three
+            # knob percentages into one cell so the table is readable at
+            # sidebar widths.
+            _ropt = _ropt.reset_index(drop=True)
+            _ropt.insert(0, 'Rank', _ropt.index + 1)
+            _ropt['Mix'] = _ropt.apply(
+                lambda r: (
+                    f"{int(r.pct_converted)}% conv — "
+                    f"GI {int(r.green_infrastructure_pct)}% / "
+                    f"FF {int(r.food_forest_pct)}%"
+                ),
+                axis=1,
+            )
+            _opt_carbon_col_label_r = (
+                "Carbon (tons CO2e stock)" if _CARBON_IS_STOCK
+                else "Carbon (tons CO2e/yr)"
+            )
+            _r_display_cols = [
+                'Rank', 'Mix', 'weighted_score', 'converted_acres',
+                'mean_hm', 'flood_reduction', 'carbon_tons_co2',
+                'food_mln_lbs', 'total_cost_mln',
+            ]
+            _r_col_rename = {
+                'weighted_score':           'Score',
+                'converted_acres':          'Converted acres',
+                'mean_hm':                  'Cooling',
+                'flood_reduction':          'Flood retention',
+                'carbon_tons_co2':          _opt_carbon_col_label_r,
+                'food_mln_lbs':             'Food (M lbs)',
+                'total_cost_mln':           'Cost ($M)',
+            }
+            _r_present = [c for c in _r_display_cols if c in _ropt.columns]
+            st.dataframe(_ropt[_r_present].rename(columns=_r_col_rename),
+                         width='stretch', hide_index=True)
+
+            st.markdown("#### Apply a suggestion")
+            st.caption(
+                "Loading a recipe into the sliders re-runs the engine on your "
+                "selected area — provenance flips to Surrogate-suggested."
+            )
+            _r_btn_cols = st.columns(len(_ropt))
+            for i, (_, row) in enumerate(_ropt.iterrows()):
+                with _r_btn_cols[i]:
+                    _prefix = ("✓ " if st.session_state.get("applied_suggestion") == i
+                               else "")
+                    _label = f"{_prefix}#{i+1}: {int(row.pct_converted)}% conv"
+                    if st.button(_label, key=f"apply_region_opt_{i}"):
+                        st.session_state._pending_pct = int(
+                            round(row.pct_converted / 5) * 5)
+                        st.session_state._pending_gi = int(
+                            round(row.green_infrastructure_pct / 5) * 5)
+                        st.session_state._pending_ff = int(
+                            round(row.food_forest_pct / 5) * 5)
+                        if (st.session_state._pending_gi
+                                + st.session_state._pending_ff > 100):
+                            st.session_state._pending_ff = (
+                                100 - st.session_state._pending_gi)
+                        st.session_state.applied_suggestion = i
+                        # Region-constrained optimizer (variant B) — set the
+                        # NEW flag so the header / Save / Export route to
+                        # PROVENANCE_REGION_OPTIMIZED ("Engine-verified —
+                        # region-optimized"), distinct from the citywide
+                        # surrogate's "Surrogate-suggested." Clear the citywide
+                        # flag so the two states never co-fire.
+                        st.session_state.applied_from_region_optimizer = True
+                        st.session_state._applied_region_optimizer_values = (
+                            st.session_state._pending_pct,
+                            st.session_state._pending_gi,
+                            st.session_state._pending_ff,
+                        )
+                        st.session_state.applied_from_optimizer = False
+                        st.session_state._applied_optimizer_values = None
+                        st.session_state._show_apply_toast = True
+                        st.rerun()
+
             if st.session_state.get("_show_apply_toast"):
                 st.success("Applied — check the Scenario tab to see updated results.")
                 st.session_state._show_apply_toast = False
 
             st.divider()
 
-    if _saved_for_city:
-        st.divider()
-        st.caption(
-            "The Pareto frontier shows the most efficient tradeoff scenarios — ones where you "
-            "cannot improve flood reduction, cooling, or food production without making at least "
-            "one of the others worse."
-        )
-        with st.expander(f"Saved Scenarios ({len(_saved_for_city)})", expanded=False):
-            df_saved = pd.DataFrame(_saved_for_city)
-            # Older saves predate display_name; backfill from scenario_name so the
-            # column is always present and never NaN in the table or hover labels.
-            if 'display_name' not in df_saved.columns:
-                df_saved['display_name'] = df_saved.get('scenario_name', '')
+        if (not _filter_active) and st.session_state.optimized_results is not None:
+            st.divider()
+            # Optimizer Promotion — de-optimize the heading: "Suggested
+            # scenarios" framed as predicted (not "Optimized"). Caption below
+            # still flags the surrogate-prediction nature.
+            st.subheader("Suggested scenarios")
+            st.caption("Scroll down to see suggestions and apply them to the sliders.")
+            opt = st.session_state.optimized_results
+            # Brief 30: SA optimizer reports stock-change; MN reports annual flow.
+            _opt_carbon_unit = "tons CO2e" if _CARBON_IS_STOCK else "tons CO2e/yr"
+            _opt_carbon_col_label = (
+                "Carbon (tons CO2e stock)" if _CARBON_IS_STOCK
+                else "Carbon (tons CO2e/yr)"
+            )
+            if isinstance(opt, dict) and not opt.get('found'):
+                st.warning(
+                    f"No scenarios found meeting all targets simultaneously.  \n"
+                    f"Maximum achievable values across all candidates:  \n"
+                    f"- Flood reduction: up to **{opt['max_flood']}** (your target: {min_flood})  \n"
+                    f"- Cooling: up to **{opt['max_cool']:.4f} HMI** (your target: {min_cool:.4f})  \n"
+                    f"- Food: up to **{opt['max_food']:.3f}M lbs** (your target: {min_food:.3f})  \n"
+                    f"- Carbon: up to **{opt['max_carbon']:,.0f} {_opt_carbon_unit}** (your target: {min_carbon:,})  \n"
+                    f"Try lowering the target for whichever metric is furthest from its maximum."
+                )
             else:
-                df_saved['display_name'] = df_saved['display_name'].fillna('').replace('', np.nan)
-                df_saved['display_name'] = df_saved['display_name'].fillna(df_saved['scenario_name'])
+                st.caption(
+                    f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
+                    f"food ≥ {min_food:.3f}M lbs, carbon ≥ {min_carbon:,} {_opt_carbon_unit} "
+                    "— ranked by balanced score. "
+                    "Numbers are surrogate model predictions with 10th–90th percentile uncertainty bands."
+                )
 
-            show_cols = [c for c in [
-                'display_name',
-                'scenario_name',
-                'pct_converted',
-                'green_infrastructure_pct',
-                'food_forest_pct',
-                'placement_strategy',
-                'flood_reduction',
-                'temp_change_f',
-                'runoff_acre_feet',
-                'mean_hm',
-                'food_mln_lbs',
-                'people_fed',
-                'total_cost_mln',
-                'cost_per_acft',
-                'cost_per_degf',
-                'cost_per_1k_people',
-                'cost_gi',
-                'cost_ff',
-                'cost_hd'
-            ] if c in df_saved.columns]
+                # Display table with uncertainty columns
+                display_cols = ['scenario_name', 'pct_converted', 'green_infrastructure_pct',
+                                'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs',
+                                'carbon_tons_co2']
+                # Add uncertainty columns if present
+                unc_cols = [c for c in ['flood_lower', 'flood_upper', 'hm_lower', 'hm_upper',
+                                        'food_lower', 'food_upper',
+                                        'carbon_lower', 'carbon_upper'] if c in opt.columns]
+                _col_rename = {
+                    'scenario_name':            'Scenario',
+                    'pct_converted':            'Total Conversion (%)',
+                    'green_infrastructure_pct': 'Green Infra %',
+                    'food_forest_pct':          'Food Forest %',
+                    'flood_reduction':          'Flood Index',
+                    'mean_hm':                  'Cooling HM',
+                    'food_mln_lbs':             'Food (M lbs)',
+                    'carbon_tons_co2':          _opt_carbon_col_label,
+                }
 
-            csv = df_saved[show_cols].to_csv(index=False)
-            st.download_button(
-                "Download saved scenarios as CSV",
-                csv,
-                "ecosystem_explorer_scenarios.csv",
-                "text/csv",
-                type="primary",
-            )
+                st.markdown("#### Candidate scenarios")
+                st.caption(
+                    "These are surrogate model predictions. Click Apply to run a "
+                    "full pixel-level simulation and verify the result."
+                )
+                with st.expander("Show uncertainty bands", expanded=False):
+                    st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
+                                 width='stretch', hide_index=True)
+                st.dataframe(opt[display_cols].rename(columns=_col_rename),
+                             width='stretch', hide_index=True)
+                st.caption(
+                    "Note: suggestions with small amounts of High Density (2–10%) may "
+                    "reflect surrogate approximation — consider setting HD to 0% when applying."
+                )
 
-            st.dataframe(df_saved[show_cols], width='stretch', hide_index=True)
+                st.markdown("#### Input Influence")
+                st.caption("**Influence Map** — which input drives outcomes most according to the surrogate model:")
+                st.plotly_chart(plot_feature_importance(surrogate), use_container_width=True)
 
+                st.markdown("#### Apply a suggestion")
+                st.caption(
+                    "Suggestions are ranked by balanced score across flood, cooling, "
+                    "and food metrics. #1 is the top-ranked scenario."
+                )
+
+                btn_cols = st.columns(len(opt))
+                for i, (_, row) in enumerate(opt.iterrows()):
+                    with btn_cols[i]:
+                        prefix = "✓ " if st.session_state.get("applied_suggestion") == i else ""
+                        label = f"{prefix}#{i+1}: {int(row.pct_converted)}% conv"
+                        if st.button(label, key=f"apply_opt_{i}"):
+                            st.session_state._pending_pct = int(round(row.pct_converted / 5) * 5)
+                            st.session_state._pending_gi  = int(round(row.green_infrastructure_pct / 5) * 5)
+                            st.session_state._pending_ff  = int(round(row.food_forest_pct / 5) * 5)
+                            if st.session_state._pending_gi + st.session_state._pending_ff > 100:
+                                st.session_state._pending_ff = 100 - st.session_state._pending_gi
+                            st.session_state.applied_suggestion = i
+                            # Brief #4: tag this scenario as Applied-from-Optimizer
+                            # so the main panel header reads "Surrogate-suggested"
+                            # and the D1 export records PROVENANCE_OPTIMIZER, not
+                            # Explorer. The clearing logic at the top of the script
+                            # resets the flag when slider values drift away. Clear
+                            # the region-optimizer flag so the two states can't
+                            # co-fire after a citywide Apply on a previous run.
+                            st.session_state.applied_from_optimizer = True
+                            st.session_state._applied_optimizer_values = (
+                                st.session_state._pending_pct,
+                                st.session_state._pending_gi,
+                                st.session_state._pending_ff,
+                            )
+                            st.session_state.applied_from_region_optimizer = False
+                            st.session_state._applied_region_optimizer_values = None
+                            st.session_state._show_apply_toast = True
+                            st.rerun()
+
+                # One-shot confirmation toast: rendered on the rerun immediately
+                # following an Apply click, then cleared so it doesn't persist
+                # through unrelated reruns.
+                if st.session_state.get("_show_apply_toast"):
+                    st.success("Applied — check the Scenario tab to see updated results.")
+                    st.session_state._show_apply_toast = False
+
+                st.divider()
+
+        if _saved_for_city:
+            st.divider()
             st.caption(
-                "Note: saved scenarios are lost on page refresh — download the CSV to keep them."
+                "The Pareto frontier shows the most efficient tradeoff scenarios — ones where you "
+                "cannot improve flood reduction, cooling, or food production without making at least "
+                "one of the others worse."
             )
+            with st.expander(f"Saved Scenarios ({len(_saved_for_city)})", expanded=False):
+                df_saved = pd.DataFrame(_saved_for_city)
+                # Older saves predate display_name; backfill from scenario_name so the
+                # column is always present and never NaN in the table or hover labels.
+                if 'display_name' not in df_saved.columns:
+                    df_saved['display_name'] = df_saved.get('scenario_name', '')
+                else:
+                    df_saved['display_name'] = df_saved['display_name'].fillna('').replace('', np.nan)
+                    df_saved['display_name'] = df_saved['display_name'].fillna(df_saved['scenario_name'])
 
-            if st.button("Clear saved scenarios"):
-                st.session_state.saved_scenarios = []
-                st.rerun()
+                show_cols = [c for c in [
+                    'display_name',
+                    'scenario_name',
+                    'pct_converted',
+                    'green_infrastructure_pct',
+                    'food_forest_pct',
+                    'placement_strategy',
+                    'flood_reduction',
+                    'temp_change_f',
+                    'runoff_acre_feet',
+                    'mean_hm',
+                    'food_mln_lbs',
+                    'people_fed',
+                    'total_cost_mln',
+                    'cost_per_acft',
+                    'cost_per_degf',
+                    'cost_per_1k_people',
+                    'cost_gi',
+                    'cost_ff',
+                    'cost_hd'
+                ] if c in df_saved.columns]
 
-with tab3:
-    st.subheader("Where Changes Happen")
+                csv = df_saved[show_cols].to_csv(index=False)
+                st.download_button(
+                    "Download saved scenarios as CSV",
+                    csv,
+                    "ecosystem_explorer_scenarios.csv",
+                    "text/csv",
+                    type="primary",
+                )
 
-    # ── Interactive Region Selector (Interactive Region Map Spec, Path C) ──
-    # Plain-cartesian plotly polygon traces over EPSG:5070 coords — no basemap,
-    # no new deps. Click a district to set the selection; shift- or ctrl-click
-    # to add; Clear button to wipe. Syncs with the sidebar dropdown via the
-    # top-of-script handler (both write to `region_labels_<layer>` in
-    # session_state). Honors whichever region_layer the dropdown currently
-    # has active. Hidden when no region layers are configured (citywide-only
-    # cities); also hidden when the dropdown is set to "Entire analysis area"
-    # since the selector wouldn't compose with it cleanly.
-    _t3_layer = st.session_state.get('selected_region_layer')
-    _t3_layer_cfg = (
-        (city_cfg.get('region_layers') or {}).get(_t3_layer)
-        if _t3_layer else None
-    )
-    if _t3_layer_cfg is not None:
-        _t3_polys = _load_region_polygons_for_plotly(
-            _t3_layer_cfg['path'], _t3_layer_cfg['label_field']
+                st.dataframe(df_saved[show_cols], width='stretch', hide_index=True)
+
+                st.caption(
+                    "Note: saved scenarios are lost on page refresh — download the CSV to keep them."
+                )
+
+                if st.button("Clear saved scenarios"):
+                    st.session_state.saved_scenarios = []
+                    st.rerun()
+
+if _main_tab == 'Map View':
+    with tab3:
+        st.subheader("Where Changes Happen")
+
+        # ── Interactive Region Selector (Interactive Region Map Spec, Path C) ──
+        # Plain-cartesian plotly polygon traces over EPSG:5070 coords — no basemap,
+        # no new deps. Click a district to set the selection; shift- or ctrl-click
+        # to add; Clear button to wipe. Syncs with the sidebar dropdown via the
+        # top-of-script handler (both write to `region_labels_<layer>` in
+        # session_state). Honors whichever region_layer the dropdown currently
+        # has active. Hidden when no region layers are configured (citywide-only
+        # cities); also hidden when the dropdown is set to "Entire analysis area"
+        # since the selector wouldn't compose with it cleanly.
+        _t3_layer = st.session_state.get('selected_region_layer')
+        _t3_layer_cfg = (
+            (city_cfg.get('region_layers') or {}).get(_t3_layer)
+            if _t3_layer else None
         )
-        _t3_selected_ids = st.session_state.get('selected_region_ids') or []
-        _t3_display = _CURRENT_CITY_STATE.region_layer_display_names.get(_t3_layer, "region")
-        _t3_fig = go.Figure()
-        for _t3_label, _t3_rings in _t3_polys:
-            _is_sel = _t3_label in _t3_selected_ids
-            _fill = 'rgba(31, 119, 180, 0.55)' if _is_sel else 'rgba(170, 195, 220, 0.18)'
-            _line_w = 4.0 if _is_sel else 1.2
-            for _xs, _ys in _t3_rings:
+        if _t3_layer_cfg is not None:
+            _t3_polys = _load_region_polygons_for_plotly(
+                _t3_layer_cfg['path'], _t3_layer_cfg['label_field']
+            )
+            _t3_selected_ids = st.session_state.get('selected_region_ids') or []
+            _t3_display = _CURRENT_CITY_STATE.region_layer_display_names.get(_t3_layer, "region")
+            _t3_fig = go.Figure()
+            # Collect centroids so we can add a single markers+text trace
+            # at the end. Selection snaps to data POINTS, not polygon
+            # interiors — the previous add_annotation centroid labels were
+            # static and not clickable, which is why click-to-select didn't
+            # fire even with on_select='rerun'. The markers trace renders
+            # the same visible labels AND captures click selections via
+            # customdata=district_id.
+            _t3_cx_list, _t3_cy_list, _t3_label_list = [], [], []
+            for _t3_label, _t3_rings in _t3_polys:
+                _is_sel = _t3_label in _t3_selected_ids
+                _fill = 'rgba(31, 119, 180, 0.55)' if _is_sel else 'rgba(170, 195, 220, 0.18)'
+                _line_w = 4.0 if _is_sel else 1.2
+                for _xs, _ys in _t3_rings:
+                    _t3_fig.add_trace(go.Scatter(
+                        x=_xs, y=_ys,
+                        fill='toself',
+                        fillcolor=_fill,
+                        mode='lines',
+                        line=dict(color='#1f77b4', width=_line_w),
+                        customdata=[_t3_label] * len(_xs),
+                        hovertemplate=f"<b>{_t3_display} {_t3_label}</b><extra></extra>",
+                        showlegend=False,
+                        name=_t3_label,
+                    ))
+                if _t3_rings:
+                    _xs0, _ys0 = _t3_rings[0]
+                    _t3_cx_list.append(sum(_xs0) / len(_xs0))
+                    _t3_cy_list.append(sum(_ys0) / len(_ys0))
+                    _t3_label_list.append(_t3_label)
+            # Centroid labels rendered as a clickable markers+text trace.
+            # The markers are kept large (size=28) but fully transparent —
+            # they act as generous click targets centered on each district's
+            # visible label. clickmode='event+select' on the layout makes
+            # single clicks fire the selection.
+            if _t3_label_list:
                 _t3_fig.add_trace(go.Scatter(
-                    x=_xs, y=_ys,
-                    fill='toself',
-                    fillcolor=_fill,
-                    mode='lines',
-                    line=dict(color='#1f77b4', width=_line_w),
-                    customdata=[_t3_label] * len(_xs),
-                    hovertemplate=f"<b>{_t3_display} {_t3_label}</b><extra></extra>",
+                    x=_t3_cx_list, y=_t3_cy_list,
+                    text=_t3_label_list,
+                    mode='markers+text',
+                    marker=dict(size=28, color='rgba(0,0,0,0)'),
+                    textfont=dict(size=12, color='#1f3a5c', family='sans-serif'),
+                    textposition='middle center',
+                    customdata=_t3_label_list,
+                    hovertemplate=f"<b>{_t3_display} %{{customdata}}</b><extra></extra>",
                     showlegend=False,
-                    name=_t3_label,
+                    name='district-labels',
                 ))
-            # Centroid label so the user can read which district is which
-            # without hovering.
-            if _t3_rings:
-                _xs0, _ys0 = _t3_rings[0]
-                _cx = sum(_xs0) / len(_xs0)
-                _cy = sum(_ys0) / len(_ys0)
-                _t3_fig.add_annotation(
-                    x=_cx, y=_cy, text=_t3_label,
-                    showarrow=False, font=dict(size=11, color='#1f3a5c'),
-                )
-        _t3_fig.update_layout(
-            xaxis=dict(visible=False, scaleanchor='y', scaleratio=1),
-            yaxis=dict(visible=False),
-            plot_bgcolor='white', paper_bgcolor='white',
-            height=360,
-            margin=dict(l=0, r=0, t=10, b=10),
-            dragmode='pan',
-        )
-        _t3_picker_col, _t3_clear_col = st.columns([6, 1])
-        with _t3_picker_col:
-            # Stash the current layer key so the top-of-script handler knows
-            # which multiselect key to sync the event into.
-            st.session_state['region_map_picker_layer'] = _t3_layer
-            _t3_event = st.plotly_chart(
-                _t3_fig,
-                use_container_width=True,
-                on_select='rerun',
-                selection_mode='points',
-                key='region_map_picker',
+            _t3_fig.update_layout(
+                xaxis=dict(visible=False, scaleanchor='y', scaleratio=1),
+                yaxis=dict(visible=False),
+                plot_bgcolor='white', paper_bgcolor='white',
+                height=360,
+                margin=dict(l=0, r=0, t=10, b=10),
+                # clickmode='event+select' makes a single click fire the
+                # point-select event. Without it, even with selection_mode=
+                # 'points' on the chart, clicks would pan instead — exactly
+                # the symptom the brief flagged. dragmode left at Plotly's
+                # default (zoom) — dragmode='pan' previously swallowed
+                # clicks in this Plotly version, which compounded the bug.
+                clickmode='event+select',
             )
-            # Stash the event for the top-of-next-rerun handler, then force a
-            # rerun so the handler fires before the sidebar reads
-            # region_labels_<layer> on the click frame itself (tab3 runs AFTER
-            # the sidebar, so without this the click would land one rerun late).
-            # Edge-triggered: plotly's selection is sticky and _t3_event
-            # returns the same payload on every rerun — comparing picked labels
-            # against the multiselect's session_state slot guards against an
-            # infinite rerun loop. Once the handler has copied the labels over,
-            # subsequent reruns see equal sets and stop.
-            if _t3_event:
-                _new_event = _t3_event if isinstance(_t3_event, dict) else dict(_t3_event)
-                if _new_event.get('selection', {}).get('points'):
-                    _picked_ids = sorted({
-                        p.get("customdata") for p in
-                        _new_event['selection']['points']
-                        if p.get("customdata")
-                    })
-                    _ms_key = f"region_labels_{_t3_layer}"
-                    _current_ids = sorted(st.session_state.get(_ms_key, []) or [])
-                    if _current_ids != _picked_ids:
-                        st.session_state['region_map_picker_event'] = _new_event
-                        st.rerun()
-        with _t3_clear_col:
-            st.write("")
-            st.write("")
-            if st.button("Clear", key='region_map_clear_btn',
-                         help="Deselect all selected areas."):
-                st.session_state[f"region_labels_{_t3_layer}"] = []
-                st.session_state['region_map_picker_event'] = None
-                st.rerun()
-        st.caption(
-            f"Click a {_t3_display.lower()} to select it. Shift-click or "
-            "Ctrl-click to select multiple. Land-use changes will be placed "
-            "only inside the selected area; the Scenario tab shows both "
-            "citywide and region-local results."
-        )
-        # Eligibility Funnel (Interactive Region Map Spec #3 — extended).
-        # Shows where pixels drop out at each placement-pool step:
-        # selected → developed → after roads/buildings/existing nature →
-        # after ownership → converted. Sources every cell from
-        # results['region_selection'] (selected_area_acres, converted_acres,
-        # eligible_pixels_in_region) or a one-line intersection of masks
-        # already on hand (developed/convertible ∩ region). Monotonicity is
-        # guaranteed by the subset invariants (verify_baselines.py — every
-        # step ⊆ the prior is a standing assertion).
-        _rs_t3 = results.get('region_selection') or {}
-        if _rs_t3.get('mode') == 'selected_regions':
-            _region_mask = st.session_state.get('selected_region_mask')
-            _ownership_active = (
-                st.session_state.get('selected_ownership_mask') is not None
-            )
-            _t3_sel_area = _rs_t3.get('selected_area_acres') or 0.0
-            _t3_final_elig_px = _rs_t3.get('eligible_pixels_in_region') or 0
-            _t3_final_elig_acres = _t3_final_elig_px * PIXEL_AREA_ACRES
-            _t3_conv_acres = _rs_t3.get('converted_acres') or 0.0
-            # The one new computation — developed ∩ region (and, when
-            # ownership is also active, convertible ∩ region pre-ownership
-            # for the intermediate "After roads/buildings/existing nature"
-            # step). Both single-line index ops against arrays already in
-            # _CURRENT_CITY_STATE.
-            if _region_mask is not None:
-                _dp = _CURRENT_CITY_STATE.developed_pixels
-                _cp = _CURRENT_CITY_STATE.convertible_pixels
-                _t3_dev_in_region_px = int(
-                    _region_mask[_dp[:, 0], _dp[:, 1]].sum()
+            _t3_picker_col, _t3_clear_col = st.columns([6, 1])
+            with _t3_picker_col:
+                # Stash the current layer key so the top-of-script handler knows
+                # which multiselect key to sync the event into.
+                st.session_state['region_map_picker_layer'] = _t3_layer
+                _t3_event = st.plotly_chart(
+                    _t3_fig,
+                    use_container_width=True,
+                    on_select='rerun',
+                    selection_mode='points',
+                    key='region_map_picker',
                 )
-                _t3_conv_in_region_px = int(
-                    _region_mask[_cp[:, 0], _cp[:, 1]].sum()
-                )
-            else:
-                _t3_dev_in_region_px = 0
-                _t3_conv_in_region_px = 0
-            _t3_dev_in_region_acres = _t3_dev_in_region_px * PIXEL_AREA_ACRES
-            _t3_conv_in_region_acres = _t3_conv_in_region_px * PIXEL_AREA_ACRES
-
-            # Build the chain. Region+ownership splits the convertible step
-            # from the final eligible step; region-only collapses them
-            # (eligible_pixels_in_region already equals convertible ∩ region
-            # when ownership is inactive).
-            _funnel_rows = [
-                ("Selected area",                          f"{_t3_sel_area:,.0f} acres"),
-                ("Developed land",                         f"{_t3_dev_in_region_acres:,.0f} acres"),
-            ]
-            if _ownership_active:
-                _funnel_rows.append(
-                    ("After roads / buildings / existing nature",
-                     f"{_t3_conv_in_region_acres:,.0f} acres"),
-                )
-                _funnel_rows.append(
-                    ("After ownership filter",
-                     f"{_t3_final_elig_acres:,.0f} acres"),
-                )
-            else:
-                _funnel_rows.append(
-                    ("After roads / buildings / existing nature",
-                     f"{_t3_final_elig_acres:,.0f} acres"),
-                )
-            _funnel_rows.append(
-                ("Converted", f"{_t3_conv_acres:,.0f} acres"),
-            )
-            _funnel_df = pd.DataFrame(_funnel_rows, columns=["Step", "Acres"])
-            st.dataframe(
-                _funnel_df, hide_index=True, use_container_width=True,
-                column_config={
-                    "Step":  st.column_config.TextColumn("Step", width="large"),
-                    "Acres": st.column_config.TextColumn("Acres", width="small"),
-                },
-            )
-            # UI-Text Pass — region-id caption beneath the panel, derived from
-            # the active layer's display name; replaces the layer-specific
-            # label ("Selected tract" / "Selected district") on the metric.
-            _t3_n_sel = len(_t3_selected_ids)
-            if _t3_n_sel == 1:
-                _t3_id_caption = f"{_t3_display} {_t3_selected_ids[0]}"
-            elif 1 < _t3_n_sel <= 3:
-                _t3_id_caption = (
-                    f"{_t3_n_sel} selected {_t3_display.lower()}s: "
-                    f"{', '.join(_t3_selected_ids)}"
-                )
-            else:
-                _t3_id_caption = f"{_t3_n_sel} selected {_t3_display.lower()}s"
-            st.caption(_t3_id_caption)
+                # Stash the event for the top-of-next-rerun handler, then force a
+                # rerun so the handler fires before the sidebar reads
+                # region_labels_<layer> on the click frame itself (tab3 runs AFTER
+                # the sidebar, so without this the click would land one rerun late).
+                # Edge-triggered: plotly's selection is sticky and _t3_event
+                # returns the same payload on every rerun — comparing picked labels
+                # against the multiselect's session_state slot guards against an
+                # infinite rerun loop. Once the handler has copied the labels over,
+                # subsequent reruns see equal sets and stop.
+                if _t3_event:
+                    _new_event = _t3_event if isinstance(_t3_event, dict) else dict(_t3_event)
+                    if _new_event.get('selection', {}).get('points'):
+                        _picked_ids = sorted({
+                            p.get("customdata") for p in
+                            _new_event['selection']['points']
+                            if p.get("customdata")
+                        })
+                        _ms_key = f"region_labels_{_t3_layer}"
+                        _current_ids = sorted(st.session_state.get(_ms_key, []) or [])
+                        if _current_ids != _picked_ids:
+                            st.session_state['region_map_picker_event'] = _new_event
+                            st.rerun()
+            with _t3_clear_col:
+                st.write("")
+                st.write("")
+                if st.button("Clear", key='region_map_clear_btn',
+                             help="Deselect all selected areas."):
+                    st.session_state[f"region_labels_{_t3_layer}"] = []
+                    st.session_state['region_map_picker_event'] = None
+                    st.rerun()
             st.caption(
-                "Metric cards show citywide impact; the Scenario tab also "
-                "includes region-local readings for the selected area."
+                f"Click a {_t3_display.lower()} number to select it. Shift-click or "
+                "Ctrl-click to select multiple. Land-use changes will be placed "
+                "only inside the selected area; the Scenario tab shows both "
+                "citywide and region-local results."
             )
-        st.divider()
+            # Eligibility Funnel (Interactive Region Map Spec #3 — extended).
+            # Shows where pixels drop out at each placement-pool step:
+            # selected → developed → after roads/buildings/existing nature →
+            # after ownership → converted. Sources every cell from
+            # results['region_selection'] (selected_area_acres, converted_acres,
+            # eligible_pixels_in_region) or a one-line intersection of masks
+            # already on hand (developed/convertible ∩ region). Monotonicity is
+            # guaranteed by the subset invariants (verify_baselines.py — every
+            # step ⊆ the prior is a standing assertion).
+            _rs_t3 = results.get('region_selection') or {}
+            if _rs_t3.get('mode') == 'selected_regions':
+                _region_mask = st.session_state.get('selected_region_mask')
+                _ownership_active = (
+                    st.session_state.get('selected_ownership_mask') is not None
+                )
+                _t3_sel_area = _rs_t3.get('selected_area_acres') or 0.0
+                _t3_final_elig_px = _rs_t3.get('eligible_pixels_in_region') or 0
+                _t3_final_elig_acres = _t3_final_elig_px * PIXEL_AREA_ACRES
+                _t3_conv_acres = _rs_t3.get('converted_acres') or 0.0
+                # The one new computation — developed ∩ region (and, when
+                # ownership is also active, convertible ∩ region pre-ownership
+                # for the intermediate "After roads/buildings/existing nature"
+                # step). Both single-line index ops against arrays already in
+                # _CURRENT_CITY_STATE.
+                if _region_mask is not None:
+                    _dp = _CURRENT_CITY_STATE.developed_pixels
+                    _cp = _CURRENT_CITY_STATE.convertible_pixels
+                    _t3_dev_in_region_px = int(
+                        _region_mask[_dp[:, 0], _dp[:, 1]].sum()
+                    )
+                    _t3_conv_in_region_px = int(
+                        _region_mask[_cp[:, 0], _cp[:, 1]].sum()
+                    )
+                else:
+                    _t3_dev_in_region_px = 0
+                    _t3_conv_in_region_px = 0
+                _t3_dev_in_region_acres = _t3_dev_in_region_px * PIXEL_AREA_ACRES
+                _t3_conv_in_region_acres = _t3_conv_in_region_px * PIXEL_AREA_ACRES
 
-    if placement_strategy != 'random':
-        st.info(
-        f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** — conversions weighted "
-        "toward higher-suitability pixels. Notice the spatial pattern shift vs. random allocation."
+                # Build the chain. Region+ownership splits the convertible step
+                # from the final eligible step; region-only collapses them
+                # (eligible_pixels_in_region already equals convertible ∩ region
+                # when ownership is inactive).
+                _funnel_rows = [
+                    ("Selected area",                          f"{_t3_sel_area:,.0f} acres"),
+                    ("Developed land",                         f"{_t3_dev_in_region_acres:,.0f} acres"),
+                ]
+                if _ownership_active:
+                    _funnel_rows.append(
+                        ("After roads / buildings / existing nature",
+                         f"{_t3_conv_in_region_acres:,.0f} acres"),
+                    )
+                    _funnel_rows.append(
+                        ("After ownership filter",
+                         f"{_t3_final_elig_acres:,.0f} acres"),
+                    )
+                else:
+                    _funnel_rows.append(
+                        ("After roads / buildings / existing nature",
+                         f"{_t3_final_elig_acres:,.0f} acres"),
+                    )
+                _funnel_rows.append(
+                    ("Converted", f"{_t3_conv_acres:,.0f} acres"),
+                )
+                _funnel_df = pd.DataFrame(_funnel_rows, columns=["Step", "Acres"])
+                st.dataframe(
+                    _funnel_df, hide_index=True, use_container_width=True,
+                    column_config={
+                        "Step":  st.column_config.TextColumn("Step", width="large"),
+                        "Acres": st.column_config.TextColumn("Acres", width="small"),
+                    },
+                )
+                # UI-Text Pass — region-id caption beneath the panel, derived from
+                # the active layer's display name; replaces the layer-specific
+                # label ("Selected tract" / "Selected district") on the metric.
+                _t3_n_sel = len(_t3_selected_ids)
+                if _t3_n_sel == 1:
+                    _t3_id_caption = f"{_t3_display} {_t3_selected_ids[0]}"
+                elif 1 < _t3_n_sel <= 3:
+                    _t3_id_caption = (
+                        f"{_t3_n_sel} selected {_t3_display.lower()}s: "
+                        f"{', '.join(_t3_selected_ids)}"
+                    )
+                else:
+                    _t3_id_caption = f"{_t3_n_sel} selected {_t3_display.lower()}s"
+                st.caption(_t3_id_caption)
+                st.caption(
+                    "Metric cards show citywide impact; the Scenario tab also "
+                    "includes region-local readings for the selected area."
+                )
+            st.divider()
+
+        if placement_strategy != 'random':
+            st.info(
+            f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** — conversions weighted "
+            "toward higher-suitability pixels. Notice the spatial pattern shift vs. random allocation."
+            )
+
+        overlay_opacity = st.slider(
+            "Development-intensity heat proxy opacity",
+            0.0, 0.5, 0.2, 0.05,
+            help=(
+                "Transparency of the development-intensity heat-proxy overlay on the "
+                "map. Currently uses developed-land intensity as a proxy for "
+                "heat-vulnerable areas — NLCD 23 (high-intensity) weighted 1.0, "
+                "NLCD 22 (medium) 0.6, NLCD 21 (low) 0.3. This is a placeholder "
+                "for a future CDC/ATSDR Heat Vulnerability Index by census tract. "
+                "Set to 0 to hide."
+            ),
         )
 
-    overlay_opacity = st.slider(
-        "Development-intensity heat proxy opacity",
-        0.0, 0.5, 0.2, 0.05,
-        help=(
-            "Transparency of the development-intensity heat-proxy overlay on the "
-            "map. Currently uses developed-land intensity as a proxy for "
-            "heat-vulnerable areas — NLCD 23 (high-intensity) weighted 1.0, "
-            "NLCD 22 (medium) 0.6, NLCD 21 (low) 0.3. This is a placeholder "
-            "for a future CDC/ATSDR Heat Vulnerability Index by census tract. "
-            "Set to 0 to hide."
-        ),
-    )
+        render_matplotlib(plot_spatial_map(
+            results['scenario_lulc'], cooling_lulc,
+            heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
+            selected_region_mask=st.session_state.get('selected_region_mask'),
+        ))
+        st.caption(
+            "Gray = unchanged developed land. Colors show where conversions occur. "
+            "White = outside city boundary. Orange wash = development-intensity heat proxy "
+            "(darker orange = higher NLCD development intensity: 23 > 22 > 21), "
+            "opacity controlled by the slider above."
+        )
 
-    render_matplotlib(plot_spatial_map(
-        results['scenario_lulc'], cooling_lulc,
-        heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
-        selected_region_mask=st.session_state.get('selected_region_mask'),
-    ))
-    st.caption(
-        "Gray = unchanged developed land. Colors show where conversions occur. "
-        "White = outside city boundary. Orange wash = development-intensity heat proxy "
-        "(darker orange = higher NLCD development intensity: 23 > 22 > 21), "
-        "opacity controlled by the slider above."
-    )
+        with st.expander("Assumptions and limitations", expanded=False):
+            st.markdown(
+                "Conversions target feasible interstitial spaces — building footprints "
+                "and road infrastructure are excluded citywide using OpenStreetMap "
+                "road network data unioned with the city's buildings shapefile. "
+                "The remaining candidate pool covers parking lots, lawns, and vacant "
+                "land within the NLCD-21/22/23/24 developed mask. Placement within "
+                "that pool is random by default, or weighted toward specific objectives "
+                "(flood, cooling, equity, or balanced) via the sidebar placement picker. "
+                "Real implementation would "
+                "still require site-specific siting analysis (zoning, ownership, "
+                "soil, infrastructure)."
+            )
 
-    with st.expander("Assumptions and limitations", expanded=False):
+if _main_tab == 'Reference':
+    with tab4:
+        st.markdown("## Methodology & Data Sources")
+        try:
+            with open("REFERENCE.md", "r") as f:
+                reference_content = f.read()
+            st.markdown(reference_content)
+        except FileNotFoundError:
+            st.error("REFERENCE.md not found.")
+
+    with st.expander("Intended Use", expanded=False):
         st.markdown(
-            "Conversions target feasible interstitial spaces — building footprints "
-            "and road infrastructure are excluded citywide using OpenStreetMap "
-            "road network data unioned with the city's buildings shapefile. "
-            "The remaining candidate pool covers parking lots, lawns, and vacant "
-            "land within the NLCD-21/22/23/24 developed mask. Placement within "
-            "that pool is random by default, or weighted toward specific objectives "
-            "(flood, cooling, equity, or balanced) via the sidebar placement picker. "
-            "Real implementation would "
-            "still require site-specific siting analysis (zoning, ownership, "
-            "soil, infrastructure)."
+            "**This tool is designed for:**\n"
+            "- Comparing alternative land-use allocation strategies\n"
+            "- Exploring tradeoffs across multiple ecosystem services\n"
+            "- Identifying candidate scenarios for deeper analysis\n\n"
+            "**It is not intended for:**\n"
+            "- Parcel-level siting decisions\n"
+            "- Precise impact prediction\n"
+            "- Final policy or investment decisions without further analysis"
         )
-
-with tab4:
-    st.markdown("## Methodology & Data Sources")
-    try:
-        with open("REFERENCE.md", "r") as f:
-            reference_content = f.read()
-        st.markdown(reference_content)
-    except FileNotFoundError:
-        st.error("REFERENCE.md not found.")
-
-with st.expander("Intended Use", expanded=False):
-    st.markdown(
-        "**This tool is designed for:**\n"
-        "- Comparing alternative land-use allocation strategies\n"
-        "- Exploring tradeoffs across multiple ecosystem services\n"
-        "- Identifying candidate scenarios for deeper analysis\n\n"
-        "**It is not intended for:**\n"
-        "- Parcel-level siting decisions\n"
-        "- Precise impact prediction\n"
-        "- Final policy or investment decisions without further analysis"
-    )
