@@ -21,8 +21,9 @@ Pipeline:
 
 Sanity checks (printed at the end):
   - Minneapolis proper total ≈ 425,000 in 2020.
-  - Hennepin County under-18 share ≈ 22 % (Census QuickFacts). Downtown
-    tracts will likely run lower (less family housing).
+  - Hennepin County under-18 share ≈ 21.3 % (Census 2020 PL 94-171,
+    measured 2026-06-03). Downtown tracts run slightly lower. The script's
+    printout exposes both the county-wide and extent-clipped shares.
 """
 from __future__ import annotations
 
@@ -219,7 +220,7 @@ def main() -> None:
     print(f"  Pixels with under-18 population: {(child_raster > 0).sum():,}")
     print(f"  Under-18 population total: {child_total:,.0f} "
           f"({child_share:.1%} of total)")
-    print(f"  Reference: Hennepin County under-18 share ≈ 22% (Census QuickFacts).")
+    print(f"  Reference: Hennepin County under-18 share ≈ 21.3% (Census 2020 PL 94-171).")
 
 
 if __name__ == "__main__":

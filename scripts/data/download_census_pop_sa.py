@@ -12,10 +12,11 @@ target template.
 
 Population sanity checks:
   - Legal San Antonio is ~1.4 M; full Bexar County is ~2.0 M (2020 Census).
-  - Bexar County under-18 share ≈ 27 % (Census QuickFacts) — SA skews
-    young vs. the national 22 % share. The modeled extent for SA is
-    essentially the full county, so the raster share should land close
-    to this published figure.
+  - Bexar County under-18 share ≈ 24.7 % (Census 2020 PL 94-171, measured
+    2026-06-03 — SA still skews younger than the national share, just
+    less dramatically than the QuickFacts ACS-5yr estimate suggests).
+    The modeled extent is essentially the full county, so the raster
+    share lands close to this figure (currently 24.5 %; child_pop_extent_share).
 """
 
 import io
@@ -194,7 +195,7 @@ def main():
     print(f"  Pixels with under-18 population: {(child_raster > 0).sum():,}")
     print(f"  Under-18 total in raster: {child_total:,.0f} "
           f"({child_share:.1%} of total)")
-    print(f"  Reference: Bexar County under-18 share ≈ 27% (Census QuickFacts).")
+    print(f"  Reference: Bexar County under-18 share ≈ 24.7% (Census 2020 PL 94-171).")
 
 
 if __name__ == "__main__":
