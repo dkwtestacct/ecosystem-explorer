@@ -415,11 +415,12 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
 # bypasses the splash flow entirely.
 if 'entry_city' not in st.session_state:
     st.title("🌿 Ecosystem Explorer")
+    st.markdown("Urban land-use tradeoff prototype, canonical-InVEST-aligned.")
     st.markdown(
-        "Urban land-use tradeoff prototype, canonical-InVEST-aligned. "
-        "Pick a city to load — first load takes ~30 s for San Antonio "
-        "(flagship grid) or ~10 s for Minneapolis (smaller). The choice "
-        "isn't permanent; you can switch via the sidebar afterward."
+        "Choose a starting city. San Antonio is the flagship demo and may "
+        "take up to about a minute to load the first time; Minneapolis is "
+        "a faster lightweight demo. You can switch cities later from the "
+        "sidebar."
     )
     st.markdown("&nbsp;")  # spacer
     _splash_col_a, _splash_col_b = st.columns(2)
@@ -430,9 +431,8 @@ if 'entry_city' not in st.session_state:
             st.session_state['entry_city'] = "San Antonio, TX"
             st.rerun()
         st.caption(
-            "Bexar County extent · ownership/parcel-derived filters · "
-            "council districts · NatCap reference scenarios · "
-            "canonical InVEST 3.19.0 export bundle."
+            "Bexar County area · ownership and school-land filters · "
+            "council districts · NatCap reference scenarios · InVEST export"
         )
     with _splash_col_b:
         if st.button("Explore Minneapolis — lightweight demo",
@@ -440,8 +440,8 @@ if 'entry_city' not in st.session_state:
             st.session_state['entry_city'] = "Minneapolis, MN"
             st.rerun()
         st.caption(
-            "Downtown extent · scenarios + biophysical models · "
-            "no ownership layer (no SA-style parcel data assembled yet)."
+            "Downtown extent · scenario exploration and biophysical "
+            "models · no ownership layer"
         )
     st.stop()
 
@@ -651,7 +651,10 @@ def _cooling_biophysical_source(city_key: str) -> str:
     )
 
 # ── City-aware header ──────────────────────────────────────────────────────────
-st.title("🌿 Urban Ecosystem Tradeoff Explorer")
+st.title("🌿 Ecosystem Explorer")
+# Descriptor — matches the splash + CAPABILITIES.md so the product
+# carries one consistent self-description across surfaces.
+st.caption("Urban land-use tradeoff prototype, canonical-InVEST-aligned.")
 
 # In-app changelog for returning visitors — collapsed by default so the
 # dashboard (sliders + metric cards) is the first view, not a changelog.
