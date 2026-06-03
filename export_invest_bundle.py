@@ -152,7 +152,7 @@ KNOWN_DIVERGENCES = [
             "in-region conversions that propagate just outside the boundary "
             "are reflected in the citywide column but NOT in the region-local "
             "column. Boundary treatment 'option (b)' per "
-            "docs/internal/REGION_LOCAL_METRICS_SPEC.md."
+            "docs/archive/REGION_LOCAL_METRICS_SPEC.md."
         ),
     },
     {

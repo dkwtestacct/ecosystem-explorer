@@ -235,7 +235,7 @@ ACS equity CSV (`data/sa/natcap_2024/acs_block_group_equity_data.csv`) includes 
 
 ### Region-selection polygon layers (Phase 1)
 
-Polygon layers wired for the Region Selection feature (`docs/internal/REGION_SELECTION_PHASE1_SPEC.md`). These are placement-constraint polygons (region-mask source), distinct from the per-tract reporting use above. The SA primary layer is council districts; Bexar tracts are the fallback. ACS block groups (1,124) are intentionally not exposed as a selection layer — too granular for a multiselect.
+Polygon layers wired for the Region Selection feature (`docs/archive/REGION_SELECTION_PHASE1_SPEC.md`). These are placement-constraint polygons (region-mask source), distinct from the per-tract reporting use above. The SA primary layer is council districts; Bexar tracts are the fallback. ACS block groups (1,124) are intentionally not exposed as a selection layer — too granular for a multiselect.
 
 | City | Path | Status | Count / Notes |
 |---|---|---|---|
