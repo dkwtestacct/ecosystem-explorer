@@ -375,6 +375,13 @@ CITIES = {
     },
 }
 
+# ── Default city ──────────────────────────────────────────────────────────────
+# First-load landing city for the live app. Must be a key in CITIES with
+# `available: True`. Independent of the CITIES dict ordering (which other
+# scripts iterate). Changing this only changes the live UI's default
+# selectbox value; verify_baselines.py still iterates every available city.
+DEFAULT_CITY = "San Antonio, TX"
+
 # ── Cost defaults ($/acre) ─────────────────────────────────────────────────────
 DEFAULT_COST_GI   = 50_000   # Green infrastructure / woody wetlands
 DEFAULT_COST_FF   = 10_000   # Food forest

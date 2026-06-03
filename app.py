@@ -17,7 +17,7 @@ from scipy.ndimage import distance_transform_edt as _distance_transform_edt
 from scipy.ndimage import zoom as _zoom
 from scipy.signal import fftconvolve as _fftconvolve
 
-from config import CITIES, DEFAULT_COST_GI, DEFAULT_COST_FF, DEFAULT_COST_HD
+from config import CITIES, DEFAULT_CITY, DEFAULT_COST_GI, DEFAULT_COST_FF, DEFAULT_COST_HD
 from surrogate import (
     train_surrogate as _train_surrogate_fn,
     predict_with_uncertainty,
@@ -400,6 +400,51 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
 </style>
 ''', unsafe_allow_html=True)
 
+# ── First-load splash ─────────────────────────────────────────────────────────
+# Module-level guard before any heavy city loaders run. Loading a city's
+# rasters/tables is ~18 s for Minneapolis but ~220 s cold for San Antonio
+# (1713×1984 grid + ownership + NatCap reference scenarios; measured
+# 2026-06-02 — see PART B measurement note). @st.cache_resource(max_entries=1)
+# on _load_city_runtime_state caps memory at one city at a time (Streamlit
+# Cloud's 1 GB ceiling rules out keeping both warm), so the cold cost can't
+# be hidden behind caching alone — first visit *will* pay it. The splash
+# lets the user pick which city to pay for, and frames the speed difference
+# honestly. Once `entry_city` is in session_state the splash never re-renders
+# this session; the sidebar selectbox owns the city after that. The
+# verify_baselines harness pre-seeds entry_city via its stub so the gate
+# bypasses the splash flow entirely.
+if 'entry_city' not in st.session_state:
+    st.title("🌿 Ecosystem Explorer")
+    st.markdown(
+        "Urban land-use tradeoff prototype, canonical-InVEST-aligned. "
+        "Pick a city to load — first load takes ~30 s for San Antonio "
+        "(flagship grid) or ~10 s for Minneapolis (smaller). The choice "
+        "isn't permanent; you can switch via the sidebar afterward."
+    )
+    st.markdown("&nbsp;")  # spacer
+    _splash_col_a, _splash_col_b = st.columns(2)
+    with _splash_col_a:
+        if st.button("Explore San Antonio — flagship demo",
+                     type="primary", use_container_width=True,
+                     key="splash_pick_sa"):
+            st.session_state['entry_city'] = "San Antonio, TX"
+            st.rerun()
+        st.caption(
+            "Bexar County extent · ownership/parcel-derived filters · "
+            "council districts · NatCap reference scenarios · "
+            "canonical InVEST 3.19.0 export bundle."
+        )
+    with _splash_col_b:
+        if st.button("Explore Minneapolis — lightweight demo",
+                     use_container_width=True, key="splash_pick_mn"):
+            st.session_state['entry_city'] = "Minneapolis, MN"
+            st.rerun()
+        st.caption(
+            "Downtown extent · scenarios + biophysical models · "
+            "no ownership layer (no SA-style parcel data assembled yet)."
+        )
+    st.stop()
+
 # ── Session state ──────────────────────────────────────────────────────────────
 if "saved_scenarios" not in st.session_state:
     st.session_state.saved_scenarios = []
@@ -471,9 +516,22 @@ if st.session_state.get("applied_from_region_optimizer"):
 # ── City selection ─────────────────────────────────────────────────────────────
 # Only available cities surface in the dropdown. Unavailable entries (e.g.
 # Minneapolis Full) stay in the CITIES dict so scripts/tests can still
-# reference them by key, but they are hidden from the UI.
+# reference them by key, but they are hidden from the UI. Initial selection
+# precedence: session_state['entry_city'] (set by the splash on first load)
+# → config.DEFAULT_CITY (San Antonio, TX, the flagship) → first available
+# city as a final fallback. After first render the selectbox's own widget
+# state owns the city — switching via the sidebar works the same way
+# whichever entry path was taken.
 _city_names = [name for name, cfg in CITIES.items() if cfg['available']]
-selected_city = st.sidebar.selectbox("City", _city_names, index=0)
+_entry_city = st.session_state.get('entry_city')
+if _entry_city in _city_names:
+    _default_city_index = _city_names.index(_entry_city)
+elif DEFAULT_CITY in _city_names:
+    _default_city_index = _city_names.index(DEFAULT_CITY)
+else:
+    _default_city_index = 0
+selected_city = st.sidebar.selectbox("City", _city_names,
+                                     index=_default_city_index)
 city_cfg = CITIES[selected_city]
 
 # Reset scenario sliders when the city changes so a new city renders against

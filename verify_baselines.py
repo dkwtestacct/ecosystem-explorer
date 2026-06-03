@@ -361,9 +361,15 @@ def main(update: bool) -> int:
     snapshot_dir = Path("tests/baselines")
     snapshot_dir.mkdir(parents=True, exist_ok=True)
 
-    # Set the initial city for module-level import. The first available city
-    # will be selected by the stub's selectbox.
+    # Set the initial city for module-level import. The live app gates the
+    # first load behind a splash (app.py's "First-load splash" block) — the
+    # harness has no UI to click, so we pre-seed entry_city in the shared
+    # session_state stub so the splash check finds it set and falls through
+    # to the normal city-load path. _DESIRED_CITY tells the selectbox stub
+    # which city to return (same value); _rebind_city() switches per-cell
+    # afterward.
     _DESIRED_CITY = "Minneapolis, MN"
+    _SessionStateStub._store['entry_city'] = _DESIRED_CITY
     sys.modules["streamlit"] = _StubSt()
 
     print("Importing app.py (triggers module-level startup)...")
