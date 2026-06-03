@@ -3154,6 +3154,57 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         child_pop_diffs += 1
 
+    # ── toggle_selection pure-function unit suite — multi-select RELAY ────
+    # The Interactive Region Map's click-to-toggle handler is the consumer;
+    # toggle_selection is the pure transform applied to the selection list
+    # on each new click. This cell exercises the four canonical cases AND
+    # meta-tests that replacing the function with replace-mode
+    # (`return [clicked]`) trips the suite.
+    print(f"\n{'=' * 60}")
+    print("toggle_selection — multi-select map click pure-function unit suite")
+    print(f"{'=' * 60}")
+    toggle_diffs = 0
+    try:
+        _ts = app.toggle_selection
+        _cases = [
+            ("add to empty",            [],          "A", ["A"]),
+            ("add a second",            ["A"],       "B", ["A", "B"]),
+            ("remove an existing",      ["A", "B"],  "A", ["B"]),
+            ("remove last → empty",     ["B"],       "B", []),
+        ]
+        for _name, _cur, _click, _expect in _cases:
+            _got = _ts(_cur, _click)
+            if _got == _expect:
+                print(f"  OK   {_name}: toggle({_cur!r}, {_click!r}) = {_got!r}")
+            else:
+                print(f"  FAIL {_name}: toggle({_cur!r}, {_click!r}) = {_got!r} "
+                      f"(expected {_expect!r})")
+                toggle_diffs += 1
+
+        # Meta-test: a replace-mode reversion (`return [clicked_id]`) must
+        # fail the suite. Drives this by substituting the function locally
+        # with a replace-mode lambda and re-running the same cases.
+        _replace_mode = lambda cur, click: [click]
+        _replace_failures = sum(
+            1 for _name, _cur, _click, _expect in _cases
+            if _replace_mode(_cur, _click) != _expect
+        )
+        if _replace_failures >= 3:
+            # Cases 2, 3, 4 all fail under replace mode (only case 1 happens
+            # to coincide because [] + click == [click] either way).
+            print(f"  OK   meta-test: replace-mode lambda fails "
+                  f"{_replace_failures}/{len(_cases)} cases — toggle suite "
+                  "is sharp (not vacuously satisfied by replace mode)")
+        else:
+            print(f"  FAIL meta-test: replace-mode lambda only fails "
+                  f"{_replace_failures}/{len(_cases)} cases — toggle suite "
+                  "would pass under a replace-mode regression")
+            toggle_diffs += 1
+    except Exception as e:
+        print(f"  ERROR toggle_selection unit suite: {e}")
+        import traceback; traceback.print_exc()
+        toggle_diffs += 1
+
     # ── Buildings-precompute staleness — SA cold-start Lever 2 guard ──────
     # Phase 8 (app.py) reads buildings_precomputed_{file,type,meta} from disk
     # when configured, skipping the ~32 s rasterize of ~691k SA polygons.
@@ -3306,7 +3357,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + shared_fire_diffs + dollar_lint_diffs
                    + two_relay_diffs + label_budget_diffs
                    + dense_freshness_diffs + rebind_completeness_diffs
-                   + child_pop_diffs + bldg_precompute_diffs)
+                   + child_pop_diffs + bldg_precompute_diffs
+                   + toggle_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3402,6 +3454,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "`python precompute_buildings.py --city '<city>'` to "
                   "regenerate. Check the source file changed and the "
                   "precompute step was missed.")
+        if toggle_diffs:
+            print(f"{toggle_diffs} toggle_selection unit-test failure(s) — "
+                  "the Interactive Region Map's click-to-toggle pure "
+                  "function is broken or has been reverted to replace mode. "
+                  "Multi-select on map clicks would not work.")
         return 1
 
 

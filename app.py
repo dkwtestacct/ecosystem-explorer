@@ -219,6 +219,36 @@ def _ownership_allowed_band1_values(mode_cfg) -> "list[int]":
         return [int(v) for v in mode_cfg['band1_in']]
     return []
 
+
+def toggle_selection(current, clicked_id):
+    """Pure function — toggle `clicked_id` in `current` selection list.
+
+    Returns a NEW list: `clicked_id` removed if already present, appended if
+    absent. No Streamlit calls inside — pure data transform so tests can
+    exercise it in isolation (verify_baselines has a four-case unit suite +
+    meta-test that reverting this to 'return [clicked_id]' replace-mode
+    must fail).
+
+    Used by the Interactive Region Map's click-to-toggle handler: every
+    new map-click event from Plotly tells us WHICH district was clicked
+    (event.selection.points[0].customdata); the producer detects new
+    clicks by event-signature de-dup; this function applies the toggle to
+    the existing selection state read from session_state. Same source of
+    truth as the sidebar multiselect — both read/write the same
+    `region_labels_<layer>` key.
+
+    Limitation: Plotly's selection_mode='points' delivers identical event
+    payloads when the user clicks the SAME district twice in a row (the
+    selection state doesn't change), so toggling a district off requires
+    an intervening click on a different district. Click A → click B →
+    click A correctly leaves {B} selected; click A → click A in immediate
+    succession is a no-op (no rerun fires). Documented in the help-text
+    caption."""
+    if clicked_id in current:
+        return [x for x in current if x != clicked_id]
+    return list(current) + [clicked_id]
+
+
 # ── Default-scenario state + display unification (Relay A) ─────────────────
 # Documented default — the app's own copy says "Default view illustrates a
 # balanced 50/50 mix at 10% conversion," so on load and after a city switch
@@ -5279,27 +5309,40 @@ else:
     st.session_state.setdefault("carbon_rate_gi", 2.0)
 
 # ── Interactive Region Map: sync clicks → sidebar multiselect (top-of-script) ─
-# Reads `region_map_picker_event` (stashed by tab3) and writes the clicked
-# labels into the multiselect's session_state slot BEFORE the sidebar reads
-# it. Tab3 runs after the sidebar, so a naive write would land one rerun
-# late; tab3's edge-triggered st.rerun() forces this handler to fire on the
-# very next rerun — sidebar multiselect, mask, scenario sentence, metric
-# cards, and the optimizer guard all reflect the click without a second
-# interaction. Reverse direction (dropdown → selector) auto-syncs because
-# the plotly figure is rebuilt each rerun from canonical session_state.
+# Reads `region_map_picker_event` (stashed by tab3) and TOGGLES the clicked
+# district(s) into the multiselect's session_state slot BEFORE the sidebar
+# reads it. Tab3 runs after the sidebar, so a naive write would land one
+# rerun late; tab3's signature-de-duped st.rerun() forces this handler to
+# fire on the very next rerun — sidebar multiselect, mask, scenario
+# sentence, metric cards, and the optimizer guard all reflect the click
+# without a second interaction.
+#
+# Multi-select RELAY: replaces the prior 'overwrite with picked_ids' write
+# (which made each click replace the selection — a bug because the
+# sidebar dropdown already supports multi). Plotly's selection_mode=
+# 'points' WITHOUT modifier forwarding gives the clicked district id in
+# event.selection.points[0].customdata; we toggle that id against the
+# current selection. Source of truth is `region_labels_<layer>` —
+# multiselect and map both read/write it.
 _picker_event = st.session_state.get("region_map_picker_event")
 if _picker_event is not None:
-    _picked_ids = sorted({
+    _clicked_ids = [
         p.get("customdata") for p in
         (_picker_event.get("selection") or {}).get("points", [])
         if p.get("customdata")
-    })
-    # Honor the multiselect key shape used by the sidebar block below.
+    ]
     _picker_layer = st.session_state.get("region_map_picker_layer")
-    if _picker_layer is not None:
+    if _picker_layer is not None and _clicked_ids:
         _ms_key = f"region_labels_{_picker_layer}"
-        if sorted(st.session_state.get(_ms_key, []) or []) != _picked_ids:
-            st.session_state[_ms_key] = _picked_ids
+        _current = list(st.session_state.get(_ms_key, []) or [])
+        for _id in _clicked_ids:
+            _current = toggle_selection(_current, _id)
+        # Multiselect-keyed session_state must be written BEFORE the widget
+        # renders (Streamlit raises if you mutate a widget-keyed value
+        # after instantiation on the same run). Sorting keeps the
+        # rendered list stable.
+        if sorted(_current) != sorted(st.session_state.get(_ms_key, []) or []):
+            st.session_state[_ms_key] = sorted(_current)
     # Consume the event so the next rerun starts clean.
     st.session_state["region_map_picker_event"] = None
 
@@ -8703,27 +8746,35 @@ if _main_tab == 'Map View':
                     selection_mode='points',
                     key='region_map_picker',
                 )
-                # Stash the event for the top-of-next-rerun handler, then force a
-                # rerun so the handler fires before the sidebar reads
-                # region_labels_<layer> on the click frame itself (tab3 runs AFTER
-                # the sidebar, so without this the click would land one rerun late).
-                # Edge-triggered: plotly's selection is sticky and _t3_event
-                # returns the same payload on every rerun — comparing picked labels
-                # against the multiselect's session_state slot guards against an
-                # infinite rerun loop. Once the handler has copied the labels over,
-                # subsequent reruns see equal sets and stop.
+                # Stash the event for the top-of-next-rerun handler, then force
+                # a rerun so the handler fires before the sidebar reads
+                # region_labels_<layer> on the click frame itself (tab3 runs
+                # AFTER the sidebar, so without this the click would land one
+                # rerun late).
+                #
+                # Multi-select RELAY: new-click detection now compares the
+                # event's selection signature against the LAST-FORWARDED
+                # signature in session_state. The prior compare-against-current
+                # _ids approach broke toggle-off: after toggling A off the
+                # session_state holds [B] while Plotly's selection state is
+                # still [A], so the producer would have re-fired every rerun
+                # and the handler would have re-toggled. Signature de-dup
+                # forwards once per genuine click (different from last) and
+                # stays silent on stale reruns (same as last).
                 if _t3_event:
                     _new_event = _t3_event if isinstance(_t3_event, dict) else dict(_t3_event)
-                    if _new_event.get('selection', {}).get('points'):
-                        _picked_ids = sorted({
-                            p.get("customdata") for p in
-                            _new_event['selection']['points']
-                            if p.get("customdata")
-                        })
-                        _ms_key = f"region_labels_{_t3_layer}"
-                        _current_ids = sorted(st.session_state.get(_ms_key, []) or [])
-                        if _current_ids != _picked_ids:
+                    _evt_points = _new_event.get('selection', {}).get('points') or []
+                    if _evt_points:
+                        _evt_sig = tuple(sorted(
+                            p.get("customdata") for p in _evt_points
+                            if p.get("customdata") is not None
+                        ))
+                        _last_sig = tuple(
+                            st.session_state.get("region_map_picker_last_sig") or ()
+                        )
+                        if _evt_sig and _evt_sig != _last_sig:
                             st.session_state['region_map_picker_event'] = _new_event
+                            st.session_state['region_map_picker_last_sig'] = list(_evt_sig)
                             st.rerun()
             with _t3_clear_col:
                 st.write("")
@@ -8732,11 +8783,17 @@ if _main_tab == 'Map View':
                              help="Deselect all selected areas."):
                     st.session_state[f"region_labels_{_t3_layer}"] = []
                     st.session_state['region_map_picker_event'] = None
+                    # Reset the new-click signature too so the next genuine
+                    # click fires (without this, a click matching the
+                    # last-forwarded signature would be filtered out).
+                    st.session_state['region_map_picker_last_sig'] = None
                     st.rerun()
             st.caption(
-                f"Click a {_t3_display.lower()} number to select it. Shift-click or "
-                "Ctrl-click to select multiple. Land-use changes will be placed "
-                "only inside the selected area; the Scenario tab shows both "
+                f"Click a {_t3_display.lower()} number to toggle its selection — "
+                f"click another to add, click again (after picking a different "
+                f"{_t3_display.lower()}) to remove. The sidebar dropdown is the "
+                "same source of truth. Land-use changes will be placed only "
+                "inside the selected area; the Scenario tab shows both "
                 "citywide and region-local results."
             )
             # Eligibility Funnel (Interactive Region Map Spec #3 — extended).
