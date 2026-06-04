@@ -5370,7 +5370,7 @@ if selected_city.startswith("San Antonio"):
 
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
-# Sidebar Reorg — five collapsible sections: Scenario / Where changes happen /
+# Sidebar Reorg — five collapsible sections: Scenario / Spatial targeting /
 # Eligibility filters / Discover scenarios / Export. The City selector at the
 # top and the SA scenario-source picker (above) stay outside the expanders;
 # they're app-level picks, not scenario controls.
@@ -5388,7 +5388,7 @@ st.session_state.setdefault("slider_ff_pct",
 # ── Sidebar visual order (Optimizer Promotion) ─────────────────────────────
 # Pre-create the five section expanders in VISUAL order — Scenario,
 # Discover scenarios (promoted to position 2 per the Optimizer
-# Promotion brief), Where changes happen, Eligibility filters, Export.
+# Promotion brief), Spatial targeting, Eligibility filters, Export.
 # Code below populates each via `with _sec_<name>:` in DEPENDENCY order
 # (Scenario → Where → Eligibility → Discover → Export) so the Discover
 # block reads session_state that the Where + Eligibility blocks set
@@ -5415,7 +5415,7 @@ _sec_discover          = st.sidebar.expander("Discover scenarios",
                                               expanded=True)
 _sec_advanced_quality  = st.sidebar.expander("Advanced model quality",
                                               expanded=False)
-_sec_where             = st.sidebar.expander("Where changes happen",
+_sec_where             = st.sidebar.expander("Spatial targeting",
                                               expanded=_where_expanded)
 _sec_eligibility       = (
     st.sidebar.expander("Eligibility filters", expanded=False)
@@ -5668,7 +5668,7 @@ if _picker_event is not None:
     # Consume the event so the next rerun starts clean.
     st.session_state["region_map_picker_event"] = None
 
-# ── Sidebar section: Where changes happen (Sidebar Reorg) ──────────────────
+# ── Sidebar section: Spatial targeting (Sidebar Reorg) ────────────────────
 # Placed between Scenario and Eligibility filters so a planner picks
 # WHERE conversions can land (region) → narrows by WHAT KIND (ownership)
 # → optionally searches for promising mixes (Discover).
