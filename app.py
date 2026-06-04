@@ -377,7 +377,7 @@ WHATS_NEW_SECTIONS = [
     ("Ownership-aware scenarios", [
         "In San Antonio, restrict conversions to public, vacant, school, university, city, county, or state/federal land.",
         "These are planning-screen filters — they do not verify parcel availability or legal feasibility.",
-        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access, children's nature access, cooling, and mental-health effects.",
+        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access, children's nature access, Nature Access at Schools (point-sampled at K-12 schools — NCES CCD/PSS/EDGE), cooling, and mental-health effects.",
     ]),
     ("Scenario discovery", [
         "Search citywide with a fast surrogate that suggests promising mixes.",
@@ -393,7 +393,7 @@ UNDERWAY_ENTRIES = []
 
 ON_THE_RADAR = """\
 - AlphaEarth-derived land-cover inputs, pixel-level spatial optimization, and nutrient retention (NDR) if canonical inputs become available.
-- School-point targeting — use individual school locations to prioritize interventions near schools (beyond today's school-land filter), and make children's nature access an optimization target rather than only a reported metric.
+- Children's nature access as an optimization target — surface alongside the current reported children's metric so users can search for mixes that maximize it directly. (The school-point readout — Nature Access at Schools — has shipped; this is the optimization companion to it.)
 """
 
 def _build_whats_new():
@@ -874,6 +874,15 @@ class CityState(NamedTuple):
     # the UI.
     child_pop_count_raster: Optional[np.ndarray]
     child_population_data_available: bool
+    # Nature Access at Schools — K-12 school points (public + charter +
+    # private; NCES CCD/PSS/EDGE) clipped to the modelable extent and
+    # projected to pixel coordinates. Powers the destination-based access
+    # metric (sample the 2SFCA adequate mask at each school). None for
+    # cities without schools_file configured.
+    schools_pixels: Optional[np.ndarray]   # (N, 2) int64 (row, col)
+    schools_sectors: Optional[np.ndarray]  # (N,) object: 'public'/'charter'/'private'
+    schools_metadata: Optional[dict]       # source, vintage, sector counts, etc.
+    schools_data_available: bool
     # Reference ET
     et_resized: np.ndarray
     max_et_ref: float
@@ -1806,6 +1815,45 @@ def _una_supply_percapita(scenario_lulc, pop_count_raster):
         scenario_lulc, pop_count_raster, urban_nature_arr)
 
 
+def _sample_schools_access(adequate, schools_pixels, schools_sectors):
+    """Sample the 2SFCA `adequate` per-pixel mask at each school point.
+
+    Returns a dict with the total + per-sector counts and the headline %.
+    Used by both the citywide path and the region-local clip — the caller
+    passes the appropriate `adequate` mask (citywide vs region-clipped)
+    and the same schools_pixels each time. No new threshold introduced:
+    `adequate` is the SAME mask the residential Nature Access metric uses
+    (supply_percapita >= UNA_DEMAND_M2_PER_CAPITA, restricted to valid LULC).
+    """
+    if schools_pixels is None or len(schools_pixels) == 0:
+        return {"pct": None, "n_with_access": 0, "n_total": 0,
+                "by_sector": {}}
+    rs = schools_pixels[:, 0]
+    cs = schools_pixels[:, 1]
+    school_access = adequate[rs, cs]
+    n_total = int(len(schools_pixels))
+    n_with = int(school_access.sum())
+    by_sector = {}
+    for sec in ("public", "charter", "private"):
+        sec_mask = (schools_sectors == sec)
+        sec_n = int(sec_mask.sum())
+        if sec_n == 0:
+            by_sector[sec] = {"pct": None, "n_with_access": 0, "n_total": 0}
+        else:
+            sec_with = int(school_access[sec_mask].sum())
+            by_sector[sec] = {
+                "pct": round(100.0 * sec_with / sec_n, 1),
+                "n_with_access": sec_with,
+                "n_total": sec_n,
+            }
+    return {
+        "pct": round(100.0 * n_with / n_total, 1) if n_total else None,
+        "n_with_access": n_with,
+        "n_total": n_total,
+        "by_sector": by_sector,
+    }
+
+
 def _invest_una_pct_pop_supply_ge_demand(scenario_lulc, pop_count_raster,
                                          mask=None,
                                          child_pop_count_raster=None):
@@ -1898,6 +1946,43 @@ def calculate_nature_access(scenario_lulc, pop_count_raster, mask=None,
     )
     return (round(float(pct), 1), 0.0, int(round(people_supplied)),
             round(float(child_pct), 1), int(round(child_supplied)))
+
+
+def calculate_schools_nature_access(scenario_lulc, pop_count_raster,
+                                    schools_pixels, schools_sectors,
+                                    mask=None):
+    """Destination-based UNA metric: % of K-12 school points sitting on
+    pixels where the 2SFCA `adequate` mask is True. Children's daytime
+    location proxy — the residential metric (Nature Access /
+    Children's Nature Access) answers 'do residents live where supply
+    meets demand'; this answers 'do schools sit where supply meets
+    demand'. Same 2SFCA pipeline, same per-city UNA_DEMAND_M2_PER_CAPITA
+    threshold, same valid-LULC restriction — no new threshold introduced.
+
+    Sampling at the existing `adequate` mask makes the school metric
+    consistent with the residential metric by construction. Different
+    quantity (count of school points, not population-weighted), same
+    aligned-method validation tier.
+
+    `schools_pixels` is an (N, 2) int64 ndarray of (row, col) pixel
+    coordinates; `schools_sectors` is an (N,) object array with values in
+    {'public', 'charter', 'private'}. Both pre-computed at city load by
+    `_load_city_runtime_state` Phase 2c. `mask=None` reproduces the
+    citywide behavior; an Mxshape boolean mask restricts adequate to the
+    intersection (region-local treatment).
+
+    Returns a dict (NOT a tuple — different from the residential
+    function's signature) so the sector breakdowns + count fields stay
+    discoverable. `pct` is None when no schools are configured/in-extent."""
+    if schools_pixels is None or len(schools_pixels) == 0:
+        return {"pct": None, "n_with_access": 0, "n_total": 0,
+                "by_sector": {}}
+    supply_percapita, valid = _una_supply_percapita(scenario_lulc,
+                                                     pop_count_raster)
+    if mask is not None:
+        valid = valid & mask
+    adequate = valid & (supply_percapita >= UNA_DEMAND_M2_PER_CAPITA)
+    return _sample_schools_access(adequate, schools_pixels, schools_sectors)
 
 
 # Baseline food production is zero by definition (no conversions means no
@@ -2516,6 +2601,16 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         children_nat_pct = None
         children_nat_people = None
 
+    # Nature Access at Schools (RELAY) — destination-based readout
+    # sampled at the SAME 2SFCA adequate mask as the residential metric.
+    # None when no schools_file is configured for this city; otherwise
+    # returns a dict with pct + per-sector counts. See
+    # docs/internal/DESIGN_NOTES §6.7.
+    schools_access = calculate_schools_nature_access(
+        scenario_lulc_una, pop_count_raster,
+        SCHOOLS_PIXELS, SCHOOLS_SECTORS,
+    )
+
     # Build the scenario NDVI raster once and pass to both consumers. Saves
     # one full-AOI float32 allocation per evaluate_scenario call.
     scenario_ndvi = _lulc_to_ndvi_raster(scenario_lulc)
@@ -2680,6 +2775,17 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         # mask as nature_access_pct; just child-pop-weighted.
         'children_nature_access_pct':   children_nat_pct,
         'children_with_nature_access':  children_nat_people,
+        # Nature Access at Schools (RELAY) — destination-based metric. None
+        # on cities without schools_file. Flat scalar headlines (snapshotted
+        # by verify_baselines) PLUS the full dict (kept for UI breakdowns +
+        # tooltip).  Source: NCES CCD/PSS/EDGE 2021-22.
+        'schools_nature_access_pct':    schools_access.get('pct'),
+        'schools_n_total':              schools_access.get('n_total'),
+        'schools_n_with_access':        schools_access.get('n_with_access'),
+        'schools_public_pct':           (schools_access.get('by_sector') or {}).get('public', {}).get('pct'),
+        'schools_charter_pct':          (schools_access.get('by_sector') or {}).get('charter', {}).get('pct'),
+        'schools_private_pct':          (schools_access.get('by_sector') or {}).get('private', {}).get('pct'),
+        'schools_nature_access':        schools_access,
         'preventable_mh_cases':     preventable_mh_cases,
         'avoided_mh_cost_usd':      avoided_mh_cost_usd,
         'food_mln_lbs':             food_mln_lbs,
@@ -2767,7 +2873,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 34  # bumped: Children's nature access RELAY — evaluate_scenario's return dict gains two new fields: `children_nature_access_pct` (the under-18 share of the modelable-extent population whose per-capita nature supply meets demand, computed under the SAME adequate mask as `nature_access_pct` but child-pop-weighted) and `children_with_nature_access` (count). region_local picks up the same two fields. None on cities without a `child_pop_file` configured (currently MN + SA configured; Mpls Full unset). All 40 SA + MN baselines re-snapshotted; reconciliation invariant (region_local over full AOI == citywide) holds for the new fields too. Child-pop staleness assertion in verify_baselines anchors each city's raster share to per-city `child_pop_extent_share` (MN 20.2%, SA 24.5% — measured from Census PL 94-171), tolerance ±2pp, with a halve-the-raster meta-test. (33 was Batch 4 v2 of Finer Ownership Classes — composite ownership_filter dict shape.)
+SCENARIO_SCHEMA_VERSION = 35  # bumped: Nature Access at Schools RELAY — evaluate_scenario's return dict gains six new fields: `schools_nature_access_pct` (the % of K-12 school points sitting on adequately-served pixels, computed under the SAME 2SFCA adequate mask as Nature Access / Children's Nature Access — destination-based readout sampled at school POINT locations), `schools_n_total`, `schools_n_with_access`, and per-sector breakdowns `schools_public_pct`, `schools_charter_pct`, `schools_private_pct`. PLUS a non-snapshotted `schools_nature_access` dict carrying the full structured output (pct + n + by_sector breakdowns) for the UI card's tooltip + region-local consumer. None on cities without a `schools_file` configured (currently MN + SA configured; Mpls Full unset). All 40 SA + MN baselines re-snapshotted; the 2SFCA pipeline + UNA_DEMAND_M2_PER_CAPITA threshold are unchanged — only an additional point-sampling consumer is added. Source: NCES CCD 2022-23 + EDGE 2021-22 + PSS 2021-22; per-city school points clipped to the modelable extent (SA 647 K-12 schools; MN 60), prepped offline by `scripts/data/prep_school_points.py`. (34 was Children's nature access RELAY — children_nature_access_pct + children_with_nature_access.) — evaluate_scenario's return dict gains two new fields: `children_nature_access_pct` (the under-18 share of the modelable-extent population whose per-capita nature supply meets demand, computed under the SAME adequate mask as `nature_access_pct` but child-pop-weighted) and `children_with_nature_access` (count). region_local picks up the same two fields. None on cities without a `child_pop_file` configured (currently MN + SA configured; Mpls Full unset). All 40 SA + MN baselines re-snapshotted; reconciliation invariant (region_local over full AOI == citywide) holds for the new fields too. Child-pop staleness assertion in verify_baselines anchors each city's raster share to per-city `child_pop_extent_share` (MN 20.2%, SA 24.5% — measured from Census PL 94-171), tolerance ±2pp, with a halve-the-raster meta-test. (33 was Batch 4 v2 of Finer Ownership Classes — composite ownership_filter dict shape.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
@@ -3137,6 +3243,60 @@ def _load_city_runtime_state(city_key: str) -> CityState:
     except (FileNotFoundError, rasterio.errors.RasterioIOError, TypeError):
         child_pop_count_raster = None
         child_population_data_available = False
+
+    # ── Phase 2c: Schools points (RELAY — Nature Access at Schools) ────────
+    # Load the per-city K-12 school points (public + charter + private from
+    # NCES CCD/PSS/EDGE), project to the LULC CRS, and convert each to
+    # (row, col) pixel coordinates via the LULC's affine inverse. Schools
+    # whose pixel falls outside the raster are dropped (the per-city prep
+    # script already clips to the bbox, so this is a safety net for floor
+    # edges). None for cities without a schools_file configured.
+    schools_file = cfg.get("schools_file")
+    try:
+        if schools_file is None:
+            raise FileNotFoundError("schools_file not configured")
+        _schools_gdf = _gpd.read_file(schools_file)
+        if _schools_gdf.crs is None or str(_schools_gdf.crs) != cfg['crs']:
+            _schools_gdf = _schools_gdf.to_crs(cfg['crs'])
+        # Convert (x, y) → (row, col) via the rasterization template.
+        # ref_transform is set in Phase 7 below; we need it earlier here, so
+        # open the LULC briefly to read its transform.
+        with rasterio.open(
+            f"{cfg['data_dir_cooling']}/{cfg['cooling_lulc_file']}"
+        ) as _src:
+            _t = _src.transform
+            _h, _w = _src.height, _src.width
+        _rows, _cols = [], []
+        _sectors = []
+        for geom, sector in zip(_schools_gdf.geometry, _schools_gdf["sector"]):
+            r, c = rasterio.transform.rowcol(_t, geom.x, geom.y)
+            if 0 <= r < _h and 0 <= c < _w:
+                _rows.append(int(r))
+                _cols.append(int(c))
+                _sectors.append(str(sector))
+        schools_pixels = np.array(list(zip(_rows, _cols)), dtype=np.int64) \
+            if _rows else np.empty((0, 2), dtype=np.int64)
+        schools_sectors = np.array(_sectors, dtype=object)
+        _sec_counts = {
+            s: int((schools_sectors == s).sum())
+            for s in ("public", "charter", "private")
+        }
+        schools_metadata = {
+            "source_file": schools_file,
+            "vintage": "NCES CCD 2022-23 + EDGE 2021-22 + PSS 2021-22",
+            "n_total": int(len(schools_pixels)),
+            "sector_counts": _sec_counts,
+        }
+        schools_data_available = True
+        print(f"[SCHOOLS] {city_key}: {schools_metadata['n_total']:,} schools "
+              f"on-extent (public={_sec_counts['public']}, "
+              f"charter={_sec_counts['charter']}, private={_sec_counts['private']})")
+        del _schools_gdf
+    except Exception:
+        schools_pixels = None
+        schools_sectors = None
+        schools_metadata = None
+        schools_data_available = False
 
     # ── Phase 3: Reference ET ───────────────────────────────────────────────
     et_file = cfg.get("et_file")
@@ -3585,6 +3745,10 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         population_data_available=population_data_available,
         child_pop_count_raster=child_pop_count_raster,
         child_population_data_available=child_population_data_available,
+        schools_pixels=schools_pixels,
+        schools_sectors=schools_sectors,
+        schools_metadata=schools_metadata,
+        schools_data_available=schools_data_available,
         et_resized=et_resized, max_et_ref=max_et_ref,
         et_data_available=et_data_available,
         energy_by_type=energy_by_type,
@@ -3697,6 +3861,10 @@ pop_count_raster          = _CURRENT_CITY_STATE.pop_count_raster
 POPULATION_DATA_AVAILABLE = _CURRENT_CITY_STATE.population_data_available
 child_pop_count_raster          = _CURRENT_CITY_STATE.child_pop_count_raster
 CHILD_POPULATION_DATA_AVAILABLE = _CURRENT_CITY_STATE.child_population_data_available
+SCHOOLS_PIXELS         = _CURRENT_CITY_STATE.schools_pixels
+SCHOOLS_SECTORS        = _CURRENT_CITY_STATE.schools_sectors
+SCHOOLS_METADATA       = _CURRENT_CITY_STATE.schools_metadata
+SCHOOLS_DATA_AVAILABLE = _CURRENT_CITY_STATE.schools_data_available
 # ET
 ET_RESIZED        = _CURRENT_CITY_STATE.et_resized
 MAX_ET_REF        = _CURRENT_CITY_STATE.max_et_ref
@@ -6656,7 +6824,7 @@ st.markdown("#### Human & Social")
 # for negative deltas. Both are internally consistent answers to
 # st.metric's sign-parses-arrow constraint; the MH framing is the
 # right one for healthcare burden specifically.
-hs_na, hs_cna, hs3, hs4 = st.columns(4)
+hs_na, hs_cna, hs_sch, hs3, hs4 = st.columns(5)
 
 # Nature Access — canonical InVEST Urban Nature Access (2SFCA), re-implemented
 # in numpy by `calculate_nature_access`. See docs/internal/DESIGN_NOTES.md.
@@ -6732,6 +6900,62 @@ _render_validation_caption(
     hs_cna, "children_nature_access_pct", _validation_scenario_context,
     explicit_status="aligned_method",
 )
+
+# Nature Access at Schools (RELAY) — destination-based metric. Samples the
+# same 2SFCA `adequate` mask at school-point locations. Strongest paired
+# with the residential metrics above for the "where children live vs where
+# they spend the day" story. Source: NCES CCD/PSS/EDGE 2021-22 (K-12
+# public + charter + private; clipped to modelable extent).
+_sch = results.get('schools_nature_access') or {}
+_sch_pct = _sch.get('pct')
+if _sch_pct is None:
+    _sch_value = "—"
+    _sch_help_tail = (
+        " (no NCES schools file configured for this city; card hides the "
+        "value rather than showing zero.)"
+    )
+    _sch_bd = ""
+else:
+    _sch_value = f"{_sch_pct:.1f}%"
+    _bd = _sch.get('by_sector') or {}
+    _sch_bd = (
+        f"public {_bd.get('public', {}).get('pct', '—')}% · "
+        f"charter {_bd.get('charter', {}).get('pct', '—')}% · "
+        f"private {_bd.get('private', {}).get('pct', '—')}%"
+    )
+    _sch_help_tail = ""
+hs_sch.metric(
+    "Schools w/ Nature Access",
+    _sch_value,
+    help=(
+        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
+        "% of K-12 school locations sitting on pixels where per-capita "
+        f"nature supply meets the {UNA_DEMAND_M2_PER_CAPITA:g} m²/capita "
+        "demand standard. Destination-based readout — sampled at school "
+        "POINT locations, not residential pixels — so this answers 'where "
+        "are children during the day' alongside the residential Children's "
+        "Nature Access metric. Same 2SFCA adequate mask as the adult Nature "
+        "Access metric; no new threshold introduced. "
+        "**School set:** K-12 public + charter + private (private included; "
+        "documented per RELAY decision). NCES CCD 2022-23 + EDGE 2021-22 + "
+        "PSS 2021-22. Schools clipped to the city's modelable extent. "
+        "**Method:** point-sample the canonical Nature Access adequate mask "
+        "at each school's (row, col) pixel. "
+        "**Tier:** ≈ Aligned method (reuses the validated UNA 2SFCA pipeline "
+        "and per-city demand threshold unchanged). "
+        "**Caveats:** vintage offset (CCD 2022-23 vs EDGE/PSS 2021-22; "
+        "schools don't churn fast); private school set is the PSS Universe "
+        "(may include some Pre-K-only centers); destination metric does NOT "
+        "account for student travel time, school's actual catchment, or "
+        "students who attend out-of-extent schools." + _sch_help_tail
+    ),
+)
+_render_validation_caption(
+    hs_sch, "schools_nature_access_pct", _validation_scenario_context,
+    explicit_status="aligned_method",
+)
+if _sch_bd:
+    hs_sch.caption(_sch_bd)
 
 _mh_cases = results.get('preventable_mh_cases', 0.0)
 _mh_cost  = results.get('avoided_mh_cost_usd', 0.0)

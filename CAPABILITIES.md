@@ -31,6 +31,7 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 - **Urban Nature Access** — nature access %, nature exposure / NDVI indicators
 - **Urban Mental Health** — validated InVEST UMH estimates of preventable depression/anxiety cases and avoided costs
 - **Children's Nature Access** — under-18 share of nature access (Census 2020 PL 94-171 under-18; access share child-weighted, supply stays on total pop)
+- **Nature Access at Schools** — destination-based readout: % of K-12 schools (public + charter + private; NCES CCD/PSS/EDGE 2021-22) point-sampled at the 2SFCA adequate mask. Per-sector breakdown (public / charter / private) under the metric card. Same threshold + pipeline as the residential metric — no new threshold.
 - **Food** — annual production, people fed
 - **Cost-effectiveness** — $/acre-foot runoff · $/°F cooling · $/1,000 people fed
 
@@ -75,7 +76,7 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 - CSV download for comparison table
 
 ## Not yet / on the radar
-- **School-point targeting** — use individual school locations to prioritize interventions near schools (beyond today's school-land filter), and make children's nature access an optimization target rather than only a reported metric
+- **Children's nature access as an optimization target** — surface alongside the current reported children's metric so users can search for mixes that maximize it directly (the school-point readout — Nature Access at Schools — has shipped; this is the optimization companion to it)
 - AlphaEarth-derived land-cover inputs
 - Pixel-level spatial optimization
 - NDR / nutrient retention, pending canonical inputs

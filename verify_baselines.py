@@ -276,6 +276,12 @@ def _rebind_city(app_mod, city_name):
     # None on cities without a child_pop_file configured.
     app_mod.child_pop_count_raster = state.child_pop_count_raster
     app_mod.CHILD_POPULATION_DATA_AVAILABLE = state.child_population_data_available
+    # Nature Access at Schools — module-level aliases parallel to the
+    # children's pop pattern.
+    app_mod.SCHOOLS_PIXELS         = state.schools_pixels
+    app_mod.SCHOOLS_SECTORS        = state.schools_sectors
+    app_mod.SCHOOLS_METADATA       = state.schools_metadata
+    app_mod.SCHOOLS_DATA_AVAILABLE = state.schools_data_available
     app_mod.ET_RESIZED          = state.et_resized
     app_mod.MAX_ET_REF          = state.max_et_ref
     app_mod.ET_DATA_AVAILABLE   = state.et_data_available

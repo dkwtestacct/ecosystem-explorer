@@ -31,6 +31,12 @@
   "scenario_lulc_ucm__md5": "b63aeedcf87e54f006c6dcbe362522b0",
   "scenario_lulc_una__md5": "b63aeedcf87e54f006c6dcbe362522b0",
   "scenario_name": "10% converted \u2014 GI 100% / FF 0%",
+  "schools_charter_pct": 100.0,
+  "schools_n_total": 647,
+  "schools_n_with_access": 644,
+  "schools_nature_access_pct": 99.5,
+  "schools_private_pct": 100.0,
+  "schools_public_pct": 99.3,
   "temp_change_f": -0.3,
   "total_cost_mln": 932.36
 }

@@ -94,6 +94,14 @@ data/invest/mn_sample_data_natcap_2026/**/*.shp.xml
 data/invest/mn_sample_data_natcap_2026/**/*.tif.ovr
 data/invest/mn_sample_data_natcap_2026/**/*.tif.xml
 
+# NCES schools raw downloads (regenerable). prep_school_points.py reads
+# them and writes per-city GeoJSONs that ARE committed. Don't bloat the
+# repo with the ~76 MB national bundles.
+data/schools/ccd_*.zip
+data/schools/ccd_*.csv
+data/schools/ccd_*.sas7bdat
+data/schools/edge_*/
+
 # Bexar parcel polygons (281 MB) — too heavy for Streamlit Cloud deploy weight.
 # The runtime artifact is `data/sa/sa_public_vacant_30m.tif` (~396 KB, tracked).
 # The polygon GeoPackage is the 710 K-record audit trail; archived outside the

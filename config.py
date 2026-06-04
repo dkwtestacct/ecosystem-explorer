@@ -29,6 +29,12 @@ CITIES = {
         # uniform-block-spread, same source/vintage/resolution/CRS as pop_file).
         # Built by `python scripts/data/download_census_pop.py`.
         'child_pop_file':       'data/population/minneapolis_child_pop_2020.tif',
+        # Nature Access at Schools — K-12 public + charter + private school
+        # points from NCES CCD 2022-23 + EDGE 2021-22 + PSS 2021-22, filtered
+        # to the modelable extent. Built by
+        # `python scripts/data/prep_school_points.py`. Powers the
+        # 'Nature Access at Schools' destination metric (REFERENCE §6).
+        'schools_file':         'data/population/schools_mpls.geojson',
         # Published per-extent under-18 share — measured 2026-06-03 at MN
         # downtown extent. Hennepin County overall is ~22% (Census QuickFacts);
         # downtown tracts run slightly lower. Anchored value for the gate's
@@ -234,6 +240,8 @@ CITIES = {
         # SA skews younger than the national average. Anchored value for the
         # gate's child-pop staleness assertion.
         'child_pop_extent_share': 0.245,
+        # Nature Access at Schools — see MN comment above.
+        'schools_file':         'data/sa/schools_sa.geojson',
         'roads_file':           'data/sa/roads_sa.geojson',
         'dense_scenarios_file': 'data/scenarios_dense_sa.csv',  # built by precompute_scenarios.py
         'buildings_file':       'data/sa/buildings_sa.gpkg',
