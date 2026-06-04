@@ -9487,15 +9487,7 @@ if _main_tab == 'Map View':
         _png_buf = io.BytesIO()
         _spatial_fig.savefig(_png_buf, format='png')
         plt.close(_spatial_fig)
-        _png_bytes = _png_buf.getvalue()
-        # Confirm step — surface PNG bytes count so an eyeball can split
-        # "Streamlit media-transport bug" (bytes ≫ 1KB → figure real,
-        # bypass below should render) vs "savefig regression" (bytes
-        # ≈ 1KB → figure itself blank; components.html won't help,
-        # different bug). Temporary; strip with the diagnostic caption
-        # once cold citywide is confirmed rendering.
-        st.caption(f"🔧 PNG bytes: {len(_png_bytes):,}")
-        _png_b64 = base64.b64encode(_png_bytes).decode()
+        _png_b64 = base64.b64encode(_png_buf.getvalue()).decode()
         _components_html(
             f'<img src="data:image/png;base64,{_png_b64}" '
             f'style="width:100%">',
