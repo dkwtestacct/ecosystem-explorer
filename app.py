@@ -521,10 +521,11 @@ if 'entry_city' not in st.session_state:
             "• **Target where it happens** — citywide, in selected council "
             "districts, or on eligible public, vacant, school, or other land.  \n"
             "• **Evaluate impacts** — flood, cooling, carbon, greenness, nature "
-            "access, children's access, mental health, food, and cost.  \n"
+            "access including children and schools, mental health, food, and "
+            "cost.  \n"
             "• **Optimize & compare** — find promising mixes citywide or "
             "best-tested mixes for a selected area, then compare tradeoffs.  \n"
-            "• **Trust the numbers** — every result shows source, validation "
+            "• **Trust the results** — each result shows source, validation "
             "status, method provenance, and audit detail."
         )
     st.stop()
