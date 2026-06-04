@@ -9475,6 +9475,20 @@ if _main_tab == 'Map View':
         # Diagnostic expander — visible to surface what's reaching the
         # renderer when the bug recurs. Removed once the live bug is
         # confirmed-fixed.
+        def _post_cap_readout(arr):
+            """Mirror _downsample_for_plot's cap check arithmetically (no
+            scipy call) so the diagnostic shows exactly what shape will
+            land in the figure for a given input — without paying for the
+            zoom twice. Returns a human-readable string."""
+            if arr is None:
+                return "N/A"
+            h, w = arr.shape[:2]
+            m = max(h, w)
+            if m <= _PLOT_MAX_DIM:
+                return f"{(h, w)} (cap NOT triggered; max-dim {m} ≤ {_PLOT_MAX_DIM})"
+            scale = _PLOT_MAX_DIM / m
+            return (f"{(int(round(h*scale)), int(round(w*scale)))} "
+                    f"(cap triggered; scale={scale:.4f})")
         with st.expander("🔧 Spatial-map render diagnostic (temporary)", expanded=False):
             _sl = results.get('scenario_lulc')
             _bl = cooling_lulc
@@ -9484,12 +9498,15 @@ if _main_tab == 'Map View':
                     f"{getattr(_sl, 'shape', '?')!r} {getattr(_sl, 'dtype', '?')!r} "
                     f"sum>0={int((_sl > 0).sum()) if _sl is not None else 'N/A'}"
                 ),
+                "scenario_lulc (post _PLOT_MAX_DIM cap)": _post_cap_readout(_sl),
                 "cooling_lulc (baseline)": (
                     f"{getattr(_bl, 'shape', '?')!r} {getattr(_bl, 'dtype', '?')!r}"
                 ),
+                "cooling_lulc (post cap)": _post_cap_readout(_bl),
                 "heat_overlay": (
                     f"{getattr(_ho, 'shape', '?')!r} {getattr(_ho, 'dtype', '?')!r}"
                 ),
+                "heat_overlay (post cap)": _post_cap_readout(_ho),
                 "overlay_alpha": overlay_opacity,
                 "selected_region_mask (raw)": (
                     "None" if st.session_state.get('selected_region_mask') is None
@@ -9502,6 +9519,7 @@ if _main_tab == 'Map View':
                     else f"shape={_spatial_mask.shape} any={bool(_spatial_mask.any())}"
                 ),
                 "_PLOT_MAX_DIM (cap)": _PLOT_MAX_DIM,
+                "matplotlib figure (figsize × dpi)": "(8, 8) in × 100 dpi → 800×800 px canvas",
             })
         # Wrap the call in try/except so any exception surfaces inline
         # rather than getting swallowed by render_matplotlib's try/finally.
