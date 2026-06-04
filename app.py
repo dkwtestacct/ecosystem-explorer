@@ -4468,7 +4468,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
             )
 
     ax.axis('off')
-    # Title removed — section H2 "Where Changes Happen" already provides context
+    # Title removed — section H2 "Where land-cover changes happen" already provides context
     ax.legend(handles=legend_handles, loc='lower right', fontsize=9, framealpha=0.9)
     plt.tight_layout()
     return fig
@@ -9151,7 +9151,7 @@ if _main_tab == 'Tradeoff Analysis':
 
 if _main_tab == 'Map View':
     with tab3:
-        st.subheader("Where Changes Happen")
+        st.subheader("Where land-cover changes happen")
 
         # ── Interactive Region Selector (Interactive Region Map Spec, Path C) ──
         # Plain-cartesian plotly polygon traces over EPSG:5070 coords — no basemap,
