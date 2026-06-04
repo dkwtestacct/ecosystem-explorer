@@ -2019,8 +2019,8 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         scenario_state_diffs += 1
 
-    # ── Tradeoff Analysis tab section-order assertion ───────────────────────
-    # The Tradeoff Analysis tab + the NatCap reference-scenario view each have
+    # ── Tradeoffs tab section-order assertion ───────────────────────────────
+    # The Tradeoffs tab + the NatCap reference-scenario view each have
     # a locked section order. Explorer mode: Tradeoff Space (plot) → Compare
     # scenarios (table) → Neighborhood breakdown → optimizer / saved /
     # best-by-goal. NatCap mode: side-by-side (table) → notes / validation
@@ -2030,7 +2030,7 @@ def main(update: bool) -> int:
     # the plot) would flip the user-facing flow without changing any engine
     # output; this cell catches that by scanning app.py for ordered markers.
     print(f"\n{'=' * 60}")
-    print("Tradeoff Analysis tab — section-order assertion")
+    print("Tradeoffs tab — section-order assertion")
     print(f"{'=' * 60}")
     section_order_diffs = 0
     try:
@@ -2285,9 +2285,8 @@ def main(update: bool) -> int:
     #       trips the check.
     #   B — Button paired: every st.button("Optimize", …) in the Discover
     #       surfaces co-renders with a known mode-label string ("Citywide
-    #       surrogate search" or "Selected-area full-engine search") within
-    #       N lines before it. Meta-test: removing the mode label trips the
-    #       check.
+    #       surrogate search" or "Selected-area search") within N lines
+    #       before it. Meta-test: removing the mode label trips the check.
     #   C — Provenance Source distinction: the applied-result Source line
     #       (PROVENANCE_OPTIMIZER vs PROVENANCE_REGION_OPTIMIZED via
     #       _PROVENANCE_HEADER_INFO) maps citywide-origin → "surrogate
@@ -2385,10 +2384,10 @@ def main(update: bool) -> int:
         # within the same st.container scope). Both surfaces have mode
         # labels:
         #   "Citywide surrogate search"   (citywide)
-        #   "Selected-area full-engine search"  (region)
+        #   "Selected-area search"        (region)
         MODE_LABEL_STRINGS = (
             "Citywide surrogate search",
-            "Selected-area full-engine search",
+            "Selected-area search",
         )
         # Find Optimize button call sites.
         _button_lines = []
@@ -2418,7 +2417,7 @@ def main(update: bool) -> int:
                       f"a mode label in the preceding 120 lines:")
                 for _l in _unpaired:
                     print(f"    line {_l}: no 'Citywide surrogate search' "
-                          f"or 'Selected-area full-engine search' nearby")
+                          f"or 'Selected-area search' nearby")
                 two_relay_diffs += len(_unpaired)
             else:
                 print(f"  OK   all {len(_button_lines)} Optimize "
@@ -2497,76 +2496,64 @@ def main(update: bool) -> int:
 
         # ── Assertion D — CTA caption protection (FIX BUNDLE #79) ───────
         # Both Discover surfaces (sidebar + main-panel CTA) carry the same
-        # mode-keyed caption beneath the mode label. Each caption encodes
-        # an honesty qualifier that must survive future refactors:
+        # mode-keyed caption beneath the mode label:
         #   citywide → "Predicted suggestions — apply one to verify."
         #     (the values are SURROGATE PREDICTIONS, not engine outputs)
-        #   region   → "Best tested mixes under current filters — bounded
-        #              search, not a guaranteed global optimum."
-        #     (the search is BOUNDED — never let "full-engine" read as
-        #     exhaustive)
-        # Both expected strings must appear ≥2× in app.py (sidebar + CTA),
+        #   region   → "Best tested mixes under current region and
+        #              eligibility filters."
+        # Both expected literals must appear ≥2× in app.py (sidebar + CTA),
         # and each must appear immediately after a matching mode label
         # within a small window (so they pair with their mode, not float).
-        # Meta-test: confirm a tweaked caption string would fail.
-        # The citywide caption is a single source-line literal so the raw
-        # source-text count works directly. The region caption is split
-        # across two source lines via implicit string concatenation, so we
-        # match on three anchor substrings that together identify it:
-        # the lead, the honesty word "bounded", and the close. All three
-        # must appear ≥2× (sidebar + CTA); a regression that changes any
-        # one will flip the count.
+        # Meta-test: confirm a tweaked caption string would fail. Both
+        # captions are single source-line literals now (the prior split
+        # region caption with "bounded search" qualifier was retired
+        # alongside the "Selected-area full-engine search" → "Selected-area
+        # search" rename), so a single-literal exact-count check works for
+        # both surfaces.
         _CW_CAPTION_EXPECTED = "Predicted suggestions — apply one to verify."
-        _RG_CAPTION_ANCHORS = (
-            "Best tested mixes under current filters",
-            "bounded search",
-            "not a guaranteed global optimum.",
+        _RG_CAPTION_EXPECTED = (
+            "Best tested mixes under current region and eligibility filters."
         )
         _cw_cap_count = _src2.count(_CW_CAPTION_EXPECTED)
-        _rg_anchor_counts = {a: _src2.count(a) for a in _RG_CAPTION_ANCHORS}
-        _rg_ok = all(c >= 2 for c in _rg_anchor_counts.values())
-        if _cw_cap_count >= 2 and _rg_ok:
-            print(f"  OK   citywide caption present {_cw_cap_count}× "
-                  "(sidebar + CTA); all 3 region-caption anchors present "
-                  f"≥2× each "
-                  f"({', '.join(f'{a!r}={c}' for a,c in _rg_anchor_counts.items())})")
+        _rg_cap_count = _src2.count(_RG_CAPTION_EXPECTED)
+        if _cw_cap_count >= 2 and _rg_cap_count >= 2:
+            print(f"  OK   citywide caption present {_cw_cap_count}×, "
+                  f"region caption present {_rg_cap_count}× "
+                  "(both ≥2: sidebar + CTA)")
         else:
             if _cw_cap_count < 2:
                 print(f"  FAIL citywide caption only appears {_cw_cap_count}× "
                       f"in app.py (expected ≥2: sidebar + CTA). Expected literal: "
                       f"'{_CW_CAPTION_EXPECTED}'")
                 two_relay_diffs += 1
-            if not _rg_ok:
-                for a, c in _rg_anchor_counts.items():
-                    if c < 2:
-                        print(f"  FAIL region-caption anchor {a!r} appears "
-                              f"{c}× in app.py (expected ≥2: sidebar + CTA)")
+            if _rg_cap_count < 2:
+                print(f"  FAIL region caption only appears {_rg_cap_count}× "
+                      f"in app.py (expected ≥2: sidebar + CTA). Expected literal: "
+                      f"'{_RG_CAPTION_EXPECTED}'")
                 two_relay_diffs += 1
 
         # Meta-test (D): seeds with single-word regressions on each surface
         # must not match — proves the checks are literal, not fuzzy.
         #   (D1) citywide caption: 'suggestions' → 'results' must fail
         #        the exact-literal check.
-        #   (D2) region caption: 'bounded' → 'exhaustive' must fail the
-        #        honesty-anchor check (the regression we most fear — a
-        #        future hand re-framing "bounded search" as "exhaustive").
+        #   (D2) region caption: 'region and eligibility' → 'whatever'
+        #        must fail the exact-literal check.
         _seed_d_cw = "st.caption(\"Predicted results — apply one to verify.\")\n"
-        _seed_d_rg = ("st.caption(\"Best tested mixes under current filters — "
-                      "exhaustive search, not a guaranteed global optimum.\")\n")
+        _seed_d_rg = ("st.caption(\"Best tested mixes under whatever "
+                      "filters.\")\n")
         _meta_d_ok = True
         if _CW_CAPTION_EXPECTED in _seed_d_cw:
             print(f"  FAIL meta-test (D1): seeded WRONG citywide caption "
                   "matched expected literal — citywide check is fuzzy")
             two_relay_diffs += 1; _meta_d_ok = False
-        if "bounded search" in _seed_d_rg:
-            print(f"  FAIL meta-test (D2): seeded 'exhaustive search' "
-                  "regressed caption still contains 'bounded search' — "
-                  "the honesty-anchor check is too loose")
+        if _RG_CAPTION_EXPECTED in _seed_d_rg:
+            print(f"  FAIL meta-test (D2): seeded WRONG region caption "
+                  "matched expected literal — region check is fuzzy")
             two_relay_diffs += 1; _meta_d_ok = False
         if _meta_d_ok:
             print(f"  OK   meta-test (D): seeded regressions of both "
-                  "surfaces (citywide 'results' / region 'exhaustive') "
-                  "correctly fail the literal + anchor checks")
+                  "surfaces (citywide 'results' / region 'whatever') "
+                  "correctly fail the literal checks")
     except Exception as e:
         print(f"  ERROR Two-RELAY lock: {e}")
         import traceback; traceback.print_exc()
@@ -3421,7 +3408,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "divergence(s) — title, sentence, or audit drifted from "
                   "the resolved-scenario dict (Relay A).")
         if section_order_diffs:
-            print(f"{section_order_diffs} Tradeoff Analysis section-order "
+            print(f"{section_order_diffs} Tradeoffs section-order "
                   "divergence(s) — Explorer tab2 or NatCap view sections "
                   "moved out of the expected sequence.")
         if shared_fire_diffs:

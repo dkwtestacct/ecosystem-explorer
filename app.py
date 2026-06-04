@@ -491,10 +491,11 @@ if 'entry_city' not in st.session_state:
     with st.container(border=True):
         st.markdown(
             "**Latest updates**  \n"
-            "• San Antonio is now the flagship demo  \n"
-            "• Children's nature access is now reported  \n"
-            "• Optimize within a selected region or ownership filter  \n"
-            "• Separate school and university land filters"
+            "• San Antonio is now the flagship demo.  \n"
+            "• School and university land filters are separated.  \n"
+            "• Children's nature access is now reported.  \n"
+            "• Selected-area optimization runs under active region and "
+            "ownership filters."
         )
     st.stop()
 
@@ -4232,15 +4233,15 @@ def _fire_citywide_optimize(
         st.warning("No scenarios found — try lowering the targets.")
         st.session_state.just_optimized = False
     else:
-        # On success, jump directly to Tradeoff Analysis instead of nudging
+        # On success, jump directly to Tradeoffs instead of nudging
         # the user to switch tabs manually. Setting the segmented_control's
         # session_state key + st.rerun() makes the switch happen on the
         # very next rerun (before any tab body renders this turn). Toast
-        # replaces the prior 'open the Tradeoff Analysis tab →' success
+        # replaces the prior 'open the Tradeoffs tab →' success
         # banner since the switch is the actual confirmation.
         st.session_state.just_optimized = True
-        st.session_state['main_tab'] = "Tradeoff Analysis"
-        st.toast("Results ready — opening Tradeoff Analysis ↓")
+        st.session_state['main_tab'] = "Tradeoffs"
+        st.toast("Results ready — opening Tradeoffs ↓")
         st.rerun()
 
 
@@ -4305,11 +4306,11 @@ def _fire_region_optimize(
         st.session_state.just_optimized = False
     else:
         st.session_state.region_optimized_results = region_out
-        # Auto-switch to Tradeoff Analysis on success — same pattern as the
+        # Auto-switch to Tradeoffs on success — same pattern as the
         # citywide branch above. See its comment for why.
         st.session_state.just_optimized = True
-        st.session_state['main_tab'] = "Tradeoff Analysis"
-        st.toast("Results ready — opening Tradeoff Analysis ↓")
+        st.session_state['main_tab'] = "Tradeoffs"
+        st.toast("Results ready — opening Tradeoffs ↓")
         st.rerun()
 
 
@@ -5070,7 +5071,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
             f"on the NatCap-shipped flood raster (if present)."
         )
 
-    # ── Side-by-side (Tradeoff Analysis reorder) ────────────────────────
+    # ── Side-by-side (Tradeoffs reorder) ────────────────────────
     # Placed first under the banner so the user lands on the
     # cross-scenario overview before the per-scenario detail. Tradeoff
     # Space plot is intentionally NOT rendered here — the plot's axes
@@ -6028,7 +6029,7 @@ _filter_active = (
 )
 
 # Defaults — defined before the mode branch so the citywide-results render
-# block in the Tradeoff Analysis tab (which interpolates `min_flood` /
+# block in the Tradeoffs tab (which interpolates `min_flood` /
 # `min_cool` / etc. into a caption) never NameErrors if the user activated a
 # filter after an earlier citywide Optimize run left `optimized_results`
 # behind in session state. The citywide branch below overwrites these.
@@ -6152,13 +6153,10 @@ with _sec_discover:
         # docs/internal/REGION_OPTIMIZER_SPEC.md.
         # Two-RELAY lock — selected-area mode label + caption + Optimize
         # button co-render in the same block (Assertion B). Mode label is
-        # promoted markdown (visible), not a faint caption. Caption
-        # carries the "bounded search, not global optimum" honesty
-        # qualifier — never let "full-engine" read as exhaustive.
-        st.markdown("**Selected-area full-engine search**")
+        # promoted markdown (visible), not a faint caption.
+        st.markdown("**Selected-area search**")
         st.caption(
-            "Best tested mixes under current filters — bounded search, "
-            "not a guaranteed global optimum."
+            "Best tested mixes under current region and eligibility filters."
         )
         with st.popover("How this works"):
             st.markdown(
@@ -6197,7 +6195,11 @@ with _sec_discover:
             # with the mode label + caption above (Assertion B).
             if st.button("Optimize",
                          key="region_opt_button",
-                         use_container_width=True):
+                         use_container_width=True,
+                         help=(
+                             "Finds best tested mixes under the current "
+                             "selected area and filters."
+                         )):
                 _fire_region_optimize(
                     _CURRENT_CITY_STATE, selected_city,
                     DATA_DIR_FLOOD, DATA_DIR_COOLING,
@@ -6745,17 +6747,21 @@ _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
 with st.container(border=True):
     st.markdown("### Discover scenarios")
     if _filter_active:
-        st.markdown("**Selected-area full-engine search**")
+        st.markdown("**Selected-area search**")
         st.caption(
-            "Best tested mixes under current filters — bounded search, "
-            "not a guaranteed global optimum."
+            "Best tested mixes under current region and eligibility filters."
+        )
+        _cta_optimize_help = (
+            "Finds best tested mixes under the current selected area and filters."
         )
     else:
         st.markdown("**Citywide surrogate search**")
         st.caption("Predicted suggestions — apply one to verify.")
+        _cta_optimize_help = None
     if st.button("Optimize", type="primary",
                   key="main_cta_optimize_button",
-                  use_container_width=True):
+                  use_container_width=True,
+                  help=_cta_optimize_help):
         if _filter_active:
             _fire_region_optimize(
                 _CURRENT_CITY_STATE, selected_city,
@@ -8001,11 +8007,11 @@ if st.session_state.get("just_optimized"):
     if _applied_idx is not None:
         _banner_msg = (
             f"Sliders updated to match suggestion #{_applied_idx + 1}. "
-            "Switch to Tradeoff Analysis to verify."
+            "Switch to Tradeoffs to verify."
         )
     else:
         _banner_msg = (
-            "Optimization complete — switch to the Tradeoff Analysis tab to see results."
+            "Optimization complete — switch to the Tradeoffs tab to see results."
         )
     banner_col, dismiss_col = st.columns([5, 1])
     with banner_col:
@@ -8036,7 +8042,25 @@ st.write(_explorer_scenario_sentence(
     _resolved_scenario, _within_phrase, mode_text,
 ))
 
-_MAIN_TAB_NAMES = ["Scenario", "Tradeoff Analysis", "Map View", "Reference"]
+# Scenario-scope summary — one-line readout of region / ownership / placement
+# generated from the active state. Reuses the audit-row helpers so the line is
+# always in lockstep with the Scenario audit expander below.
+_scope_area = _cs_area_for_row(results)
+_scope_own  = _cs_ownership_for_row(results)
+_scope_strat_default = (placement_strategy == 'random')
+_scope_parts = ["citywide" if _scope_area == "Citywide" else _scope_area]
+if _scope_own == "None" and _scope_strat_default:
+    _scope_parts.append("no filters")
+else:
+    if _scope_own != "None":
+        _scope_parts.append(_scope_own.lower())
+    if not _scope_strat_default:
+        _scope_parts.append(
+            PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()
+        )
+st.caption(f"Scenario scope: {' · '.join(_scope_parts)}")
+
+_MAIN_TAB_NAMES = ["Scenario", "Tradeoffs", "Map View", "NatCap Reference"]
 _main_tab = st.segmented_control(
     "Main view",
     options=_MAIN_TAB_NAMES,
@@ -8124,7 +8148,7 @@ if _main_tab == 'Scenario':
             st.pyplot(fig, width='stretch')
             plt.close(fig)
 
-if _main_tab == 'Tradeoff Analysis':
+if _main_tab == 'Tradeoffs':
     with tab2:
         # NOTE: We deliberately do NOT auto-clear `just_optimized` here. Streamlit
         # executes every `with tabX:` block on every rerun (regardless of which
@@ -9410,8 +9434,9 @@ if _main_tab == 'Map View':
                     _t3_id_caption = f"{_t3_n_sel} selected {_t3_display.lower()}s"
                 st.caption(_t3_id_caption)
                 st.caption(
+                    "Land-use changes are placed only inside the selected area. "
                     "Metric cards show citywide impact; the Scenario tab also "
-                    "includes region-local readings for the selected area."
+                    "shows selected-region impact."
                 )
             st.divider()
 
@@ -9514,7 +9539,7 @@ if _main_tab == 'Map View':
                 "soil, infrastructure)."
             )
 
-if _main_tab == 'Reference':
+if _main_tab == 'NatCap Reference':
     with tab4:
         st.markdown("## Methodology & Data Sources")
         try:
