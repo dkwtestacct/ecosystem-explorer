@@ -506,19 +506,26 @@ if 'entry_city' not in st.session_state:
             "no ownership layer"
         )
     st.markdown("&nbsp;")  # spacer
-    # Latest updates — short, true as of THIS push. Each bullet names a
-    # capability the returning visitor will recognize on their next session;
-    # no internal refactors. Items roll off as they age out of the visitor's
-    # "since I last looked" window. Bordered container visually separates
-    # the updates from the primary city-picker decision above.
+    # What you can do — a plain-language capability teaser for first-time
+    # visitors. Each line leads with its emphasized phrase and describes a
+    # capability in the visitor's words; the in-app badge vocab (NatCap
+    # published value / ≈ NatCap method / etc.) stays one layer in, not on
+    # this landing. Mirrors the synced CAPABILITIES.md so the two don't drift.
+    # Bordered container visually separates the teaser from the primary
+    # city-picker decision above.
     with st.container(border=True):
         st.markdown(
-            "**Latest updates**  \n"
-            "• San Antonio is now the flagship demo.  \n"
-            "• School and university land filters are separated.  \n"
-            "• Children's nature access is now reported.  \n"
-            "• Selected-area optimization runs under active region and "
-            "ownership filters."
+            "**What you can do**  \n"
+            "• **Build a land-use scenario** — convert developed land into green "
+            "infrastructure, food forest, or higher-density development.  \n"
+            "• **Target where it happens** — citywide, in selected council "
+            "districts, or on eligible public, vacant, school, or other land.  \n"
+            "• **Evaluate impacts** — flood, cooling, carbon, greenness, nature "
+            "access, children's access, mental health, food, and cost.  \n"
+            "• **Optimize & compare** — find promising mixes citywide or "
+            "best-tested mixes for a selected area, then compare tradeoffs.  \n"
+            "• **Trust the numbers** — every result shows source, validation "
+            "status, method provenance, and audit detail."
         )
     st.stop()
 
