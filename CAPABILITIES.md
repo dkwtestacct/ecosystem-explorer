@@ -17,6 +17,7 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 
 ## Spatial targeting
 - Select regions: council districts or census tracts; conversions confined to the selected area when active
+- **Interactive region map** (Map View tab) — click a district/tract to select it, shift- or ctrl-click to add to the selection, Clear to reset; stays in sync with the sidebar region selector (both drive the same selection state)
 - Always excluded: buildings, roads, existing natural land
 - San Antonio ownership filters: None / Public land / Vacant land / Vacant + public / School land / College / university land / Custom
 - Custom ownership classes: city / county / state-federal / school / university, plus vacant-only overlay
@@ -30,7 +31,7 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 - **Carbon** — carbon storage / sequestration change, carbon value
 - **Urban Nature Access** — nature access %, nature exposure / NDVI indicators
 - **Urban Mental Health** — validated InVEST UMH estimates of preventable depression/anxiety cases and avoided costs
-- **Children's Nature Access** — under-18 share of nature access (Census 2020 PL 94-171 under-18; access share child-weighted, supply stays on total pop)
+- **Children's Nature Access** — under-18 share of nature access (Census 2020 PL 94-171 under-18; access share child-weighted, supply stays on total pop). Card auto-hides when child data exists but children's access tracks overall access within 0.5 pp — so its presence itself signals that kids are served differently here; when hidden, the Nature Access tooltip notes the match
 - **Nature Access at Schools** — destination-based readout: % of K-12 schools (public + charter + private; NCES CCD/PSS/EDGE 2021-22) point-sampled at the 2SFCA adequate mask. Per-sector breakdown (public / charter / private) under the metric card. Same threshold + pipeline as the residential metric — no new threshold.
 - **Food** — annual production, people fed
 - **Cost-effectiveness** — $/acre-foot runoff · $/°F cooling · $/1,000 people fed
@@ -49,7 +50,8 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 - Metrics that cannot be recomputed from available inputs are flagged
 
 ## Compare & analyze
-- Tradeoff-space scatter plot
+- **Mode-aware tradeoff scatter** — when a region is selected, the **selected-area** scatter is primary (region-local baseline + engine-verified tested mixes), with the citywide view in a "Citywide context" expander; ownership-only or no-selection shows the citywide scatter (with a clustering caveat when constrained)
+- **Click-to-apply** — click a tested-mix marker on the selected-area scatter to apply that mix to the sliders; **Revert to previous scenario** restores the prior mix after a mis-click
 - Current + saved scenario comparison table
 - CSV download
 - Neighborhood breakdown
