@@ -7137,7 +7137,12 @@ _render_validation_caption(econ5, "carbon_value_usd", _validation_scenario_conte
 # unchanged across map-click reruns: scroll position stays on the map so
 # the user can click another district without scrolling back.
 _region_local = results.get('region_local')
-if _main_tab == 'Scenario' and _region_local:
+# Read the persisted main_tab from session_state (the segmented_control at
+# the bottom of the page hasn't been defined yet at this point in top-to-
+# bottom execution — the widget owns its key, so the keyed value is what
+# the next render will use). Default 'Scenario' matches the control's
+# default so the first-ever run also lands correctly.
+if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
     st.divider()
     _rs = results.get('region_selection') or {}
     _rs_layer = _rs.get('layer')
