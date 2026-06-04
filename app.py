@@ -479,7 +479,7 @@ if 'entry_city' not in st.session_state:
     _splash_col_a, _splash_col_b = st.columns(2)
     with _splash_col_a:
         if st.button("Explore San Antonio — flagship demo",
-                     type="primary", use_container_width=True,
+                     type="primary", width="stretch",
                      key="splash_pick_sa"):
             st.session_state['entry_city'] = "San Antonio, TX"
             st.rerun()
@@ -497,7 +497,7 @@ if 'entry_city' not in st.session_state:
         )
     with _splash_col_b:
         if st.button("Explore Minneapolis — lightweight demo",
-                     use_container_width=True, key="splash_pick_mn"):
+                     width="stretch", key="splash_pick_mn"):
             st.session_state['entry_city'] = "Minneapolis, MN"
             st.rerun()
         st.caption(
@@ -5132,7 +5132,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
             "Carbon value": _cv_str,
         })
     st.dataframe(pd.DataFrame(_comp_rows),
-                 use_container_width=True, hide_index=True)
+                 width="stretch", hide_index=True)
     st.caption(
         "Baseline shows absolute published values; alternatives show "
         "change from NatCap's baseline. Carbon \\$ is derived as carbon "
@@ -6154,11 +6154,11 @@ with _sec_discover:
             # Two-RELAY lock — sidebar "Optimize" trigger. Co-renders with
             # the mode label + caption above in the same st.container
             # (Assertion B in verify_baselines locks the pairing).
-            # use_container_width=True gives the button full sidebar
+            # width="stretch" gives the button full sidebar
             # width so the short "Optimize" verb can't wrap.
             if st.button("Optimize",
                          key="sidebar_citywide_opt_button",
-                         use_container_width=True):
+                         width="stretch"):
                 _fire_citywide_optimize(
                     surrogate, min_flood, min_cool, min_food, max_runoff,
                     min_carbon, MAX_FOOD, MAX_FLOOD, MAX_COOL,
@@ -6215,7 +6215,7 @@ with _sec_discover:
             # with the mode label + caption above (Assertion B).
             if st.button("Optimize",
                          key="region_opt_button",
-                         use_container_width=True,
+                         width="stretch",
                          help=(
                              "Finds best tested mixes under the current "
                              "selected area and filters."
@@ -6780,7 +6780,7 @@ with st.container(border=True):
         _cta_optimize_help = None
     if st.button("Optimize", type="primary",
                   key="main_cta_optimize_button",
-                  use_container_width=True,
+                  width="stretch",
                   help=_cta_optimize_help):
         if _filter_active:
             _fire_region_optimize(
@@ -6854,7 +6854,7 @@ with st.expander("Scenario audit", expanded=False):
     ]
     _audit_df = pd.DataFrame(_audit_rows, columns=["Field", "Value"])
     st.dataframe(
-        _audit_df, hide_index=True, use_container_width=True,
+        _audit_df, hide_index=True, width="stretch",
         column_config={
             "Field": st.column_config.TextColumn("Field", width="small"),
             "Value": st.column_config.TextColumn("Value", width="large"),
@@ -7628,7 +7628,7 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
         ("Avoided MH Cost",          _fmt_money(_region_local['avoided_mh_cost_usd']),               _fmt_money(results['avoided_mh_cost_usd'])),
     ]
     _rl_df = pd.DataFrame(_rl_rows, columns=["Metric", f"Region ({_rs_label})", "Citywide"])
-    st.dataframe(_rl_df, use_container_width=True, hide_index=True)
+    st.dataframe(_rl_df, width="stretch", hide_index=True)
 
     # UI feedback #6 — "why" tooltip for the flood-damage row. Triggers
     # on the city PROPERTY (TOTAL_POTENTIAL_DAMAGE_USD <= 0 is set by
@@ -9444,7 +9444,7 @@ if _main_tab == 'Map View':
                 )
                 _funnel_df = pd.DataFrame(_funnel_rows, columns=["Step", "Acres"])
                 st.dataframe(
-                    _funnel_df, hide_index=True, use_container_width=True,
+                    _funnel_df, hide_index=True, width="stretch",
                     column_config={
                         "Step":  st.column_config.TextColumn("Step", width="large"),
                         "Acres": st.column_config.TextColumn("Acres", width="small"),
