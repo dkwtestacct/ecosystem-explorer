@@ -6988,15 +6988,29 @@ st.markdown("#### Human & Social")
 # for negative deltas. Both are internally consistent answers to
 # st.metric's sign-parses-arrow constraint; the MH framing is the
 # right one for healthcare burden specifically.
-# Two-row layout — Row 1 (Nature Access cluster) gets three columns;
-# Row 2 (MH outcomes) gets two. Five-in-one-row was truncating the
-# longer card labels.
-hs_na, hs_cna, hs_sch = st.columns(3)
+# Children's Nature Access — hide-when-near-equal. When child data exists but
+# children's access is within EPSILON of overall Nature Access, the card carries
+# no new signal (e.g. SA ~99.7% vs ~99.7%) — suppress it entirely so its
+# PRESENCE means "kids are differently served here." Keep it when child data is
+# absent (renders "—") or when it meaningfully diverges (>= EPSILON).
+_CHILD_NAT_DIVERGENCE_EPSILON_PP = 0.5
+_nature_access = results.get('nature_access_pct', 0.0)
+_child_nat = results.get('children_nature_access_pct')
+_show_child_card = (_child_nat is None) or (
+    abs(_child_nat - _nature_access) >= _CHILD_NAT_DIVERGENCE_EPSILON_PP
+)
+
+# Two-row layout — Row 1 (Nature Access cluster) gets three columns (two when
+# the Children's card is suppressed); Row 2 (MH outcomes) gets two.
+# Five-in-one-row was truncating the longer card labels.
+if _show_child_card:
+    hs_na, hs_cna, hs_sch = st.columns(3)
+else:
+    hs_na, hs_sch = st.columns(2)
 hs3, hs4 = st.columns(2)
 
 # Nature Access — canonical InVEST Urban Nature Access (2SFCA), re-implemented
 # in numpy by `calculate_nature_access`. See docs/internal/DESIGN_NOTES.md.
-_nature_access = results.get('nature_access_pct', 0.0)
 _nature_aoi = (
     "City of San Antonio (ACS block groups)"
     if selected_city.startswith("San Antonio")
@@ -7021,6 +7035,10 @@ hs_na.metric(
         f"AOI: {_nature_aoi}. "
         f"Underlying model: [InVEST Urban Nature Access]"
         f"(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_nature_access.html)."
+        + ("" if _show_child_card else
+           " Children's nature access matches overall access here "
+           f"(within {_CHILD_NAT_DIVERGENCE_EPSILON_PP:g} pp), so the "
+           "separate Children's Nature Access card is hidden.")
     ),
 )
 _render_validation_caption(hs_na, "nature_access_pct", _validation_scenario_context)
@@ -7028,46 +7046,51 @@ _render_validation_caption(hs_na, "nature_access_pct", _validation_scenario_cont
 # Children's nature access (RELAY) — same adequate mask as Nature Access,
 # weighted by Census 2020 block-level under-18 population (P1 - P3 from
 # PL 94-171, uniform-block-spread). Renders "—" when no child raster is
-# configured for the active city. Strongest paired with the school-land
-# ownership filter — that combination targets conversions to school-land
-# parcels and reports how many children gain access as a result.
-_child_nat = results.get('children_nature_access_pct')
-if _child_nat is None:
-    _child_nat_value = "—"
-    _child_nat_help_tail = (
-        " (no Census child-population raster configured for this city; "
-        "card hides the value rather than showing zero.)"
+# configured for the active city; suppressed entirely (see _show_child_card
+# above) when it tracks overall Nature Access within EPSILON. Strongest paired
+# with the school-land ownership filter — that combination targets conversions
+# to school-land parcels and reports how many children gain access as a result.
+if _show_child_card:
+    if _child_nat is None:
+        _child_nat_value = "—"
+        _child_nat_help_tail = (
+            " (no Census child-population raster configured for this city; "
+            "card hides the value rather than showing zero.)"
+        )
+    else:
+        _child_nat_value = f'{_child_nat:.1f}%'
+        _child_nat_help_tail = (
+            " This card appears only when children's access diverges from "
+            f"overall access by at least {_CHILD_NAT_DIVERGENCE_EPSILON_PP:g} pp "
+            "— its presence itself signals kids are differently served here."
+        )
+    hs_cna.metric(
+        "Children's Nature Access",
+        _child_nat_value,
+        help=(
+            "Confidence: Medium — see 'How this prototype works' for tier definitions. "
+            "% of the modelable-extent **under-18** population whose per-capita "
+            f"nature supply meets the {UNA_DEMAND_M2_PER_CAPITA:g} m²/capita demand "
+            "standard. Same adequate mask as the adult Nature Access metric — the "
+            "2SFCA supply/demand calculation stays on total population (the InVEST "
+            "UNA convention), only the access SHARE is reweighted by child "
+            "population. Children may diverge from adults when residential "
+            "distribution of under-18s differs from total — e.g. school-zone "
+            "interventions can lift this without moving the citywide adult metric. "
+            "**Source:** US Census 2020 PL 94-171, block-level — under-18 derived "
+            "as `P1_001N - P3_001N` (total − 18+), uniform-spread to NLCD grid via "
+            "the same method as the total-pop raster. "
+            "**Method:** UNA access share, child-population-weighted. "
+            "**Tier:** derived (≈ aligned method). "
+            "**Caveats:** block-level counts (uniform within-block density), 2020 "
+            "vintage; per-pixel child ≤ total invariant holds by construction "
+            "(same blocks, same uniform spread)." + _child_nat_help_tail
+        ),
     )
-else:
-    _child_nat_value = f'{_child_nat:.1f}%'
-    _child_nat_help_tail = ""
-hs_cna.metric(
-    "Children's Nature Access",
-    _child_nat_value,
-    help=(
-        "Confidence: Medium — see 'How this prototype works' for tier definitions. "
-        "% of the modelable-extent **under-18** population whose per-capita "
-        f"nature supply meets the {UNA_DEMAND_M2_PER_CAPITA:g} m²/capita demand "
-        "standard. Same adequate mask as the adult Nature Access metric — the "
-        "2SFCA supply/demand calculation stays on total population (the InVEST "
-        "UNA convention), only the access SHARE is reweighted by child "
-        "population. Children may diverge from adults when residential "
-        "distribution of under-18s differs from total — e.g. school-zone "
-        "interventions can lift this without moving the citywide adult metric. "
-        "**Source:** US Census 2020 PL 94-171, block-level — under-18 derived "
-        "as `P1_001N - P3_001N` (total − 18+), uniform-spread to NLCD grid via "
-        "the same method as the total-pop raster. "
-        "**Method:** UNA access share, child-population-weighted. "
-        "**Tier:** derived (≈ aligned method). "
-        "**Caveats:** block-level counts (uniform within-block density), 2020 "
-        "vintage; per-pixel child ≤ total invariant holds by construction "
-        "(same blocks, same uniform spread)." + _child_nat_help_tail
-    ),
-)
-_render_validation_caption(
-    hs_cna, "children_nature_access_pct", _validation_scenario_context,
-    explicit_status="aligned_method",
-)
+    _render_validation_caption(
+        hs_cna, "children_nature_access_pct", _validation_scenario_context,
+        explicit_status="aligned_method",
+    )
 
 # Nature Access at Schools (RELAY) — destination-based metric. Samples the
 # same 2SFCA `adequate` mask at school-point locations. Strongest paired
