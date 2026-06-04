@@ -107,6 +107,26 @@ def _build_composite_ownership_label(class_names, vacant_overlay):
     return joined
 
 
+def _build_composite_ownership_short(class_names, vacant_overlay):
+    """Terse variant for the provenance-bar suffix. Uses each class's
+    OWNERSHIP_MODES `short` with the trailing " land" stripped, joined
+    by " + ", with " (vacant)" appended when the overlay is on. Mirrors
+    `_build_composite_ownership_label`'s structure on the short field."""
+    if not class_names:
+        return "vacant land" if vacant_overlay else "all ownership"
+    parts = []
+    for cls in sorted(class_names):
+        cfg = OWNERSHIP_MODES.get(cls) or {}
+        short = cfg.get('short', cls)
+        if short.endswith(' land'):
+            short = short[:-len(' land')]
+        parts.append(short)
+    joined = ' + '.join(parts)
+    if vacant_overlay:
+        joined += ' (vacant)'
+    return joined
+
+
 def _resolve_eligible_filter_state(classes_checked, vacant_overlay):
     """Returns (storage_value, mode_cfg, label, allowed_band1_values):
       storage_value: what to stamp onto results['ownership_filter']
@@ -143,7 +163,8 @@ def _resolve_eligible_filter_state(classes_checked, vacant_overlay):
 
 def _normalize_ownership_filter(value):
     """Normalize results['ownership_filter'] to a canonical record:
-      {classes: [...], vacant_only: bool, mode_key: str|None, label: str}
+      {classes: [...], vacant_only: bool, mode_key: str|None,
+       label: str, short: str}
     Accepts the three shapes the storage path produces:
       - None (no filter)
       - str (a single OWNERSHIP_MODES key — Batch 4 v1 + earlier)
@@ -178,6 +199,7 @@ def _normalize_ownership_filter(value):
             'vacant_only': cfg.get('band2_eq') == 1,
             'mode_key':    value,
             'label':       cfg['label'],
+            'short':       cfg.get('short', cfg['label']),
         }
     if isinstance(value, dict):
         classes = list(value.get('classes', []))
@@ -187,6 +209,7 @@ def _normalize_ownership_filter(value):
             'vacant_only': vacant,
             'mode_key':    None,
             'label':       _build_composite_ownership_label(classes, vacant),
+            'short':       _build_composite_ownership_short(classes, vacant),
         }
     return None
 
@@ -1007,7 +1030,7 @@ with st.expander("How this prototype works", expanded=False):
     st.markdown(
         "Explore how converting developed land into green infrastructure or food forests "
         "affects **flood damage risk**, **urban cooling costs**, **food production**, "
-        "**nature access**, **carbon sequestration**, and **mental-health proxy outcomes** across the city — translating "
+        "**nature access**, **carbon sequestration**, and **validated Urban Mental Health outcomes** across the city — translating "
         "ecological changes into concrete impacts for planners and decision-makers."
     )
     st.markdown(
@@ -4927,20 +4950,21 @@ _PROVENANCE_HEADER_INFO = {
 
 
 def _ownership_source_suffix(results_or_saved) -> str:
-    """Return ' · <mode label>' when an Explorer scenario carries an active
-    ownership_filter, else ''. Lowercased for sentence-flow consistency with
-    the region suffix ' · selected-region placement'.
+    """Return ' · <terse ownership>' when an Explorer scenario carries an
+    active ownership_filter, else ''. Uses the OWNERSHIP_MODES `short`
+    variant so the visible provenance bar reads e.g.
+    ' · school land' (full 'school district land (K-12 public)' stays
+    in the audit expander, comparison table, and export bundle).
 
     Reads `ownership_filter` from a results dict OR a saved-scenario dict
     (both expose the field after Commit 1 — pre-29 saves return None safely
     via .get()). Handles Batch 4 v2's composite dict shape via the shared
-    normalizer. Used at the main panel header, the export bundle source
-    label, and the comparison-table Source column.
+    normalizer.
     """
     if not results_or_saved:
         return ""
     norm = _normalize_ownership_filter(results_or_saved.get('ownership_filter'))
-    return f" · {norm['label'].lower()}" if norm else ""
+    return f" · {norm['short']}" if norm else ""
 
 
 def _render_scenario_provenance_header(provenance, scenario_label=None,
@@ -4956,7 +4980,7 @@ def _render_scenario_provenance_header(provenance, scenario_label=None,
     optional small caption rendered just below the badge (used by the
     fixed-scenario reference view to keep the "flip to Explorer" hint).
     `source_suffix` augments the Source line text (used by Region Selection
-    Phase 1 to render 'Explorer-generated · selected-region placement').
+    Phase 1 to render 'Explorer-generated · selected region').
     """
     info = _PROVENANCE_HEADER_INFO.get(
         provenance,
@@ -5415,8 +5439,6 @@ _sec_eligibility       = (
     st.sidebar.expander("Eligibility filters", expanded=False)
     if _eligibility_available else None
 )
-_sec_quick_start       = st.sidebar.expander("Quick Start",
-                                              expanded=False)
 _sec_placement         = st.sidebar.expander("Placement Strategy",
                                               expanded=False)
 _sec_costs             = st.sidebar.expander(
@@ -5427,6 +5449,11 @@ _sec_carbon_rates      = (
     if _carbon_rates_available else None
 )
 _sec_export            = st.sidebar.expander("Export", expanded=False)
+# Quick Start moved to the bottom of the sidebar — it's a presets
+# shortcut, not a primary control; the user's relay says it belongs
+# below Export.
+_sec_quick_start       = st.sidebar.expander("Quick Start",
+                                              expanded=False)
 
 # ── Sidebar section: Scenario ──────────────────────────────────────────────
 # Base scenario controls — conversion mix, presets, placement strategy,
@@ -6149,7 +6176,7 @@ with _sec_discover:
         # promoted markdown (visible), not a faint caption.
         st.markdown("**Selected-area search**")
         st.caption(
-            "Best tested mixes under current region and eligibility filters."
+            "Finds best-tested mixes under the current selected area and eligibility filters."
         )
         with st.popover("How this works"):
             st.markdown(
@@ -6479,7 +6506,7 @@ def _build_invest_bundle_for_current_scenario():
     _bundle_source = _PROVENANCE_HEADER_INFO.get(provenance, ("Unknown",))[0]
     if provenance == eib.PROVENANCE_EXPLORER:
         if _bundle_region_selection is not None:
-            _bundle_source = f"{_bundle_source} · selected-region placement"
+            _bundle_source = f"{_bundle_source} · selected region"
         _bundle_source = f"{_bundle_source}{_ownership_source_suffix(results)}"
 
     spec = eib.BundleSpec(
@@ -6721,7 +6748,7 @@ _region_active = (
     and st.session_state.get('selected_region_mask') is not None
 )
 _source_suffix = (
-    (" · selected-region placement" if _region_active else "")
+    (" · selected region" if _region_active else "")
     + (_ownership_source_suffix(results) if _scen_provenance == eib.PROVENANCE_EXPLORER else "")
 )
 _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
@@ -6742,7 +6769,7 @@ with st.container(border=True):
     if _filter_active:
         st.markdown("**Selected-area search**")
         st.caption(
-            "Best tested mixes under current region and eligibility filters."
+            "Finds best-tested mixes under the current selected area and eligibility filters."
         )
         _cta_optimize_help = (
             "Finds best tested mixes under the current selected area and filters."
@@ -6837,31 +6864,15 @@ with st.expander("Scenario audit", expanded=False):
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
 
-# UI-Text Pass — citywide caption above the metric cards. Renders only when a
-# region is selected (entire-area scenarios already imply citywide). Reads from
-# results['region_selection'] so it stays correct under any selection path
-# (dropdown or interactive map). City suffix uses the active-city display name.
-_rs_above = results.get('region_selection') or {}
-if _rs_above.get('mode') == 'selected_regions':
-    _rs_above_layer = _rs_above.get('layer')
-    _rs_above_ids = _rs_above.get('selected_ids') or []
-    _rs_above_display = (
-        _CURRENT_CITY_STATE.region_layer_display_names.get(_rs_above_layer, "region")
-        if _rs_above_layer else "selected region"
-    )
-    _rs_above_n = len(_rs_above_ids)
-    if _rs_above_n == 1:
-        _rs_above_what = f"{_rs_above_display} {_rs_above_ids[0]}"
-    elif 1 < _rs_above_n <= 3:
-        _rs_above_what = (
-            f"{_rs_above_n} selected {_rs_above_display}s "
-            f"({', '.join(_rs_above_ids)})"
-        )
-    else:
-        _rs_above_what = f"{_rs_above_n} selected {_rs_above_display}s"
-    st.caption(
-        f"Citywide impact from changes placed in {_rs_above_what} "
-        f"(in {selected_city})."
+# Citywide-vs-local framing above the metric cards. Renders only when a
+# region is selected (entire-area scenarios already imply citywide).
+# Bold framing so the cards-citywide / views-local distinction stays
+# visible; the where-detail (which region is selected) lives in the
+# sidebar selector + Map View funnel + provenance suffix.
+if (results.get('region_selection') or {}).get('mode') == 'selected_regions':
+    st.markdown(
+        "**Metric cards show citywide impact; selected-area views below "
+        "show local tradeoffs.**"
     )
 
 st.markdown("#### Ecological")
@@ -6977,7 +6988,11 @@ st.markdown("#### Human & Social")
 # for negative deltas. Both are internally consistent answers to
 # st.metric's sign-parses-arrow constraint; the MH framing is the
 # right one for healthcare burden specifically.
-hs_na, hs_cna, hs_sch, hs3, hs4 = st.columns(5)
+# Two-row layout — Row 1 (Nature Access cluster) gets three columns;
+# Row 2 (MH outcomes) gets two. Five-in-one-row was truncating the
+# longer card labels.
+hs_na, hs_cna, hs_sch = st.columns(3)
+hs3, hs4 = st.columns(2)
 
 # Nature Access — canonical InVEST Urban Nature Access (2SFCA), re-implemented
 # in numpy by `calculate_nature_access`. See docs/internal/DESIGN_NOTES.md.
@@ -8189,7 +8204,7 @@ if _main_tab == 'Tradeoffs':
             st.subheader("Selected-area tradeoff space")
             st.caption(
                 "Each point is a tested mix evaluated **inside the current "
-                "selected region and eligibility filter**. Axes use "
+                "selected region and eligibility filters**. Axes use "
                 "selected-area outcomes, so points are not directly "
                 "comparable to citywide NatCap reference scenarios."
             )
@@ -8513,7 +8528,7 @@ if _main_tab == 'Tradeoffs':
         # the region suffix.
         if _cur_prov == eib.PROVENANCE_EXPLORER:
             if (results.get('region_selection') or {}).get('layer') is not None:
-                _cs_cur_src = f"{_cs_cur_src} · selected-region placement"
+                _cs_cur_src = f"{_cs_cur_src} · selected region"
             _cs_cur_src = f"{_cs_cur_src}{_ownership_source_suffix(results)}"
         _cs_rows.append({
             "Scenario":   _cur_label,
@@ -8543,7 +8558,7 @@ if _main_tab == 'Tradeoffs':
             # automatically. Pre-29 saves return None safely via .get().
             if _prov == eib.PROVENANCE_EXPLORER:
                 if (_saved.get('region_selection') or {}).get('layer') is not None:
-                    _src = f"{_src} · selected-region placement"
+                    _src = f"{_src} · selected region"
                 _src = f"{_src}{_ownership_source_suffix(_saved)}"
             _label = _saved.get("display_name") or _saved.get("scenario_name") or "(unnamed save)"
             _cs_rows.append({
@@ -8699,7 +8714,7 @@ if _main_tab == 'Tradeoffs':
             _src_save = _cs_source_validation(_prov_save)[0]
             if _prov_save == eib.PROVENANCE_EXPLORER:
                 if (_saved.get('region_selection') or {}).get('layer') is not None:
-                    _src_save = f"{_src_save} · selected-region placement"
+                    _src_save = f"{_src_save} · selected region"
                 _src_save = f"{_src_save}{_ownership_source_suffix(_saved)}"
             _label_save = (_saved.get("display_name")
                            or _saved.get("scenario_name") or "(unnamed save)")
@@ -8931,8 +8946,8 @@ if _main_tab == 'Tradeoffs':
             # Food / Cost / Apply.
             st.subheader("Best tested mixes for selected area")
             st.caption(
-                "Evaluated with the full raster engine under current region "
-                "and eligibility filters."
+                "Evaluated with the full raster engine under the current "
+                "selected area and eligibility filters."
             )
             _ropt = st.session_state.region_optimized_results.copy()
             # Synthesize Rank + Mix columns for display. Mix folds the three

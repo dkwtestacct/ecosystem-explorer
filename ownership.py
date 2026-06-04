@@ -48,46 +48,60 @@ this module — see also the docstring in `region_local_metrics.py`.
 OWNERSHIP_MODES = {
     # ── Coarse rollups (unchanged keys; band1_in expanded to include
     # school after the split) ──
+    # `short` is the terse provenance-bar variant (used in the visible
+    # Source line via `_ownership_source_suffix`); `label` is the full
+    # form that stays in the audit expander, comparison table, export
+    # bundle, and Source-detail surfaces.
     'public': {
         'label':    'Publicly-owned land',
+        'short':    'public land',
         'band1_in': (1, 2, 3, 4),  # city + county + state-federal + school
     },
     'vacant': {
         'label':    'Vacant land',
+        'short':    'vacant land',
         'band2_eq': 1,
     },
     'vacant_public': {
         'label':    'Vacant publicly-owned land',
+        'short':    'vacant public land',
         'band1_in': (1, 2, 3, 4),
         'band2_eq': 1,
     },
     # ── Finer modes ──
     'city': {
         'label':    'City-owned land',
+        'short':    'city land',
         'band1_eq': 1,
     },
     'county': {
         'label':    'County-owned land',
+        'short':    'county land',
         'band1_eq': 2,
     },
     'state_federal': {
         'label':    'State or federal land',
+        'short':    'state/federal land',
         'band1_eq': 3,
     },
     'school': {
         'label':    'School district land (K-12 public)',
+        'short':    'school land',
         'band1_eq': 4,
     },
     'university': {
         'label':    'College or university land',
+        'short':    'university land',
         'band1_eq': 6,
     },
     'private': {
         'label':    'Privately-owned land',
+        'short':    'private land',
         'band1_eq': 0,
     },
     'unknown': {
         'label':    'Unknown ownership',
+        'short':    'unknown',
         'band1_eq': 5,
     },
     # ── Vacant-overlay composites (Batch 4 of OWNERSHIP_FINER_CLASSES_SPEC.md) ──
@@ -101,31 +115,37 @@ OWNERSHIP_MODES = {
     # batch resolve cleanly under their existing mode keys.
     'city_vacant': {
         'label':    'City-owned land (vacant only)',
+        'short':    'city land (vacant)',
         'band1_eq': 1,
         'band2_eq': 1,
     },
     'county_vacant': {
         'label':    'County-owned land (vacant only)',
+        'short':    'county land (vacant)',
         'band1_eq': 2,
         'band2_eq': 1,
     },
     'state_federal_vacant': {
         'label':    'State or federal land (vacant only)',
+        'short':    'state/federal land (vacant)',
         'band1_eq': 3,
         'band2_eq': 1,
     },
     'school_vacant': {
         'label':    'School district land (K-12 public, vacant only)',
+        'short':    'school land (vacant)',
         'band1_eq': 4,
         'band2_eq': 1,
     },
     'university_vacant': {
         'label':    'College or university land (vacant only)',
+        'short':    'university land (vacant)',
         'band1_eq': 6,
         'band2_eq': 1,
     },
     'private_vacant': {
         'label':    'Privately-owned land (vacant only)',
+        'short':    'private land (vacant)',
         'band1_eq': 0,
         'band2_eq': 1,
     },

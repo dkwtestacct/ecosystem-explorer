@@ -2499,20 +2499,18 @@ def main(update: bool) -> int:
         # mode-keyed caption beneath the mode label:
         #   citywide → "Predicted suggestions — apply one to verify."
         #     (the values are SURROGATE PREDICTIONS, not engine outputs)
-        #   region   → "Best tested mixes under current region and
-        #              eligibility filters."
+        #   region   → "Finds best-tested mixes under the current selected
+        #              area and eligibility filters."
         # Both expected literals must appear ≥2× in app.py (sidebar + CTA),
         # and each must appear immediately after a matching mode label
         # within a small window (so they pair with their mode, not float).
         # Meta-test: confirm a tweaked caption string would fail. Both
-        # captions are single source-line literals now (the prior split
-        # region caption with "bounded search" qualifier was retired
-        # alongside the "Selected-area full-engine search" → "Selected-area
-        # search" rename), so a single-literal exact-count check works for
-        # both surfaces.
+        # captions are single source-line literals; a single-literal
+        # exact-count check works for both surfaces.
         _CW_CAPTION_EXPECTED = "Predicted suggestions — apply one to verify."
         _RG_CAPTION_EXPECTED = (
-            "Best tested mixes under current region and eligibility filters."
+            "Finds best-tested mixes under the current selected area "
+            "and eligibility filters."
         )
         _cw_cap_count = _src2.count(_CW_CAPTION_EXPECTED)
         _rg_cap_count = _src2.count(_RG_CAPTION_EXPECTED)
