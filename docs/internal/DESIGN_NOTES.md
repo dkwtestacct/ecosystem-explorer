@@ -506,6 +506,13 @@ The 4.71 % SA public/institutional figure is **dominated by city-owned land (~3 
 
 **Decision — dasymetric redistribution NOT pursued.** The clean correctable cases (open water, hard NLCD exclusions) total <1 % of valid-extent population, while any change to `pop_count_raster` is baseline-affecting: it forces a `SCENARIO_SCHEMA_VERSION` bump and a 40/40 re-snapshot, and shifts every population-weighted number users may already have cited. With no large *clean* bucket to recover (the biggest institutional bucket is city land, which legitimately houses people), the correction doesn't earn its blast radius. Documented here so the tradeoff is evidence-based, not folklore; revisit if a parcel-level residential layer becomes available (would also retire the in-app allocation caveat).
 
+**Diagnostic — the 16.14 % nodata is a parcel-COVERAGE hole, not non-parcel land (measured 2026-06-04).** A follow-up cross-tab of the SA ownership-nodata population sharpens the picture and points at a *different* lever than the redistribution decision above closes:
+- **Not expected non-parcel land.** 98.6 % of the ~307k nodata population sits on developed LULC (94 % on dense developed 22/23/24), ~0 % on open water, with no thin ROW/corridor structure — i.e. a real ownership-source coverage hole over developed/residential land, not water or right-of-way that a parcel layer legitimately omits.
+- **Area vs population split.** One contiguous natural-fringe blob is 78 % of nodata *area* but only ~31 % of nodata *pop* (~96k); the other ~69 % (~211k) is fragmented across thousands of neighborhood-scale developed patches.
+- **Candidate fix (→ ON_THE_RADAR): re-pull a fuller parcel/ownership source.** Likely reclassifies most of the ~211k (mostly into `private`), leaving the ~96k fringe blob low-priority. Pending confirmation that a fuller source actually covers those parcels.
+- **Scoping flag.** ~13 % of nodata pop is on ≤2-px slivers (20,702 components) — likely rasterization/grid-alignment noise, possibly fixable by tighter alignment alone, *separate* from source incompleteness. Scoping must distinguish the two before attributing the gap.
+- **Blast radius if pursued.** Re-pulling the ownership raster re-snapshots ownership-dependent baselines only — not the citywide population-weighted metrics (those read `pop_count_raster`, which is untouched). Smaller blast radius than the dasymetric change rejected above.
+
 **Code touchpoints.** `load_population_data` (bilinear resample); `pop_count_raster` on `CityState`; consumed by `calculate_nature_access` / `_invest_una_pct_pop_supply_ge_demand` / `calculate_mental_health_impact`; in-app caveat in the `app.py` Selected-region impact block (ownership-filter-gated expander).
 
 ---
