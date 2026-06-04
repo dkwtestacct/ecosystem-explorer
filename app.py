@@ -8961,11 +8961,65 @@ if _main_tab == 'Map View':
             ),
         )
 
-        render_matplotlib(plot_spatial_map(
-            results['scenario_lulc'], cooling_lulc,
-            heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
-            selected_region_mask=st.session_state.get('selected_region_mask'),
-        ))
+        # Map View spatial-raster diagnostic + defensive normalization.
+        # Symptom (post multi-select rework): spatial map renders no image
+        # while the opacity slider above + caption below both render and
+        # st.pyplot returns without raising. Prime suspect from the brief:
+        # selected_region_mask passed as an empty/all-False non-None array
+        # (the masking path in plot_spatial_map at line 4286 short-circuits
+        # via `if region_mask_ds.any():` so a bare zero-mask is safe, but
+        # other plotting paths might choke). Normalize defensively: an
+        # all-False mask is semantically the same as None — no region
+        # selected — and the down-stream rendering should treat it that way.
+        _spatial_mask = st.session_state.get('selected_region_mask')
+        if _spatial_mask is not None and not bool(_spatial_mask.any()):
+            _spatial_mask = None
+        # Diagnostic expander — visible to surface what's reaching the
+        # renderer when the bug recurs. Removed once the live bug is
+        # confirmed-fixed.
+        with st.expander("🔧 Spatial-map render diagnostic (temporary)", expanded=False):
+            _sl = results.get('scenario_lulc')
+            _bl = cooling_lulc
+            _ho = nlcd_intensity_weights
+            st.write({
+                "scenario_lulc": (
+                    f"{getattr(_sl, 'shape', '?')!r} {getattr(_sl, 'dtype', '?')!r} "
+                    f"sum>0={int((_sl > 0).sum()) if _sl is not None else 'N/A'}"
+                ),
+                "cooling_lulc (baseline)": (
+                    f"{getattr(_bl, 'shape', '?')!r} {getattr(_bl, 'dtype', '?')!r}"
+                ),
+                "heat_overlay": (
+                    f"{getattr(_ho, 'shape', '?')!r} {getattr(_ho, 'dtype', '?')!r}"
+                ),
+                "overlay_alpha": overlay_opacity,
+                "selected_region_mask (raw)": (
+                    "None" if st.session_state.get('selected_region_mask') is None
+                    else f"shape={st.session_state.get('selected_region_mask').shape} "
+                         f"dtype={st.session_state.get('selected_region_mask').dtype} "
+                         f"any={bool(st.session_state.get('selected_region_mask').any())}"
+                ),
+                "selected_region_mask (normalized)": (
+                    "None" if _spatial_mask is None
+                    else f"shape={_spatial_mask.shape} any={bool(_spatial_mask.any())}"
+                ),
+                "_PLOT_MAX_DIM (cap)": _PLOT_MAX_DIM,
+            })
+        # Wrap the call in try/except so any exception surfaces inline
+        # rather than getting swallowed by render_matplotlib's try/finally.
+        try:
+            render_matplotlib(plot_spatial_map(
+                results['scenario_lulc'], cooling_lulc,
+                heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
+                selected_region_mask=_spatial_mask,
+            ))
+        except Exception as _spatial_err:
+            st.error(
+                f"Spatial map rendering failed: {type(_spatial_err).__name__}: "
+                f"{_spatial_err}"
+            )
+            import traceback
+            st.caption(f"```\n{traceback.format_exc()}\n```")
         st.caption(
             "Gray = unchanged developed land. Colors show where conversions occur. "
             "White = outside city boundary. Orange wash = development-intensity heat proxy "
