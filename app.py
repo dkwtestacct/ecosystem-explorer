@@ -9465,16 +9465,20 @@ if _main_tab == 'Map View':
         _spatial_mask = st.session_state.get('selected_region_mask')
         if _spatial_mask is not None and not bool(_spatial_mask.any()):
             _spatial_mask = None
-        # Render via savefig → st.image(PNG bytes) instead of st.pyplot.
-        # st.pyplot silently dropped the cold-citywide figure (leading
-        # candidate: media-cache hash collision on the deterministic full-
-        # AOI render — same hash kept re-referencing a missing media file
-        # across reruns; region selection changed figure content → new
-        # hash → fresh media → rendered and persisted). The side-by-side
-        # instrument in f824605 confirmed st.image of the same figure
-        # handle rendered cleanly in the failing state — see commit for
-        # diagnosis.
+        # Render via components.html + base64 data-URI img instead of
+        # st.image / st.pyplot. Both Streamlit display surfaces routed
+        # through MediaFileManager and BOTH dropped the cold-citywide
+        # figure (st.image switch in 16500d8 didn't fix it; the
+        # st.image-as-second-element render that worked in f824605's
+        # side-by-side was a context that no longer applies when
+        # st.image is the sole render). A base64 data URI in a
+        # components.html iframe sidesteps the media-file transport
+        # entirely. Cleanup recipe stays applied — mask normalization
+        # above and _PLOT_MAX_DIM cap inside plot_spatial_map are the
+        # structural pieces; this is a transport swap.
         import io
+        import base64
+        from streamlit.components.v1 import html as _components_html
         _spatial_fig = plot_spatial_map(
             results['scenario_lulc'], cooling_lulc,
             heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
@@ -9483,7 +9487,20 @@ if _main_tab == 'Map View':
         _png_buf = io.BytesIO()
         _spatial_fig.savefig(_png_buf, format='png')
         plt.close(_spatial_fig)
-        st.image(_png_buf.getvalue(), width='stretch')
+        _png_bytes = _png_buf.getvalue()
+        # Confirm step — surface PNG bytes count so an eyeball can split
+        # "Streamlit media-transport bug" (bytes ≫ 1KB → figure real,
+        # bypass below should render) vs "savefig regression" (bytes
+        # ≈ 1KB → figure itself blank; components.html won't help,
+        # different bug). Temporary; strip with the diagnostic caption
+        # once cold citywide is confirmed rendering.
+        st.caption(f"🔧 PNG bytes: {len(_png_bytes):,}")
+        _png_b64 = base64.b64encode(_png_bytes).decode()
+        _components_html(
+            f'<img src="data:image/png;base64,{_png_b64}" '
+            f'style="width:100%">',
+            height=820,
+        )
         st.caption(
             "Gray = unchanged developed land. Colors show where conversions occur. "
             "White = outside city boundary. Orange wash = development-intensity heat proxy "
