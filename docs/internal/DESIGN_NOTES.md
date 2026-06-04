@@ -465,6 +465,27 @@ Path C chosen because it aligns with NatCap's documented stance and is the most 
 
 **Code touchpoints.** `_invest_una_pct_pop_supply_ge_demand` (optional `child_pop_count_raster` kwarg → 6-tuple return); `calculate_nature_access` (mirrors the extension); `evaluate_scenario` populates `children_nature_access_pct` + `children_with_nature_access` (citywide + region_local); `child_pop_count_raster` on `CityState`; `_load_city_runtime_state` Phase 2b; `scripts/data/download_census_pop*.py`; child-pop staleness cell in `verify_baselines.py` with halve-the-raster meta-test.
 
+### 6.7 Nature Access at Schools — destination-based readout (private included)
+
+**Decision.** Add a destination-based UNA metric that point-samples the existing 2SFCA `adequate` mask at K-12 school locations. Same supply pipeline, same per-city `UNA_DEMAND_M2_PER_CAPITA` threshold, same valid-LULC restriction as the residential Nature Access metric — only the consumer (point sample vs population sum) is different. Include **private** schools alongside public + charter, surfaced explicitly on the metric card and in `REFERENCE §6`.
+
+**Why.** Residential metrics answer "do people live where supply meets demand"; the school readout answers "do children spend the school day where supply meets demand." Real divergence shows up on the second question even when the first looks saturated. Reusing the existing 2SFCA pipeline keeps the validation story consistent: the threshold and the per-pixel adequacy classification are already the validated outputs; sampling at point locations is the only added step.
+
+**Source choice.** **NCES CCD 2022-23** for the public-school directory (LEVEL + CHARTER status) + **NCES EDGE 2021-22 Geocode Public Schools** for public/charter lat/lon + **NCES EDGE 2021-22 Geocode Private Schools (PSS Universe)** for private lat/lon. Accepting the ~1-year vintage offset between CCD 2022-23 and EDGE 2021-22 — school directory data doesn't churn rapidly, and the EDGE 2021-22 geocoded set is the most recent geocoded vintage available at build time. **Private included** per the user decision; the alternative (public + charter only) would understate where children actually attend school in cities with substantial private enrollment. Vintage + private-inclusion are surfaced on the metric card's tooltip + REFERENCE §6 — they aren't a hidden caveat.
+
+**Alternatives considered.**
+- *Skip private schools.* Public + charter only. Cleanest single-source story (NCES CCD covers it). Rejected: K-12 private enrollment is non-trivial (~10 % nationally; varies by metro) and ignoring it would systematically understate destination access where private siting differs from public.
+- *Use NCES SABS attendance boundaries as a region layer instead of a point readout.* Stronger instrument (each school's actual catchment, not a point sample), but a much bigger lift — schools_file would become a polygon layer, region-local treatment would need attendance-boundary aggregation, and SABS coverage is non-uniform (public-school catchments only — charter and private have no catchments). Deferred as a follow-up; v1 = point readout.
+- *Enrollment-weighted readout.* Read as "% of students at schools with access" instead of "% of schools." Requires reliable per-school enrollment counts (CCD has them for public + charter; PSS Universe doesn't always). Skipped for v1 per the user brief.
+- *Region-local treatment.* `_sample_schools_access` already accepts a `mask` parameter for region-clip. Not wired into evaluate_scenario's region_local block for v1; follow-up.
+
+**Consequences.**
+- Honest by construction: the metric never overclaims relative to the residential pipeline because it shares the same `adequate` mask. Different question, same evidence.
+- Schema version bumped 34 → 35 to add six new scalar fields (`schools_nature_access_pct`, `schools_n_total`, `schools_n_with_access`, `schools_public_pct`, `schools_charter_pct`, `schools_private_pct`) plus the full structured `schools_nature_access` dict for the UI card's tooltip + breakdowns.
+- MN downtown surfaces the headline use-case: at 10/50/50 conversion, residential Nature Access is 14.1 %, Children's Nature Access is 11.8 %, **Schools at 6.7 %** — schools sit in less-served areas than residents on average. SA at 99.7 % residential is saturated and the schools metric is close to it (99.5 %) — the divergence shows up where it matters.
+
+**Code touchpoints.** `calculate_schools_nature_access` (top-level helper) + `_sample_schools_access` (low-level mask-sampler, region-mask aware for future region-local treatment); `evaluate_scenario` calls inline alongside the residential `calculate_nature_access` call; `CityState.schools_pixels` + `schools_sectors` + `schools_metadata`; `_load_city_runtime_state` Phase 2c (load GeoJSON → project to LULC CRS → convert to pixel coords); `scripts/data/prep_school_points.py` (offline NCES download + filter + per-city write); module-level aliases + `_rebind_city` extension; UI card in `app.py` (Human & Social row extended from 4 to 5 columns); doc-side surfaces in `REFERENCE.md §6 Nature Access at Schools`, `CAPABILITIES.md` (Outcome models), and the WHATS_NEW school-related-scenarios bullet.
+
 ---
 
 ## 7. Lookup table and surrogate optimizer

@@ -8263,7 +8263,12 @@ if _main_tab == 'Tradeoff Analysis':
             with st.expander("Citywide context", expanded=False):
                 st.caption(
                     "Shows whole-area impacts. Region-constrained scenarios "
-                    "may cluster because only a small share of the city changes."
+                    "may cluster because only a small share of the city changes. "
+                    "Engine-verified region-optimizer mixes appear on the "
+                    "Selected-area scatter above this expander; they are not "
+                    "overlaid on this citywide view, so the citywide-surrogate "
+                    "diamonds (predicted) and the region-engine squares "
+                    "(verified) stay visually distinct."
                 )
                 st.plotly_chart(plot_tradeoff(
                     results, scenario_df,
