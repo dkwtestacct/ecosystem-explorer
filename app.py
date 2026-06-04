@@ -4680,6 +4680,160 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
     return fig
 
 
+def _apply_region_optimizer_mix(row, index):
+    """Apply a tested mix from the region optimizer as the current scenario.
+
+    Single source of truth for both the 'best tested mixes' table buttons
+    and the click-to-apply on the SELECTED-AREA tradeoff scatter. Rounds
+    (pct, gi, ff) to the nearest 5 to align with slider granularity,
+    clamps gi+ff to 100, sets the applied_from_region_optimizer
+    provenance flag so headers / Save / Export route to
+    PROVENANCE_REGION_OPTIMIZED, and stashes the prior scenario state for
+    the mis-click revert affordance.
+
+    Caller is responsible for calling st.rerun() — this helper just
+    writes session_state."""
+    pct = int(round(row.pct_converted / 5) * 5)
+    gi = int(round(row.green_infrastructure_pct / 5) * 5)
+    ff = int(round(row.food_forest_pct / 5) * 5)
+    if gi + ff > 100:
+        ff = 100 - gi
+    # Stash prior state for the mis-click revert. Read from the current
+    # slider session_state keys (where the live UI values live).
+    st.session_state['_region_apply_prev'] = {
+        'pct': st.session_state.get('slider_pct_converted'),
+        'gi':  st.session_state.get('slider_gi_pct'),
+        'ff':  st.session_state.get('slider_ff_pct'),
+    }
+    st.session_state._pending_pct = pct
+    st.session_state._pending_gi = gi
+    st.session_state._pending_ff = ff
+    st.session_state.applied_suggestion = index
+    st.session_state.applied_from_region_optimizer = True
+    st.session_state._applied_region_optimizer_values = (pct, gi, ff)
+    st.session_state.applied_from_optimizer = False
+    st.session_state._applied_optimizer_values = None
+    st.session_state._show_apply_toast = True
+
+
+def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
+    """Selected-area tradeoff scatter — region-local axes only.
+
+    Plots the current scenario star + engine-verified tested mixes (from
+    the region-optimizer's top 5) + the region-local baseline marker, all
+    on region-local Flood Retention × Cooling/HMI axes. Excludes the
+    citywide surrogate diamonds and NatCap reference scenarios — those
+    have no region basis (NatCap refs are citywide-only; surrogate is
+    trained on citywide grid) so plotting them on region-local axes would
+    be apples-to-oranges.
+
+    Region-local pure-allocation refs (All food forest / All green infra /
+    All high density at the region) are NOT computed for v1 — they'd need
+    separate engine runs at pct=50 with each pure mix under the active
+    region∩ownership mask. Omitted per the brief ('If not readily
+    available, omit them from the region scatter for v1').
+
+    Returns a plotly figure. The companion 'Citywide context' expander
+    below this chart on the dashboard renders the existing plot_tradeoff
+    function with all citywide content."""
+    fig = go.Figure()
+    region_local = results.get('region_local') or {}
+    cur_flood = float(region_local.get('flood_reduction') or 0.0)
+    cur_hm = float(region_local.get('mean_hm') or 0.0)
+
+    # Region-local baseline marker — flood_reduction = 0 by definition (no
+    # change from baseline); mean_hm is the per-pixel baseline HMI averaged
+    # inside the active mask.
+    if baseline_hm_region is not None:
+        fig.add_trace(go.Scatter(
+            x=[0.0], y=[float(baseline_hm_region)],
+            mode='markers+text',
+            marker=dict(size=16, color='steelblue', opacity=1.0,
+                        line=dict(color='black', width=2)),
+            text=['Region baseline'],
+            textposition='top right',
+            textfont=dict(size=10),
+            hovertemplate=(
+                "<b>Region baseline</b><br>"
+                f"Flood retention: 0.0 (no conversion)<br>"
+                f"Cooling HMI: {float(baseline_hm_region):.4f}"
+                "<extra></extra>"
+            ),
+            name='Region baseline',
+        ))
+
+    # Engine-verified tested mixes — already region-local because the
+    # region-optimizer's _engine_eval ran evaluate_scenario with the active
+    # mask. Plotted as orange-rimmed squares (distinct from the citywide
+    # surrogate diamonds) so the visual encoding tracks 'engine-verified'.
+    # Click-to-apply: each marker carries customdata = its 0-based index
+    # into region_optimized_df, so the chart click handler can map a
+    # click back to the row to apply. Hovertemplate includes "Click to
+    # apply this mix" to invite the action.
+    if (isinstance(region_optimized_df, pd.DataFrame)
+            and len(region_optimized_df) > 0
+            and 'flood_reduction' in region_optimized_df.columns
+            and 'mean_hm' in region_optimized_df.columns):
+        opt = region_optimized_df.reset_index(drop=True).copy()
+        opt['rank'] = opt.index + 1
+        fig.add_trace(go.Scatter(
+            x=opt['flood_reduction'],
+            y=opt['mean_hm'],
+            mode='markers+text',
+            marker=dict(size=14, color='orange', symbol='square',
+                        line=dict(color='black', width=1.5)),
+            text=opt['rank'].astype(str),
+            textposition='middle center',
+            textfont=dict(size=10, color='black'),
+            customdata=opt.index.tolist(),  # 0-based row index for click handler
+            hovertemplate=opt.apply(
+                lambda r: (
+                    f"<b>Tested mix #{int(r['rank'])}</b> "
+                    "(engine-verified, region-local)<br>"
+                    f"{int(r.get('pct_converted', 0))}% conv — "
+                    f"GI {int(r.get('green_infrastructure_pct', 0))}% / "
+                    f"FF {int(r.get('food_forest_pct', 0))}%<br>"
+                    f"Flood retention: {r.get('flood_reduction', 0):.1f}<br>"
+                    f"Cooling HMI: {r.get('mean_hm', 0):.4f}<br>"
+                    "<i>Click to apply this mix</i>"
+                ), axis=1,
+            ).tolist(),
+            hoverinfo='text',
+            name='Tested mixes (engine-verified)',
+        ))
+
+    # Current scenario star — same purple symbol as the citywide chart so
+    # the eye tracks 'this scenario' identically across both views.
+    fig.add_trace(go.Scatter(
+        x=[cur_flood], y=[cur_hm],
+        mode='markers',
+        marker=dict(size=20, color='purple', symbol='star',
+                    line=dict(color='white', width=1.5)),
+        hovertemplate=(
+            "<b>This scenario</b> (region-local)<br>"
+            f"Flood retention: {cur_flood:.1f}<br>"
+            f"Cooling HMI: {cur_hm:.4f}"
+            "<extra></extra>"
+        ),
+        name='This scenario',
+    ))
+
+    fig.update_layout(
+        title='',
+        xaxis_title='Flood Retention — region (higher = better)',
+        yaxis_title='Cooling / HMI — region (higher = better)',
+        xaxis=dict(autorange=True),
+        yaxis=dict(autorange=True),
+        height=500,
+        margin=dict(l=60, r=200, t=40, b=60),
+        legend=dict(orientation='v', x=1.02, y=1, xanchor='left',
+                    yanchor='top', font=dict(size=11),
+                    bordercolor='rgba(0,0,0,0.1)', borderwidth=1),
+        hovermode='closest',
+    )
+    return fig
+
+
 # ── Brief B2 (revised, 2026-05-29): per-metric VALIDATION badges ──────────────
 # Replaces the previous High/Medium/Prototype confidence tiers. Sourced from
 # data/sa/natcap_reference_outputs.csv via `natcap_validation.py`:
@@ -7989,47 +8143,160 @@ if _main_tab == 'Tradeoff Analysis':
             if s.get("city", selected_city) == selected_city
         ]
 
-        # ── Tradeoff Space (Tradeoff Analysis reorder) ──
-        # Placed first in tab2 so the user lands on the visual mapping of
-        # current-scenario vs alternatives before the row-by-row comparison
-        # table. Both axes are higher-is-better (Flood Retention on x;
-        # Heat Mitigation Index on y — see `plot_tradeoff`'s
-        # xaxis_title / yaxis_title at the engine), so the top-right framing
-        # is axis-verified.
-        st.subheader("Tradeoff space: current scenario vs alternatives")
-        st.caption(
-            "Each point is a scenario. Better outcomes are toward the "
-            "**top-right** — both axes are higher-is-better (Flood Retention "
-            "on x, Heat Mitigation Index on y). The **purple star** is your "
-            "current scenario; **orange diamonds** are citywide surrogate "
-            "suggestions (with 10th–90th percentile uncertainty bars). "
-            "Bubble size shows food production for saved and optimizer "
-            "points. Region-optimizer results are engine-verified and have "
-            "their own table below — not plotted as diamonds, to keep "
-            "surrogate-predicted (citywide) and engine-verified (region) "
-            "visually distinct."
+        # ── Tradeoff Space (mode-aware: SELECTED-AREA vs CITYWIDE) ──
+        # Mode switch driven by selection state:
+        #   (1) region selected (selected_region_mask not None)
+        #       → SELECTED-AREA primary (region-local axes, engine-verified
+        #         tested mixes) + CITYWIDE in an expander with clustering caveat.
+        #   (2) ownership-only (ownership_mask but no region_mask)
+        #       → CITYWIDE primary with clustering caveat above.
+        #   (3) neither → CITYWIDE primary, no caveat.
+        # In all modes the citywide scatter still uses plot_tradeoff
+        # unchanged (refs + surrogate diamonds + saves + current star).
+        _region_mask_active = st.session_state.get('selected_region_mask') is not None
+        _ownership_only = (not _region_mask_active) and (
+            st.session_state.get('selected_ownership_mask') is not None
         )
-        # The optimizer returns a `{'found': False, ...}` dict when no
-        # candidate meets the targets — don't pass that to the chart's
-        # optimizer-overlay path (the `plot_tradeoff` defensive backstop
-        # would skip it too, but coerce here so the intent is visible at
-        # the call site).
-        # When a filter is active the citywide optimizer is stale (it's
-        # citywide-scoped, predicted values); don't overlay it on a region
-        # tradeoff. The region-optimizer surfaces its results in its own table
-        # below — chart overlay for region values is not in v1.
+        # Citywide optimizer is stale when ANY filter is active (citywide-
+        # scoped predicted values don't reflect the active mask). Skip
+        # surrogate diamonds in those modes.
         if _filter_active:
             _opt_for_chart = None
         else:
             _opt_for_chart = st.session_state.optimized_results
             if not isinstance(_opt_for_chart, pd.DataFrame):
                 _opt_for_chart = None
-        st.plotly_chart(plot_tradeoff(
-            results, scenario_df,
-            lookup_table=lookup_table,
-            saved=_saved_for_city,
-            optimized=_opt_for_chart,
-        ), use_container_width=True)
+
+        if _region_mask_active:
+            # ── SELECTED-AREA mode (region-local primary) ───────────────
+            st.subheader("Selected-area tradeoff space")
+            st.caption(
+                "Each point is a tested mix evaluated **inside the current "
+                "selected region and eligibility filter**. Axes use "
+                "selected-area outcomes, so points are not directly "
+                "comparable to citywide NatCap reference scenarios."
+            )
+            # Compute region-local baseline HMI (flood baseline = 0 by
+            # definition — flood_reduction is delta vs baseline). Mean
+            # of the per-pixel baseline HMI raster restricted to the
+            # active region∩ownership mask. Skip NaN cells.
+            _rmask = st.session_state.get('selected_region_mask')
+            _omask = st.session_state.get('selected_ownership_mask')
+            _eff_mask = _rmask if _omask is None else (_rmask & _omask)
+            try:
+                _base_hm = _BASELINE_HM_RASTER
+                _valid = (~np.isnan(_base_hm)) & _eff_mask
+                _baseline_hm_region = (
+                    float(_base_hm[_valid].mean()) if _valid.any() else None
+                )
+            except Exception:
+                _baseline_hm_region = None
+            # Region-optimizer tested mixes (engine-verified region-local).
+            _region_opt = st.session_state.get('region_optimized_results')
+            if not isinstance(_region_opt, pd.DataFrame):
+                _region_opt = None
+            _region_fig = plot_tradeoff_region(
+                results, _region_opt, _baseline_hm_region,
+            )
+            # Render with on_select='rerun' so a click on a tested-mix
+            # marker fires a rerun and the click handler below applies it.
+            _region_chart_event = st.plotly_chart(
+                _region_fig, use_container_width=True,
+                on_select='rerun', selection_mode='points',
+                key='region_tradeoff_picker',
+            )
+            # ── Click-to-apply handler ──
+            # Signature de-dup: forward only when the event's clicked-
+            # customdata signature differs from the last-applied signature.
+            # Without this guard, any unrelated rerun (slider change, etc.)
+            # would re-apply the last-clicked mix and silently clobber
+            # hand-tuned slider values. Mirrors the district-selector
+            # pattern (region_map_picker_last_sig).
+            if _region_chart_event:
+                _ev = (_region_chart_event if isinstance(_region_chart_event, dict)
+                       else dict(_region_chart_event))
+                _pts = (_ev.get('selection') or {}).get('points') or []
+                _clicked_indices = [
+                    p.get('customdata') for p in _pts
+                    if isinstance(p.get('customdata'), (int, np.integer))
+                ]
+                if _clicked_indices and _region_opt is not None:
+                    _evt_sig = tuple(sorted(int(i) for i in _clicked_indices))
+                    _last_sig = tuple(
+                        st.session_state.get('region_tradeoff_last_apply_sig') or ()
+                    )
+                    if _evt_sig != _last_sig:
+                        _apply_idx = int(_clicked_indices[0])
+                        if 0 <= _apply_idx < len(_region_opt):
+                            _apply_region_optimizer_mix(
+                                _region_opt.iloc[_apply_idx], _apply_idx,
+                            )
+                            st.session_state['region_tradeoff_last_apply_sig'] = list(_evt_sig)
+                            st.rerun()
+            # Mis-click guard — revert button if a previous scenario was
+            # stashed by _apply_region_optimizer_mix.
+            _prev = st.session_state.get('_region_apply_prev')
+            if _prev and any(_prev.get(k) is not None for k in ('pct', 'gi', 'ff')):
+                _rev_col1, _rev_col2 = st.columns([1, 5])
+                with _rev_col1:
+                    if st.button("↶ Revert to previous scenario",
+                                 key="region_tradeoff_revert"):
+                        # Restore via _pending_* so the slider session_state
+                        # is overwritten on the next rerun (same mechanism
+                        # the Quick Start presets use).
+                        if _prev.get('pct') is not None:
+                            st.session_state._pending_pct = int(_prev['pct'])
+                        if _prev.get('gi') is not None:
+                            st.session_state._pending_gi = int(_prev['gi'])
+                        if _prev.get('ff') is not None:
+                            st.session_state._pending_ff = int(_prev['ff'])
+                        # Clear apply state and the stash so the button
+                        # doesn't re-render on subsequent reruns.
+                        st.session_state.applied_from_region_optimizer = False
+                        st.session_state.applied_suggestion = None
+                        st.session_state['_applied_region_optimizer_values'] = None
+                        st.session_state['_region_apply_prev'] = None
+                        st.session_state['region_tradeoff_last_apply_sig'] = None
+                        st.rerun()
+
+            # ── Citywide context expander ──
+            with st.expander("Citywide context", expanded=False):
+                st.caption(
+                    "Shows whole-area impacts. Region-constrained scenarios "
+                    "may cluster because only a small share of the city changes."
+                )
+                st.plotly_chart(plot_tradeoff(
+                    results, scenario_df,
+                    lookup_table=lookup_table,
+                    saved=_saved_for_city,
+                    optimized=_opt_for_chart,
+                ), use_container_width=True)
+        else:
+            # ── CITYWIDE mode (unchanged scatter; conditional caveat) ────
+            st.subheader("Citywide tradeoff space")
+            if _ownership_only:
+                # Caveat: ownership-only constraints still shrink the
+                # placement pool, so scenarios cluster on the chart.
+                st.caption(
+                    "Shows whole-area impacts. Region-constrained scenarios "
+                    "may cluster because only a small share of the city changes."
+                )
+            else:
+                st.caption(
+                    "Each point is a scenario. Better outcomes are toward the "
+                    "**top-right** — both axes are higher-is-better (Flood Retention "
+                    "on x, Heat Mitigation Index on y). The **purple star** is your "
+                    "current scenario; **orange diamonds** are citywide surrogate "
+                    "suggestions (with 10th–90th percentile uncertainty bars). "
+                    "Bubble size shows food production for saved and optimizer "
+                    "points."
+                )
+            st.plotly_chart(plot_tradeoff(
+                results, scenario_df,
+                lookup_table=lookup_table,
+                saved=_saved_for_city,
+                optimized=_opt_for_chart,
+            ), use_container_width=True)
 
         st.divider()
 
@@ -8693,32 +8960,9 @@ if _main_tab == 'Tradeoff Analysis':
                                else "")
                     _label = f"{_prefix}#{i+1}: {int(row.pct_converted)}% conv"
                     if st.button(_label, key=f"apply_region_opt_{i}"):
-                        st.session_state._pending_pct = int(
-                            round(row.pct_converted / 5) * 5)
-                        st.session_state._pending_gi = int(
-                            round(row.green_infrastructure_pct / 5) * 5)
-                        st.session_state._pending_ff = int(
-                            round(row.food_forest_pct / 5) * 5)
-                        if (st.session_state._pending_gi
-                                + st.session_state._pending_ff > 100):
-                            st.session_state._pending_ff = (
-                                100 - st.session_state._pending_gi)
-                        st.session_state.applied_suggestion = i
-                        # Region-constrained optimizer (variant B) — set the
-                        # NEW flag so the header / Save / Export route to
-                        # PROVENANCE_REGION_OPTIMIZED ("Engine-verified —
-                        # region-optimized"), distinct from the citywide
-                        # surrogate's "Surrogate-suggested." Clear the citywide
-                        # flag so the two states never co-fire.
-                        st.session_state.applied_from_region_optimizer = True
-                        st.session_state._applied_region_optimizer_values = (
-                            st.session_state._pending_pct,
-                            st.session_state._pending_gi,
-                            st.session_state._pending_ff,
-                        )
-                        st.session_state.applied_from_optimizer = False
-                        st.session_state._applied_optimizer_values = None
-                        st.session_state._show_apply_toast = True
+                        # Single source of truth — same helper the chart
+                        # click-to-apply path calls.
+                        _apply_region_optimizer_mix(row, i)
                         st.rerun()
 
             if st.session_state.get("_show_apply_toast"):

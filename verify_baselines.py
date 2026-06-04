@@ -2057,9 +2057,15 @@ def main(update: bool) -> int:
             section_order_diffs += 1
         else:
             # Expected sequence (each anchor must follow the previous).
+            # Mode-aware tradeoff display (RELAY) introduced two subheaders
+            # ('Selected-area tradeoff space' in region mode + 'Citywide
+            # tradeoff space' in citywide mode), one of which is rendered
+            # per run. The first marker accepts either by searching for
+            # the common 'tradeoff space' phrase — both subheaders carry
+            # it, so the assertion still pins the spot.
             EXPECTED_TAB2_ORDER = [
                 ("Tradeoff Space (plot)",
-                 'st.subheader("Tradeoff space: current scenario vs alternatives"'),
+                 'tradeoff space'),
                 ("Compare-scenarios table",
                  'st.markdown("#### Compare scenarios"'),
                 ("Neighborhood breakdown",
