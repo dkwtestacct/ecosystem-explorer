@@ -4341,13 +4341,6 @@ def _load_region_polygons_for_plotly(path: str, label_field: str):
     return out
 
 
-def render_matplotlib(fig):
-    try:
-        st.pyplot(fig, width='stretch')
-    finally:
-        plt.close(fig)
-
-
 # ── Matplotlib plots ───────────────────────────────────────────────────────────
 # Cap on the dimension matplotlib actually rasterises for the spatial map.
 # Streamlit displays the figure at ~600 px wide regardless, so rendering the
