@@ -7638,6 +7638,21 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
     _rl_df = pd.DataFrame(_rl_rows, columns=["Metric", f"Region ({_rs_label})", "Citywide"])
     st.dataframe(_rl_df, width="stretch", hide_index=True)
 
+    # Population-allocation honesty caveat (mechanics layer). The population
+    # rows above (People with Nature Access, Children's Nature Access) count
+    # residents allocated from Census 2020 blocks across each block's AREA, so
+    # a small count on institutional land (e.g. school parcels) reflects that
+    # area-spread allocation, not on-site residents. Shown only when an
+    # ownership filter narrows the selection to a class — that's the count this
+    # caveat is about. Expander, not headline; no badge vocab.
+    if _normalize_ownership_filter(results.get('ownership_filter')) is not None:
+        with st.expander("ⓘ How these population counts are allocated", expanded=False):
+            st.caption(
+                "Population is allocated from census blocks across each block's "
+                "area, so small counts on institutional land (e.g. school "
+                "parcels) reflect that allocation, not on-site residents."
+            )
+
     # UI feedback #6 — "why" tooltip for the flood-damage row. Triggers
     # on the city PROPERTY (TOTAL_POTENTIAL_DAMAGE_USD <= 0 is set by
     # the `damage_table_file` config — None on SA, the InVEST UFR table

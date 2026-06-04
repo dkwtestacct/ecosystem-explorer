@@ -486,6 +486,28 @@ Path C chosen because it aligns with NatCap's documented stance and is the most 
 
 **Code touchpoints.** `calculate_schools_nature_access` (top-level helper) + `_sample_schools_access` (low-level mask-sampler, region-mask aware for future region-local treatment); `evaluate_scenario` calls inline alongside the residential `calculate_nature_access` call; `CityState.schools_pixels` + `schools_sectors` + `schools_metadata`; `_load_city_runtime_state` Phase 2c (load GeoJSON → project to LULC CRS → convert to pixel coords); `scripts/data/prep_school_points.py` (offline NCES download + filter + per-city write); module-level aliases + `_rebind_city` extension; UI card in `app.py` (Human & Social row extended from 4 to 5 columns); doc-side surfaces in `REFERENCE.md §6 Nature Access at Schools`, `CAPABILITIES.md` (Outcome models), and the WHATS_NEW school-related-scenarios bullet.
 
+### 6.8 Population raster — block-area allocation and its known limitations
+
+**What it is.** Every population-weighted metric (Nature Access, Children's Nature Access, Schools, UMH) reads `pop_count_raster`: Census 2020 block totals spread uniformly across each block's **area**, rasterized to the NLCD grid and **bilinear-resampled** to the working grid. It is **not parcel-aware** and **not dasymetrically refined** — a block's residents are smeared across all of the block's pixels (including any school, water, or right-of-way pixels inside the block), not placed on the residential parcels.
+
+**Consequence on the honesty surface.** A selection restricted to an ownership class (e.g. school land) shows a non-zero population count that reflects this area-spread allocation, not on-site residents. The mechanics-layer caveat lives one click in, on the Selected-region impact table's population rows (`app.py` region-local block, gated on an active ownership filter) — not on the headline. No number changes; the caveat explains the number.
+
+**Measured magnitudes (valid-extent population; measured 2026-06-04).** Share of modelable-extent population sitting on land that can't hold housing is small:
+
+| Bucket | SA | MN |
+|---|--:|--:|
+| Open water (NLCD 11) | 0.04 % | 0.05 % |
+| Hard NLCD exclusions (water + wetlands + barren) | ~0.77 % | ~0.10 % |
+| K-12 school-owned (ownership enum 4) | 0.15 % (2,915) | — (no layer) |
+| All public/institutional (enums 1–4, +university) | 4.71 % | — |
+| University-owned (enum 6 — plausibly real dorm pop) | 0.44 % | — |
+
+The 4.71 % SA public/institutional figure is **dominated by city-owned land (~3 %), not schools** — and city land routinely holds housing, so ownership class is a poor "no-housing" proxy. SA's ownership layer also leaves **16.14 % (~307k) of valid-extent population on unclassified (nodata) pixels**, which are excluded from every ownership selection. MN has **no ownership layer** — ownership filters are SA-only.
+
+**Decision — dasymetric redistribution NOT pursued.** The clean correctable cases (open water, hard NLCD exclusions) total <1 % of valid-extent population, while any change to `pop_count_raster` is baseline-affecting: it forces a `SCENARIO_SCHEMA_VERSION` bump and a 40/40 re-snapshot, and shifts every population-weighted number users may already have cited. With no large *clean* bucket to recover (the biggest institutional bucket is city land, which legitimately houses people), the correction doesn't earn its blast radius. Documented here so the tradeoff is evidence-based, not folklore; revisit if a parcel-level residential layer becomes available (would also retire the in-app allocation caveat).
+
+**Code touchpoints.** `load_population_data` (bilinear resample); `pop_count_raster` on `CityState`; consumed by `calculate_nature_access` / `_invest_una_pct_pop_supply_ge_demand` / `calculate_mental_health_impact`; in-app caveat in the `app.py` Selected-region impact block (ownership-filter-gated expander).
+
 ---
 
 ## 7. Lookup table and surrogate optimizer
