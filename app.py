@@ -9523,12 +9523,44 @@ if _main_tab == 'Map View':
             })
         # Wrap the call in try/except so any exception surfaces inline
         # rather than getting swallowed by render_matplotlib's try/finally.
+        # Decisive instrument (split "blank figure" vs "good figure not
+        # displayed"): build the figure, display via the normal st.pyplot
+        # path, AND save the EXACT same figure handle to PNG bytes for an
+        # independent st.image() render below. The two renders share one
+        # matplotlib figure — only the Streamlit display surface differs.
+        # If the st.image copy renders while the st.pyplot above is blank,
+        # the bug is in Streamlit's pyplot display path (leading candidate:
+        # media caching keyed on figure content — citywide figure is
+        # deterministic, so an initial failed/missing media file keeps
+        # being re-referenced by the same hash on every identical rerun).
+        # If both are blank, the figure itself is empty — plotting bug on
+        # the mask=None path. Inlined here (instead of calling
+        # render_matplotlib) so the fig stays alive long enough to savefig
+        # before plt.close.
         try:
-            render_matplotlib(plot_spatial_map(
+            _spatial_fig = plot_spatial_map(
                 results['scenario_lulc'], cooling_lulc,
                 heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
                 selected_region_mask=_spatial_mask,
-            ))
+            )
+            # Original render path — st.pyplot with width='stretch' (the
+            # failing one on cold citywide).
+            st.pyplot(_spatial_fig, width='stretch')
+            # Independent render — savefig to PNG bytes, then st.image.
+            # No bbox_inches='tight' — preserves the EXACT figure handed
+            # to st.pyplot.
+            import io as _io_diag
+            _png_buf = _io_diag.BytesIO()
+            _spatial_fig.savefig(_png_buf, format='png')
+            _png_bytes = _png_buf.getvalue()
+            plt.close(_spatial_fig)
+            st.caption(
+                "🔧 Diagnostic — same figure handle rendered via "
+                "savefig → st.image(PNG bytes). If THIS image appears "
+                "while the st.pyplot above is blank, the bug is in "
+                "Streamlit's pyplot display path, not the figure."
+            )
+            st.image(_png_bytes)
         except Exception as _spatial_err:
             st.error(
                 f"Spatial map rendering failed: {type(_spatial_err).__name__}: "
