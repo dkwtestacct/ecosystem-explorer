@@ -416,6 +416,7 @@ UNDERWAY_ENTRIES = []
 
 ON_THE_RADAR = """\
 - AlphaEarth-derived land-cover inputs, pixel-level spatial optimization, and nutrient retention (NDR) if canonical inputs become available.
+- Street-tree scenarios — explore tree planting along sidewalks and rights-of-way at street scale, a finer-grained companion to today's area-based scenarios.
 - Children's nature access as an optimization target — surface alongside the current reported children's metric so users can search for mixes that maximize it directly. (The school-point readout — Nature Access at Schools — has shipped; this is the optimization companion to it.)
 """
 
