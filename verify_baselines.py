@@ -1606,19 +1606,21 @@ def main(update: bool) -> int:
     }
     _PIXEL_AREA_ACRES = 0.2224
     _RASTER_2BAND = Path("data/sa/sa_ownership_2band_30m.tif")
-    # Locked rasterized in-AOI per-class acres (frozen against the
-    # post-split rasterization). The pre-split combined `school_university`
-    # value (6,030 ac) splits into `school` (2,392) + `university` (3,583);
-    # the 55-ac residual is the fall-through to private of names not
-    # matching either ISD/SCHOOL DISTRICT or UNIVERSITY/COLLEGE.
+    # Locked rasterized in-AOI per-class acres. Re-snapshotted 2026-06-04 after
+    # the sub-pixel-majority re-rasterization (3× / 10 m) that fixed the 16 %
+    # ownership-nodata 30 m grid-tiling artifact — see DESIGN_NOTES §6.8. Every
+    # class grew (boundary slivers recovered); `private` gained the most
+    # (~46k ac, the ~96 % of recovered population that is residential). The
+    # rule-output polygon-Acres (`_RULE_EXPECTED_AC`, ±0.5 %) are UNCHANGED —
+    # the classifier didn't move, only the rasterization. Tolerance stays ±5 %.
     _RASTER_EXPECTED_AC = {
-        'private':       507_165.0,
-        'city':           41_044.0,
-        'county':          2_886.0,
-        'state_federal':  28_237.0,
-        'school':          2_392.0,
-        'unknown':        15_885.0,
-        'university':      3_583.0,
+        'private':       553_301.0,
+        'city':           42_409.0,
+        'county':          3_106.0,
+        'state_federal':  28_617.0,
+        'school':          2_611.0,
+        'unknown':        15_972.0,
+        'university':      3_758.0,
     }
     _RULE_EXPECTED_AC = {
         'private':       606_433.0,

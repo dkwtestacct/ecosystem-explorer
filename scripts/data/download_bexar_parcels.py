@@ -584,7 +584,7 @@ def classify_and_rasterize() -> None:
     _rasterize_two_band(g_5070, RASTER_OUT_2BAND, REF_RASTER)
 
 
-def _rasterize_two_band(g_5070, out_path, ref_raster_path) -> None:
+def _rasterize_two_band(g_5070, out_path, ref_raster_path, subpixel=3) -> None:
     """Write a two-band int8 TIF on the SA grid:
       Band 1 = ownership class enum (OWNERSHIP_CLASS_ENUM); nodata=-1.
       Band 2 = is_vacant (0/1); nodata=-1.
@@ -593,54 +593,100 @@ def _rasterize_two_band(g_5070, out_path, ref_raster_path) -> None:
     the GeoDataFrame. Band 1's nodata=-1 distinguishes outside-AOI from
     `private` (which is class code 0).
 
-    Per-class priority rasterization — public classes overwrite private and
-    unknown when polygons abut or overlap at the 30m grid edge. A single-
-    pass rasterize with the geometries in DataFrame order produced a
-    ~67% undercount on city + ~815% overcount on unknown, because rasterio
-    is last-write-wins and the natural DataFrame order put private /
-    unknown polygons after city/state ones. The per-class build below is
-    explicit about who wins each pixel."""
+    **Sub-pixel area-majority rasterization (nodata-fix, 2026-06-04).** Parcels
+    are burned at `subpixel`× the 30 m resolution (default 3× → 10 m), then each
+    30 m cell takes the AREA-MAJORITY owner class of the parcels intersecting it.
+    This fixes the prior center-point single-pass rasterize, which left ~16 % of
+    the AOI's *population* on `-1` nodata — not a coverage hole (the BCAD pull is
+    full-county) but a 30 m grid-tiling artifact: a cell whose center landed in
+    the interstitial gap between two abutting parcels got no parcel. ~99 % of
+    that nodata population sits within 1–2 px of a classified parcel; sub-pixel
+    majority recovers it by sampling the cell's interior. A 30 m cell that no
+    parcel intersects at ANY sub-pixel (a genuine deep gap — water / federal
+    interiors, ~0.2 % of nodata pop) gets no majority → stays `-1` by design.
+
+    Per-class priority is preserved at sub-pixel resolution: lowest priority
+    first so higher priority overwrites at overlaps. After the School /
+    University split, university (mixed public + private) sits BELOW the four
+    government classes; within the gov block order isn't load-bearing (BCAD
+    parcels are largely disjoint). Band 2 (vacant) is carried THROUGH the same
+    priority burn (packed as `enum*2 + is_vacant`) so a filled pixel inherits
+    the vacant flag of the parcel(s) it was assigned from — not an independent
+    pass. On a sub-pixel tie between classes, the higher-priority class wins."""
     import numpy as np
     import rasterio
     from rasterio.features import rasterize as _rasterize_fn
+    from affine import Affine
 
     with rasterio.open(ref_raster_path) as src:
         ref_shape = src.shape
         ref_transform = src.transform
 
-    # Priority order — lowest priority first, so higher priority
-    # overwrites. After the School / University split: university (mixed
-    # public + private) sits BELOW the four government classes — at any
-    # overlapping pixel boundary, a city/county/state/school polygon
-    # outweighs an adjacent university polygon. Within the gov block,
-    # order isn't load-bearing (BCAD parcels are largely disjoint), but
-    # the convention is enum order — `school` (code 4) sits next to its
-    # gov peers, `university` (code 6) sits between private and gov.
+    H, W = ref_shape
+    S = int(subpixel)
+    fine_shape = (H * S, W * S)
+    # Fine transform — same origin, pixel size / S (a, e carry the pixel scale).
+    _t = ref_transform
+    fine_transform = Affine(_t.a / S, _t.b, _t.c, _t.d, _t.e / S, _t.f)
+
     _PRIORITY_LOW_TO_HIGH = [
         "unknown", "private", "university",
         "state_federal", "county", "school", "city",
     ]
-    band1 = np.full(ref_shape, -1, dtype=np.int8)
+    # Single packed burn per class at sub-pixel res: value = enum*2 + vacant + 1
+    # (so fill=0 means "untouched"; min burned value = 1). Priority order means
+    # a higher-priority class overwrites a lower one at the same sub-pixel.
+    fine_code = np.zeros(fine_shape, dtype=np.int16)
     for cls in _PRIORITY_LOW_TO_HIGH:
         sub = g_5070[g_5070["owner_class_finer"] == cls]
         if len(sub) == 0:
             continue
-        mask = _rasterize_fn(
-            ((geom, 1) for geom in sub.geometry if geom is not None and not geom.is_empty),
-            out_shape=ref_shape, transform=ref_transform,
-            fill=0, dtype=np.uint8,
+        enum = OWNERSHIP_CLASS_ENUM[cls]
+        burn = _rasterize_fn(
+            ((geom, enum * 2 + int(v) + 1)
+             for geom, v in zip(sub.geometry, sub["is_vacant"].astype(int))
+             if geom is not None and not geom.is_empty),
+            out_shape=fine_shape, transform=fine_transform,
+            fill=0, dtype=np.int16,
         )
-        band1[mask.astype(bool)] = OWNERSHIP_CLASS_ENUM[cls]
+        sel = burn > 0
+        fine_code[sel] = burn[sel]
+    # Decode: -1 where untouched (0 - 1), else enum*2 + vacant.
+    fine_code = fine_code.astype(np.int32) - 1
+    valid_fine = fine_code >= 0
+    fine_class = np.where(valid_fine, fine_code // 2, -1).astype(np.int16)
+    fine_vacant = np.where(valid_fine, fine_code % 2, -1).astype(np.int16)
 
-    # Band 2 — vacancy is orthogonal; single pass is fine since the value
-    # written is the parcel's is_vacant flag, not a class enum.
-    vacant_codes = g_5070["is_vacant"].astype(bool).astype(np.int8)
-    band2 = _rasterize_fn(
-        ((geom, int(c)) for geom, c in zip(g_5070.geometry, vacant_codes)
-         if geom is not None and not geom.is_empty),
-        out_shape=ref_shape, transform=ref_transform,
-        fill=-1, dtype=np.int8,
-    )
+    # Downsample to 30 m by area-majority over each S×S sub-pixel block.
+    def _blocks(a):
+        return a.reshape(H, S, W, S).transpose(0, 2, 1, 3).reshape(H, W, S * S)
+    fc = _blocks(fine_class)
+    fv = _blocks(fine_vacant)
+
+    _classes = sorted(OWNERSHIP_CLASS_ENUM.values())  # 0..6
+    counts = np.zeros((H, W, len(_classes)), dtype=np.int16)
+    for i, c in enumerate(_classes):
+        counts[:, :, i] = (fc == c).sum(axis=2)
+    covered = counts.sum(axis=2) > 0
+    # Priority tie-break: tiny bonus by priority rank, < 1 so it only breaks
+    # exact integer ties toward the higher-priority class.
+    _prio = {OWNERSHIP_CLASS_ENUM[k]: r for r, k in enumerate(_PRIORITY_LOW_TO_HIGH)}
+    bonus = np.array([_prio[c] for c in _classes], dtype=np.float64) * 1e-3
+    win_i = (counts.astype(np.float64) + bonus).argmax(axis=2)
+    win_class = np.array(_classes, dtype=np.int8)[win_i]
+    band1 = np.full((H, W), -1, dtype=np.int8)
+    band1[covered] = win_class[covered]
+
+    # Band 2 — vacant flag of the parcels that WON the cell (the winning class's
+    # sub-pixels), majority vote; ties → not-vacant (0).
+    match = (fc == band1[:, :, None]) & (fc >= 0)
+    vac1 = ((fv == 1) & match).sum(axis=2)
+    vac0 = ((fv == 0) & match).sum(axis=2)
+    band2 = np.full((H, W), -1, dtype=np.int8)
+    band2[covered] = (vac1[covered] > vac0[covered]).astype(np.int8)
+
+    print(f"  sub-pixel-majority rasterize at {S}× ({_t.a / S:.1f} m); "
+          f"covered cells = {int(covered.sum()):,} / {H * W:,}")
     with rasterio.open(
         out_path, "w", driver="GTiff",
         height=ref_shape[0], width=ref_shape[1],
