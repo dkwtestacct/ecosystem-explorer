@@ -490,7 +490,7 @@ if 'entry_city' not in st.session_state:
             # The detail line previously broke awkwardly like
             # 'NatCap reference / scenarios' or clipped 'InVEST exp…'
             # in narrow viewports.
-            "Bexar County area · "
+            "San Antonio regional extent · "
             "ownership and school-land filters · "
             "council districts · "
             "NatCap reference scenarios · "
@@ -502,9 +502,9 @@ if 'entry_city' not in st.session_state:
             st.session_state['entry_city'] = "Minneapolis, MN"
             st.rerun()
         st.caption(
-            "Downtown extent · "
-            "scenario exploration and biophysical models · "
-            "no ownership layer"
+            "Downtown Minneapolis extent · "
+            "census-tract targeting · "
+            "children's & school nature-access detail"
         )
     st.markdown("&nbsp;")  # spacer
     # What you can do — a plain-language capability teaser for first-time
