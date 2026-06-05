@@ -12,6 +12,20 @@ Each entry below uses a single template — **Decision / Why / Alternatives cons
 
 ---
 
+## Decision log (2026-06)
+
+One-screen index of this session's methodological decisions and their revisit triggers. Detail lives in the cited sections — this points, it doesn't duplicate.
+
+1. **Population on non-residential land — NOT dasymetrically redistributed.** Measured effect is <1 % on clean cases (open water 0.04 %, hard NLCD exclusions ~0.77 %), and ownership class is a poor "no-housing" proxy (city land holds housing), so the correction doesn't earn its baseline-affecting blast radius. *Revisit trigger:* the binding constraint is ROI, not data availability — a residential/land-use layer is likely already derivable from the BCAD pull (state-use codes), so revisit only if the ROI justifies it, **not** "when data arrives." (Reframes the older "revisit when a parcel-level residential layer becomes available" wording in §6.8.) → **[§6.8]**
+
+2. **SA ownership 16 % nodata — FIXED (`5751084`).** It was a 30 m grid-tiling artifact, not a coverage hole (the source is a complete 710,772-parcel BCAD pull); fixed by sub-pixel area-majority re-rasterization (16.14 % → 0.97 %), with the 0.97 % residual kept as nodata **by design** (cells with no parcel present at 10 m). *Revisit trigger:* the declined lever to reach ~0.2 % is a capped nearest-fill, which *infers* ownership for parcel-free cells — revisit only if a future need justifies inferred ownership. → **[§6.8, DATA_INVENTORY ownership entry]**
+
+3. **Region-optimizer prefilter recall — VALIDATED; explore-reservation NOT built.** Top-1 regret = 0 across all selections × weights, because the current non-spatial engine has monotone-to-corner optima — the optimum is always a grid corner the candidate set already contains, so there's no interior optimum to drop and the K-cap never engages. *Revisit trigger:* re-validate if flow-routing / spatial dependency is added — the optimum stops being a grid corner, the K-cap engages, and recall would likely bite. → **[§7.3]**
+
+4. **Flood / runoff — honest as a mean-CN lumped index** (100 − mean CN), not per-pixel-summed retention and not flow-routed; **placement-invariant by construction** (the score depends only on the mix of land covers in scope, not their siting). Linked to #3: the same change that breaks recall (engine becomes spatial) is what would make flood placement matter — a DEM + routing upgrade makes the optimization **non-separable and non-convex** (weighted-sum scalarization no longer suffices), i.e. a re-architecture, not an increment. → **[flood-routing expander + card help; §7.3 for the recall linkage]**
+
+---
+
 ## 1. Documentation and naming conventions
 
 ### 1.1 City-specific copy convention
