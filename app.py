@@ -403,8 +403,8 @@ WHATS_NEW_SECTIONS = [
         "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access for people, children, and schools, plus cooling and mental-health effects.  \n  _School access uses point-sampled K–12 school locations from NCES CCD/PSS/EDGE._",
     ]),
     ("Scenario discovery", [
-        "Search citywide with a fast surrogate that suggests promising mixes.",
-        "For selected areas, the displayed impacts are computed by the full engine, not predicted by the surrogate. The search returns the best tested mixes under your filters — best found, not guaranteed optima.",
+        "Search citywide with a fast machine-learning model that suggests promising mixes.",
+        "For selected areas, the displayed impacts are computed by the full evaluator, not predicted by the machine-learning model. The search returns the best tested mixes under your filters — best found, not guaranteed optima.",
     ]),
     ("Validation & handoff", [
         "Compare NatCap reference, current, and saved scenarios with source and validation labels.",
@@ -5717,7 +5717,7 @@ with _sec_where:
         index=0,
         help=(
             "Constrain conversions to inside selected polygons (council districts "
-            "or census tracts), instead of citywide. The per-pixel engine is the "
+            "or census tracts), instead of citywide. The per-pixel full evaluator is the "
             "same validated math; the where is planner-chosen."
         ),
         disabled=not _region_layers_available,
@@ -6074,22 +6074,25 @@ with _sec_discover:
         # Two-RELAY lock — citywide mode label + caption + Optimize button
         # co-render in the same block (Assertion B in verify_baselines).
         # Mode label is promoted markdown (visible), not a faint caption.
-        st.markdown("**Citywide surrogate search**")
-        st.caption("Predicted suggestions — apply one to verify.")
+        st.markdown("**Citywide AI-assisted search**")
+        st.caption("Fast estimates suggest promising mixes. Apply one to compute it with the full evaluator.")
         with st.popover("How this works"):
             st.markdown(
-                "The optimizer is trained on the prototype's pre-computed "
-                "scenario library (~90 full-resolution simulations in Fast "
+                "_Fast machine-learning model: a surrogate trained on "
+                "precomputed full-evaluator runs._  \n"
+                "  \n"
+                "The model is trained on the prototype's pre-computed "
+                "scenario library (~90 full-resolution runs in Fast "
                 "mode; more in the higher-quality modes). It explores "
                 "combinations of conversion percentage and conversion mix "
-                "far faster than running the full model — but each returned "
-                "scenario is a **surrogate prediction**, not a full "
-                "simulation. It targets flood retention, cooling, food "
-                "production, and carbon; cost and placement strategy are "
-                "not part of the surrogate.  \n"
+                "far faster than the full evaluator — but each returned "
+                "scenario is a **fast estimate**, not a full evaluation. "
+                "It targets flood retention, cooling, food production, and "
+                "carbon; cost and placement strategy are not part of the "
+                "model.  \n"
                 "  \n"
                 "Set the minimum performance each slider below must meet "
-                "(or cap runoff); the optimizer returns scenarios that "
+                "(or cap runoff); the search returns scenarios that "
                 "satisfy all targets at once. Use the controls above to "
                 "verify any suggested scenario in detail."
             )
@@ -6152,12 +6155,12 @@ with _sec_discover:
             if lookup_table:
                 st.caption(
                     "Slider results use a precomputed lookup table for faster response. "
-                    "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
+                    "The optimizer uses a fast machine-learning model to screen a wider range of scenarios. Apply a suggestion to compute it with the full evaluator."
                 )
             else:
                 st.caption(
                     "Slider results are computed live in the current model-quality mode. "
-                    "The optimizer uses a separate surrogate model to search a much wider range of scenarios."
+                    "The optimizer uses a fast machine-learning model to screen a wider range of scenarios. Apply a suggestion to compute it with the full evaluator."
                 )
 
             # Two-RELAY lock — sidebar "Optimize" trigger. Co-renders with
@@ -6185,25 +6188,25 @@ with _sec_discover:
         # promoted markdown (visible), not a faint caption.
         st.markdown("**Selected-area search**")
         st.caption(
-            "Finds best-tested mixes under the current selected area and eligibility filters."
+            "Finds best tested mixes under the current area and filters. Displayed values are computed by the full evaluator, not predicted by the model."
         )
         with st.popover("How this works"):
             st.markdown(
-                "When a region or ownership filter is active, the optimizer "
-                "runs in two stages. **Stage 1** — the citywide surrogate "
-                "ranks every candidate mix and picks a Pareto-efficient "
+                "When a region or ownership filter is active, the search "
+                "runs in two stages. **Stage 1** — the fast machine-learning "
+                "model ranks every candidate mix and picks a Pareto-efficient "
                 "shortlist (≈ 40 candidates). **Stage 2** — each shortlisted "
-                "mix is evaluated by the full per-pixel engine inside your "
+                "mix is evaluated by the full evaluator inside your "
                 "selected area. Values shown on each returned scenario are "
-                "engine-true region-local (not surrogate predictions). To "
+                "full-evaluator region-local (not model predictions). To "
                 "re-rank under new weights, click Optimize again (v1 reruns "
                 "the full pipeline).\n\n"
                 "For selected-area optimization, displayed values are computed "
-                "by the full spatial engine, not predicted by the citywide "
-                "surrogate. A validation check confirmed the region prefilter "
+                "by the full evaluator, not predicted by the machine-learning "
+                "model. A validation check confirmed the prefilter "
                 "did not miss the best tested mix across the tested selections "
-                "and goal weights. This would need rechecking if the engine "
-                "becomes more spatially detailed."
+                "and goal weights. This would need rechecking if the full "
+                "evaluator becomes more spatially detailed."
             )
 
         with st.container(border=True):
@@ -6259,7 +6262,7 @@ with _sec_advanced_quality:
         key="model_quality",
         help=(
             "Controls how many full-resolution simulations are used to train the "
-            "surrogate model. More simulations improve optimizer suggestions but "
+            "machine-learning model. More simulations improve optimizer suggestions but "
             "take longer to initialize."
         ),
         label_visibility="collapsed",
@@ -6784,14 +6787,14 @@ with st.container(border=True):
     if _filter_active:
         st.markdown("**Selected-area search**")
         st.caption(
-            "Finds best-tested mixes under the current selected area and eligibility filters."
+            "Finds best tested mixes under the current area and filters. Displayed values are computed by the full evaluator, not predicted by the model."
         )
         _cta_optimize_help = (
-            "Finds best tested mixes under the current selected area and filters."
+            "Finds best tested mixes under the current area and filters."
         )
     else:
-        st.markdown("**Citywide surrogate search**")
-        st.caption("Predicted suggestions — apply one to verify.")
+        st.markdown("**Citywide AI-assisted search**")
+        st.caption("Fast estimates suggest promising mixes. Apply one to compute it with the full evaluator.")
         _cta_optimize_help = None
     if st.button("Optimize", type="primary",
                   key="main_cta_optimize_button",
@@ -7687,7 +7690,7 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
     # don't read the absence as "no validation state set".
     st.caption(
         "Validation states for these rows inherit from the per-metric badges "
-        "on the citywide cards above — region-local doesn't change the engine, "
+        "on the citywide cards above — region-local doesn't change the full evaluator, "
         "only the aggregation scope. The pairing keeps it honest: never read a "
         "region-local number without its citywide companion."
     )
@@ -8036,11 +8039,11 @@ with st.expander("Assumptions and limitations"):
             "the population raster is unchanged across scenarios; the model "
             "captures only the *direct* exposure pathway, not air-quality or "
             "social-cohesion mechanisms.\n"
-            "- **Not in the surrogate.** UMH outputs are computed "
+            "- **Not in the machine-learning model.** UMH outputs are computed "
             "deterministically inside `evaluate_scenario` from the scenario's "
-            "NDVI exposure — the surrogate doesn't need to predict them. They "
-            "appear in the precomputed grid columns alongside the RF targets, "
-            "but are recomputed live for any scenario the optimizer surfaces."
+            "NDVI exposure — the model doesn't need to predict them. They "
+            "appear in the precomputed grid columns alongside the other model "
+            "targets, but are recomputed live for any scenario the optimizer surfaces."
         )
     with _assumption_tabs[5]:
         st.markdown(
@@ -8061,9 +8064,9 @@ with st.expander("Assumptions and limitations"):
             "like any developed surface), but they're not eligible to be "
             "replaced by GI/FF/HD. Real projects still need site-by-site "
             "feasibility checks (zoning, ownership, soil, infrastructure).\n"
-            "- **Suggested scenarios** come from a Random Forest surrogate. "
+            "- **Suggested scenarios** come from the fast machine-learning model. "
             "Verify any suggestion by manually applying it to the main "
-            "sliders so the full pixel-level simulation runs."
+            "sliders so the full evaluator runs."
         )
 
 st.divider()
@@ -8354,11 +8357,11 @@ if _main_tab == 'Tradeoffs':
                 st.caption(
                     "Shows whole-area impacts. Region-constrained scenarios "
                     "may cluster because only a small share of the city changes. "
-                    "Engine-verified region-optimizer mixes appear on the "
+                    "Full-evaluator region-optimizer mixes appear on the "
                     "Selected-area scatter above this expander; they are not "
-                    "overlaid on this citywide view, so the citywide-surrogate "
-                    "diamonds (predicted) and the region-engine squares "
-                    "(verified) stay visually distinct."
+                    "overlaid on this citywide view, so the AI-assisted citywide "
+                    "diamonds (fast estimates) and the region full-evaluator "
+                    "squares stay visually distinct."
                 )
                 st.plotly_chart(plot_tradeoff(
                     results, scenario_df,
@@ -8381,8 +8384,9 @@ if _main_tab == 'Tradeoffs':
                     "Each point is a scenario. Better outcomes are toward the "
                     "**top-right** — both axes are higher-is-better (Flood Retention "
                     "on x, Heat Mitigation Index on y). The **purple star** is your "
-                    "current scenario; **orange diamonds** are citywide surrogate "
-                    "suggestions (with 10th–90th percentile uncertainty bars). "
+                    "current scenario; **orange diamonds** are AI-assisted "
+                    "citywide suggestions; apply one to compute full-evaluator "
+                    "results (shown with 10th–90th percentile uncertainty bars). "
                     "Bubble size shows food production for saved and optimizer "
                     "points."
                 )
@@ -8874,7 +8878,7 @@ if _main_tab == 'Tradeoffs':
         else:
             st.divider()
             st.markdown("#### Best scenarios by goal")
-            st.caption("From the pre-computed scenario library — not surrogate predictions.")
+            st.caption("From the pre-computed scenario library — full-evaluator results, not fast estimates.")
 
             # Best-scenarios-by-goal uses the lookup table when High Resolution mode
             # built one; otherwise falls back to the scenario_df the active mode is
@@ -9095,7 +9099,7 @@ if _main_tab == 'Tradeoffs':
                     f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
                     f"food ≥ {min_food:.3f}M lbs, carbon ≥ {min_carbon:,} {_opt_carbon_unit} "
                     "— ranked by balanced score. "
-                    "Numbers are surrogate model predictions with 10th–90th percentile uncertainty bands."
+                    "Numbers are fast estimates from the machine-learning model, with 10th–90th percentile uncertainty bands."
                 )
 
                 # Display table with uncertainty columns
@@ -9119,8 +9123,8 @@ if _main_tab == 'Tradeoffs':
 
                 st.markdown("#### Candidate scenarios")
                 st.caption(
-                    "These are surrogate model predictions. Click Apply to run a "
-                    "full pixel-level simulation and verify the result."
+                    "These are fast estimates from the machine-learning model. Click Apply to compute it "
+                    "with the full evaluator and verify the result."
                 )
                 with st.expander("Show uncertainty bands", expanded=False):
                     st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
@@ -9129,11 +9133,11 @@ if _main_tab == 'Tradeoffs':
                              width='stretch', hide_index=True)
                 st.caption(
                     "Note: suggestions with small amounts of High Density (2–10%) may "
-                    "reflect surrogate approximation — consider setting HD to 0% when applying."
+                    "reflect the machine-learning model's approximation — consider setting HD to 0% when applying."
                 )
 
                 st.markdown("#### Input Influence")
-                st.caption("**Influence Map** — which input drives outcomes most according to the surrogate model:")
+                st.caption("**Influence Map** — which input drives outcomes most according to the machine-learning model:")
                 st.plotly_chart(plot_feature_importance(surrogate), use_container_width=True)
 
                 st.markdown("#### Apply a suggestion")

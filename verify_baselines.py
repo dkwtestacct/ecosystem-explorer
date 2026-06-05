@@ -2385,10 +2385,10 @@ def main(update: bool) -> int:
         # slider widgets between the mode label and the button — all
         # within the same st.container scope). Both surfaces have mode
         # labels:
-        #   "Citywide surrogate search"   (citywide)
-        #   "Selected-area search"        (region)
+        #   "Citywide AI-assisted search"   (citywide)
+        #   "Selected-area search"          (region)
         MODE_LABEL_STRINGS = (
-            "Citywide surrogate search",
+            "Citywide AI-assisted search",
             "Selected-area search",
         )
         # Find Optimize button call sites.
@@ -2499,20 +2499,25 @@ def main(update: bool) -> int:
         # ── Assertion D — CTA caption protection (FIX BUNDLE #79) ───────
         # Both Discover surfaces (sidebar + main-panel CTA) carry the same
         # mode-keyed caption beneath the mode label:
-        #   citywide → "Predicted suggestions — apply one to verify."
-        #     (the values are SURROGATE PREDICTIONS, not engine outputs)
-        #   region   → "Finds best-tested mixes under the current selected
-        #              area and eligibility filters."
+        #   citywide → "Fast estimates suggest promising mixes. Apply one to
+        #              compute it with the full evaluator." (fast estimates,
+        #              not full-evaluator outputs)
+        #   region   → "Finds best tested mixes under the current area and
+        #              filters. Displayed values are computed by the full
+        #              evaluator, not predicted by the model."
         # Both expected literals must appear ≥2× in app.py (sidebar + CTA),
         # and each must appear immediately after a matching mode label
         # within a small window (so they pair with their mode, not float).
         # Meta-test: confirm a tweaked caption string would fail. Both
         # captions are single source-line literals; a single-literal
         # exact-count check works for both surfaces.
-        _CW_CAPTION_EXPECTED = "Predicted suggestions — apply one to verify."
+        _CW_CAPTION_EXPECTED = (
+            "Fast estimates suggest promising mixes. Apply one to compute it "
+            "with the full evaluator."
+        )
         _RG_CAPTION_EXPECTED = (
-            "Finds best-tested mixes under the current selected area "
-            "and eligibility filters."
+            "Finds best tested mixes under the current area and filters. "
+            "Displayed values are computed by the full evaluator, not predicted by the model."
         )
         _cw_cap_count = _src2.count(_CW_CAPTION_EXPECTED)
         _rg_cap_count = _src2.count(_RG_CAPTION_EXPECTED)
@@ -2538,8 +2543,9 @@ def main(update: bool) -> int:
         #        the exact-literal check.
         #   (D2) region caption: 'region and eligibility' → 'whatever'
         #        must fail the exact-literal check.
-        _seed_d_cw = "st.caption(\"Predicted results — apply one to verify.\")\n"
-        _seed_d_rg = ("st.caption(\"Best tested mixes under whatever "
+        _seed_d_cw = ("st.caption(\"Fast estimates suggest promising mixes. "
+                      "Apply one to compute it with the engine.\")\n")
+        _seed_d_rg = ("st.caption(\"Finds best tested mixes under whatever "
                       "filters.\")\n")
         _meta_d_ok = True
         if _CW_CAPTION_EXPECTED in _seed_d_cw:
