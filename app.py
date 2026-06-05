@@ -400,11 +400,11 @@ WHATS_NEW_SECTIONS = [
     ("Ownership-aware scenarios", [
         "In San Antonio, restrict conversions to public, vacant, school, university, city, county, or state/federal land.",
         "These are planning-screen filters — they do not verify parcel availability or legal feasibility.",
-        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access, children's nature access, Nature Access at Schools (point-sampled at K-12 schools — NCES CCD/PSS/EDGE), cooling, and mental-health effects.",
+        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access for people, children, and schools, plus cooling and mental-health effects.  \n  _School access uses point-sampled K–12 school locations from NCES CCD/PSS/EDGE._",
     ]),
     ("Scenario discovery", [
         "Search citywide with a fast surrogate that suggests promising mixes.",
-        "For selected areas, displayed impacts are computed by the full engine — not the surrogate's prediction — while it searches for the best tested mixes under your filters (best found, not guaranteed optima).",
+        "For selected areas, the displayed impacts are computed by the full engine, not predicted by the surrogate. The search returns the best tested mixes under your filters — best found, not guaranteed optima.",
     ]),
     ("Validation & handoff", [
         "Compare NatCap reference, current, and saved scenarios with source and validation labels.",
@@ -416,8 +416,8 @@ UNDERWAY_ENTRIES = []
 
 ON_THE_RADAR = """\
 - AlphaEarth-derived land-cover inputs, pixel-level spatial optimization, and nutrient retention (NDR) if canonical inputs become available.
-- Street-tree scenarios — explore tree planting along sidewalks and rights-of-way at street scale, a finer-grained companion to today's area-based scenarios.
-- Children's nature access as an optimization target — surface alongside the current reported children's metric so users can search for mixes that maximize it directly. (The school-point readout — Nature Access at Schools — has shipped; this is the optimization companion to it.)
+- Street-tree scenarios — explore planting along sidewalks and rights-of-way at street scale.
+- Children's access as an optimization target — let users search directly for mixes that maximize children's nature access.
 """
 
 def _build_whats_new():
@@ -522,12 +522,12 @@ if 'entry_city' not in st.session_state:
             "• **Target where it happens** — citywide, in selected council "
             "districts, or on eligible public, vacant, school, or other land.  \n"
             "• **Evaluate impacts** — flood, cooling, carbon, greenness, nature "
-            "access including children and schools, mental health, food, and "
+            "access for people, children, and schools, mental health, food, and "
             "cost.  \n"
-            "• **Optimize & compare** — find promising mixes citywide or "
+            "• **Optimize & compare** — find promising citywide mixes or "
             "best-tested mixes for a selected area, then compare tradeoffs.  \n"
-            "• **Trust the results** — each result shows source, validation "
-            "status, method provenance, and audit detail."
+            "• **Trust the results** — each result carries source, validation "
+            "status, and method provenance, with audit detail underneath."
         )
     st.stop()
 
