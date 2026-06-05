@@ -404,7 +404,7 @@ WHATS_NEW_SECTIONS = [
     ]),
     ("Scenario discovery", [
         "Search citywide with a fast surrogate that suggests promising mixes.",
-        "For selected areas, use the full engine to find best tested mixes under the current filters, not guaranteed optima.",
+        "For selected areas, displayed impacts are computed by the full engine — not the surrogate's prediction — while it searches for the best tested mixes under your filters (best found, not guaranteed optima).",
     ]),
     ("Validation & handoff", [
         "Compare NatCap reference, current, and saved scenarios with source and validation labels.",
@@ -6197,7 +6197,13 @@ with _sec_discover:
                 "selected area. Values shown on each returned scenario are "
                 "engine-true region-local (not surrogate predictions). To "
                 "re-rank under new weights, click Optimize again (v1 reruns "
-                "the full pipeline)."
+                "the full pipeline).\n\n"
+                "For selected-area optimization, displayed values are computed "
+                "by the full spatial engine, not predicted by the citywide "
+                "surrogate. A validation check confirmed the region prefilter "
+                "did not miss the best tested mix across the tested selections "
+                "and goal weights. This would need rechecking if the engine "
+                "becomes more spatially detailed."
             )
 
         with st.container(border=True):
