@@ -1049,7 +1049,7 @@ with st.expander("How this prototype works", expanded=False):
     )
     st.markdown(
         "**Green Infrastructure** converts developed land to woody wetlands "
-        "(NLCD code 90) — best for flood retention.  \n"
+        "(NLCD code 90) — best for flood mitigation.  \n"
         "**Food Forest** converts to deciduous forest (NLCD code 41, used as a "
         "food production proxy) — best for cooling and food.  \n"
         "**High Density** adds impervious development — worst for ecological and nature-access outcomes.  \n"
@@ -6093,7 +6093,7 @@ with _sec_discover:
                 "combinations of conversion percentage and conversion mix "
                 "far faster than the full evaluator — but each returned "
                 "scenario is a **fast estimate**, not a full evaluation. "
-                "It targets flood retention, cooling, food production, and "
+                "It targets the Flood Index, cooling, food production, and "
                 "carbon; cost and placement strategy are not part of the "
                 "model.  \n"
                 "  \n"

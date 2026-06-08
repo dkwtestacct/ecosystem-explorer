@@ -23,14 +23,14 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 - Custom ownership classes: city / county / state-federal / school / university, plus vacant-only overlay
 - *Caveat:* school and university classes are planning-screen filters, not title-verified ownership
 - Eligibility breakdown: selected area → developed land → eligible land → converted acres
-- **School-related scenarios** — restrict conversions to school-related parcels where identified, then evaluate nature access, **children's nature access**, cooling, and validated Urban Mental Health outcomes
+- **School-related scenarios** — restrict conversions to school-related parcels where identified, then evaluate nature access, **children's nature access**, cooling, and Urban Mental Health outcomes
 
 ## Outcome models
 - **Urban Cooling** — temperature change, °F cooling, cooling energy savings
-- **Urban Flood** — flood retention, runoff volume, flood damage avoided where valuation inputs exist
+- **Urban Flood** — a curve-number-based Flood Index, modeled Runoff Volume, and flood damage avoided where valuation inputs exist
 - **Carbon** — carbon storage / sequestration change, carbon value
 - **Urban Nature Access** — nature access %, nature exposure / NDVI indicators
-- **Urban Mental Health** — validated InVEST UMH estimates of preventable depression/anxiety cases and avoided costs
+- **Urban Mental Health** — InVEST UMH estimates of preventable depression/anxiety cases and avoided costs (per-pixel parity with InVEST UMH; NDVI input is a land-cover-derived proxy)
 - **Children's Nature Access** — under-18 share of nature access (Census 2020 PL 94-171 under-18; access share child-weighted, supply stays on total pop). Card auto-hides when child data exists but children's access tracks overall access within 0.5 pp — so its presence itself signals that kids are served differently here; when hidden, the Nature Access tooltip notes the match
 - **Nature Access at Schools** — destination-based readout: % of K-12 schools (public + charter + private; NCES CCD/PSS/EDGE 2021-22) point-sampled at the 2SFCA adequate mask. Per-sector breakdown (public / charter / private) under the metric card. Same threshold + pipeline as the residential metric — no new threshold.
 - **Food** — annual production, people fed

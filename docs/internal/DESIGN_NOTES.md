@@ -28,6 +28,8 @@ One-screen index of this session's methodological decisions and their revisit tr
 
 ## 1. Documentation and naming conventions
 
+**Canonical vocabulary.** The locked user-facing term set — and the retired phrasings that must not reappear — lives in `REFERENCE.md` § "Vocabulary (canonical terms)". A grep guard, `scripts/check_vocabulary.py`, is wired into the `verify_baselines.py` gate and fails the run if an unambiguous retired term reappears on a user-facing surface (`app.py` + `REFERENCE.md` / `CAPABILITIES.md` / `README.md`). "surrogate" is intentionally not guarded (legit code/methodology uses) — it stays a review item.
+
 ### 1.1 City-specific copy convention
 
 **Decision.** User-visible strings that reference city-specific values (baseline numbers, data sources, climate framing, yield benchmarks) interpolate from one of four sources — never hardcoded.
@@ -452,7 +454,7 @@ Two divergences remain documented rather than hidden:
 
 ### 6.5 SA Flood Damage — embrace $0 (Path C)
 
-**Decision.** SA's `avoided_flood_damage_usd` field remains $0 because NatCap's Vibrant Land report explicitly did not enable `infrastructure_damage_loss_table_path` for SA — they reported flood mitigation as **percent reduction in flood volume**, not as a monetized dollar figure. The dashboard surfaces this directly: SA's card renders as **"Flood Volume Reduction"** with the volume-reduction percentage, MN's continues to render **"Flood Damage Avoided"** in dollars. Presentation-layer change only; no model, schema, or baseline changes.
+**Decision.** SA's `avoided_flood_damage_usd` field remains $0 because NatCap's Vibrant Land report explicitly did not enable `infrastructure_damage_loss_table_path` for SA — they reported flood mitigation as **percent reduction in flood volume**, not as a monetized dollar figure. The dashboard surfaces this directly: SA shows no damage-avoided dollar figure — its Economic flood card renders **"Flood Damage Avoided — n/a"** — while MN renders **"Flood Damage Avoided"** in dollars. (Originally SA showed a **"Flood Volume Reduction (% vs baseline)"** card; the Flood Index honesty pass — Relay 24 — removed it because it presented the unitless CN index `100 − mean_CN` as a percent of flood volume, which it is not. SA's hydrologic signal is the Flood Index + Runoff Volume cards.) Presentation-layer choice only; no model, schema, or baseline changes.
 
 **Why.** Honest with NatCap's own methodology choice. InVEST UFRM's own caveat is that the model doesn't produce inundation maps and therefore can't confirm built-infrastructure exposure; Vibrant Land's flood-volume-reduction framing inherits that limitation rather than monetizing through it.
 

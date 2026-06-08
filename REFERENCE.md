@@ -12,7 +12,7 @@
 
 Ecosystem Explorer validates its modeling engine against canonical InVEST, displays NatCap project reference values where available, and lets users explore additional scenarios beyond the fixed project set — then export promising ones back to canonical InVEST for full validation.
 
-The dashboard simulates how reallocating developed urban land among green infrastructure (wetlands), food forest, and high-density development affects a portfolio of ecological, social, and economic outcomes: flood retention, urban cooling, food production, nature access, Urban Mental Health outcomes, and carbon. The biophysical engine reimplements five InVEST urban models (Urban Cooling, Urban Flood Risk, Urban Nature Access, Urban Mental Health, Carbon) in numpy, validated against canonical `natcap.invest.*.execute()` where comparable inputs exist (see §8 for the per-model status).
+The dashboard simulates how reallocating developed urban land among green infrastructure (wetlands), food forest, and high-density development affects a portfolio of ecological, social, and economic outcomes: a curve-number-based Flood Index, urban cooling, food production, nature access, Urban Mental Health outcomes, and carbon. The biophysical engine reimplements five InVEST urban models (Urban Cooling, Urban Flood Risk, Urban Nature Access, Urban Mental Health, Carbon) in numpy, validated against canonical `natcap.invest.*.execute()` where comparable inputs exist (see §8 for the per-model status).
 
 **This tool is designed for:**
 
@@ -23,7 +23,7 @@ The dashboard simulates how reallocating developed urban land among green infras
 
 For what it is *not* designed for and what to do before relying on the numbers, see §10.
 
-**Multi-city support.** Two cities are currently selectable in the UI — Minneapolis, MN (downtown, ~123 km², InVEST sample buildings with per-type codes) and San Antonio, TX (Bexar County bbox, ~3,060 km², ~1.9M residents). A third configuration — Minneapolis Full, MN — is implemented in the codebase but hidden from the selector pending per-building-type data for the expanded area. Each city has its own configuration entry declaring input paths, CRS, and biophysical parameters; switching cities is a sidebar interaction with separate cached state. See §7 for per-city detail.
+**Multi-city support.** Two cities are currently selectable in the UI — Minneapolis, MN (downtown, ~123 km², InVEST sample buildings with per-type codes) and San Antonio, TX (Bexar County-area raster extent, ~3,060 km², ~1.9M residents — a bounding box covering the county, not a parcel-accurate jurisdiction claim). A third configuration — Minneapolis Full, MN — is implemented in the codebase but hidden from the selector pending per-building-type data for the expanded area. Each city has its own configuration entry declaring input paths, CRS, and biophysical parameters; switching cities is a sidebar interaction with separate cached state. See §7 for per-city detail.
 
 ---
 
@@ -65,7 +65,7 @@ When you pick one or more region polygons in the sidebar, conversions are placed
 
 Region-local readings inherit per-metric validation badges from the citywide cards — region-local doesn't change the engine, only the aggregation scope. Two locked caveats:
 
-- **Flood routing.** The flood retention metric is a closed-form SCS-CN volume scaled to the region's developed area, not routed hydrology. Regional CN means legitimately differ from citywide ones.
+- **Flood routing.** The Flood Index metric is a closed-form SCS-CN computation over the region's developed area, not routed hydrology. Regional CN means legitimately differ from citywide ones.
 - **Reach effects (UCM / UNA / UMH).** The three reach models (~600 m for cooling, ~800 m for nature access, ~300 m for mental health) have spillover at the region boundary — effects produced by in-region conversions that propagate just outside the boundary are reflected in the citywide column but NOT in the region-local column. Documented in the export bundle as the `region_local_spillover_reach_models` divergence.
 
 Reconciliation contract: for every decomposable metric, computing the region-local value over the entire AOI must equal citywide (machine-checked by `verify_baselines.py`). That's how the region-local code path stays trustworthy.
@@ -208,7 +208,7 @@ The dashboard groups 13 cards under three categories. Below are the metrics in t
 - **How it is computed** — `100 − mean_CN`, where `mean_CN` is the area-weighted CN derived from the per-city CN biophysical table (`UFR_biophysical_table_<city>.csv`) by land cover × soil group, over the LULC raster.
 - **Units** — Index (0–100).
 - **Validation status** — `≈ Aligned method`. Canonical SCS-CN method. The card's metric is `100 − mean_CN`, monotone with InVEST UFR's per-watershed `rnf_rt_idx = 1 − Q/P` but computed differently — the app inverts the CN average rather than the post-storm runoff. Direction is consistent; the scale differs.
-- **Main caveat** — Not a direct percentage reduction in runoff volume. For SA specifically, the index is **nearly scenario-invariant** at the Bexar-County dashboard scale — developed pixels are a small share of the bbox, so total-metric movement is small even when per-pixel greening is effective. See §7 (SA).
+- **Main caveat** — Not a direct percentage reduction in runoff volume. For SA specifically, the index is **nearly scenario-invariant** at the Bexar-County dashboard scale — developed pixels are a small share of the county-area extent, so total-metric movement is small even when per-pixel greening is effective. See §7 (SA).
 
 #### Temperature Change
 
@@ -320,7 +320,7 @@ InVEST UMH (added in v3.19.0) computes preventable mental health cases via `PC =
 
 #### Flood Damage Avoided (MN; not surfaced for SA)
 
-- **What it shows** — **MN:** estimated reduction in expected flood-damage costs ($) from the scenario's runoff reduction vs the unmodified baseline. **SA:** not surfaced — NatCap's Vibrant Land report (Guerry et al. 2023) used InVEST UFRM for SA but explicitly did not enable damage valuation and published no flood dollar value, so SA shows no damage-avoided card; the hydrologic signal lives in the Flood Index and Runoff Volume cards. (The earlier SA "Flood Volume Reduction" card is removed — it presented the unitless CN index as a percent of flood volume, which it is not.)
+- **What it shows** — **MN:** estimated reduction in expected flood-damage costs ($) from the scenario's runoff reduction vs the unmodified baseline. **SA:** not surfaced — NatCap's Vibrant Land report (Guerry et al. 2023) used InVEST UFRM for SA but explicitly did not enable damage valuation and published no flood dollar value, so SA shows no damage-avoided card; the hydrologic signal lives in the Flood Index and Runoff Volume cards. (The earlier SA "Flood Volume Reduction" card is removed — it presented the unitless CN index as a percent of flood volume, which it is not.) <!-- vocab-allow: names the removed card to explain its removal -->
 - **How it is computed** — **MN:** `TOTAL_POTENTIAL_DAMAGE_USD × max(0, runoff_reduction_fraction)`, where `TOTAL_POTENTIAL_DAMAGE_USD = Σ(building_footprint_m² × per_type_damage_rate_$/m²)` from `Damage_loss_table_MN.csv` (Other $40, Commercial $120, Residential $150, Industrial $100 per m²). Capped at $0 when the scenario warms / increases runoff. **SA:** no damage-avoided figure is computed; see the Flood Index and Runoff Volume cards.
 - **Units** — **MN:** USD/yr. **SA:** n/a (no card).
 - **Validation status** — `≈ Aligned method`. Canonical SCS-CN underneath; MN dollar approach is a proportional scaling rather than InVEST UFR's per-watershed `serv_blt` indicator (which the InVEST docs themselves call "only an indicator of service, not an actual measure of damage or savings").
@@ -381,8 +381,8 @@ For Minneapolis Full, OSM-only building polygons (185,490) lack the per-type cod
 - **UCM (cooling).** `UHI_MAX_C = 11 °C` (estimate for Köppen BSh climate; see the NatCap SA README). Yields a 6.30 °F/HMI factor. SA cooling biophysical table is tuned for hot semi-arid on four high-impact NLCD classes (Shrub/Scrub, Evergreen Forest, Deciduous Forest, Hay/Pasture), anchored on eddy-covariance Kc measurements, FAO-56 Kc tables, and Stewart-Oke (2012) albedo ranges. Row-by-row provenance lives in `data/sa/cooling/biophysical_table_sources.md`. These are medium-confidence interim values pending a SA-calibrated InVEST UCM args run.
 - **UNA (nature access).** Per-city 2SFCA parameters: **16.7 m²/capita** demand, **800 m** search radius, **dichotomy** decay — adopted from the NatCap SA-project canonical configuration (NatCap SA README).
 - **Carbon.** Four-pool stock framework via NatCap's compound `carbon__nlcd_nlud_tree.csv` (1,984 rows × four pools). Reported as one-time stock change. Aligned with the methodology in NatCap's 2023 Vibrant Land report (Guerry et al.); the social-cost-of-carbon vintage differs (EPA 2023 vs IWG 2021) — methodology alignment, current parameter vintage. Carbon-rate sliders in Advanced Settings have **no effect for SA** — the four-pool table is the data, not a user input.
-- **Flood is ~scenario-invariant.** NatCap's published SA finding (Vibrant Land + supporting presentations): the citywide flood metric is nearly insensitive to scenario choice — developed land is a small share of the bbox, so the total-metric movement under any realistic green-conversion scenario is small. The dashboard echoes this — directionality of greening (GI is generally most flood-effective per converted pixel) is real, but the headline number won't move much. Read the Flood Index card with this scope effect in mind.
-- **Block-group framing.** Per-tract aggregations for SA use NatCap-canonical ACS block-groups (1,124 polygons covering the City of San Antonio), matching the Vibrant Land Figure 10 framing. Other models' AOI uses the bbox.
+- **Flood is ~scenario-invariant.** NatCap's published SA finding (Vibrant Land + supporting presentations): the citywide flood metric is nearly insensitive to scenario choice — developed land is a small share of the county-area extent, so the total-metric movement under any realistic green-conversion scenario is small. The dashboard echoes this — directionality of greening (GI is generally most flood-effective per converted pixel) is real, but the headline number won't move much. Read the Flood Index card with this scope effect in mind.
+- **Block-group framing.** Per-tract aggregations for SA use NatCap-canonical ACS block-groups (1,124 polygons covering the City of San Antonio), matching the Vibrant Land Figure 10 framing. Other models' AOI uses the county-area extent.
 
 #### Cross-city Heat Mitigation Index comparison
 
@@ -411,7 +411,7 @@ The Ecosystem Explorer combines NatCap-curated data, InVEST-aligned biophysical 
 | **LULC raster input** | NatCap-curated where available (San Antonio: compound NLCD × NLUD × tree-canopy framework from NatCap's 2024 NASA Urban project). Otherwise NLCD 2021 (Minneapolis: InVEST UFR/UCM/UNA sample data). |
 | **Biophysical model evaluation** | InVEST-aligned numpy reimplementations of Urban Cooling, Urban Flood Risk, Urban Nature Access, Urban Mental Health, and Carbon. Validated against canonical `natcap.invest.*` outputs where applicable — see the per-model sub-anchors below. |
 | **Scenario placement logic** | Prototype-specific. The five placement strategies are Ecosystem Explorer heuristics — InVEST models are placement-agnostic (see `docs/research/INVEST_PLACEMENT.md`). |
-| **Optimization / search** | Prototype-specific. The surrogate-driven optimizer is reframed as **scenario discovery** — see below. |
+| **Optimization / search** | Prototype-specific. The **AI-assisted search** (a fast machine-learning screen) surfaces candidate mixes, reframed as **scenario discovery** — see below. |
 
 ### Official InVEST alignment
 
@@ -425,7 +425,7 @@ The five urban InVEST models and the Carbon model each have their own alignment 
 
 The **Discover scenarios to validate** panel runs in one of two modes depending on whether a region or ownership filter is active. Both modes are scenario-discovery tools — they surface options worth testing more rigorously, not a single best answer. Neither computes Pareto-optimal solutions in NatCap ROOT's rigorous LP sense.
 
-**Mode 1 — citywide surrogate (no filter active).** A Random Forest surrogate trained on the precomputed scenario library predicts metrics for ~10,000 random `(pct, GI%, FF%)` candidates, filters to those meeting the user's minimum-target sliders, and returns up to 5 suggestions ranked by a balanced score. The values shown on each suggestion are **surrogate predictions**, not engine outputs. Apply a suggestion to run the full engine and replace the predictions with engine-verified values; provenance flips to **"Surrogate-suggested."**
+**Mode 1 — citywide surrogate (no filter active).** A Random Forest surrogate trained on the precomputed scenario library predicts metrics for ~10,000 random `(pct, GI%, FF%)` candidates, filters to those meeting the user's minimum-target sliders, and returns up to 5 suggestions ranked by a balanced score. The values shown on each suggestion are **surrogate predictions**, not engine outputs. Apply a suggestion to run the full evaluator and replace the predictions with engine-verified values; provenance flips to **"AI-assisted suggestion."**
 
 **Mode 2 — region-prefilter + engine-verify ("Optimize selected area," region or ownership filter active).** A two-stage pipeline keeps the search fast while making the displayed values real:
 
@@ -527,8 +527,22 @@ If you have a candidate scenario you want to take seriously, here is what to val
 | **Precise dollar magnitudes** | The Cooling Energy Savings, Flood Damage Avoided, and Cost Effectiveness ratios are order-of-magnitude. For an investment case, plug actual local cost data into the sidebar sliders, then replace the benchmark inputs (per-type damage rates, per-type AC consumption rates) with locally measured values. |
 | **Carbon sequestration rates (MN)** | MN's per-cover-class rates are provisional regional benchmarks, not site-calibrated. For carbon-credit accounting or net-zero reporting, replace with measured rates for the specific species mix and management regime. |
 | **Mental health outputs** | The UMH metric uses synthetic NDVI and uniform national CDC prevalence. For site-specific MH analysis, replace the NDVI raster with satellite-derived NDVI and use per-tract prevalence from local public-health data. |
-| **Optimizer suggestions** | Apply each candidate to the sliders. The displayed cards then reflect a full-raster evaluation by the canonical-engine-verified models, not a surrogate prediction. Re-verify there. |
+| **Optimizer suggestions** | Apply each candidate to the sliders. The displayed cards then reflect a full-raster evaluation by the full evaluator, not a fast estimate. Re-verify there. |
 | **Full canonical InVEST re-run** | For SA: use the **Export for InVEST** bundle (§8) and re-run each model in canonical `natcap.invest`. Compare the resulting rasters and aggregated outputs against the dashboard's reported numbers. For MN: the same workflow is on the roadmap. |
 | **NatCap published reference values** | Where the dashboard surfaces a NatCap published value (green `NatCap published value` badge in the fixed-scenario reference view), it is displaying NatCap's number, not reproducing it. If the published number is decision-relevant, consult the underlying NatCap report (e.g. Vibrant Land for SA) for the methodology and assumptions behind that figure. |
 
 The honest stance: this tool is for **exploration and shortlisting**. The numbers are good enough to identify candidates worth deeper analysis; they are not good enough to substitute for the deeper analysis itself.
+
+## 11. Vocabulary (canonical terms)
+
+The locked terms below are the canonical names used across the app and docs. The "Retired" notes record older phrasings that should not reappear in user-facing copy. A grep guard (`scripts/check_vocabulary.py`, wired into the `verify_baselines.py` gate) enforces the unambiguous retirements on user-facing surfaces.
+
+- **Flood Index** — CN-based unitless indicator, `100 − mean_CN`; not a flood volume or damage measure. Retired: Flood Retention, flood-reduction index, Flood Volume Reduction. <!-- vocab-allow: glossary names the retired terms -->
+- **Runoff Volume** — modeled runoff in ac-ft (SCS-CN); the physical volume signal.
+- **Flood Damage Avoided** — dollars avoided; surfaced only where a damage-valuation table exists (MN). SA surfaces none.
+- **full evaluator** — the prototype's InVEST-aligned evaluator (numpy reimplementation), verified against canonical InVEST where comparable; not canonical InVEST running live. Retired in visible copy: "canonical engine". <!-- vocab-allow: glossary names the retired term -->
+- **AI-assisted search / fast estimates** — the citywide machine-learning screen plus its pre-verify values. Retired in user-facing text: "surrogate-driven optimizer".
+- **model disagreement bands** — 10–90th percentile across the model's trees; not confidence intervals. Retired: "uncertainty bands". <!-- vocab-allow: glossary names the retired term -->
+- **Urban Mental Health outcomes** — per-pixel parity with InVEST UMH (v3.19.0); the NDVI input is a land-cover-derived proxy. Retired: "mental-health proxy outcomes", "mental-health effects". <!-- vocab-allow: glossary names the retired terms -->
+- **Schools with Nature Access** — share of mapped K–12 school points on adequately-served pixels; point-sampled, not attendance-boundary based. Avoid "school access".
+- **canonical InVEST 3.19.0 export bundle** — the runnable InVEST input bundle the app exports for full validation / handoff.

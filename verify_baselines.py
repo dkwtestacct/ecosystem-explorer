@@ -3352,6 +3352,27 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         bldg_precompute_diffs += 1
 
+    # ── Vocabulary guard (Relay 26) ─────────────────────────────────────────
+    # Retired terms must not reappear on user-facing surfaces (app.py +
+    # REFERENCE/CAPABILITIES/README). Rides the gate so a reverted rename fails
+    # here. Internal docs are intentionally out of scope (they record history);
+    # "surrogate" is intentionally not guarded. See scripts/check_vocabulary.py.
+    print(f"\n{'=' * 60}")
+    print("Vocabulary guard — retired-term scan (user-facing surfaces)")
+    print(f"{'=' * 60}")
+    vocab_diffs = 0
+    try:
+        import importlib.util as _ilu, pathlib as _plib
+        _vg_path = _plib.Path(__file__).resolve().parent / "scripts" / "check_vocabulary.py"
+        _vg_spec = _ilu.spec_from_file_location("check_vocabulary", _vg_path)
+        _vg_mod = _ilu.module_from_spec(_vg_spec)
+        _vg_spec.loader.exec_module(_vg_mod)
+        vocab_diffs = _vg_mod.main()
+    except Exception as e:
+        print(f"  ERROR vocabulary guard: {e}")
+        import traceback; traceback.print_exc()
+        vocab_diffs = 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -3363,7 +3384,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + two_relay_diffs + label_budget_diffs
                    + dense_freshness_diffs + rebind_completeness_diffs
                    + child_pop_diffs + bldg_precompute_diffs
-                   + toggle_diffs)
+                   + toggle_diffs + vocab_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3464,6 +3485,12 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "the Interactive Region Map's click-to-toggle pure "
                   "function is broken or has been reverted to replace mode. "
                   "Multi-select on map clicks would not work.")
+        if vocab_diffs:
+            print(f"{vocab_diffs} vocabulary-guard failure — a retired term "
+                  "reappeared on a user-facing surface (see the scan output "
+                  "above). Replace it with the canonical term from REFERENCE.md "
+                  "§ \"Vocabulary (canonical terms)\", or mark a deliberate "
+                  "historical mention with the 'vocab-allow' marker.")
         return 1
 
 
