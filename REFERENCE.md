@@ -12,7 +12,7 @@
 
 Ecosystem Explorer validates its modeling engine against canonical InVEST, displays NatCap project reference values where available, and lets users explore additional scenarios beyond the fixed project set — then export promising ones back to canonical InVEST for full validation.
 
-The dashboard simulates how reallocating developed urban land among green infrastructure (wetlands), food forest, and high-density development affects a portfolio of ecological, social, and economic outcomes: flood retention, urban cooling, food production, nature access, mental-health proxy outcomes, and carbon. The biophysical engine reimplements five InVEST urban models (Urban Cooling, Urban Flood Risk, Urban Nature Access, Urban Mental Health, Carbon) in numpy, validated against canonical `natcap.invest.*.execute()` where comparable inputs exist (see §8 for the per-model status).
+The dashboard simulates how reallocating developed urban land among green infrastructure (wetlands), food forest, and high-density development affects a portfolio of ecological, social, and economic outcomes: flood retention, urban cooling, food production, nature access, Urban Mental Health outcomes, and carbon. The biophysical engine reimplements five InVEST urban models (Urban Cooling, Urban Flood Risk, Urban Nature Access, Urban Mental Health, Carbon) in numpy, validated against canonical `natcap.invest.*.execute()` where comparable inputs exist (see §8 for the per-model status).
 
 **This tool is designed for:**
 

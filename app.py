@@ -400,7 +400,7 @@ WHATS_NEW_SECTIONS = [
     ("Ownership-aware scenarios", [
         "In San Antonio, restrict conversions to public, vacant, school, university, city, county, or state/federal land.",
         "These are planning-screen filters — they do not verify parcel availability or legal feasibility.",
-        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access for people, children, and schools, plus cooling and mental-health effects.  \n  _School access uses point-sampled K–12 school locations from NCES CCD/PSS/EDGE._",
+        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access for residents and children, and nature access at schools, plus cooling and Urban Mental Health outcomes.  \n  _School access uses point-sampled K–12 school locations from NCES CCD/PSS/EDGE._",
     ]),
     ("Scenario discovery", [
         "Search citywide with a fast machine-learning model that suggests promising mixes.",
@@ -522,7 +522,7 @@ if 'entry_city' not in st.session_state:
             "• **Target where it happens** — citywide, in selected council "
             "districts, or on eligible public, vacant, school, or other land.  \n"
             "• **Evaluate impacts** — flood, cooling, carbon, greenness, nature "
-            "access for people, children, and schools, mental health, food, and "
+            "access for residents, children, and school locations, mental health, food, and "
             "cost.  \n"
             "• **Optimize & compare** — find promising citywide mixes or "
             "best-tested mixes for a selected area, then compare tradeoffs.  \n"
@@ -1039,11 +1039,11 @@ with st.expander("How this prototype works", expanded=False):
     st.markdown(
         "Explore how converting developed land into green infrastructure or food forests "
         "affects **flood damage risk**, **urban cooling costs**, **food production**, "
-        "**nature access**, **carbon sequestration**, and **validated Urban Mental Health outcomes** across the city — translating "
+        "**nature access**, **carbon sequestration**, and **Urban Mental Health outcomes** (per-pixel parity with InVEST UMH; NDVI input is a land-cover-derived proxy) across the city — translating "
         "ecological changes into concrete impacts for planners and decision-makers."
     )
     st.markdown(
-        '- **Green Infrastructure (wetlands)** — strongest per-pixel flood-retention effect; citywide flood changes may be small  \n'
+        '- **Green Infrastructure (wetlands)** — strongest per-pixel improvement in the runoff / curve-number indicators; citywide changes may be small  \n'
         '- **Food Forest** — best for cooling + food  \n'
         '- **High Density** — worst for ecological and nature-access outcomes  \n'
     )
@@ -1066,13 +1066,18 @@ with st.expander("How this prototype works", expanded=False):
         f"adjust \\$/acre sliders in sidebar."
     )
     st.markdown(
+        "- **Full evaluator** — the prototype's InVEST-aligned evaluator (a numpy "
+        "reimplementation of the InVEST urban models), verified against canonical "
+        "InVEST where comparable. Not canonical InVEST running live.  \n"
+    )
+    st.markdown(
         "**Each scenario shows two validation surfaces.** A *Source / Validation* "
         "header above the metric cards describes the scenario as a whole; each "
         "individual metric card has a small badge under its value.  \n"
         "  \n"
         "**Scenario provenance header** — one of four sources:  \n"
         "  \n"
-        "- **Baseline** — the unmodified city LULC; engine verified vs canonical InVEST.  \n"
+        "- **Baseline** — the unmodified city LULC; prototype evaluator, verified against canonical InVEST where comparable.  \n"
         "- **NatCap published reference** — the value is displayed directly from "
         "NatCap's published outputs (fixed-scenario reference view).  \n"
         "- **Explorer-generated** — a slider-built scenario; engine-validated; "
@@ -4910,7 +4915,7 @@ def _render_validation_caption(col, metric_name, scenario_context,
 _PROVENANCE_HEADER_INFO = {
     eib.PROVENANCE_BASELINE: (
         "Baseline",
-        "engine verified vs canonical InVEST; absolute NatCap citywide "
+        "prototype evaluator, verified against canonical InVEST where comparable; absolute NatCap citywide "
         "figures not reproduced",
         "blue",
     ),
@@ -4922,7 +4927,7 @@ _PROVENANCE_HEADER_INFO = {
     ),
     eib.PROVENANCE_EXPLORER: (
         "Explorer-generated",
-        "canonical engine verified; scenario not NatCap-published",
+        "InVEST-aligned evaluator, verified where comparable; scenario not NatCap-published",
         "blue",
     ),
     # Brief #4 — Applied-from-Optimizer flag is now plumbed through
@@ -5054,7 +5059,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         f'border-left: 4px solid {_natcap_banner_color}; background: #f6f8fa; '
         f'color: #24292f; font-size: 0.92em; line-height: 1.4;">'
         f'<strong>Source:</strong> NatCap published baseline reference<br/>'
-        f'<strong>Validation:</strong> canonical engine verified where '
+        f'<strong>Validation:</strong> prototype evaluator, verified against canonical InVEST where '
         f'inputs allow; NatCap published values shown as references.'
         f'</div>',
         unsafe_allow_html=True,
@@ -5078,8 +5083,8 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         "Explorer-recomputed numbers. The Explorer lets you go beyond "
         "them: explore variations on the sliders, compare against these "
         "anchors, optimize for your selected area (best tested mixes — "
-        "not the global optimum), and validate Explorer scenarios via "
-        "the canonical engine. The app does not reproduce or validate "
+        "not the global optimum), and validate Explorer scenarios with "
+        "the full evaluator. The app does not reproduce or validate "
         "NatCap's published figures themselves."
     )
 
@@ -7135,7 +7140,7 @@ else:
     )
     _sch_help_tail = ""
 hs_sch.metric(
-    "Schools w/ Nature Access",
+    "Schools with Nature Access",
     _sch_value,
     help=(
         "Confidence: Medium — see 'How this prototype works' for tier definitions. "
@@ -7157,7 +7162,9 @@ hs_sch.metric(
         "schools don't churn fast); private school set is the PSS Universe "
         "(may include some Pre-K-only centers); destination metric does NOT "
         "account for student travel time, school's actual catchment, or "
-        "students who attend out-of-extent schools." + _sch_help_tail
+        "students who attend out-of-extent schools. The metric is "
+        "point-sampled at school locations, not based on attendance "
+        "boundaries." + _sch_help_tail
     ),
 )
 _render_validation_caption(
@@ -8448,15 +8455,15 @@ if _main_tab == 'Tradeoffs':
         # `_PROVENANCE_HEADER_INFO`) is moved to the column-header tooltip via
         # column_config to keep the table from getting cramped.
         _CS_SHORT_VAL = {
-            eib.PROVENANCE_BASELINE:     "engine verified",
+            eib.PROVENANCE_BASELINE:     "evaluator-verified",
             eib.PROVENANCE_NATCAP_FIXED: "displayed (NatCap)",
-            eib.PROVENANCE_EXPLORER:     "engine verified",
-            eib.PROVENANCE_OPTIMIZER:    "engine + full-raster",
+            eib.PROVENANCE_EXPLORER:     "evaluator-verified",
+            eib.PROVENANCE_OPTIMIZER:    "evaluator + full-raster",
             # Region-constrained optimizer (variant B). The displayed values are
             # engine-true region-local; the surrogate's role stopped at
-            # shortlisting. Distinct from PROVENANCE_OPTIMIZER's "engine +
+            # shortlisting. Distinct from PROVENANCE_OPTIMIZER's "evaluator +
             # full-raster" (citywide).
-            eib.PROVENANCE_REGION_OPTIMIZED: "engine verified (region)",
+            eib.PROVENANCE_REGION_OPTIMIZED: "evaluator-verified (region)",
         }
         def _cs_short_validation(prov):
             return _CS_SHORT_VAL.get(prov, "—")
@@ -8632,8 +8639,8 @@ if _main_tab == 'Tradeoffs':
         _validation_help = (
             "Each source has a different validation context:\n\n"
             "• **NatCap reference** — displayed from NatCap published output; exact scenario raster / aggregation not available.\n\n"
-            "• **Baseline** — engine verified vs canonical InVEST; absolute NatCap citywide figures not reproduced.\n\n"
-            "• **Explorer-generated** — canonical engine verified; scenario itself not NatCap-published.\n\n"
+            "• **Baseline** — prototype evaluator, verified against canonical InVEST where comparable; absolute NatCap citywide figures not reproduced.\n\n"
+            "• **Explorer-generated** — InVEST-aligned evaluator, verified where comparable; scenario itself not NatCap-published.\n\n"
             "• **AI-assisted suggestion** — engine-validated; full-raster evaluated — exploratory candidate for further validation."
         )
         st.dataframe(
