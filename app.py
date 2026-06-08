@@ -6899,6 +6899,11 @@ if (results.get('region_selection') or {}).get('mode') == 'selected_regions':
         "**Metric cards show citywide impact; selected-area views below "
         "show local tradeoffs.**"
     )
+st.markdown(
+    "Higher is generally better for benefit metrics; lower is better for "
+    "Runoff Volume and Implementation Cost. Badges describe method/provenance, "
+    "not performance."
+)
 
 st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
@@ -7600,7 +7605,9 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
         "Region-local values summarize the selected area; citywide "
         "values show the system-level result. Reach effects for "
         "cooling, nature access, and mental-health exposure may "
-        "extend beyond the selected boundary."
+        "extend beyond the selected boundary. Higher is generally better "
+        "for benefit metrics; lower is better for Runoff Volume and "
+        "Implementation Cost."
     )
 
     # Locked per-metric display rows. Each row pulls citywide from `results`,
@@ -7739,14 +7746,14 @@ st.divider()
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
 st.markdown("#### Cost Effectiveness")
 st.caption(
-    "Screening metrics — estimated implementation cost divided by each "
-    "measured benefit. Sensitive to small denominators: when a region "
-    "scenario produces only a tiny improvement (e.g. a fraction of an "
-    "acre-foot of runoff reduction, or hundredths of a degree of cooling), "
-    "the ratio's precision is illusory and the cell reads N/A instead of "
-    "a spuriously sharp dollar figure. Also N/A when the scenario "
-    "performs worse than the baseline on that metric or when no land "
-    "is converted."
+    "Screening ratios — estimated implementation cost per unit of benefit, "
+    "using the \\$/acre assumptions set in the sidebar. Useful for comparing "
+    "scenarios, not for budgeting. Lower is better. Sensitive to small "
+    "denominators: when a scenario produces only a tiny improvement (a "
+    "fraction of an acre-foot, hundredths of a degree), the ratio's precision "
+    "is illusory and the cell reads N/A instead of a spuriously sharp dollar "
+    "figure — also N/A when the scenario performs worse than baseline or no "
+    "land is converted."
 )
 ceff1, ceff2, ceff3 = st.columns(3)
 ceff1.metric(
@@ -7785,12 +7792,6 @@ ceff3.metric(
           "produce an informative per-1k-people ratio).")
 )
 _render_validation_caption(ceff3, "cost_per_1k_people", _validation_scenario_context, explicit_status="prototype")
-
-st.caption(
-    "For outcome metrics, higher is generally better except Runoff Volume, where "
-    "lower is better. For cost-effectiveness ratios, lower cost per unit of "
-    "benefit is better."
-)
 
 with st.expander("Baseline vs Scenario Comparison", expanded=False):
     # read from state to avoid silent-staleness if city switches
