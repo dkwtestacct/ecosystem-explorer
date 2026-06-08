@@ -2499,7 +2499,7 @@ def main(update: bool) -> int:
         # ── Assertion D — CTA caption protection (FIX BUNDLE #79) ───────
         # Both Discover surfaces (sidebar + main-panel CTA) carry the same
         # mode-keyed caption beneath the mode label:
-        #   citywide → "Fast estimates suggest promising mixes. Apply one to
+        #   citywide → "Fast estimates suggest promising mixes; apply one to
         #              compute it with the full evaluator." (fast estimates,
         #              not full-evaluator outputs)
         #   region   → "Finds best tested mixes under the current area and
@@ -2512,7 +2512,7 @@ def main(update: bool) -> int:
         # captions are single source-line literals; a single-literal
         # exact-count check works for both surfaces.
         _CW_CAPTION_EXPECTED = (
-            "Fast estimates suggest promising mixes. Apply one to compute it "
+            "Fast estimates suggest promising mixes; apply one to compute it "
             "with the full evaluator."
         )
         _RG_CAPTION_EXPECTED = (

@@ -699,7 +699,7 @@ DESIGN_STORM_MM      = DESIGN_STORM_INCHES * 25.4  # derived display form (round
 _CITY_CAPTIONS = {
     "Minneapolis, MN":      "Downtown and near-neighborhoods — 123 km², ~154k residents.",
     "Minneapolis Full, MN": "Full city boundary — 204 km², ~464k residents.",
-    "San Antonio, TX":      "Bexar County area — ~3,060 km², ~1.9M residents.",
+    "San Antonio, TX":      "San Antonio regional extent — ~3,060 km², ~1.9M residents.",
 }
 _caption = _CITY_CAPTIONS.get(selected_city)
 if _caption:
@@ -6082,7 +6082,7 @@ with _sec_discover:
         # co-render in the same block (Assertion B in verify_baselines).
         # Mode label is promoted markdown (visible), not a faint caption.
         st.markdown("**Citywide AI-assisted search**")
-        st.caption("Fast estimates suggest promising mixes. Apply one to compute it with the full evaluator.")
+        st.caption("Fast estimates suggest promising mixes; apply one to compute it with the full evaluator.")
         with st.popover("How this works"):
             st.markdown(
                 "_Fast machine-learning model: a surrogate trained on "
@@ -6801,7 +6801,7 @@ with st.container(border=True):
         )
     else:
         st.markdown("**Citywide AI-assisted search**")
-        st.caption("Fast estimates suggest promising mixes. Apply one to compute it with the full evaluator.")
+        st.caption("Fast estimates suggest promising mixes; apply one to compute it with the full evaluator.")
         _cta_optimize_help = None
     if st.button("Optimize", type="primary",
                   key="main_cta_optimize_button",
