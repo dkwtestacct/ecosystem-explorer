@@ -37,7 +37,7 @@ PROVENANCE_NATCAP_FIXED     = "natcap_fixed_scenario"
 PROVENANCE_EXPLORER         = "explorer_generated"
 PROVENANCE_OPTIMIZER        = "optimizer_suggested"
 # Region-constrained optimizer (variant B). Distinct from the citywide
-# PROVENANCE_OPTIMIZER ("Surrogate-suggested" — values shown are surrogate
+# PROVENANCE_OPTIMIZER ("AI-assisted suggestion" — values shown are machine-learning
 # predictions on the citywide search) because the displayed metrics on a
 # region-optimized record are engine-true region-local. The surrogate's role
 # stops at shortlisting; the values are the full engine's. See

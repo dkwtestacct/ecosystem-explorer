@@ -2291,7 +2291,7 @@ def main(update: bool) -> int:
     #       before it. Meta-test: removing the mode label trips the check.
     #   C — Provenance Source distinction: the applied-result Source line
     #       (PROVENANCE_OPTIMIZER vs PROVENANCE_REGION_OPTIMIZED via
-    #       _PROVENANCE_HEADER_INFO) maps citywide-origin → "surrogate
+    #       _PROVENANCE_HEADER_INFO) maps citywide-origin → "ai-assisted
     #       suggestion" string; region-origin → "region-optimized" string.
     #       Never collapsed/swapped. Meta-test: a swapped mapping trips the
     #       check.
@@ -2461,7 +2461,7 @@ def main(update: bool) -> int:
         # ── Assertion C: provenance Source distinction extension ──
         # The applied-scenario Source rendered by the banner reads from
         # app._PROVENANCE_HEADER_INFO via the locked provenance constants.
-        # Citywide-origin Source MUST contain "surrogate suggestion";
+        # Citywide-origin Source MUST contain "ai-assisted suggestion";
         # region-origin Source MUST contain "region-optimized".
         import natcap_scenarios as _ns2
         _cw_source = app._PROVENANCE_HEADER_INFO.get(
@@ -2469,12 +2469,12 @@ def main(update: bool) -> int:
         _rg_source = app._PROVENANCE_HEADER_INFO.get(
             _ns2.PROVENANCE_REGION_OPTIMIZED, (None,))[0]
         _cw_ok = (_cw_source is not None
-                   and "surrogate suggestion" in _cw_source.lower())
+                   and "ai-assisted suggestion" in _cw_source.lower())
         _rg_ok = (_rg_source is not None
                    and "region-optimized" in _rg_source.lower())
         if not _cw_ok:
             print(f"  FAIL Citywide-origin Source string missing "
-                  f"'surrogate suggestion': {_cw_source!r}")
+                  f"'ai-assisted suggestion': {_cw_source!r}")
             two_relay_diffs += 1
         if not _rg_ok:
             print(f"  FAIL Region-origin Source string missing "
@@ -2486,14 +2486,14 @@ def main(update: bool) -> int:
 
         # Meta-test (C): swap the two and confirm both checks would fail.
         _swap_cw_ok = "region-optimized" in (_cw_source or "").lower()
-        _swap_rg_ok = "surrogate suggestion" in (_rg_source or "").lower()
+        _swap_rg_ok = "ai-assisted suggestion" in (_rg_source or "").lower()
         if _swap_cw_ok or _swap_rg_ok:
             print(f"  FAIL meta-test (C): swapped mapping would still "
                   f"satisfy the checks — the distinction isn't tight")
             two_relay_diffs += 1
         else:
             print(f"  OK   meta-test (C): swapped mapping (citywide → "
-                  f"'region-optimized', region → 'surrogate suggestion') "
+                  f"'region-optimized', region → 'ai-assisted suggestion') "
                   f"correctly FAILS both checks — distinction is tight")
 
         # ── Assertion D — CTA caption protection (FIX BUNDLE #79) ───────

@@ -558,7 +558,7 @@ if "_applied_optimizer_values" not in st.session_state:
 # `applied_from_optimizer` flag because the displayed metrics are engine-true
 # region-local, not surrogate predictions. The provenance / Save / Export
 # branches key off this independently so a region-optimized scenario can't
-# silently surface as "Surrogate-suggested." See
+# silently surface as "AI-assisted suggestion." See
 # docs/internal/REGION_OPTIMIZER_SPEC.md §4.
 if "applied_from_region_optimizer" not in st.session_state:
     st.session_state.applied_from_region_optimizer = False
@@ -1077,7 +1077,7 @@ with st.expander("How this prototype works", expanded=False):
         "NatCap's published outputs (fixed-scenario reference view).  \n"
         "- **Explorer-generated** — a slider-built scenario; engine-validated; "
         "scenario not NatCap-published.  \n"
-        "- **Surrogate-suggested** — an applied optimizer suggestion; "
+        "- **AI-assisted suggestion** — an applied citywide search suggestion; "
         "engine-validated; full-raster evaluated; exploratory candidate.  \n"
         "  \n"
         "**Per-card badge** — one of four states:  \n"
@@ -4934,11 +4934,11 @@ _PROVENANCE_HEADER_INFO = {
         # Two-RELAY lock — applied-result Source line. The applied citywide
         # scenario is engine-evaluated on apply (the main panel reruns
         # evaluate_scenario with the applied recipe), so the Source surface
-        # frames it precisely: "Citywide surrogate suggestion —
+        # frames it precisely: "Citywide AI-assisted suggestion —
         # engine-evaluated on apply." Distinct from the region path's
         # "Engine-verified — region-optimized" below (Assertion C in
         # verify_baselines machine-locks the distinction).
-        "Citywide surrogate suggestion — engine-evaluated on apply",
+        "Citywide AI-assisted suggestion — engine-evaluated on apply",
         "engine-validated; full-raster evaluated — exploratory candidate "
         "for further validation",
         "blue",
@@ -4951,7 +4951,7 @@ _PROVENANCE_HEADER_INFO = {
     # filter), with the search-completeness caveat in the validation line.
     eib.PROVENANCE_REGION_OPTIMIZED: (
         "Engine-verified — region-optimized",
-        "engine-true region-local values; surrogate-shortlisted "
+        "engine-true region-local values; AI-shortlisted "
         "candidates (shortlist may not be exhaustive)",
         "blue",
     ),
@@ -6403,7 +6403,7 @@ def _build_invest_bundle_for_current_scenario():
             "high_density_pct":         int(results['pct_highdensity']),
             "placement_strategy":       placement_strategy,
             "random_seed":              42,
-            "note": ("Applied from Region-Optimizer suggestion; surrogate "
+            "note": ("Applied from Region-Optimizer suggestion; a machine-learning "
                      "prefilter ranked candidates, full engine evaluated the "
                      "shortlist on the active region∩ownership mask before "
                      "export."),
@@ -8642,7 +8642,7 @@ if _main_tab == 'Tradeoffs':
             "• **NatCap reference** — displayed from NatCap published output; exact scenario raster / aggregation not available.\n\n"
             "• **Baseline** — engine verified vs canonical InVEST; absolute NatCap citywide figures not reproduced.\n\n"
             "• **Explorer-generated** — canonical engine verified; scenario itself not NatCap-published.\n\n"
-            "• **Surrogate-suggested** — engine-validated; full-raster evaluated — exploratory candidate for further validation."
+            "• **AI-assisted suggestion** — engine-validated; full-raster evaluated — exploratory candidate for further validation."
         )
         st.dataframe(
             pd.DataFrame(_cs_rows),
@@ -9052,7 +9052,7 @@ if _main_tab == 'Tradeoffs':
             st.markdown("#### Apply a suggestion")
             st.caption(
                 "Loading a recipe into the sliders re-runs the engine on your "
-                "selected area — provenance flips to Surrogate-suggested."
+                "selected area — provenance flips to \"Engine-verified — region-optimized\"."
             )
             _r_btn_cols = st.columns(len(_ropt))
             for i, (_, row) in enumerate(_ropt.iterrows()):
@@ -9167,7 +9167,7 @@ if _main_tab == 'Tradeoffs':
                                 st.session_state._pending_ff = 100 - st.session_state._pending_gi
                             st.session_state.applied_suggestion = i
                             # Brief #4: tag this scenario as Applied-from-Optimizer
-                            # so the main panel header reads "Surrogate-suggested"
+                            # so the main panel header reads "AI-assisted suggestion"
                             # and the D1 export records PROVENANCE_OPTIMIZER, not
                             # Explorer. The clearing logic at the top of the script
                             # resets the flag when slider values drift away. Clear
