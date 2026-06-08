@@ -4352,6 +4352,20 @@ def _fire_region_optimize(
         st.rerun()
 
 
+# ── Optimize-button help (Relay 33) — one string per mode, shared by the
+# sidebar Optimize button and the main-CTA Optimize button so hovering either
+# explains the same thing. Both buttons route through the same _fire_*_optimize
+# helpers; the disambiguator is the sidebar "Same search…" caption added beside
+# each sidebar button.
+_OPTIMIZE_HELP_CITYWIDE = (
+    "Searches citywide for promising mixes with the fast machine-learning "
+    "model; apply one to recompute it with the InVEST-aligned evaluator."
+)
+_OPTIMIZE_HELP_REGION = (
+    "Finds best-tested mixes under your current area and filters."
+)
+
+
 # ── Plotting helpers ───────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
 def _load_region_polygons_for_plotly(path: str, label_field: str):
@@ -6177,11 +6191,13 @@ with _sec_discover:
             # width so the short "Optimize" verb can't wrap.
             if st.button("Optimize",
                          key="sidebar_citywide_opt_button",
-                         width="stretch"):
+                         width="stretch",
+                         help=_OPTIMIZE_HELP_CITYWIDE):
                 _fire_citywide_optimize(
                     surrogate, min_flood, min_cool, min_food, max_runoff,
                     min_carbon, MAX_FOOD, MAX_FLOOD, MAX_COOL,
                 )
+            st.caption("Same search as the Optimize button in Discover scenarios — uses your current goals, region, and filters.")
     else:
         # ── Region-constrained optimizer (variant B) ─────────────────────
         # Mode-switch path. Replaces the min-target sliders + Optimize button
@@ -6241,10 +6257,7 @@ with _sec_discover:
             if st.button("Optimize",
                          key="region_opt_button",
                          width="stretch",
-                         help=(
-                             "Finds best tested mixes under the current "
-                             "selected area and filters."
-                         )):
+                         help=_OPTIMIZE_HELP_REGION):
                 _fire_region_optimize(
                     _CURRENT_CITY_STATE, selected_city,
                     DATA_DIR_FLOOD, DATA_DIR_COOLING,
@@ -6253,6 +6266,7 @@ with _sec_discover:
                     cost_gi, cost_ff, cost_hd,
                     _region_opt_weights,
                 )
+            st.caption("Same search as the Optimize button in Discover scenarios — uses your current goals, region, and filters.")
 
 # ── Sidebar section: Advanced model quality (Two-RELAY lock) ──────────────
 # Model-quality controls extracted out of Discover into their own collapsed
@@ -6796,13 +6810,11 @@ with st.container(border=True):
         st.caption(
             "Finds best tested mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not predicted by the model."
         )
-        _cta_optimize_help = (
-            "Finds best tested mixes under the current area and filters."
-        )
+        _cta_optimize_help = _OPTIMIZE_HELP_REGION
     else:
         st.markdown("**Citywide AI-assisted search**")
         st.caption("Fast estimates suggest promising mixes; apply one to recompute it with the InVEST-aligned evaluator.")
-        _cta_optimize_help = None
+        _cta_optimize_help = _OPTIMIZE_HELP_CITYWIDE
     if st.button("Optimize", type="primary",
                   key="main_cta_optimize_button",
                   width="stretch",
