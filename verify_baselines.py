@@ -2500,11 +2500,11 @@ def main(update: bool) -> int:
         # Both Discover surfaces (sidebar + main-panel CTA) carry the same
         # mode-keyed caption beneath the mode label:
         #   citywide → "Fast estimates suggest promising mixes; apply one to
-        #              compute it with the full evaluator." (fast estimates,
-        #              not full-evaluator outputs)
+        #              recompute it with the InVEST-aligned evaluator." (fast
+        #              estimates, not InVEST-aligned-evaluator outputs)
         #   region   → "Finds best tested mixes under the current area and
-        #              filters. Displayed values are computed by the full
-        #              evaluator, not predicted by the model."
+        #              filters. Displayed values are computed by the
+        #              InVEST-aligned evaluator, not predicted by the model."
         # Both expected literals must appear ≥2× in app.py (sidebar + CTA),
         # and each must appear immediately after a matching mode label
         # within a small window (so they pair with their mode, not float).
@@ -2512,12 +2512,12 @@ def main(update: bool) -> int:
         # captions are single source-line literals; a single-literal
         # exact-count check works for both surfaces.
         _CW_CAPTION_EXPECTED = (
-            "Fast estimates suggest promising mixes; apply one to compute it "
-            "with the full evaluator."
+            "Fast estimates suggest promising mixes; apply one to recompute it "
+            "with the InVEST-aligned evaluator."
         )
         _RG_CAPTION_EXPECTED = (
             "Finds best tested mixes under the current area and filters. "
-            "Displayed values are computed by the full evaluator, not predicted by the model."
+            "Displayed values are computed by the InVEST-aligned evaluator, not predicted by the model."
         )
         _cw_cap_count = _src2.count(_CW_CAPTION_EXPECTED)
         _rg_cap_count = _src2.count(_RG_CAPTION_EXPECTED)
@@ -2861,6 +2861,9 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             "Temperature Change":         "Temp change",
             "Runoff Volume":              "Runoff volume",
             "Cost / Citywide °F Cooling": "Cost / °F cooling",
+            # Relay 31 — ceff1/ceff3 de-truncated to short forms.
+            "Cost / Acre-Foot Runoff Prevented": "Cost / ac-ft runoff",
+            "Cost / 1,000 People Fed":           "Cost / 1k people fed",
         }
 
         def _scan_metric_labels(source: str) -> list[tuple[int, str]]:
@@ -2906,7 +2909,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             label_budget_diffs += len(_regressions)
         else:
             print(f"  OK   no long-form labels reappeared in {len(_metric_labels)} "
-                  "st.metric call(s) scanned (3 regression strings checked).")
+                  f"st.metric call(s) scanned ({len(_LABEL_REGRESSIONS)} regression strings checked).")
 
         # Half (b) — short-form labels must still be present.
         _present_short = {lab for (_ln, lab) in _metric_labels}
@@ -2918,7 +2921,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                       "app.py st.metric calls (label disappeared entirely?)")
             label_budget_diffs += len(_missing)
         else:
-            print(f"  OK   all 3 shortened labels still present in st.metric calls")
+            print(f"  OK   all {len(_LABEL_REGRESSIONS)} shortened labels still present in st.metric calls")
 
         # Meta-test (load-bearing): synthesize a snippet that reintroduces
         # one long form and one missing short form; confirm the scan catches

@@ -37,6 +37,10 @@ RETIRED_TERMS = [
     "Flood Volume Reduction",
     "mental-health proxy",
     "mental-health effects",
+    # Relay 31: the visible evaluator noun is now "InVEST-aligned evaluator".
+    # "full evaluator" stays legal in internal docs (those are out of scope).
+    "full evaluator",
+    "full-evaluator",
 ]
 
 ALLOW_MARKER = "vocab-allow"
@@ -87,13 +91,18 @@ def selftest():
     """
     seeded = "An accidental Flood Retention card slipped into the copy."
     suppressed = f"Retired: Flood Retention {ALLOW_MARKER}"
-    clean = "The Flood Index is a unitless curve-number indicator."
+    clean = "The Flood Index is computed by the InVEST-aligned evaluator."
+    eval_seeded = "Apply one to recompute it with the full evaluator."
     seeded_hits = find_hits_in_text(seeded)
+    eval_hits = find_hits_in_text(eval_seeded)
     ok = (
         len(seeded_hits) == 1
         and seeded_hits[0][1] == "Flood Retention"
         and find_hits_in_text(suppressed) == []
         and find_hits_in_text(clean) == []
+        # Relay 31 entry has teeth: the retired evaluator noun is caught.
+        and len(eval_hits) == 1
+        and eval_hits[0][1] == "full evaluator"
     )
     return 0 if ok else 1
 

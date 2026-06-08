@@ -404,7 +404,7 @@ WHATS_NEW_SECTIONS = [
     ]),
     ("Scenario discovery", [
         "Search citywide with a fast machine-learning model that suggests promising mixes.",
-        "For selected areas, the displayed impacts are computed by the full evaluator, not predicted by the machine-learning model. The search returns the best tested mixes under your filters — best found, not guaranteed optima.",
+        "For selected areas, the displayed impacts are computed by the InVEST-aligned evaluator, not predicted by the machine-learning model. The search returns the best tested mixes under your filters — best found, not guaranteed optima.",
     ]),
     ("Validation & handoff", [
         "Compare NatCap reference, current, and saved scenarios with source and validation labels.",
@@ -1049,7 +1049,7 @@ with st.expander("How this prototype works", expanded=False):
     )
     st.markdown(
         "**Green Infrastructure** converts developed land to woody wetlands "
-        "(NLCD code 90) — best for flood mitigation.  \n"
+        "(NLCD code 90) — strongest for Flood Index and runoff-volume indicators.  \n"
         "**Food Forest** is modeled as deciduous forest (NLCD code 41) with a "
         "food-yield benchmark — best for cooling and food.  \n"
         "**High Density** is modeled as developed, high-intensity / impervious "
@@ -1067,9 +1067,9 @@ with st.expander("How this prototype works", expanded=False):
         f"adjust \\$/acre sliders in sidebar."
     )
     st.markdown(
-        "- **Full evaluator** — the prototype's InVEST-aligned evaluator (a numpy "
-        "reimplementation of the InVEST urban models), verified against canonical "
-        "InVEST where comparable. Not canonical InVEST running live.  \n"
+        "- **InVEST-aligned evaluator** — the prototype's numpy reimplementation "
+        "of the InVEST urban models, verified against canonical InVEST where "
+        "comparable. Not canonical InVEST running live.  \n"
     )
     st.markdown(
         "**Each scenario shows two validation surfaces.** A *Source / Validation* "
@@ -5085,7 +5085,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         "them: explore variations on the sliders, compare against these "
         "anchors, optimize for your selected area (best tested mixes — "
         "not the global optimum), and validate Explorer scenarios with "
-        "the full evaluator. The app does not reproduce or validate "
+        "the InVEST-aligned evaluator. The app does not reproduce or validate "
         "NatCap's published figures themselves."
     )
 
@@ -5577,7 +5577,7 @@ with _sec_quick_start:
         st.session_state._pending_ff = 0
         st.session_state.active_example_scenario = 'green_infra'
         st.rerun()
-    st.caption("Flood mitigation focus")
+    st.caption("Runoff reduction focus")
 
     if st.button("Food Forest",
                  type="primary" if _active == 'food_forest' else "secondary"):
@@ -5724,7 +5724,7 @@ with _sec_where:
         index=0,
         help=(
             "Constrain conversions to inside selected polygons (council districts "
-            "or census tracts), instead of citywide. The per-pixel full evaluator is the "
+            "or census tracts), instead of citywide. The per-pixel InVEST-aligned evaluator is the "
             "same validated math; the where is planner-chosen."
         ),
         disabled=not _region_layers_available,
@@ -6082,17 +6082,17 @@ with _sec_discover:
         # co-render in the same block (Assertion B in verify_baselines).
         # Mode label is promoted markdown (visible), not a faint caption.
         st.markdown("**Citywide AI-assisted search**")
-        st.caption("Fast estimates suggest promising mixes; apply one to compute it with the full evaluator.")
+        st.caption("Fast estimates suggest promising mixes; apply one to recompute it with the InVEST-aligned evaluator.")
         with st.popover("How this works"):
             st.markdown(
                 "_Fast machine-learning model: a surrogate trained on "
-                "precomputed full-evaluator runs._  \n"
+                "precomputed InVEST-aligned evaluator runs._  \n"
                 "  \n"
                 "The model is trained on the prototype's pre-computed "
                 "scenario library (~90 full-resolution runs in Fast "
                 "mode; more in the higher-quality modes). It explores "
                 "combinations of conversion percentage and conversion mix "
-                "far faster than the full evaluator — but each returned "
+                "far faster than the InVEST-aligned evaluator — but each returned "
                 "scenario is a **fast estimate**, not a full evaluation. "
                 "It targets the Flood Index, cooling, food production, and "
                 "carbon; cost and placement strategy are not part of the "
@@ -6162,12 +6162,12 @@ with _sec_discover:
             if lookup_table:
                 st.caption(
                     "Slider results use a precomputed lookup table for faster response. "
-                    "The optimizer uses a fast machine-learning model to screen a wider range of scenarios. Apply a suggestion to compute it with the full evaluator."
+                    "Suggested scenarios come from the fast machine-learning model. Apply a suggestion to recompute it with the InVEST-aligned evaluator."
                 )
             else:
                 st.caption(
                     "Slider results are computed live in the current model-quality mode. "
-                    "The optimizer uses a fast machine-learning model to screen a wider range of scenarios. Apply a suggestion to compute it with the full evaluator."
+                    "Suggested scenarios come from the fast machine-learning model. Apply a suggestion to recompute it with the InVEST-aligned evaluator."
                 )
 
             # Two-RELAY lock — sidebar "Optimize" trigger. Co-renders with
@@ -6195,7 +6195,7 @@ with _sec_discover:
         # promoted markdown (visible), not a faint caption.
         st.markdown("**Selected-area search**")
         st.caption(
-            "Finds best tested mixes under the current area and filters. Displayed values are computed by the full evaluator, not predicted by the model."
+            "Finds best tested mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not predicted by the model."
         )
         with st.popover("How this works"):
             st.markdown(
@@ -6203,13 +6203,13 @@ with _sec_discover:
                 "runs in two stages. **Stage 1** — the fast machine-learning "
                 "model ranks every candidate mix and picks a Pareto-efficient "
                 "shortlist (≈ 40 candidates). **Stage 2** — each shortlisted "
-                "mix is evaluated by the full evaluator inside your "
+                "mix is evaluated by the InVEST-aligned evaluator inside your "
                 "selected area. Values shown on each returned scenario are "
-                "full-evaluator region-local (not model predictions). To "
+                "InVEST-aligned evaluator region-local (not model predictions). To "
                 "re-rank under new weights, click Optimize again (v1 reruns "
                 "the full pipeline).\n\n"
                 "For selected-area optimization, displayed values are computed "
-                "by the full evaluator, not predicted by the machine-learning "
+                "by the InVEST-aligned evaluator, not predicted by the machine-learning "
                 "model. A validation check confirmed the prefilter "
                 "did not miss the best tested mix across the tested selections "
                 "and goal weights. This would need rechecking if the full "
@@ -6794,14 +6794,14 @@ with st.container(border=True):
     if _filter_active:
         st.markdown("**Selected-area search**")
         st.caption(
-            "Finds best tested mixes under the current area and filters. Displayed values are computed by the full evaluator, not predicted by the model."
+            "Finds best tested mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not predicted by the model."
         )
         _cta_optimize_help = (
             "Finds best tested mixes under the current area and filters."
         )
     else:
         st.markdown("**Citywide AI-assisted search**")
-        st.caption("Fast estimates suggest promising mixes; apply one to compute it with the full evaluator.")
+        st.caption("Fast estimates suggest promising mixes; apply one to recompute it with the InVEST-aligned evaluator.")
         _cta_optimize_help = None
     if st.button("Optimize", type="primary",
                   key="main_cta_optimize_button",
@@ -7700,7 +7700,7 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
     # don't read the absence as "no validation state set".
     st.caption(
         "Validation states for these rows inherit from the per-metric badges "
-        "on the citywide cards above — region-local doesn't change the full evaluator, "
+        "on the citywide cards above — region-local doesn't change the InVEST-aligned evaluator, "
         "only the aggregation scope. The pairing keeps it honest: never read a "
         "region-local number without its citywide companion."
     )
@@ -7746,26 +7746,20 @@ st.divider()
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
 st.markdown("#### Cost Effectiveness")
 st.caption(
-    "Screening ratios — estimated implementation cost per unit of benefit, "
-    "using the \\$/acre assumptions set in the sidebar. Useful for comparing "
-    "scenarios, not for budgeting. Lower is better. Sensitive to small "
-    "denominators: when a scenario produces only a tiny improvement (a "
-    "fraction of an acre-foot, hundredths of a degree), the ratio's precision "
-    "is illusory and the cell reads N/A instead of a spuriously sharp dollar "
-    "figure — also N/A when the scenario performs worse than baseline or no "
-    "land is converted."
+    "Screening ratios estimate implementation cost per unit of benefit using the "
+    "\\$/acre assumptions in the sidebar. Useful for comparing scenarios, not "
+    "budgeting. Lower is better. If a scenario produces little, zero, or negative "
+    "benefit, the ratio is not meaningful and may show N/A."
 )
 ceff1, ceff2, ceff3 = st.columns(3)
 ceff1.metric(
-    "Cost / Acre-Foot Runoff Prevented",
+    "Cost / ac-ft runoff",
     _fmt_ce(ce['cost_per_acft']),
     delta=None,
-    help=(f"Confidence: Medium — see 'How this prototype works' for tier definitions. "
-          f"Implementation cost divided by runoff reduction vs baseline "
-          f"({BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft). N/A if scenario "
-          f"increases runoff, has no cost, or reduces runoff by less than "
-          f"~10 ac-ft (below that floor the ratio is too sensitive to "
-          f"small-denominator noise to be informative).")
+    help=("Confidence: Medium — see 'How this prototype works' for tier definitions. "
+          "Estimated implementation cost divided by acre-feet of runoff volume "
+          "reduced relative to baseline. Lower is better. Shows N/A if runoff "
+          "does not improve.")
 )
 _render_validation_caption(ceff1, "cost_per_acft", _validation_scenario_context, explicit_status="prototype")
 ceff2.metric(
@@ -7783,7 +7777,7 @@ ceff2.metric(
 )
 _render_validation_caption(ceff2, "cost_per_degf", _validation_scenario_context, explicit_status="prototype")
 ceff3.metric(
-    "Cost / 1,000 People Fed",
+    "Cost / 1k people fed",
     _fmt_ce(ce['cost_per_1k_people']),
     delta=None,
     help=("Confidence: Medium — see 'How this prototype works' for tier definitions. "
@@ -7887,6 +7881,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     st.dataframe(_styled, width='stretch', hide_index=True)
 
 with st.expander("Assumptions and limitations"):
+    st.caption("Detailed modeling assumptions, caveats, and method notes.")
     if selected_city.startswith("San Antonio"):
         st.info(
             "**SA Land Cover:** Using NatCap's compound NLCD×NLUD×tree-canopy "
@@ -8070,7 +8065,7 @@ with st.expander("Assumptions and limitations"):
             "feasibility checks (zoning, ownership, soil, infrastructure).\n"
             "- **Suggested scenarios** come from the fast machine-learning model. "
             "Verify any suggestion by manually applying it to the main "
-            "sliders so the full evaluator runs."
+            "sliders so the InVEST-aligned evaluator runs."
         )
 
 st.divider()
@@ -8364,7 +8359,7 @@ if _main_tab == 'Tradeoffs':
                     "Full-evaluator region-optimizer mixes appear on the "
                     "Selected-area scatter above this expander; they are not "
                     "overlaid on this citywide view, so the AI-assisted citywide "
-                    "diamonds (fast estimates) and the region full-evaluator "
+                    "diamonds (fast estimates) and the region InVEST-aligned evaluator "
                     "squares stay visually distinct."
                 )
                 st.plotly_chart(plot_tradeoff(
@@ -8882,7 +8877,7 @@ if _main_tab == 'Tradeoffs':
         else:
             st.divider()
             st.markdown("#### Best scenarios by goal")
-            st.caption("From the pre-computed scenario library — full-evaluator results, not fast estimates.")
+            st.caption("From the pre-computed scenario library — InVEST-aligned evaluator results, not fast estimates. Citywide library results; not filtered by selected region or ownership.")
 
             # Best-scenarios-by-goal uses the lookup table when High Resolution mode
             # built one; otherwise falls back to the scenario_df the active mode is
@@ -9100,9 +9095,8 @@ if _main_tab == 'Tradeoffs':
                 )
             else:
                 st.caption(
-                    f"Top scenarios meeting Flood Index ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
-                    f"food ≥ {min_food:.3f}M lbs, carbon ≥ {min_carbon:,} {_opt_carbon_unit} "
-                    "— ranked by balanced score. "
+                    "Top scenarios meeting the minimum Flood Index, cooling, food, and carbon "
+                    "thresholds set by the sliders — ranked by balanced score. "
                     "Numbers are fast estimates from the machine-learning model, with 10th–90th percentile model-disagreement bands."
                 )
 
@@ -9128,7 +9122,7 @@ if _main_tab == 'Tradeoffs':
                 st.markdown("#### Candidate scenarios")
                 st.caption(
                     "These are fast estimates from the machine-learning model. Click Apply to compute it "
-                    "with the full evaluator and verify the result."
+                    "with the InVEST-aligned evaluator and verify the result."
                 )
                 with st.expander("Show model disagreement bands", expanded=False):
                     st.caption(
@@ -9147,7 +9141,7 @@ if _main_tab == 'Tradeoffs':
                 )
 
                 st.markdown("#### Input Influence")
-                st.caption("**Influence Map** — which input drives outcomes most according to the machine-learning model:")
+                st.caption("**Influence Map** — which inputs the fast machine-learning model relies on most. Not a causal ranking.")
                 st.plotly_chart(plot_feature_importance(surrogate), use_container_width=True)
 
                 st.markdown("#### Apply a suggestion")
@@ -9581,6 +9575,7 @@ if _main_tab == 'Map View':
         )
 
         with st.expander("Assumptions and limitations", expanded=False):
+            st.caption("Detailed modeling assumptions, caveats, and method notes.")
             st.markdown(
                 "Conversions target feasible interstitial spaces — building footprints "
                 "and road infrastructure are excluded citywide using OpenStreetMap "
