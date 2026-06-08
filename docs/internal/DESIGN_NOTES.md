@@ -612,6 +612,16 @@ The combined budget — 1 surrogate prefilter (instant) + K × 2.1 s engine-veri
 
 **Code touchpoints.** `surrogate.optimize_scenario_region`; `app.py` sidebar mode switch keyed on `_filter_active`; `_cached_fast_surrogate_for_region` (Phase-0.5-validated Fast configuration regardless of active model-quality mode); `applied_from_region_optimizer` flag + auto-clear mirror of `applied_from_optimizer`; `PROVENANCE_REGION_OPTIMIZED` constant in `natcap_scenarios.py`; the `_PROVENANCE_HEADER_INFO` entry for the new constant; the region-optimizer cell in `verify_baselines.py` (subset / reconciliation / meta-test / provenance-distinction).
 
+### 7.4 Band semantics: model disagreement vs calibrated error
+
+The optimizer's citywide suggestion bands are the **10th–90th percentile across the RF's trees** (`surrogate.predict_with_uncertainty`) — i.e. **model disagreement**, NOT a calibrated confidence interval. The visible surfaces say "model-disagreement bands" precisely so they can't be misread as truth coverage.
+
+- **What the band is.** Inter-tree spread. It does **not** bound the evaluator-computed value, and inter-tree agreement ≠ accuracy (trees can agree on a wrong answer). It is **blind to placement**: the same `(pct, gi, ff)` yields the same band regardless of siting — the same spatial-blindness as the surrogate itself (linked to §7.3's recall guarantee and #3/#4 in the decision log).
+- **Presence/absence is meaningful BY DESIGN.** Bands ⇒ fast estimate (citywide suggestions only). No bands ⇒ evaluator-computed (applied scenarios, selected-area / region-optimized results — values are real, not quantiles). The ±2 °F temperature note is a *separate* axis: it reflects HMI-to-temperature **calibration** accuracy, not model disagreement.
+- **Future calibrated path — do NOT ship partial.** (1) Hold out a full-evaluator set; (2) compute AI-vs-evaluator residuals per metric; (3) build residual distributions; (4) **stratify by placement strategy / add spatial features to X**; (5) display empirical ranges. **Step 4 is load-bearing:** residuals over `(pct, gi, ff)` alone are calibrated *on average* but miscalibrated *per scenario* — too narrow for spatially-concentrated placements, too wide for diffuse ones. A band that wears the word "calibrated" while still placement-blind is arguably worse than the honestly-labeled tree-spread, because it hides the same error under a trustworthy name. Ties to the §7.3 recall re-validate trigger: re-check if the evaluator becomes spatial/flow-routed.
+
+**Code touchpoints.** `surrogate.predict_with_uncertainty`; the optimizer overlay error bars + suggestions/candidate captions + "Show model disagreement bands" expander in `app.py`; the ±2 °F calibration note in the temperature assumptions tab.
+
 ---
 
 ## 8. Validation and provenance design

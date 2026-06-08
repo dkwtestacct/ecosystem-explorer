@@ -538,7 +538,7 @@ if "optimized_results" not in st.session_state:
     st.session_state.optimized_results = None
 # Region-constrained optimizer (variant B). Distinct slot from the citywide
 # `optimized_results` so the tradeoff tab can pick the right render branch:
-# citywide shows surrogate-predicted values + uncertainty bands; region-active
+# citywide shows surrogate-predicted values + model-disagreement bands; region-active
 # shows engine-true region_local values (no bands — values are real, not
 # quantiles). See docs/internal/REGION_OPTIMIZER_SPEC.md.
 if "region_optimized_results" not in st.session_state:
@@ -4630,7 +4630,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             and len(optimized) > 0
             and 'food_mln_lbs' in optimized.columns):
         opt_sizes = np.clip(food_to_size(optimized['food_mln_lbs'].values, max_food), 6, 18)
-        # Error bars from uncertainty bands
+        # Error bars from model-disagreement bands
         flood_err_minus = (optimized['flood_reduction'] - optimized['flood_lower']).values
         flood_err_plus  = (optimized['flood_upper']     - optimized['flood_reduction']).values
         hm_err_minus    = (optimized['mean_hm']         - optimized['hm_lower']).values
@@ -4680,7 +4680,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
 
     fig.update_layout(
         title='',
-        xaxis_title='Flood Retention (higher = better)',
+        xaxis_title='Flood Index (higher = better)',
         yaxis_title='Cooling / Heat Mitigation Index (higher = better)',
         xaxis=dict(range=[0, 100]),
         yaxis=dict(range=[0, 0.6]),
@@ -7958,14 +7958,16 @@ with st.expander("Assumptions and limitations"):
             f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per HMI unit. "
             f"Values come from the InVEST UCM args JSON for the Minneapolis AOI "
             f"(`uhi_max = {UHI_MAX_C:.2f} °C`, humid continental Köppen Dfa). "
-            "Treat the °F output as ±2 °F at best.\n"
+            "Treat the °F output as ±2 °F at best. This reflects HMI-to-temperature "
+            "calibration accuracy, not machine-learning model disagreement.\n"
             if selected_city.startswith("Minneapolis") else
             f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per HMI unit. "
             f"No published InVEST args exist for hot semi-arid Köppen BSh; "
             f"values are an estimate from regional UHI literature "
             f"(`uhi_max = {UHI_MAX_C:.2f} °C`). "
-            "Treat the °F output as ±2 °F at best — uncertainty is larger "
-            "here than for MN.\n"
+            "Treat the °F output as ±2 °F at best — calibration uncertainty is "
+            "larger here than for MN. This reflects HMI-to-temperature calibration "
+            "accuracy, not machine-learning model disagreement.\n"
         )
         st.markdown(
             "- **Method:** InVEST Urban Cooling Model. Per-pixel "
@@ -8382,13 +8384,13 @@ if _main_tab == 'Tradeoffs':
             else:
                 st.caption(
                     "Each point is a scenario. Better outcomes are toward the "
-                    "**top-right** — both axes are higher-is-better (Flood Retention "
+                    "**top-right** — both axes are higher-is-better (Flood Index "
                     "on x, Heat Mitigation Index on y). The **purple star** is your "
-                    "current scenario; **orange diamonds** are AI-assisted "
-                    "citywide suggestions; apply one to compute full-evaluator "
-                    "results (shown with 10th–90th percentile uncertainty bars). "
-                    "Bubble size shows food production for saved and optimizer "
-                    "points."
+                    "current scenario; **orange diamonds** are citywide AI-assisted "
+                    "suggestions, shown as fast estimates with 10th–90th percentile "
+                    "model-disagreement bands. Bubble size shows food production for "
+                    "saved and optimizer points. Applied scenarios and selected-area "
+                    "results are evaluator-computed, so they carry no bands."
                 )
             st.plotly_chart(plot_tradeoff(
                 results, scenario_df,
@@ -9099,14 +9101,14 @@ if _main_tab == 'Tradeoffs':
                     f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
                     f"food ≥ {min_food:.3f}M lbs, carbon ≥ {min_carbon:,} {_opt_carbon_unit} "
                     "— ranked by balanced score. "
-                    "Numbers are fast estimates from the machine-learning model, with 10th–90th percentile uncertainty bands."
+                    "Numbers are fast estimates from the machine-learning model, with 10th–90th percentile model-disagreement bands."
                 )
 
-                # Display table with uncertainty columns
+                # Display table with model-disagreement columns
                 display_cols = ['scenario_name', 'pct_converted', 'green_infrastructure_pct',
                                 'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs',
                                 'carbon_tons_co2']
-                # Add uncertainty columns if present
+                # Add model-disagreement columns if present
                 unc_cols = [c for c in ['flood_lower', 'flood_upper', 'hm_lower', 'hm_upper',
                                         'food_lower', 'food_upper',
                                         'carbon_lower', 'carbon_upper'] if c in opt.columns]
@@ -9126,7 +9128,13 @@ if _main_tab == 'Tradeoffs':
                     "These are fast estimates from the machine-learning model. Click Apply to compute it "
                     "with the full evaluator and verify the result."
                 )
-                with st.expander("Show uncertainty bands", expanded=False):
+                with st.expander("Show model disagreement bands", expanded=False):
+                    st.caption(
+                        "These ranges show how much the machine-learning model's "
+                        "individual trees disagree. They help compare AI-assisted "
+                        "suggestions, but they are not calibrated confidence "
+                        "intervals and may not contain the evaluator-computed value."
+                    )
                     st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
                                  width='stretch', hide_index=True)
                 st.dataframe(opt[display_cols].rename(columns=_col_rename),
