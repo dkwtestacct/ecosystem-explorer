@@ -1050,9 +1050,10 @@ with st.expander("How this prototype works", expanded=False):
     st.markdown(
         "**Green Infrastructure** converts developed land to woody wetlands "
         "(NLCD code 90) — best for flood mitigation.  \n"
-        "**Food Forest** converts to deciduous forest (NLCD code 41, used as a "
-        "food production proxy) — best for cooling and food.  \n"
-        "**High Density** adds impervious development — worst for ecological and nature-access outcomes.  \n"
+        "**Food Forest** is modeled as deciduous forest (NLCD code 41) with a "
+        "food-yield benchmark — best for cooling and food.  \n"
+        "**High Density** is modeled as developed, high-intensity / impervious "
+        "land (NLCD code 24) — worst for ecological and nature-access outcomes.  \n"
         "  \n"
         "This is an exploratory tool — numbers are directional, not precise. "
         "Use them to compare strategies, not as final answers.  \n"
@@ -7273,7 +7274,8 @@ econ1.metric(
     delta_color="normal" if _people_fed > 0 else "off",
     help=(
         "Confidence: Prototype — see 'How this prototype works' for tier definitions. "
-        "Counts only food forest pixels "
+        "Food Forest is modeled as deciduous forest (NLCD 41) with a food-yield "
+        "benchmark; this counts only food-forest pixels "
         "created by this scenario (not pre-existing deciduous forest). "
         f"Yield estimated at {FOOD_FOREST_LBS_ACRE:,} lbs/acre/year for "
         f"{selected_city} — "
