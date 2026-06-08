@@ -394,13 +394,13 @@ CHANGE_COLORS = {
 # history; they live in the changelog / "On the radar", not here.
 WHATS_NEW_SECTIONS = [
     ("Spatial scenario placement", [
-        "Apply land-use changes inside a selected council district or census tract, then compare selected-area and citywide impacts.",
+        "Apply land-use changes inside selected council districts or census tracts, then compare selected-area and citywide impacts.",
         "See how much land remains eligible after roads, buildings, existing natural land, and ownership filters are excluded.",
     ]),
     ("Ownership-aware scenarios", [
         "In San Antonio, restrict conversions to public, vacant, school, university, city, county, or state/federal land.",
         "These are planning-screen filters — they do not verify parcel availability or legal feasibility.",
-        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access for residents and children, and nature access at schools, plus cooling and Urban Mental Health outcomes.  \n  _School access uses point-sampled K–12 school locations from NCES CCD/PSS/EDGE._",
+        "School-related scenarios — in San Antonio, restrict conversions to school-related parcels and evaluate nature access for residents and children, and nature access at schools, plus cooling and Urban Mental Health outcomes.",
     ]),
     ("Scenario discovery", [
         "Search citywide with a fast machine-learning model that suggests promising mixes.",
