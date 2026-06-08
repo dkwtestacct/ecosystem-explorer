@@ -53,7 +53,7 @@ How close each app metric is to its canonical InVEST implementation. Per-model g
 
 | App metric | Current implementation | InVEST analogue | Parity | Confidence |
 |---|---|---|---|---|
-| Flood Retention | CN-based area-weighted index (`100 − mean_CN`) | Urban Flood Risk Mitigation (retention index) | Implemented | High |
+| Flood Index | CN-based area-weighted index (`100 − mean_CN`) | Urban Flood Risk Mitigation (retention index) | Implemented | High |
 | Runoff Volume | SCS CN per-pixel runoff × developed acreage at the per-city design storm | Urban Flood Risk Mitigation (`Q_mm.tif`, `flood_vol`) | Implemented | High |
 | Flood Damage Avoided | `total_potential_damage × runoff_reduction_fraction` | Urban Flood Risk Mitigation (`serv_blt` indicator) | Approximate | Medium |
 | Temperature Change | Canonical HMI = `max(CC_local, CC_park)`, `ΔHMI × UHI_MAX_C × 1.8` | Urban Cooling (HMI → T_air → anomaly) | Implemented | High |

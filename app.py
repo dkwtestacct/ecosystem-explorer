@@ -1057,7 +1057,7 @@ with st.expander("How this prototype works", expanded=False):
         "This is an exploratory tool — numbers are directional, not precise. "
         "Use them to compare strategies, not as final answers.  \n"
         "  \n"
-        "Flood reduction is derived from curve number, cooling from a heat "
+        "Flood Index is derived from curve number, cooling from a heat "
         "mitigation index, and food production from a food-forest yield "
         "benchmark — use these as comparative indicators.  \n"
         f"Cooling °F is approximate (±2°F). Runoff uses a city-specific design "
@@ -4576,7 +4576,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             textfont=dict(size=9),
             hovertemplate=(
                 f"<b>{display}</b> (reference benchmark)<br>"
-                f"Flood reduction: {ref['flood']} | Cooling CC: {ref['cooling']:.4f}"
+                f"Flood Index: {ref['flood']} | Cooling CC: {ref['cooling']:.4f}"
                 "<extra></extra>"
             ),
             name=display,
@@ -4666,7 +4666,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
                     line=dict(color='white', width=1.5)),
         hovertemplate=(
             f"<b>This Scenario</b><br>"
-            f"Flood reduction: {results['flood_reduction']:.1f}<br>"
+            f"Flood Index: {results['flood_reduction']:.1f}<br>"
             f"Cooling CC: {results['mean_hm']:.4f}<br>"
             f"Food: {results['food_mln_lbs']:.3f}M lbs/yr<br>"
             f"Cost: ${results['total_cost_mln']:.1f}M"
@@ -4747,7 +4747,7 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
 
     Plots the current scenario star + engine-verified tested mixes (from
     the region-optimizer's top 5) + the region-local baseline marker, all
-    on region-local Flood Retention × Cooling/HMI axes. Excludes the
+    on region-local Flood Index × Cooling/HMI axes. Excludes the
     citywide surrogate diamonds and NatCap reference scenarios — those
     have no region basis (NatCap refs are citywide-only; surrogate is
     trained on citywide grid) so plotting them on region-local axes would
@@ -4781,7 +4781,7 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
             textfont=dict(size=10),
             hovertemplate=(
                 "<b>Region baseline</b><br>"
-                f"Flood retention: 0.0 (no conversion)<br>"
+                f"Flood Index: 0.0 (no conversion)<br>"
                 f"Cooling HMI: {float(baseline_hm_region):.4f}"
                 "<extra></extra>"
             ),
@@ -4819,7 +4819,7 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
                     f"{int(r.get('pct_converted', 0))}% conv — "
                     f"GI {int(r.get('green_infrastructure_pct', 0))}% / "
                     f"FF {int(r.get('food_forest_pct', 0))}%<br>"
-                    f"Flood retention: {r.get('flood_reduction', 0):.1f}<br>"
+                    f"Flood Index: {r.get('flood_reduction', 0):.1f}<br>"
                     f"Cooling HMI: {r.get('mean_hm', 0):.4f}<br>"
                     "<i>Click to apply this mix</i>"
                 ), axis=1,
@@ -4837,7 +4837,7 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
                     line=dict(color='white', width=1.5)),
         hovertemplate=(
             "<b>This scenario</b> (region-local)<br>"
-            f"Flood retention: {cur_flood:.1f}<br>"
+            f"Flood Index: {cur_flood:.1f}<br>"
             f"Cooling HMI: {cur_hm:.4f}"
             "<extra></extra>"
         ),
@@ -4846,7 +4846,7 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
 
     fig.update_layout(
         title='',
-        xaxis_title='Flood Retention — region (higher = better)',
+        xaxis_title='Flood Index — region (higher = better)',
         yaxis_title='Cooling / HMI — region (higher = better)',
         xaxis=dict(autorange=True),
         yaxis=dict(autorange=True),
@@ -5101,7 +5101,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
     # Placed first under the banner so the user lands on the
     # cross-scenario overview before the per-scenario detail. Tradeoff
     # Space plot is intentionally NOT rendered here — the plot's axes
-    # (Flood Retention, Heat Mitigation Index) don't have published
+    # (Flood Index, Heat Mitigation Index) don't have published
     # values for NatCap fixed scenarios beyond baseline.
     st.markdown("#### NatCap reference scenarios — side by side")
     st.caption(
@@ -5206,7 +5206,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
     # ── Card row — Ecological ──
     # Card-label truncation fix: titles drop the "(baseline)" suffix and
     # use compact names that fit in the metric chrome (Mean Air Temp,
-    # Carbon Stock, Carbon Value, Flood Retention). The baseline-vs-Δ
+    # Carbon Stock, Carbon Value, Flood Index). The baseline-vs-Δ
     # distinction lives in the metric value (absolute on baseline rows;
     # signed Δ on alternative rows), never in the title or badge string.
     # The validation badge underneath each card is one of the locked four
@@ -5249,7 +5249,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
     _render_validation_caption(eco_b, "carbon_tons_co2", ctx_for_metrics)
 
     # Row 2 — derived/computed cards. Carbon Value (≈ Aligned method) +
-    # Flood Retention (Prototype).
+    # Flood Index (Prototype).
     eco_c, eco_d = st.columns(2)
 
     if scenario_id == "baseline" and bv_c is not None:
@@ -5276,7 +5276,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
 
     if flood_red is not None:
         eco_d.metric(
-            "Flood Retention", f"{flood_red:.1f}",
+            "Flood Index", f"{flood_red:.1f}",
             # NatCap fix #2 — shortened delta. The "design-storm saturation,
             # NatCap finding" detail lives in the help tooltip below, not
             # in the delta-line which truncates aggressively at 2x2 width.
@@ -5284,7 +5284,8 @@ def _render_natcap_fixed_scenario_view(scenario_id):
                    else "≈ invariant"),
             delta_color="off",
             help=(
-                "Unitless index (100 − mean CN). Computed by the prototype "
+                "Flood Index — a unitless curve-number-based indicator (100 − mean CN); "
+                "not a direct measure of flood volume or damage. Computed by the prototype "
                 "on the loaded scenario raster via the canonical SCS-CN "
                 "method (B1 flood helper). NatCap's documented SA finding: "
                 "under the 24-hour 100-year design storm, soil infiltration "
@@ -5299,7 +5300,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
             ),
         )
     else:
-        eco_d.metric("Flood Retention", "—")
+        eco_d.metric("Flood Index", "—")
     # Flood badge: NatCap published no SA flood metric (UFRM without
     # damage valuation, no published number); the prototype's flood
     # value is a Prototype computation, not "≈ Aligned method." Override
@@ -6105,9 +6106,9 @@ with _sec_discover:
             _flood_slider_max = ((_flood_achievable_max + 4) // 5) * 5
             _flood_default = max(0, _flood_slider_max - 10)
             min_flood  = st.slider(
-                "Flood reduction ≥",
+                "Flood Index ≥",
                 0, _flood_slider_max, _flood_default, 5,
-                help=f"Corresponds to the Flood Retention metric card. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f}. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.",
+                help=f"Corresponds to the Flood Index metric card. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f}. Higher values mean less runoff — increasing this target will also reduce Runoff Volume in ac-ft.",
             )
             # read from state to avoid silent-staleness if city switches
             _baseline_hm_local = _CURRENT_CITY_STATE.baseline_hm
@@ -6212,7 +6213,7 @@ with _sec_discover:
         with st.container(border=True):
             st.markdown("**Weight each objective** (0 = ignore, 1 = full weight)")
             w_cool = st.slider("Cooling", 0.0, 1.0, 1.0, 0.1, key="region_opt_w_cool")
-            w_flood = st.slider("Flood reduction", 0.0, 1.0, 1.0, 0.1,
+            w_flood = st.slider("Flood Index", 0.0, 1.0, 1.0, 0.1,
                                 key="region_opt_w_flood")
             w_carbon = st.slider("Carbon", 0.0, 1.0, 1.0, 0.1,
                                  key="region_opt_w_carbon")
@@ -6896,18 +6897,18 @@ if (results.get('region_selection') or {}).get('mode') == 'selected_regions':
 st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
 eco1.metric(
-    "Flood Retention",
+    "Flood Index",
     f"{results['flood_reduction']:.1f}",
     delta=_flood_delta_str,
     delta_color=_flood_delta_color,
     help=(
         "Confidence: High — see 'How this prototype works' for tier definitions. "
-        "Unitless index (0–100) based on the USDA Curve Number. Higher = less "
-        f"runoff potential. Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f} "
-        "for the current AOI's developed land. "
-        "Note: this is the app's CN-inversion index (100 − mean_CN), monotone "
-        "with but not identical to InVEST UFR's canonical runoff retention "
-        "index `rnf_rt_idx = mean(1 − Q/P)`. "
+        "Flood Index is a unitless curve-number-based indicator (100 − mean Curve "
+        "Number); higher generally indicates lower runoff potential. Useful for "
+        "comparing scenarios — not a direct measure of flood volume or damage. "
+        f"Baseline is {100 - _CURRENT_CITY_STATE.baseline_cn:.1f} for the current "
+        "AOI's developed land. Monotone with but not identical to InVEST UFR's "
+        "canonical runoff retention index `rnf_rt_idx = mean(1 − Q/P)`. "
         "Underlying model: [InVEST Urban Flood Risk Mitigation]"
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
     )
@@ -7333,36 +7334,30 @@ if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_
     )
     _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="aligned_method")
 elif BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
-    # Typed buildings but no damage table (SA today). Brief 33 / Path C:
-    # match NatCap's Vibrant Land (Guerry et al. 2023) methodology —
-    # they used InVEST UFRM for SA but explicitly did not enable
-    # `infrastructure_damage_loss_table_path`, reporting flood mitigation
-    # as percent volume reduction instead. The card label, value, and
-    # help text shift accordingly; the underlying
-    # `avoided_flood_damage_usd` field stays at $0 (surrogate-training
-    # compatibility, no schema change).
+    # Typed buildings but no damage-valuation table (SA today). SA has no
+    # InVEST UFR damage-loss table; NatCap's Vibrant Land report (Guerry et
+    # al. 2023) used InVEST UFRM for SA but explicitly did NOT enable damage
+    # valuation and published NO flood dollar value. So SA surfaces no
+    # damage-avoided figure here — the hydrologic signal lives in the Flood
+    # Index and Runoff Volume cards above. The earlier "Flood Volume
+    # Reduction (% vs baseline)" card is removed: it presented the unitless
+    # CN index (100 − mean_CN) as a percent of flood volume, which it is not.
+    # The underlying `flood_damage_avoided_usd` field stays at $0 (no schema
+    # change). Validation badge is "prototype", not aligned_method — there is
+    # no value and no NatCap-aligned flood dollar to align to.
     econ3.metric(
-        "Flood Volume Reduction",
-        f"{results['flood_reduction']:.1f}%",
-        delta=(
-            f"+{results['flood_reduction']:.1f}% vs baseline"
-            if results['flood_reduction'] > 0 else "no reduction"
-        ),
-        delta_color="normal" if results['flood_reduction'] > 0 else "off",
+        "Flood Damage Avoided",
+        "—",
         help=(
-            "Confidence: Medium — see 'How this prototype works' for tier definitions. "
-            "Percent reduction in flood volume during the city's design storm "
-            f"({DESIGN_STORM_INCHES:.1f} inches over 24 hours), computed via the "
-            "SCS Curve Number method. "
-            "NatCap's Vibrant Land report (Guerry et al. 2023) used InVEST UFRM "
-            "for San Antonio but explicitly did not enable damage valuation; "
-            "they reported flood mitigation as percent volume reduction. The "
-            "prototype matches this methodology for SA. "
-            "Underlying model: [InVEST Urban Flood Risk Mitigation]"
-            "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
+            "No damage-valuation table for this city, so no dollar "
+            "damage-avoided figure is computed. The InVEST UFR damage-loss "
+            "table maps building type → \\$/m² damage; San Antonio lacks it "
+            "(NatCap's Vibrant Land report used InVEST UFRM for SA without "
+            "enabling damage valuation). For the hydrologic signal see the "
+            "Flood Index and Runoff Volume cards above."
         ),
     )
-    _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="aligned_method")
+    _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="prototype")
 else:
     if BUILDINGS_DATA_AVAILABLE and not BUILDINGS_HAVE_TYPES:
         _help_text = (
@@ -7380,7 +7375,7 @@ else:
         "—",
         help="Confidence: Medium — see 'How this prototype works' for tier definitions. " + _help_text + " Underlying model: [InVEST Urban Flood Risk Mitigation](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html).",
     )
-    _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="aligned_method")
+    _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="prototype")
 
 _energy_savings = results.get('cooling_energy_savings_usd', 0.0)
 _energy_available = (
@@ -7626,7 +7621,7 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
     _rl_carbon_label = ('Carbon Storage Change' if _CARBON_IS_STOCK
                         else 'Carbon Sequestration')
     _rl_rows = [
-        ("Flood Retention",          f"{_region_local['flood_reduction']:.1f}",                       f"{results['flood_reduction']:.1f}"),
+        ("Flood Index",              f"{_region_local['flood_reduction']:.1f}",                       f"{results['flood_reduction']:.1f}"),
         ("Temp change",              _fmt_temp_change(_region_local['temp_change_f']),                _fmt_temp_change(results['temp_change_f'])),
         ("Runoff volume",            _fmt_runoff(_region_local['runoff_acre_feet']),                  _fmt_runoff(results['runoff_acre_feet'])),
         ("Mean NDVI",                f"{_region_local['mean_ndvi']:.3f}",                             f"{results['mean_ndvi']:.3f}"),
@@ -7672,14 +7667,13 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
     if TOTAL_POTENTIAL_DAMAGE_USD <= 0:
         st.caption(
             "_Flood Damage Avoided reads n/a because this city has no "
-            "infrastructure damage valuation table — the InVEST UFR "
-            "damage-loss table maps building type → \\$/m² damage; "
-            "without it the dollar figure can't be computed. San "
-            "Antonio currently lacks this table (NatCap's Vibrant Land "
-            "report used InVEST UFRM for SA but explicitly did not "
-            "enable damage valuation; the prototype matches that "
-            "methodology). The Flood Retention row above carries the "
-            "physical signal (volume reduction)._"
+            "infrastructure damage-valuation table — the InVEST UFR "
+            "damage-loss table maps building type → \\$/m² damage, and San "
+            "Antonio lacks it (NatCap's Vibrant Land report used InVEST UFRM "
+            "for SA but did not enable damage valuation). The app instead "
+            "reports a curve-number-based Flood Index and modeled Runoff "
+            "Volume: Runoff Volume carries the physical volume signal, and "
+            "Flood Index is a unitless comparative indicator._"
         )
 
     # Honesty-Surface Pass Commit 1 — make the validation-state inheritance
@@ -7804,9 +7798,12 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     _carbon_dollar_label_table = 'Carbon Storage Value' if _CARBON_IS_STOCK else 'Avoided Carbon Cost'
     _carbon_unit = 'tons CO2e' if _CARBON_IS_STOCK else 'tons CO2e/yr'
     _carbon_dollar_period = '' if _CARBON_IS_STOCK else '/yr'
-    # Brief 33: per-city flood-damage rendering. Cities with a damage table
-    # (MN) show monetized damage avoided; cities without (SA — matches
-    # Vibrant Land methodology) show percent volume reduction.
+    # Per-city flood-damage rendering. Only cities with a damage table (MN)
+    # get a Flood Damage Avoided row; cities without (SA) omit it — the CN
+    # index is NOT a flood-volume percent, and Runoff Volume already carries
+    # the physical signal. (Old behavior relabeled the row "Flood Volume
+    # Reduction" and showed the unitless index as a %, which is removed.) The
+    # row is gated into all four parallel lists below via `_flood_damage_monetized`.
     _flood_damage_monetized = (
         BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_USD > 0
     )
@@ -7818,16 +7815,11 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'+${_flood_damage_avoided / 1e6:.1f}M'
             if _flood_damage_avoided >= 1e4 else '$0'
         )
-    else:
-        _flood_label_table = 'Flood Volume Reduction'
-        _flood_baseline_table = '0%'
-        _flood_scenario_table = f'{results["flood_reduction"]:.1f}%'
-        _flood_change_table = f'+{results["flood_reduction"]:.1f}%'
     comparison_data = {
         'Metric': [
-            'Flood Retention', 'Runoff Volume', 'Temperature Change',
+            'Flood Index', 'Runoff Volume', 'Temperature Change',
             'Food Production', _carbon_metric_label, 'NDVI',
-            _flood_label_table, 'Cooling Energy Savings', _carbon_dollar_label_table,
+            *([_flood_label_table] if _flood_damage_monetized else []), 'Cooling Energy Savings', _carbon_dollar_label_table,
         ],
         'Baseline': [
             f'{_baseline_flood:.1f}',
@@ -7836,7 +7828,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             '0 lbs',
             f'0 {_carbon_unit}',
             f'{BASELINE_NDVI:.3f}',
-            _flood_baseline_table,
+            *([_flood_baseline_table] if _flood_damage_monetized else []),
             '$0/yr',
             f'$0{_carbon_dollar_period}',
         ],
@@ -7847,7 +7839,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'{_carbon_tons_table:,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"]:.3f}',
-            _flood_scenario_table,
+            *([_flood_scenario_table] if _flood_damage_monetized else []),
             f'${_energy_savings_table / 1e6:.2f}M/yr',
             f'${_carbon_value_table / 1e6:.2f}M{_carbon_dollar_period}' if abs(_carbon_value_table) >= 1e4 else f'${_carbon_value_table:,.0f}{_carbon_dollar_period}',
         ],
@@ -7862,7 +7854,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'+{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'{_carbon_tons_table:+,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
-            _flood_change_table,
+            *([_flood_change_table] if _flood_damage_monetized else []),
             f'+${_energy_savings_table / 1e6:.2f}M/yr' if _energy_savings_table >= 1e3 else '$0/yr',
             f'+${_carbon_value_table / 1e6:.2f}M{_carbon_dollar_period}' if _carbon_value_table >= 1e4 else f'+${_carbon_value_table:,.0f}{_carbon_dollar_period}' if _carbon_value_table >= 1 else f'$0{_carbon_dollar_period}',
         ],
@@ -7951,7 +7943,7 @@ with st.expander("Assumptions and limitations"):
             "- **Relationship to InVEST UFR's runoff retention index.** The "
             "app reports `100 − mean_CN`, monotone with but not identical to "
             "InVEST UFR's canonical `rnf_rt_idx = mean(1 − Q/P)`. See "
-            "REFERENCE.md's Flood Retention section for the relationship."
+            "REFERENCE.md's Flood Index section for the relationship."
         )
     with _assumption_tabs[1]:
         _temp_calibration = (
@@ -9006,7 +8998,7 @@ if _main_tab == 'Tradeoffs':
             # among what we tested," not "the optimum." The caption is the
             # short engine-vs-prediction reminder; the "coarse search" caveat
             # is owned by the sidebar Discover copy above. Columns: Rank / Mix
-            # / Score / Converted acres / Cooling / Flood retention / Carbon /
+            # / Score / Converted acres / Cooling / Flood Index / Carbon /
             # Food / Cost / Apply.
             st.subheader("Best tested mixes for selected area")
             st.caption(
@@ -9040,7 +9032,7 @@ if _main_tab == 'Tradeoffs':
                 'weighted_score':           'Score',
                 'converted_acres':          'Converted acres',
                 'mean_hm':                  'Cooling',
-                'flood_reduction':          'Flood retention',
+                'flood_reduction':          'Flood Index',
                 'carbon_tons_co2':          _opt_carbon_col_label_r,
                 'food_mln_lbs':             'Food (M lbs)',
                 'total_cost_mln':           'Cost ($M)',
@@ -9090,7 +9082,7 @@ if _main_tab == 'Tradeoffs':
                 st.warning(
                     f"No scenarios found meeting all targets simultaneously.  \n"
                     f"Maximum achievable values across all candidates:  \n"
-                    f"- Flood reduction: up to **{opt['max_flood']}** (your target: {min_flood})  \n"
+                    f"- Flood Index: up to **{opt['max_flood']}** (your target: {min_flood})  \n"
                     f"- Cooling: up to **{opt['max_cool']:.4f} HMI** (your target: {min_cool:.4f})  \n"
                     f"- Food: up to **{opt['max_food']:.3f}M lbs** (your target: {min_food:.3f})  \n"
                     f"- Carbon: up to **{opt['max_carbon']:,.0f} {_opt_carbon_unit}** (your target: {min_carbon:,})  \n"
@@ -9098,7 +9090,7 @@ if _main_tab == 'Tradeoffs':
                 )
             else:
                 st.caption(
-                    f"Top scenarios meeting flood ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
+                    f"Top scenarios meeting Flood Index ≥ {min_flood}, cooling ≥ {min_cool_f:+.1f}°F, "
                     f"food ≥ {min_food:.3f}M lbs, carbon ≥ {min_carbon:,} {_opt_carbon_unit} "
                     "— ranked by balanced score. "
                     "Numbers are fast estimates from the machine-learning model, with 10th–90th percentile model-disagreement bands."

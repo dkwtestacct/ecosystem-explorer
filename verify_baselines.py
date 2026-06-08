@@ -2026,7 +2026,7 @@ def main(update: bool) -> int:
     # a locked section order. Explorer mode: Tradeoff Space (plot) → Compare
     # scenarios (table) → Neighborhood breakdown → optimizer / saved /
     # best-by-goal. NatCap mode: side-by-side (table) → notes / validation
-    # (Tradeoff Space plot intentionally absent — its axes (Flood Retention,
+    # (Tradeoff Space plot intentionally absent — its axes (Flood Index,
     # HMI) have no published values for NatCap fixed scenarios). A reorder
     # regression (e.g. a future edit that moves "Compare scenarios" above
     # the plot) would flip the user-facing flow without changing any engine
