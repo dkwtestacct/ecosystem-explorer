@@ -50,6 +50,21 @@ SCANNED_FILES = [
 ]
 
 
+def find_hits_in_text(text):
+    """Return ``[(lineno, term, line)]`` for retired terms in ``text``, honoring
+    the per-line allow marker. Shared by ``scan()`` and ``selftest()`` so the
+    meta-test exercises the real detection path, not a parallel reimplementation.
+    """
+    hits = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        if ALLOW_MARKER in line:
+            continue
+        for term in RETIRED_TERMS:
+            if term in line:
+                hits.append((lineno, term, line.strip()))
+    return hits
+
+
 def scan():
     root = Path(__file__).resolve().parent.parent
     hits = []
@@ -57,13 +72,30 @@ def scan():
         path = root / rel
         if not path.exists():
             continue
-        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if ALLOW_MARKER in line:
-                continue
-            for term in RETIRED_TERMS:
-                if term in line:
-                    hits.append((rel, lineno, term, line.strip()))
+        for lineno, term, line in find_hits_in_text(path.read_text(encoding="utf-8")):
+            hits.append((rel, lineno, term, line))
     return hits
+
+
+def selftest():
+    """Prove the guard has teeth — no vacuous pass.
+
+    A seeded retired term MUST be caught, the allow marker MUST suppress it, and
+    canonical copy MUST stay clean. Returns 0 when detection works, 1 otherwise.
+    Wired into ``verify_baselines.py`` as a meta-test so the guard's teeth ride
+    the gate (same discipline as the Assertion-C swap test).
+    """
+    seeded = "An accidental Flood Retention card slipped into the copy."
+    suppressed = f"Retired: Flood Retention {ALLOW_MARKER}"
+    clean = "The Flood Index is a unitless curve-number indicator."
+    seeded_hits = find_hits_in_text(seeded)
+    ok = (
+        len(seeded_hits) == 1
+        and seeded_hits[0][1] == "Flood Retention"
+        and find_hits_in_text(suppressed) == []
+        and find_hits_in_text(clean) == []
+    )
+    return 0 if ok else 1
 
 
 def main():
@@ -85,4 +117,10 @@ def main():
 
 
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:
+        _rc = selftest()
+        print("selftest OK — guard catches a seeded retired term and honors the "
+              "allow marker." if _rc == 0 else
+              "selftest FAILED — guard is vacuous (seeded term not caught).")
+        sys.exit(_rc)
     sys.exit(main())

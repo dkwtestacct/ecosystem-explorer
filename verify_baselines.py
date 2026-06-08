@@ -3368,6 +3368,17 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         _vg_mod = _ilu.module_from_spec(_vg_spec)
         _vg_spec.loader.exec_module(_vg_mod)
         vocab_diffs = _vg_mod.main()
+        # Meta-test: prove the guard isn't a vacuous pass — a seeded retired
+        # term must be caught, the 'vocab-allow' marker must suppress it, and
+        # canonical copy must stay clean. Same discipline as Assertion-C's swap
+        # test. Exercises check_vocabulary's real detection path.
+        if _vg_mod.selftest() == 0:
+            print("  OK   meta-test: guard catches a seeded retired term and "
+                  "honors the 'vocab-allow' marker (not a vacuous pass)")
+        else:
+            print("  FAIL meta-test: vocabulary guard is vacuous — a seeded "
+                  "retired term was NOT caught (or the allow marker failed)")
+            vocab_diffs += 1
     except Exception as e:
         print(f"  ERROR vocabulary guard: {e}")
         import traceback; traceback.print_exc()
