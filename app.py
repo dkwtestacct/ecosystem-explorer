@@ -7026,15 +7026,19 @@ with st.expander("Scenario audit", expanded=False):
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
 
-# Citywide-vs-local framing above the metric cards. Renders only when a
-# region is selected (entire-area scenarios already imply citywide).
-# Bold framing so the cards-citywide / views-local distinction stays
-# visible; the where-detail (which region is selected) lives in the
-# sidebar selector + Map View funnel + provenance suffix.
-if (results.get('region_selection') or {}).get('mode') == 'selected_regions':
-    st.markdown(
-        "**Metric cards show citywide impact; selected-area views below "
-        "show local tradeoffs.**"
+# Relay 46 — explicit scope anchor above the metric cards. Behavior unchanged:
+# the cards are citywide. The heading is always "Citywide impact"; a subtitle
+# appears only when the scenario is constrained (region and/or ownership filter
+# active), pointing to the Selected-region impact table. Supersedes the prior
+# conditional "Metric cards show citywide…" header and the lower duplicate
+# caption near the map — scope is now stated once.
+st.markdown("### Citywide impact")
+if ((results.get('region_selection') or {}).get('mode') == 'selected_regions'
+        or st.session_state.get('selected_ownership_mask') is not None):
+    st.caption(
+        "From a constrained scenario — changes are placed only within the "
+        "selected area and eligibility filters. Local effects are in the "
+        "Selected-region impact table."
     )
 st.markdown(
     "Higher is generally better for benefit metrics; lower is better for "
@@ -9650,9 +9654,7 @@ if _main_tab == 'Map View':
                     _t3_id_caption = f"{_t3_n_sel} selected {_t3_display.lower()}s"
                 st.caption(_t3_id_caption)
                 st.caption(
-                    "Land-use changes are placed only inside the selected area. "
-                    "Metric cards show citywide impact; the Scenario tab also "
-                    "shows selected-region impact."
+                    "Land-use changes are placed only inside the selected area."
                 )
             st.divider()
 
