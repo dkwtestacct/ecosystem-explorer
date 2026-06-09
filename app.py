@@ -6965,6 +6965,13 @@ st.markdown(
     "Runoff Volume and Implementation Cost. Badges describe method/provenance, "
     "not performance."
 )
+st.caption(
+    "Badge colors mark validation tier — green (NatCap published value) is "
+    "NatCap's own published number; blue (≈ NatCap method / ≈ Aligned method) is "
+    "the prototype's own NatCap-aligned or canonical-InVEST computation with no "
+    "published value to match; gray (Prototype) has no canonical analog. Full "
+    "definitions in 'How this prototype works'."
+)
 
 st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
