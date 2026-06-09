@@ -7048,6 +7048,9 @@ st.caption(
     "published value to match; gray (Prototype) has no canonical analog. Full "
     "definitions in 'How this prototype works'."
 )
+st.caption(
+    "Details are available through metric badges, tooltips, and the Scenario audit."
+)
 
 st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
@@ -8254,23 +8257,20 @@ st.write(_explorer_scenario_sentence(
     _resolved_scenario, _within_phrase, mode_text,
 ))
 
-# Scenario-scope summary — one-line readout of region / ownership / placement
-# generated from the active state. Reuses the audit-row helpers so the line is
-# always in lockstep with the Scenario audit expander below.
+# Relay 42 [A] — "Current setup" one-liner from live state (supersedes the prior
+# "Scenario scope" line; adds city + conversion % and uses the locked
+# "regional extent" vocab). Reuses the audit-row helpers so it stays in lockstep
+# with the Scenario audit expander below.
 _scope_area = _cs_area_for_row(results)
 _scope_own  = _cs_ownership_for_row(results)
-_scope_strat_default = (placement_strategy == 'random')
-_scope_parts = ["citywide" if _scope_area == "Citywide" else _scope_area]
-if _scope_own == "None" and _scope_strat_default:
-    _scope_parts.append("no filters")
-else:
-    if _scope_own != "None":
-        _scope_parts.append(_scope_own.lower())
-    if not _scope_strat_default:
-        _scope_parts.append(
-            PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()
-        )
-st.caption(f"Scenario scope: {' · '.join(_scope_parts)}")
+_setup_region = "regional extent" if _scope_area == "Citywide" else _scope_area
+_setup_own = ("no ownership filter" if _scope_own == "None"
+              else _scope_own.lower())
+_setup_place = PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()
+st.caption(
+    f"Current setup: {selected_city} · {_setup_region} · {_setup_own} · "
+    f"{int(results['pct_converted'])}% converted · {_setup_place} placement"
+)
 
 _MAIN_TAB_NAMES = ["Scenario", "Tradeoffs", "Map View", "NatCap Reference"]
 _main_tab = st.segmented_control(
@@ -9069,7 +9069,7 @@ if _main_tab == 'Tradeoffs':
                         st.rerun()
 
             if st.session_state.get("_show_apply_toast"):
-                st.success("Applied — check the Scenario tab to see updated results.")
+                st.success("Applied selected mix. Scenario metrics recomputed with the InVEST-aligned evaluator.")
                 st.session_state._show_apply_toast = False
 
         st.divider()
@@ -9208,7 +9208,7 @@ if _main_tab == 'Tradeoffs':
                         st.rerun()
 
             if st.session_state.get("_show_apply_toast"):
-                st.success("Applied — check the Scenario tab to see updated results.")
+                st.success("Applied selected mix. Scenario metrics recomputed with the InVEST-aligned evaluator.")
                 st.session_state._show_apply_toast = False
 
             st.divider()
@@ -9328,7 +9328,7 @@ if _main_tab == 'Tradeoffs':
                 # following an Apply click, then cleared so it doesn't persist
                 # through unrelated reruns.
                 if st.session_state.get("_show_apply_toast"):
-                    st.success("Applied — check the Scenario tab to see updated results.")
+                    st.success("Applied selected mix. Scenario metrics recomputed with the InVEST-aligned evaluator.")
                     st.session_state._show_apply_toast = False
 
                 st.divider()
