@@ -4558,6 +4558,11 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
         overlay_rgba[..., 1] = 140  # green
         overlay_rgba[..., 2] = 0    # blue (explicit even though default is 0)
         alpha_f = overlay_alpha * np.clip(heat_overlay_ds, 0.0, 1.0)
+        # Relay 38 — conversions always show through: zero the overlay alpha on
+        # changed pixels so the orange tints only unchanged land. `changed` is
+        # already at plot resolution (the LULC rasters were downsampled above),
+        # so it aligns with alpha_f without a second downsample.
+        alpha_f[changed] = 0.0
         overlay_rgba[..., 3] = (alpha_f * 255).astype(np.uint8)
         ax.imshow(overlay_rgba)
         legend_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Development-intensity heat proxy'))
@@ -4605,6 +4610,15 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
                 Patch(facecolor='none', edgecolor='#1f77b4', linewidth=1.8,
                       label="Selected region")
             )
+            # Relay 38 — auto-fit the view to the selected region (+~12% pad) so
+            # its conversions fill the frame. y inverted for image origin.
+            # selected_region_mask=None or empty mask → full extent (unchanged).
+            _rows, _cols = np.where(region_mask_ds)
+            _rmin, _rmax = int(_rows.min()), int(_rows.max())
+            _cmin, _cmax = int(_cols.min()), int(_cols.max())
+            _pad = max(2.0, 0.12 * max(_rmax - _rmin, _cmax - _cmin))
+            ax.set_xlim(_cmin - _pad, _cmax + _pad)
+            ax.set_ylim(_rmax + _pad, _rmin - _pad)
 
     ax.axis('off')
     # Title removed — section H2 "Where land-cover changes happen" already provides context
