@@ -4222,12 +4222,61 @@ surrogate = _cached_train_surrogate(
 # Model-quality radio, the region optimizer ALWAYS prefilters with a Fast
 # surrogate — built lazily and cached per city so a Balanced / High user
 # pays the ~3-minute Fast-grid build once per session, not per click.
+# Relay 35 — Fast-grid build parameters. Shared by the precompute script
+# (scripts/regenerate_fast_grid.py), the artifact-load validator, and the
+# live-build fallback so all three agree on the grid shape. Bump
+# _FAST_GRID_FORMAT_VERSION if the artifact format/columns change in a way the
+# stamp must reject.
+_FAST_GRID_STEP_PCT = 10
+_FAST_GRID_STEP_ALLOC = 25
+_FAST_GRID_FORMAT_VERSION = 1
+
+
+def _load_fast_grid_artifact(city_key):
+    """Return a precomputed Fast-grid DataFrame for `city_key`, or None.
+
+    Loads CITIES[city_key]['fast_grid_file'] (built by
+    scripts/regenerate_fast_grid.py) only when it AND its '<path>.meta.json'
+    sidecar exist and the stamp matches the current city / step params /
+    format / SCENARIO_SCHEMA_VERSION, and the CSV carries the required columns
+    and recipe count. Any mismatch / missing file / read error returns None, so
+    the caller degrades to a live build — never breaks. Numeric staleness from a
+    math change that did NOT bump the schema is caught by the verify_baselines
+    Fast-grid spot-check (mirrors the dense-CSV guard)."""
+    import json as _json
+    path = (CITIES.get(city_key) or {}).get('fast_grid_file')
+    if not path or not os.path.exists(path):
+        return None
+    meta_path = path + '.meta.json'
+    try:
+        if not os.path.exists(meta_path):
+            return None
+        with open(meta_path) as _f:
+            meta = _json.load(_f)
+        if (meta.get('fast_grid_format_version') != _FAST_GRID_FORMAT_VERSION
+                or meta.get('city_key') != city_key
+                or meta.get('step_pct') != _FAST_GRID_STEP_PCT
+                or meta.get('step_alloc') != _FAST_GRID_STEP_ALLOC
+                or meta.get('scenario_schema_version') != SCENARIO_SCHEMA_VERSION):
+            return None
+        df = pd.read_csv(path)
+        missing = [c for c in REQUIRED_TARGET_COLUMNS if c not in df.columns]
+        if missing or len(df) != meta.get('n_recipes'):
+            return None
+        return df
+    except Exception:
+        return None
+
+
 @st.cache_resource(show_spinner=False)
 def _cached_fast_scenario_grid(_state, city_key,
                                data_dir_flood, data_dir_cooling):
+    _loaded = _load_fast_grid_artifact(city_key)
+    if _loaded is not None:
+        return _loaded
     return compute_scenario_grid(
         _state, city_key, data_dir_flood, data_dir_cooling,
-        step_pct=10, step_alloc=25,
+        step_pct=_FAST_GRID_STEP_PCT, step_alloc=_FAST_GRID_STEP_ALLOC,
     )
 
 

@@ -244,6 +244,11 @@ CITIES = {
         'schools_file':         'data/sa/schools_sa.geojson',
         'roads_file':           'data/sa/roads_sa.geojson',
         'dense_scenarios_file': 'data/scenarios_dense_sa.csv',  # built by precompute_scenarios.py
+        # Relay 35: precomputed Fast grid (90 recipes, step_pct=10/step_alloc=25)
+        # for the region-optimizer prefilter. Built by scripts/regenerate_fast_grid.py;
+        # loaded by app._cached_fast_scenario_grid (falls back to a live build if
+        # missing/stale). SA only — MN's fast grid is cheap on its small raster.
+        'fast_grid_file':       'data/scenarios_fast_sa.csv',
         'buildings_file':       'data/sa/buildings_sa.gpkg',
         # SA cold-start Lever 2: precomputed buildings rasters. Phase 8 of
         # _load_city_runtime_state rasterizes ~691k SA building polygons,

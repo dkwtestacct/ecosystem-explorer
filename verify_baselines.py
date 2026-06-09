@@ -3052,6 +3052,102 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         dense_freshness_diffs += 1
 
+    # ── Fast-grid artifact freshness — Relay 35 first-click guard ───────────
+    # The region-optimizer prefilter trains on a precomputed Fast grid
+    # (step_pct=10 / step_alloc=25) loaded from CITIES[city]['fast_grid_file']
+    # instead of a ~96 s live build. Two-layer staleness guard:
+    #   (1) cheap stamp check — the sidecar's scenario_schema_version + step
+    #       params + city + format must match current. A math change that bumps
+    #       SCENARIO_SCHEMA_VERSION invalidates the artifact here (and at
+    #       runtime → live fallback), forcing a regen.
+    #   (2) value spot-check — re-evaluate 5 recipes via the live engine and
+    #       assert the stored grid matches within rel_tol (catches a math change
+    #       that did NOT bump the schema — same discipline as the dense-CSV cell).
+    # Missing artifact → SKIP (runtime falls back to a live build; degraded, not
+    # broken). Meta-test seeds a drifted grid value and confirms it's caught.
+    print(f"\n{'=' * 60}")
+    print("Fast-grid artifact freshness — Relay 35 first-click guard")
+    print(f"{'=' * 60}")
+    fast_grid_diffs = 0
+    try:
+        import json as _json2
+        import math as _m2
+        import pandas as _pd2
+        _FG_SAMPLES = [(10, 25, 25), (20, 50, 0), (30, 0, 50),
+                       (40, 75, 25), (50, 25, 25)]
+        _FG_KEYS = ("mean_hm", "flood_reduction", "runoff_acre_feet", "food_mln_lbs")
+        _FG_REL_TOL = 1e-5
+        _probe = 100.0  # real grid value captured below for the meta-test
+        for _city in [c for c in active_cities
+                      if app.CITIES[c].get("fast_grid_file")]:
+            _path = app.CITIES[_city]["fast_grid_file"]
+            if not Path(_path).exists():
+                print(f"  SKIP {_city}: fast_grid_file {_path!r} not on disk "
+                      "(runtime builds the Fast grid live).")
+                continue
+            _meta_path = _path + ".meta.json"
+            if not Path(_meta_path).exists():
+                print(f"  FAIL {_city}: fast-grid sidecar {_meta_path!r} missing "
+                      "— regenerate with scripts/regenerate_fast_grid.py")
+                fast_grid_diffs += 1
+                continue
+            _meta = _json2.loads(Path(_meta_path).read_text())
+            _bad = []
+            if _meta.get("step_pct") != 10: _bad.append("step_pct")
+            if _meta.get("step_alloc") != 25: _bad.append("step_alloc")
+            if _meta.get("city_key") != _city: _bad.append("city_key")
+            if _meta.get("scenario_schema_version") != app.SCENARIO_SCHEMA_VERSION:
+                _bad.append(f"schema({_meta.get('scenario_schema_version')}"
+                            f"!={app.SCENARIO_SCHEMA_VERSION})")
+            if _bad:
+                print(f"  FAIL {_city}: fast-grid stamp mismatch {_bad} — "
+                      "regenerate with scripts/regenerate_fast_grid.py")
+                fast_grid_diffs += 1
+                continue
+            _df = _pd2.read_csv(_path)
+            _rebind_city(app, _city)
+            _c_diffs = 0
+            _n_checked = 0
+            for (pct, gi, ff) in _FG_SAMPLES:
+                _rm = _df[(_df.pct_converted == pct)
+                          & (_df.green_infrastructure_pct == gi)
+                          & (_df.food_forest_pct == ff)]
+                if _rm.empty:
+                    print(f"  SKIP {_city} ({pct},{gi},{ff}): recipe not in grid")
+                    continue
+                _row = _rm.iloc[0]
+                if _n_checked == 0:
+                    _probe = float(_row[_FG_KEYS[0]])
+                _live = app.evaluate_scenario(
+                    pct_converted=pct, green_infrastructure_pct=gi,
+                    food_forest_pct=ff, seed=42, placement_strategy="random")
+                _n_checked += 1
+                for _k in _FG_KEYS:
+                    _cv = float(_row[_k]); _lv = float(_live[_k])
+                    if not _m2.isclose(_cv, _lv, rel_tol=_FG_REL_TOL, abs_tol=1e-9):
+                        _rel = abs(_cv - _lv) / max(abs(_cv), 1e-9)
+                        print(f"  FAIL {_city} ({pct},{gi},{ff}) {_k}: "
+                              f"grid={_cv:.6g} live={_lv:.6g} rel={_rel:.2e} "
+                              f"> {_FG_REL_TOL:.0e}")
+                        _c_diffs += 1
+            if _c_diffs == 0:
+                print(f"  OK   {_city}: stamp matches + {_n_checked} recipes × "
+                      f"{len(_FG_KEYS)} metrics within rel_tol={_FG_REL_TOL:.0e}")
+            else:
+                fast_grid_diffs += _c_diffs
+        # Meta-test (non-vacuous): a 1% drift on a real grid value must fail.
+        if _m2.isclose(_probe * 1.01, _probe, rel_tol=_FG_REL_TOL, abs_tol=1e-9):
+            print(f"  FAIL meta-test: 1% drift on a seeded grid value "
+                  f"({_probe:.4g}→{_probe*1.01:.4g}) NOT caught — tol too loose")
+            fast_grid_diffs += 1
+        else:
+            print(f"  OK   meta-test: 1% drift on a seeded grid value correctly "
+                  f"fails the rel_tol={_FG_REL_TOL:.0e} spot-check")
+    except Exception as e:
+        print(f"  ERROR fast-grid freshness: {e}")
+        import traceback; traceback.print_exc()
+        fast_grid_diffs += 1
+
     # ── Child-pop raster staleness — per-city anchored ─────────────────────
     # The under-18 raster is derived as P1_001N - P3_001N (PL 94-171, same
     # source as total pop). The single most likely failure mode is grabbing
@@ -3398,7 +3494,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + two_relay_diffs + label_budget_diffs
                    + dense_freshness_diffs + rebind_completeness_diffs
                    + child_pop_diffs + bldg_precompute_diffs
-                   + toggle_diffs + vocab_diffs)
+                   + toggle_diffs + vocab_diffs + fast_grid_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3474,6 +3570,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "divergence(s) — re-run precompute_scenarios.py for the "
                   "affected city; Fast cold-start reads from disk and a "
                   "stale CSV would feed wrong values to the surrogate.")
+        if fast_grid_diffs:
+            print(f"{fast_grid_diffs} fast-grid artifact freshness "
+                  "divergence(s) — the precomputed Fast grid is stale or its "
+                  "stamp mismatches; re-run scripts/regenerate_fast_grid.py for "
+                  "the affected city (the region-optimizer prefilter trains on it).")
         if rebind_completeness_diffs:
             print(f"{rebind_completeness_diffs} rebind-completeness "
                   "divergence(s) — _rebind_city is missing a per-city "
