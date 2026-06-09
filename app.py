@@ -526,8 +526,8 @@ if 'entry_city' not in st.session_state:
             "cost.  \n"
             "• **Optimize & compare** — find promising citywide mixes or "
             "best-tested mixes for a selected area, then compare tradeoffs.  \n"
-            "• **Trust the results** — each result carries source, validation "
-            "status, and method provenance, with audit detail underneath."
+            "• **Trust the results** — each result carries its source and "
+            "validation status, with audit detail underneath."
         )
     st.stop()
 
@@ -7042,7 +7042,7 @@ st.markdown(
     "not performance."
 )
 st.caption(
-    "Badge colors mark validation tier — green (NatCap published value) is "
+    "Badge colors mark how each number was checked — green (NatCap published value) is "
     "NatCap's own published number; blue (≈ NatCap method / ≈ Aligned method) is "
     "the prototype's own NatCap-aligned or canonical-InVEST computation with no "
     "published value to match; gray (Prototype) has no canonical analog. Full "
