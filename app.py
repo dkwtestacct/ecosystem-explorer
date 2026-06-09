@@ -5576,11 +5576,12 @@ _eligibility_available = _CURRENT_CITY_STATE.ownership_raster is not None
 # state set by the populate-earlier blocks — same one-rerun-no-lag
 # property the pre-created-container pattern was introduced for.
 _carbon_rates_available = not _CARBON_IS_STOCK
+# Relay 41 — sidebar reads top-to-bottom as setup → optimize → export. The
+# expander DEFINITION order sets the visual order (Streamlit renders each
+# container where it's defined); the `with _sec_*:` population blocks below are
+# UNMOVED, so data flow + the Assertion-B button/mode-label pairings are
+# untouched. Only Discover + Advanced model quality move down vs the old order.
 _sec_scenario          = st.sidebar.expander("Scenario", expanded=True)
-_sec_discover          = st.sidebar.expander("Discover scenarios",
-                                              expanded=True)
-_sec_advanced_quality  = st.sidebar.expander("Advanced model quality",
-                                              expanded=False)
 _sec_where             = st.sidebar.expander("Spatial targeting",
                                               expanded=_where_expanded)
 _sec_eligibility       = (
@@ -5596,6 +5597,12 @@ _sec_carbon_rates      = (
     st.sidebar.expander("Carbon rates", expanded=False)
     if _carbon_rates_available else None
 )
+# The capstone "find better options", below the setup sections.
+_sec_discover          = st.sidebar.expander("Discover scenarios",
+                                              expanded=True)
+# Power-user detail, demoted beneath Discover.
+_sec_advanced_quality  = st.sidebar.expander("Advanced model quality",
+                                              expanded=False)
 _sec_export            = st.sidebar.expander("Export", expanded=False)
 # Quick Start moved to the bottom of the sidebar — it's a presets
 # shortcut, not a primary control; the user's relay says it belongs
