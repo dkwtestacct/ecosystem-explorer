@@ -41,6 +41,11 @@ RETIRED_TERMS = [
     # "full evaluator" stays legal in internal docs (those are out of scope).
     "full evaluator",
     "full-evaluator",
+    # Relay 39: the overlay control is "Urban intensity overlay" now. Guard the
+    # DISTINCTIVE phrase only (both casings of the old label) — bare "heat" /
+    # "heat proxy" stay legal in code comments / internal docs.
+    "development-intensity heat proxy",
+    "Development-intensity heat proxy",
 ]
 
 ALLOW_MARKER = "vocab-allow"

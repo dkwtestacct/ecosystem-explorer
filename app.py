@@ -4565,7 +4565,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
         alpha_f[changed] = 0.0
         overlay_rgba[..., 3] = (alpha_f * 255).astype(np.uint8)
         ax.imshow(overlay_rgba)
-        legend_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Development-intensity heat proxy'))
+        legend_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Urban intensity overlay'))
 
     # Optional tract-level improvement overlay. tract_value is a per-pixel
     # float raster (NaN outside any tract); colormap is RdYlGn so positive
@@ -9646,18 +9646,16 @@ if _main_tab == 'Map View':
             "toward higher-suitability pixels. Notice the spatial pattern shift vs. random allocation."
             )
 
-        overlay_opacity = st.slider(
-            "Development-intensity heat proxy opacity",
-            0.0, 0.5, 0.2, 0.05,
-            help=(
-                "Transparency of the development-intensity heat-proxy overlay on the "
-                "map. Currently uses developed-land intensity as a proxy for "
-                "heat-vulnerable areas — NLCD 23 (high-intensity) weighted 1.0, "
-                "NLCD 22 (medium) 0.6, NLCD 21 (low) 0.3. This is a placeholder "
-                "for a future CDC/ATSDR Heat Vulnerability Index by census tract. "
-                "Set to 0 to hide."
-            ),
-        )
+        with st.expander("Map display options", expanded=False):
+            overlay_opacity = st.slider(
+                "Overlay opacity",
+                0.0, 0.5, 0.15, 0.05,
+                help=(
+                    "Developed-area intensity from land cover, used as a proxy "
+                    "for urban heat vulnerability. Visual context only — it does "
+                    "not change the scenario."
+                ),
+            )
 
         # Normalize an all-False selected_region_mask to None — semantically
         # the same as no region selected, and protects downstream consumers
@@ -9694,10 +9692,9 @@ if _main_tab == 'Map View':
             height=820,
         )
         st.caption(
-            "Gray = unchanged developed land. Colors show where conversions occur. "
-            "White = outside city boundary. Orange wash = development-intensity heat proxy "
-            "(darker orange = higher NLCD development intensity: 23 > 22 > 21), "
-            "opacity controlled by the slider above."
+            "Gray = unchanged developed land. Scenario colors show conversions. "
+            "White = outside city boundary. Orange shading shows developed urban "
+            "intensity for context; darker orange = more intense development."
         )
 
         with st.expander("Assumptions and limitations", expanded=False):
