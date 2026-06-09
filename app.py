@@ -4066,6 +4066,48 @@ _requested_model_quality = st.session_state.get("model_quality", MODEL_QUALITY_O
 # actual compute until the user explicitly checks a confirmation box.
 # The radio still shows the user's selection; the checkbox is consent
 # to the 25-50 minute build.
+# Relay 37 — dense Balanced-grid provenance (parity with the Fast grid). The
+# dense CSV is pct step 5 / gi+ff step 10, built by precompute_scenarios.py.
+_DENSE_GRID_STEP_PCT = 5
+_DENSE_GRID_STEP_ALLOC = 10
+_DENSE_GRID_FORMAT_VERSION = 1
+
+
+def _load_dense_grid_artifact(city_key):
+    """Return the precomputed dense Balanced grid for `city_key`, or None.
+
+    Validates CITIES[city_key]['dense_scenarios_file'] + its '<path>.meta.json'
+    sidecar (city / step params / format / SCENARIO_SCHEMA_VERSION + the
+    surrogate-relevant REQUIRED_TARGET_COLUMNS + recipe count) before loading.
+    Any mismatch / missing file / read error returns None so the caller keeps
+    its existing live-rebuild fallback — degrades to slow, never breaks. Mirrors
+    _load_fast_grid_artifact; numeric staleness is also caught by the
+    verify_baselines dense-CSV freshness spot-check."""
+    import json as _json
+    path = (CITIES.get(city_key) or {}).get('dense_scenarios_file')
+    if not path or not os.path.exists(path):
+        return None
+    meta_path = path + '.meta.json'
+    try:
+        if not os.path.exists(meta_path):
+            return None
+        with open(meta_path) as _f:
+            meta = _json.load(_f)
+        if (meta.get('dense_grid_format_version') != _DENSE_GRID_FORMAT_VERSION
+                or meta.get('city_key') != city_key
+                or meta.get('step_pct') != _DENSE_GRID_STEP_PCT
+                or meta.get('step_alloc') != _DENSE_GRID_STEP_ALLOC
+                or meta.get('scenario_schema_version') != SCENARIO_SCHEMA_VERSION):
+            return None
+        df = pd.read_csv(path)
+        missing = [c for c in REQUIRED_TARGET_COLUMNS if c not in df.columns]
+        if missing or len(df) != meta.get('n_recipes'):
+            return None
+        return df
+    except Exception:
+        return None
+
+
 _hi_res_confirmed = st.session_state.get("hi_res_confirmed", False)
 _effective_model_quality = _requested_model_quality
 if _requested_model_quality == "High resolution" and not _hi_res_confirmed:
@@ -4093,8 +4135,9 @@ with st.spinner("Loading data and pre-computing scenarios..."):
     elif _effective_model_quality == "Balanced":
         lookup_table = {}
         _dense_configured = city_cfg.get("dense_scenarios_file")
-        if _dense_configured and os.path.exists(_dense_configured):
-            scenario_df = pd.read_csv(_dense_configured)
+        _dense_df = _load_dense_grid_artifact(selected_city)
+        if _dense_df is not None:
+            scenario_df = _dense_df
         else:
             if not _dense_configured:
                 st.warning(
@@ -4106,8 +4149,8 @@ with st.spinner("Loading data and pre-computing scenarios..."):
                 )
             else:
                 st.warning(
-                    f"⚠️ Balanced mode: `{_dense_configured}` not found — "
-                    f"recomputing on the fly. Run "
+                    f"⚠️ Balanced mode: `{_dense_configured}` missing or stale "
+                    f"(provenance stamp mismatch) — recomputing on the fly. Run "
                     f"`python3 precompute_scenarios.py --city '{selected_city}' "
                     f"--output {_dense_configured}` once to skip this on future startups."
                 )
@@ -4131,16 +4174,17 @@ with st.spinner("Loading data and pre-computing scenarios..."):
         # not a hard fail — keeps cold start usable in dev workflows).
         lookup_table = {}
         _dense_configured = city_cfg.get("dense_scenarios_file")
-        if _dense_configured and os.path.exists(_dense_configured):
-            scenario_df = pd.read_csv(_dense_configured)
+        _dense_df = _load_dense_grid_artifact(selected_city)
+        if _dense_df is not None:
+            scenario_df = _dense_df
         else:
             if _dense_configured:
                 print(
-                    f"[FAST] dense_scenarios_file {_dense_configured!r} not "
-                    f"found for {selected_city!r} — recomputing on the fly. "
-                    f"Run `python3 precompute_scenarios.py --city "
-                    f"{selected_city!r} --output {_dense_configured}` once "
-                    "to skip this on future cold starts."
+                    f"[FAST] dense_scenarios_file {_dense_configured!r} missing "
+                    f"or stale (provenance stamp mismatch) for {selected_city!r} "
+                    f"— recomputing on the fly. Run `python3 "
+                    f"precompute_scenarios.py --city {selected_city!r} --output "
+                    f"{_dense_configured}` once to skip this on future cold starts."
                 )
             else:
                 print(

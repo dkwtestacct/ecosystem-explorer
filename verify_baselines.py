@@ -2977,6 +2977,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
     try:
         import math as _m
         import pandas as pd
+        import json as _json3
         # Sample 3 rows per city — spread across the (pct, gi, ff) space.
         # Pick rows that exist in both cities' CSVs (mult. of dense's step
         # 5/10) and that exercise non-baseline math.
@@ -2997,6 +2998,27 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             if not Path(_path).exists():
                 print(f"  SKIP {_city}: dense_scenarios_file {_path!r} not "
                       "on disk (Fast mode will recompute live).")
+                continue
+            # Relay 37 — provenance stamp check (parity with the Fast-grid cell).
+            _meta_path = _path + ".meta.json"
+            if not Path(_meta_path).exists():
+                print(f"  FAIL {_city}: dense-CSV sidecar {_meta_path!r} missing "
+                      "— run `precompute_scenarios.py --city <c> --stamp-only`.")
+                dense_freshness_diffs += 1
+                continue
+            _dmeta = _json3.loads(Path(_meta_path).read_text())
+            _sbad = []
+            if _dmeta.get("dense_grid_format_version") != 1: _sbad.append("format")
+            if _dmeta.get("step_pct") != 5: _sbad.append("step_pct")
+            if _dmeta.get("step_alloc") != 10: _sbad.append("step_alloc")
+            if _dmeta.get("city_key") != _city: _sbad.append("city_key")
+            if _dmeta.get("scenario_schema_version") != app.SCENARIO_SCHEMA_VERSION:
+                _sbad.append(f"schema({_dmeta.get('scenario_schema_version')}"
+                             f"!={app.SCENARIO_SCHEMA_VERSION})")
+            if _sbad:
+                print(f"  FAIL {_city}: dense-CSV stamp mismatch {_sbad} — "
+                      "regenerate or re-stamp with precompute_scenarios.py.")
+                dense_freshness_diffs += 1
                 continue
             _df = pd.read_csv(_path)
             _rebind_city(app, _city)
@@ -3027,8 +3049,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                               f"rel={_rel:.2e} > rel_tol={_REL_TOL:.0e}")
                         _city_diffs += 1
             if _city_diffs == 0:
-                print(f"  OK   {_city}: 3 sampled rows × 4 metrics match "
-                      f"CSV within rel_tol={_REL_TOL:.0e}")
+                print(f"  OK   {_city}: stamp matches + 3 sampled rows × 4 "
+                      f"metrics match CSV within rel_tol={_REL_TOL:.0e}")
             else:
                 dense_freshness_diffs += _city_diffs
 
@@ -3047,6 +3069,15 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         else:
             print(f"  OK   meta-test: 1% synthetic drift correctly fails "
                   f"the rel_tol={_REL_TOL:.0e} check")
+        # Meta-test (stamp, Relay 37): a wrong schema_version in the stamp must
+        # be flagged by the same equality the per-city stamp check uses.
+        _probe_meta = {"scenario_schema_version": app.SCENARIO_SCHEMA_VERSION + 999}
+        if _probe_meta.get("scenario_schema_version") == app.SCENARIO_SCHEMA_VERSION:
+            print("  FAIL meta-test: seeded stamp schema mismatch NOT caught")
+            dense_freshness_diffs += 1
+        else:
+            print("  OK   meta-test: seeded stamp schema mismatch correctly "
+                  "caught (stamp check is non-vacuous)")
     except Exception as e:
         print(f"  ERROR dense-csv freshness: {e}")
         import traceback; traceback.print_exc()

@@ -40,8 +40,39 @@ _parser.add_argument("--city", default=os.environ.get("PRECOMPUTE_CITY", "Minnea
                      help="CITIES key to select (default: 'Minneapolis, MN').")
 _parser.add_argument("--output", default=None,
                      help="CSV output path (default: the city's `dense_scenarios_file` from CITIES).")
+_parser.add_argument("--stamp-only", action="store_true",
+                     help="Write the .meta.json provenance sidecar for an EXISTING "
+                          "dense CSV and exit — no rebuild (Relay 37).")
 _args = _parser.parse_args()
 CITY_KEY = _args.city
+_STAMP_ONLY = _args.stamp_only
+
+# Relay 37 — dense-grid provenance sidecar (mirrors the Fast-grid stamp shape).
+# The dense grid is pct step 5 / gi+ff step 10 (see PCT_RANGE/GI_RANGE/FF_RANGE).
+DENSE_GRID_FORMAT_VERSION = 1
+DENSE_STEP_PCT = 5
+DENSE_STEP_ALLOC = 10
+
+
+def _write_dense_meta(out_path, df, schema_version):
+    """Write '<out_path>.meta.json' provenance stamp for the dense CSV. Mirrors
+    the Fast-grid sidecar (city / step params / format / schema / count / cols)
+    so app._load_dense_grid_artifact + the verify_baselines dense-freshness cell
+    can detect staleness."""
+    import json as _json
+    meta = {
+        "dense_grid_format_version": DENSE_GRID_FORMAT_VERSION,
+        "city_key": CITY_KEY,
+        "step_pct": DENSE_STEP_PCT,
+        "step_alloc": DENSE_STEP_ALLOC,
+        "scenario_schema_version": int(schema_version),
+        "n_recipes": int(len(df)),
+        "columns": list(df.columns),
+    }
+    meta_path = str(out_path) + ".meta.json"
+    with open(meta_path, "w") as _f:
+        _json.dump(meta, _f, indent=2, sort_keys=True)
+    return meta_path
 
 
 # ── 1. Stub streamlit so importing app.py doesn't try to render a UI ──────────
@@ -80,6 +111,9 @@ class _SessionStateStub:
 
     def __contains__(self, key):
         return key in self._store
+
+    def keys(self):
+        return list(self._store.keys())
 
 
 class _StubSt:
@@ -163,6 +197,9 @@ class _StubSt:
         return True
 
 
+# Pre-seed entry_city so app.py's city-switch reset path resolves at import
+# (same trick verify_baselines / the Relay-34/35 scripts use).
+_SessionStateStub._store['entry_city'] = CITY_KEY
 sys.modules["streamlit"] = _StubSt()
 
 
@@ -203,6 +240,15 @@ OUT_PATH = Path(_args.output or _DEFAULT_OUT)
 OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 print(f"\nCity:    {CITY_KEY}")
 print(f"Output:  {OUT_PATH}")
+
+if _STAMP_ONLY:
+    if not OUT_PATH.exists():
+        sys.exit(f"ERROR: --stamp-only but {OUT_PATH} does not exist; nothing to stamp.")
+    _df_existing = pd.read_csv(OUT_PATH)
+    _mp = _write_dense_meta(OUT_PATH, _df_existing, app.SCENARIO_SCHEMA_VERSION)
+    print(f"  STAMP-ONLY: wrote {_mp} for existing {OUT_PATH} "
+          f"({len(_df_existing)} rows, schema v{app.SCENARIO_SCHEMA_VERSION}) — no rebuild")
+    sys.exit(0)
 
 rows = []
 _t_loop = time.time()
@@ -246,8 +292,11 @@ for i, (pct, gi, ff) in enumerate(combos, start=1):
 
 df = pd.DataFrame(rows)
 df.to_csv(OUT_PATH, index=False)
+_meta_path = _write_dense_meta(OUT_PATH, df, app.SCENARIO_SCHEMA_VERSION)
 
 print(f"\nWrote {OUT_PATH}")
+print(f"  Sidecar: {_meta_path} (schema v{app.SCENARIO_SCHEMA_VERSION}, "
+      f"format v{DENSE_GRID_FORMAT_VERSION})")
 print(f"  Rows:    {len(df):,}")
 print(f"  Columns: {len(df.columns)}")
 print(f"  Total time (including app import): {time.time() - _t_import:.1f}s")
