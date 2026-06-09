@@ -7047,7 +7047,7 @@ st.markdown(
 )
 st.caption(
     "Badge colors show how each number was checked — green = matches NatCap, "
-    "blue = aligned method, gray = prototype. Full definitions in 'How this "
+    "blue = aligned method, gray = prototype. Full definitions are in 'How this "
     "prototype works'."
 )
 st.caption(
@@ -8268,10 +8268,15 @@ _scope_own  = _cs_ownership_for_row(results)
 _setup_region = "regional extent" if _scope_area == "Citywide" else _scope_area
 _setup_own = ("no ownership filter" if _scope_own == "None"
               else _scope_own.lower())
-_setup_place = PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()
+# Relay 47 [D] — use the short strategy key (not the descriptive label, whose
+# "Random placement" doubled the trailing " placement"). Dedup guard keeps it
+# reading "<strategy> placement" once for any current or future key.
+_setup_place = placement_strategy
+if not _setup_place.endswith("placement"):
+    _setup_place += " placement"
 st.caption(
     f"Current setup: {selected_city} · {_setup_region} · {_setup_own} · "
-    f"{int(results['pct_converted'])}% converted · {_setup_place} placement"
+    f"{int(results['pct_converted'])}% converted · {_setup_place}"
 )
 
 _MAIN_TAB_NAMES = ["Scenario", "Tradeoffs", "Map View", "NatCap Reference"]
@@ -8568,10 +8573,7 @@ if _main_tab == 'Tradeoffs':
         # no-filter for NatCap anchors). Surface that in the title so the user
         # doesn't read across rows as same-scope numbers.
         if _has_comparison_rows:
-            if _filter_active:
-                st.markdown("#### Compare scenarios — current row reflects active filter")
-            else:
-                st.markdown("#### Compare scenarios")
+            st.markdown("#### Compare scenarios")
             st.caption(
                 ("NatCap-published reference scenarios, t"
                  if selected_city.startswith("San Antonio") else "T")
@@ -8579,8 +8581,9 @@ if _main_tab == 'Tradeoffs':
                 "**Source** says where the value comes from; **Validation** says how "
                 "it's grounded. Different sources are not directly comparable as "
                 "precision numbers; the columns make the difference visible."
-                + (" The current row reflects your active region/ownership filter; "
-                   "anchor and saved rows do not." if _filter_active else "")
+                + (" The current row updates with your active region and "
+                   "ownership filters; NatCap reference and saved rows stay "
+                   "anchored to their original scope." if _filter_active else "")
             )
         else:
             st.markdown("#### Current scenario summary")
@@ -9153,7 +9156,7 @@ if _main_tab == 'Tradeoffs':
             # Food / Cost / Apply.
             st.subheader("Best tested mixes for selected area")
             st.caption(
-                "Evaluated with the full raster engine under the current "
+                "Evaluated with the InVEST-aligned evaluator under the current "
                 "selected area and eligibility filters."
             )
             _ropt = st.session_state.region_optimized_results.copy()

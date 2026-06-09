@@ -46,6 +46,11 @@ RETIRED_TERMS = [
     # "heat proxy" stay legal in code comments / internal docs.
     "development-intensity heat proxy",
     "Development-intensity heat proxy",
+    # Relay 47: visible evaluator synonyms are retired in favor of
+    # "InVEST-aligned evaluator". "raster engine" covers "full raster engine"
+    # too; no legitimate use found on the scanned surfaces.
+    "raster engine",
+    "full raster engine",
 ]
 
 ALLOW_MARKER = "vocab-allow"
