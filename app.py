@@ -7762,11 +7762,11 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
     # citywide cards use so the numbers are apples-to-apples. Order matches the
     # Ecological → Human & Social → Economic flow above.
     def _fmt_co2(t):  return f"{t:+,.0f} t CO2e" if t is not None else "—"
-    def _fmt_money(d): return f"${d:,.0f}" if d is not None else "—"
+    def _fmt_money(d): return _fmt_usd(d) if d is not None else "—"
     def _fmt_pct(p):   return f"{p:.1f}%" if p is not None else "—"
     def _fmt_pp(n):    return f"{int(n):,} people" if n is not None else "—"
     def _fmt_cases(n): return f"{n:.0f} cases" if n is not None else "—"
-    def _fmt_cost(m):  return f"${m:.1f}M" if m is not None else "—"
+    def _fmt_cost(m):  return _fmt_usd(m * 1e6) if m is not None else "—"
     # UI feedback #6 — when the active city has no flood-damage valuation
     # method (SA's case: no damage_table_file → TOTAL_POTENTIAL_DAMAGE_USD
     # == 0), don't render "$0" — render the n/a sentinel so the dashboard
@@ -7961,9 +7961,9 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     if _flood_damage_monetized:
         _flood_label_table = 'Flood Damage Avoided'
         _flood_baseline_table = '$0'
-        _flood_scenario_table = f'${_flood_damage_avoided / 1e6:.1f}M'
+        _flood_scenario_table = _fmt_usd(_flood_damage_avoided)
         _flood_change_table = (
-            f'+${_flood_damage_avoided / 1e6:.1f}M'
+            f'+{_fmt_usd(_flood_damage_avoided)}'
             if _flood_damage_avoided >= 1e4 else '$0'
         )
     comparison_data = {
@@ -7991,7 +7991,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{_carbon_tons_table:,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"]:.3f}',
             *([_flood_scenario_table] if _flood_damage_monetized else []),
-            f'${_energy_savings_table / 1e6:.2f}M/yr',
+            f'{_fmt_usd(_energy_savings_table)}/yr',
             f'${_carbon_value_table / 1e6:.2f}M{_carbon_dollar_period}' if abs(_carbon_value_table) >= 1e4 else f'${_carbon_value_table:,.0f}{_carbon_dollar_period}',
         ],
         'Change': [
@@ -8006,7 +8006,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{_carbon_tons_table:+,.0f} {_carbon_unit}',
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
             *([_flood_change_table] if _flood_damage_monetized else []),
-            f'+${_energy_savings_table / 1e6:.2f}M/yr' if _energy_savings_table >= 1e3 else '$0/yr',
+            f'+{_fmt_usd(_energy_savings_table)}/yr' if _energy_savings_table >= 1e3 else '$0/yr',
             f'+${_carbon_value_table / 1e6:.2f}M{_carbon_dollar_period}' if _carbon_value_table >= 1e4 else f'+${_carbon_value_table:,.0f}{_carbon_dollar_period}' if _carbon_value_table >= 1 else f'$0{_carbon_dollar_period}',
         ],
     }
