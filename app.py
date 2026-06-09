@@ -2292,6 +2292,17 @@ def _fmt_ce(val):
     return f"${val:,.0f}"
 
 
+def _fmt_usd(v):
+    """Adaptive USD card-VALUE formatter (Relay 40). |v| >= $1M -> '$X.XXM';
+    $1k <= |v| < $1M -> '$X,XXX'; |v| < $1k -> '$X'. Keeps small-scenario dollar
+    cards from collapsing to '$0.00M' (surfaced by the ~260-acre school preset).
+    Value-only — labels stay $-free. Carbon keeps its own _fmt_carbon_dollars
+    (lower $M threshold) so its '$0.87M' display is unaffected."""
+    if abs(v) >= 1e6:
+        return f"${v / 1e6:.2f}M"
+    return f"${v:,.0f}"
+
+
 # ── Placement strategies ──────────────────────────────────────────────────────
 # Five named strategies for selecting which convertible pixels to convert.
 # 'random' is the default and reproduces the prior uniform-sampling behavior.
@@ -7356,17 +7367,17 @@ _render_validation_caption(hs3, "preventable_mh_cases", _validation_scenario_con
 hs3.caption("cases prevented" if _mh_cases >= 0 else "cases induced")
 if _mh_cost >= _MH_COST_PILL_EPSILON:
     _mh_cost_label = "Avoided MH Costs"
-    _mh_cost_value = f'${_mh_cost / 1e6:.2f}M/yr'
-    _mh_cost_delta = f"+${_mh_cost / 1e6:.2f}M/yr avoided"
+    _mh_cost_value = f'{_fmt_usd(_mh_cost)}/yr'
+    _mh_cost_delta = f"+{_fmt_usd(_mh_cost)}/yr avoided"
     _mh_cost_color = "normal"
 elif _mh_cost <= -_MH_COST_PILL_EPSILON:
     _mh_cost_label = "Added MH Costs"
-    _mh_cost_value = f'${abs(_mh_cost) / 1e6:.2f}M/yr'
-    _mh_cost_delta = f"+${abs(_mh_cost) / 1e6:.2f}M/yr added in costs"
+    _mh_cost_value = f'{_fmt_usd(abs(_mh_cost))}/yr'
+    _mh_cost_delta = f"+{_fmt_usd(abs(_mh_cost))}/yr added in costs"
     _mh_cost_color = "inverse"
 else:
     _mh_cost_label = "Avoided MH Costs"
-    _mh_cost_value = f'${_mh_cost / 1e6:.2f}M/yr'
+    _mh_cost_value = f'{_fmt_usd(_mh_cost)}/yr'
     _mh_cost_delta = None
     _mh_cost_color = "off"
 hs4.metric(
@@ -7428,7 +7439,7 @@ if results['food_mln_lbs'] == 0:
     )
 econ2.metric(
     "Est. Implementation Cost",
-    f"${results['total_cost_mln']:.1f}M",
+    _fmt_usd(results['total_cost_mln'] * 1e6),
     delta=None,
     help="Confidence: Medium — see 'How this prototype works' for tier definitions. Total cost based on $/acre sliders × converted acreage."
 )
@@ -7447,9 +7458,9 @@ if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_
     _n_typed_buildings = int(np.sum(BUILDINGS_TYPE_RASTER > 0))
     econ3.metric(
         "Flood Damage Avoided",
-        f"${_flood_damage_avoided / 1e6:.1f}M",
+        _fmt_usd(_flood_damage_avoided),
         delta=(
-            f"+${_flood_damage_avoided / 1e6:.1f}M vs baseline"
+            f"+{_fmt_usd(_flood_damage_avoided)} vs baseline"
             if _flood_damage_avoided >= 1e4 else "no avoided damage"
         ),
         delta_color="normal" if _flood_damage_avoided >= 1e4 else "off",
@@ -7577,9 +7588,9 @@ if _energy_available:
         )
     econ4.metric(
         "Cooling Energy Savings",
-        f"${_energy_savings / 1e6:.2f}M/yr",
+        f"{_fmt_usd(_energy_savings)}/yr",
         delta=(
-            f"+${_energy_savings / 1e6:.2f}M/yr vs baseline"
+            f"+{_fmt_usd(_energy_savings)}/yr vs baseline"
             if _energy_savings >= 1e3 else "no avoided energy cost"
         ),
         delta_color="normal" if _energy_savings >= 1e3 else "off",
