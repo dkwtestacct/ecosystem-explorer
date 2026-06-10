@@ -5585,7 +5585,7 @@ _sec_scenario          = st.sidebar.expander("Scenario", expanded=True)
 _sec_where             = st.sidebar.expander("Spatial targeting",
                                               expanded=_where_expanded)
 _sec_eligibility       = (
-    st.sidebar.expander("Eligibility filters", expanded=False)
+    st.sidebar.expander("Where conversions can be placed", expanded=False)
     if _eligibility_available else None
 )
 _sec_placement         = st.sidebar.expander("Placement Strategy",
@@ -5962,7 +5962,7 @@ with _sec_where:
     elif _apply_within == "Selected regions" and not _region_layers_available:
         st.info("No region layers configured for this city.")
 
-# ── Sidebar section: Eligibility filters (Sidebar Reorg) ───────────────────
+# ── Sidebar section: Where conversions can be placed (Sidebar Reorg) ───────
 # Batch 4 of OWNERSHIP_FINER_CLASSES_SPEC.md. The panel reads as "where can
 # conversions land": exclusion items (always-on) at the top, then the
 # selectable ownership class + vacant overlay below. Composes with the
@@ -8418,7 +8418,7 @@ if _main_tab == 'Tradeoffs':
             st.subheader("Selected-area tradeoff space")
             st.caption(
                 "Each point is a tested mix evaluated **inside the current "
-                "selected region and eligibility filters**. Axes use "
+                "selected region and conversion filters**. Axes use "
                 "selected-area outcomes, so points are not directly "
                 "comparable to citywide NatCap reference scenarios."
             )
@@ -9160,7 +9160,7 @@ if _main_tab == 'Tradeoffs':
             st.subheader("Best tested mixes for selected area")
             st.caption(
                 "Evaluated with the InVEST-aligned evaluator under the current "
-                "selected area and eligibility filters."
+                "selected area and conversion filters."
             )
             _ropt = st.session_state.region_optimized_results.copy()
             # Synthesize Rank + Mix columns for display. Mix folds the three
