@@ -7,16 +7,17 @@ Runs the MN baseline through both the app's per-pixel
 comparison CSV with summary statistics.
 
 Phase 1 scope: one scenario (baseline), one model (UNA), one city (MN).
-Targets the documented "Proxy" parity gap (REFERENCE.md "Official InVEST
-alignment — UNA") — the largest documented methodology divergence remaining
-after the UCM HMI gap was closed.
 
-The prototype reports a per-pixel quality-weighted *reachability* score
-(0 / 0.5 / 1.0 — "is meaningful nature reachable from here?"). Canonical
-InVEST UNA runs two-step floating catchment area (2SFCA): a per-capita
-supply/demand ratio that accounts for population competition for nature.
-These represent different things mathematically; this script quantifies how
-different they are spatially and on aggregate.
+NOTE (header refreshed, Relay 61): the "Proxy" gap this header once described
+(per-pixel 0 / 0.5 / 1.0 reachability vs canonical 2SFCA) is CLOSED. The app
+now implements the canonical InVEST UNA two-step floating catchment area
+(2SFCA) — `urban_nature_supply_percapita >= urban_nature_demand`, accounting
+for population competition — validated against
+`natcap.invest.urban_nature_access.execute()` at MAE ≈ 0 (REFERENCE.md
+"Official InVEST alignment — UNA"). The remaining note is aggregation-only: the
+citywide headline (`ntr_bal_avg`) is a different *statistic* than the prototype's
+pct-meeting-demand, so per-pixel parity holds but the headline aggregate is not
+directly comparable.
 
 Usage:
     python validation/compare_una_invest.py

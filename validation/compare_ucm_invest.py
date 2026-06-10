@@ -6,10 +6,15 @@ and natcap.invest.urban_cooling_model.execute(), then writes a single-row
 comparison CSV with summary statistics.
 
 Phase 1 scope: one scenario (baseline), one model (UCM), one city (MN).
-Targets the documented HMI park-proximity divergence (REFERENCE.md
-"Official InVEST alignment — UCM"): the app skips the canonical
-max(CC_local, CC_park) step with exponential decay near green areas >= 2 ha,
-substituting a Gaussian smoothing at sigma=15 px (450 m).
+
+NOTE (header refreshed, Relay 61): the HMI park-proximity gap this header once
+described as open is CLOSED. The app now implements the canonical
+`HMI = max(CC_local, CC_park)` with the 2-hectare park threshold and
+exponential decay over d_cool = 450 m (see `_compute_hmi_raster`), validated at
+MAE = 0.0000 / r = 1.0000 vs `urban_cooling_model.execute()` on the MN baseline
+(Brief 28b; REFERENCE.md "Official InVEST alignment — UCM"). The only remaining
+UCM divergence is in Cooling Energy Savings (per-pixel vs per-building T_air
+sampling), which does not affect HMI / Temperature Change.
 
 Usage:
     python validation/compare_ucm_invest.py
