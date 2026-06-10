@@ -5656,7 +5656,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         "- **Mental Health** — preventable cases + avoided costs  \n"
         "- **Cooling Energy Savings**  \n"
         "- **Food Production**  \n"
-        "- **NDVI**  \n"
+        "- **NDVI** (land-cover-derived)  \n"
         "- **Implementation Cost** & **Cost-Effectiveness** ratios"
     )
     with st.expander("Why are these unavailable?", expanded=False):
@@ -7638,9 +7638,13 @@ hs3.metric(
         "(compare_umh_invest.py): MN MAE(active) ≤ 1.1e-9 cases/px, r = "
         "1.000000; SA MAE(active) ≤ 2.3e-6 cases/px, r ≥ 0.998 (the SA "
         "residual is canonical's radius padding + edge-crop alignment, "
-        "not a kernel-formula divergence). NDVI here is a synthetic "
-        "per-land-cover proxy, not satellite-derived — an input-quality caveat "
-        "separate from the validated algorithm. "
+        "not a kernel-formula divergence). "
+        "Greenness exposure is derived from the scenario's land-cover classes — "
+        "so it responds to land-use changes — rather than from measured satellite "
+        "NDVI; the computation matches InVEST UMH where tested, not observed "
+        "input data. The class proxy flattens within-class greenness variation, "
+        "so absolute case counts are indicative — the scenario *response* is the "
+        "signal. "
         "Underlying model: [InVEST Urban Mental Health]"
         "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_mental_health.html)."
     ),
