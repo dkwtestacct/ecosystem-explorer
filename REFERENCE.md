@@ -541,7 +541,7 @@ The locked terms below are the canonical names used across the app and docs. The
 - **Runoff Volume** — modeled runoff in ac-ft (SCS-CN); the physical volume signal.
 - **Flood Damage Avoided** — dollars avoided; surfaced only where a damage-valuation table exists (MN). SA surfaces none.
 - **InVEST-aligned evaluator** — the prototype's numpy reimplementation of the InVEST urban models, verified against canonical InVEST where comparable; not canonical InVEST running live. Retired (visible): full evaluator, prototype evaluator, canonical engine — "full evaluator" allowed in internal docs only. <!-- vocab-allow: glossary names the retired terms -->
-- **AI-assisted search / fast estimates** — the citywide machine-learning screen plus its pre-verify values. Retired in user-facing text: "surrogate-driven optimizer".
+- **AI-assisted search / fast estimates** — the citywide machine-learning screen plus its pre-verify values. Retired in user-facing text: "surrogate-driven optimizer". <!-- vocab-allow: glossary names the retired term -->
 - **model disagreement bands** — 10–90th percentile across the model's trees; not confidence intervals. Retired: "uncertainty bands". <!-- vocab-allow: glossary names the retired term -->
 - **Urban Mental Health outcomes** — per-pixel parity with InVEST UMH (v3.19.0); the NDVI input is a land-cover-derived proxy. Retired: "mental-health proxy outcomes", "mental-health effects". <!-- vocab-allow: glossary names the retired terms -->
 - **Schools with Nature Access** — share of mapped K–12 school points on adequately-served pixels; point-sampled, not attendance-boundary based. Avoid "school access".

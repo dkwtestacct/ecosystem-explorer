@@ -54,6 +54,17 @@ RETIRED_TERMS = [
     # Relay 52: the hyphenated "full-raster" descriptor too — cleared from all
     # scanned surfaces (it stays legal in internal docs, which aren't scanned).
     "full-raster",
+    # Relay 53: distinctive variant forms the bare-term guards miss (all
+    # confirmed absent from scanned surfaces). Hyphenated / badge / "-driven"
+    # forms ONLY — bare "surrogate" (legit tooltip + code use) and the space
+    # forms "canonical engine" / "uncertainty band" / "Flood Retention" are
+    # handled separately, so these add no false positives.
+    "canonical-engine",
+    "Surrogate-suggested",
+    "surrogate-suggested",
+    "surrogate-driven",
+    "uncertainty-band",
+    "flood-retention",
 ]
 
 ALLOW_MARKER = "vocab-allow"
@@ -122,7 +133,24 @@ def selftest():
         and len(raster_hits) == 1
         and raster_hits[0][1] == "full-raster"
     )
-    return 0 if ok else 1
+    # Relay 53 — each distinctive variant form must be caught, AND the legit
+    # bare-"surrogate" tooltip use must NOT be flagged (no false positive).
+    variant_seeds = {
+        "canonical-engine":    "Computed by the canonical-engine-verified models.",
+        "Surrogate-suggested": "Provenance flips to Surrogate-suggested.",
+        "surrogate-suggested": "an applied surrogate-suggested scenario",
+        "surrogate-driven":    "the surrogate-driven optimizer is reframed",
+        "uncertainty-band":    "10th-90th uncertainty-band shading on the chart",
+        "flood-retention":     "strongest per-pixel flood-retention effect",
+    }
+    variants_ok = all(
+        v in {t for (_l, t, _ln) in find_hits_in_text(seed)}
+        for v, seed in variant_seeds.items()
+    )
+    bare_surrogate_ok = find_hits_in_text(
+        "Fast machine-learning model: a surrogate trained on precomputed runs."
+    ) == []
+    return 0 if (ok and variants_ok and bare_surrogate_ok) else 1
 
 
 def main():

@@ -5260,7 +5260,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
 
     # NatCap fix #4 — anchor-and-launch framing. These are the scenarios
     # NatCap already studied; the Explorer goes beyond them. Honesty
-    # guardrails baked in: "validate" = canonical-engine verification of
+    # guardrails baked in: "validate" = InVEST-aligned-evaluator verification of
     # Explorer scenarios (not reproduction of NatCap's published figures);
     # "optimize" = "best tested mixes," not the global optimum. The
     # framing must not imply the app reproduces or validates NatCap's
