@@ -570,6 +570,10 @@ if "_pending_pct" in st.session_state:
     st.session_state.slider_gi_pct        = st.session_state.pop("_pending_gi")
     st.session_state.slider_ff_pct        = st.session_state.pop("_pending_ff")
     # active_example_scenario is set by the button handler before _pending_ keys are written
+# Relay 50 — a guided example may also stage a placement strategy; land it on the
+# radio's key before that radio renders (mirrors the mix _pending_* transfer).
+if "_pending_placement" in st.session_state:
+    st.session_state.placement_strategy_radio = st.session_state.pop("_pending_placement")
 # Brief #4 — auto-clear the Applied-from-Optimizer flag whenever the current
 # slider state diverges from the values that were applied (manual user edit,
 # preset button, Best-by-Goal Apply, etc.). The optimizer Apply path sets
@@ -4907,6 +4911,31 @@ def _render_apply_toast():
     st.session_state._show_apply_toast = False
 
 
+def _load_guided_example(name, pct, gi, ff, *, placement=None,
+                         ownership_preset=None):
+    """Load a guided-example recipe (Relay 50). Sets ONLY this recipe's defining
+    knobs via the same _pending_* path the mix presets use, plus the eligibility
+    section's elf_preset write-through for ownership. NEVER touches region
+    selection (selected_region_mask / region_selection) or the placement MODE
+    (_filter_active) — a recipe applies citywide or within the user's current
+    region. Goals are deliberately not set (a scenario's displayed metrics are
+    goal-independent; goals only weight a later Optimize). Caller is a button
+    handler; this stages session_state and triggers the rerun."""
+    st.session_state._pending_pct = pct
+    st.session_state._pending_gi = gi
+    st.session_state._pending_ff = ff
+    if placement is not None:
+        st.session_state._pending_placement = placement
+    if ownership_preset is not None:
+        # Re-use the eligibility section's preset write-through: set the
+        # selectbox value and clear its applied-tracker so the checkboxes land
+        # on rerun.
+        st.session_state["elf_preset"] = ownership_preset
+        st.session_state.pop("_elf_preset_applied", None)
+    st.session_state._example_toast = name
+    st.rerun()
+
+
 def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
     """Selected-area tradeoff scatter — region-local axes only.
 
@@ -5763,6 +5792,43 @@ with _sec_quick_start:
         st.rerun()
     st.caption("Control case — no green conversion")
 
+    # ── Guided examples (Relay 50) ──────────────────────────────────────────
+    # Portable recipes: each sets ONLY its defining knobs (mix, and where noted a
+    # placement strategy or land filter) via the same _pending_* path the mix
+    # presets use, plus the existing elf_preset write-through for ownership.
+    # Region selection and placement MODE are NEVER touched — a recipe applies
+    # citywide if no region is selected, or within the user's selected region if
+    # one is. Goals are deliberately not set (a scenario's displayed metrics are
+    # goal-independent; goals only weight a later Optimize).
+    st.markdown("---")
+    st.markdown("**Guided examples**")
+    st.caption(
+        "Starting points — each sets a coherent mix (and, where noted, a "
+        "placement strategy or land filter), within your current region or "
+        "citywide selection. Adjust the sliders or run Optimize from here."
+    )
+
+    if st.button("Balanced", key="guided_balanced"):
+        _load_guided_example("Balanced", 10, 50, 50)
+    st.caption("50/50 nature-based mix.")
+    if st.button("Cooling-focused", key="guided_cooling"):
+        _load_guided_example("Cooling-focused", 10, 80, 20,
+                             placement="cooling-focused")
+    st.caption("Green/tree-leaning mix, placed toward hot areas near buildings.")
+    if st.button("Food forest", key="guided_food"):
+        _load_guided_example("Food forest", 10, 0, 100)
+    st.caption("Food-forest-leaning mix.")
+    if st.button("School-land greening", key="guided_school"):
+        _load_guided_example("School-land greening", 10, 50, 50,
+                             ownership_preset="School land")
+    st.caption("Nature mix limited to school land.")
+
+    if st.session_state.get("_example_toast"):
+        st.toast(
+            f"Loaded the {st.session_state.pop('_example_toast')} example. "
+            "Adjust sliders or run Optimize to explore alternatives."
+        )
+
 # ── Sidebar section: Placement Strategy ────────────────────────────────────
 # Extracted out of Scenario. Placement shapes the current scenario; users
 # configure it alongside the conversion mix, then optionally optimize.
@@ -5772,6 +5838,7 @@ with _sec_placement:
         options=list(PLACEMENT_STRATEGY_LABELS.keys()),
         format_func=lambda key: PLACEMENT_STRATEGY_LABELS[key],
         index=0,
+        key="placement_strategy_radio",  # Relay 50 — settable by guided examples
         help=(
             "Which pixels get converted. Random samples uniformly across "
             "convertible developed pixels. Focused strategies bias placement "

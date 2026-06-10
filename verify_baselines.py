@@ -2746,6 +2746,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             'hi_res_confirmed',
             'model_quality',
             'natcap_fixed_scenario_id',
+            # Relay 50 — Placement radio gained a key so guided examples can set
+            # it; the four guided-example buttons in Quick Start are keyed too.
+            'placement_strategy_radio',
+            'guided_balanced', 'guided_cooling', 'guided_food', 'guided_school',
             'region_apply_within', 'region_layer',
             'region_opt_button',
             'region_opt_w_carbon', 'region_opt_w_cool',
