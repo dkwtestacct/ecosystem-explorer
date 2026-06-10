@@ -558,7 +558,7 @@ if "_applied_optimizer_values" not in st.session_state:
 # `applied_from_optimizer` flag because the displayed metrics are engine-true
 # region-local, not surrogate predictions. The provenance / Save / Export
 # branches key off this independently so a region-optimized scenario can't
-# silently surface as "AI-assisted suggestion." See
+# silently surface as "machine-learning suggestion." See
 # docs/internal/REGION_OPTIMIZER_SPEC.md §4.
 if "applied_from_region_optimizer" not in st.session_state:
     st.session_state.applied_from_region_optimizer = False
@@ -1087,7 +1087,7 @@ with st.expander("How this prototype works", expanded=False):
         "NatCap's published outputs (fixed-scenario reference view).  \n"
         "- **Explorer-generated** — a slider-built scenario; engine-validated; "
         "scenario not NatCap-published.  \n"
-        "- **AI-assisted suggestion** — an applied citywide search suggestion; "
+        "- **machine-learning suggestion** — an applied citywide search suggestion; "
         "engine-validated; exploratory candidate.  \n"
         "  \n"
         "**Per-card badge** — one of four states:  \n"
@@ -4515,7 +4515,7 @@ def _fire_region_optimize(
 # each sidebar button.
 _OPTIMIZE_HELP_CITYWIDE = (
     "Searches citywide for promising mixes with the fast machine-learning "
-    "model; apply one to recompute it with the InVEST-aligned evaluator."
+    "model; apply one to recompute with the InVEST-aligned evaluator."
 )
 _OPTIMIZE_HELP_REGION = (
     "Finds best-tested mixes under your current area and filters."
@@ -4935,7 +4935,7 @@ def _apply_region_optimizer_mix(row, index):
 def _render_apply_toast():
     """One-shot, mode-aware confirmation toast after an Apply (Relay 51).
 
-    Citywide AI-assisted suggestions, selected-area candidates, and best-by-goal
+    Citywide machine-learning suggestions, selected-area candidates, and best-by-goal
     applies get handoff text matching their path. Read-only on the apply/
     provenance flags — it does NOT set them (the apply helpers own that); it just
     reads them to choose the message, then clears the one-shot toast flag."""
@@ -4943,7 +4943,7 @@ def _render_apply_toast():
         return
     if st.session_state.get("applied_from_optimizer"):
         st.success(
-            "Applied the AI-assisted suggestion — recomputed with the "
+            "Applied the machine-learning suggestion — recomputed with the "
             "InVEST-aligned evaluator. Map, metrics, and comparison table updated."
         )
     elif st.session_state.get("applied_from_region_optimizer"):
@@ -5176,11 +5176,11 @@ _PROVENANCE_HEADER_INFO = {
         # Two-RELAY lock — applied-result Source line. The applied citywide
         # scenario is engine-evaluated on apply (the main panel reruns
         # evaluate_scenario with the applied recipe), so the Source surface
-        # frames it precisely: "Citywide AI-assisted suggestion —
+        # frames it precisely: "Citywide machine-learning suggestion —
         # engine-evaluated on apply." Distinct from the region path's
         # "Engine-verified — region-optimized" below (Assertion C in
         # verify_baselines machine-locks the distinction).
-        "Citywide AI-assisted suggestion — engine-evaluated on apply",
+        "Citywide machine-learning suggestion — engine-evaluated on apply",
         "engine-validated — exploratory candidate "
         "for further validation",
         "blue",
@@ -5193,7 +5193,7 @@ _PROVENANCE_HEADER_INFO = {
     # filter), with the search-completeness caveat in the validation line.
     eib.PROVENANCE_REGION_OPTIMIZED: (
         "Engine-verified — region-optimized",
-        "engine-true region-local values; AI-shortlisted "
+        "engine-true region-local values; machine-learning-shortlisted "
         "candidates (shortlist may not be exhaustive)",
         "blue",
     ),
@@ -6362,12 +6362,13 @@ with _sec_discover:
         # Two-RELAY lock — citywide mode label + caption + Optimize button
         # co-render in the same block (Assertion B in verify_baselines).
         # Mode label is promoted markdown (visible), not a faint caption.
-        st.markdown("**Citywide AI-assisted search**")
-        st.caption("Fast estimates suggest promising mixes; apply one to recompute it with the InVEST-aligned evaluator.")
+        st.markdown("**Citywide machine-learning search**")
+        st.caption("Fast estimates suggest promising mixes; apply one to recompute with the InVEST-aligned evaluator.")
         with st.popover("How this works"):
             st.markdown(
-                "_Fast machine-learning model: a surrogate trained on "
-                "precomputed InVEST-aligned evaluator runs._  \n"
+                "_The fast model is a random forest trained on "
+                "evaluator-computed scenarios. It is used for screening, "
+                "not final results._  \n"
                 "  \n"
                 "The model is trained on the prototype's pre-computed "
                 "scenario library (~90 full-resolution runs in Fast "
@@ -6476,7 +6477,7 @@ with _sec_discover:
         # Two-RELAY lock — selected-area mode label + caption + Optimize
         # button co-render in the same block (Assertion B). Mode label is
         # promoted markdown (visible), not a faint caption.
-        st.markdown("**Selected-area search**")
+        st.markdown("**Region machine-learning search**")
         st.caption(
             "Finds best tested mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not predicted by the model."
         )
@@ -7073,14 +7074,14 @@ _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
 with st.container(border=True):
     st.markdown("### Discover scenarios")
     if _filter_active:
-        st.markdown("**Selected-area search**")
+        st.markdown("**Region machine-learning search**")
         st.caption(
             "Finds best tested mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not predicted by the model."
         )
         _cta_optimize_help = _OPTIMIZE_HELP_REGION
     else:
-        st.markdown("**Citywide AI-assisted search**")
-        st.caption("Fast estimates suggest promising mixes; apply one to recompute it with the InVEST-aligned evaluator.")
+        st.markdown("**Citywide machine-learning search**")
+        st.caption("Fast estimates suggest promising mixes; apply one to recompute with the InVEST-aligned evaluator.")
         _cta_optimize_help = _OPTIMIZE_HELP_CITYWIDE
     if st.button("Optimize", type="primary",
                   key="main_cta_optimize_button",
@@ -8680,7 +8681,7 @@ if _main_tab == 'Tradeoffs':
                     "may cluster because only a small share of the city changes. "
                     "Full-evaluator region-optimizer mixes appear on the "
                     "Selected-area scatter above this expander; they are not "
-                    "overlaid on this citywide view, so the AI-assisted citywide "
+                    "overlaid on this citywide view, so the machine-learning citywide "
                     "diamonds (fast estimates) and the region InVEST-aligned evaluator "
                     "squares stay visually distinct."
                 )
@@ -8705,7 +8706,7 @@ if _main_tab == 'Tradeoffs':
                     "Each point is a scenario. Better outcomes are toward the "
                     "**top-right** — both axes are higher-is-better (Flood Index "
                     "on x, Heat Mitigation Index on y). The **purple star** is your "
-                    "current scenario; **orange diamonds** are citywide AI-assisted "
+                    "current scenario; **orange diamonds** are citywide machine-learning "
                     "suggestions, shown as fast estimates with 10th–90th percentile "
                     "model-disagreement bands. Bubble size shows food production for "
                     "saved and optimizer points. Applied scenarios and selected-area "
@@ -8959,7 +8960,7 @@ if _main_tab == 'Tradeoffs':
             "• **NatCap reference** — displayed from NatCap published output; exact scenario raster / aggregation not available.\n\n"
             "• **Baseline** — prototype evaluator, verified against canonical InVEST where comparable; absolute NatCap citywide figures not reproduced.\n\n"
             "• **Explorer-generated** — InVEST-aligned evaluator, verified where comparable; scenario itself not NatCap-published.\n\n"
-            "• **AI-assisted suggestion** — evaluated with the InVEST-aligned evaluator on apply — exploratory candidate for further validation."
+            "• **machine-learning suggestion** — evaluated with the InVEST-aligned evaluator on apply — exploratory candidate for further validation."
         )
         st.dataframe(
             pd.DataFrame(_cs_rows),
@@ -9443,7 +9444,7 @@ if _main_tab == 'Tradeoffs':
                 with st.expander("Show model disagreement bands", expanded=False):
                     st.caption(
                         "These ranges show how much the machine-learning model's "
-                        "individual trees disagree. They help compare AI-assisted "
+                        "individual trees disagree. They help compare machine-learning "
                         "suggestions, but they are not calibrated confidence "
                         "intervals and may not contain the evaluator-computed value."
                     )
@@ -9483,7 +9484,7 @@ if _main_tab == 'Tradeoffs':
                                 st.session_state._pending_ff = 100 - st.session_state._pending_gi
                             st.session_state.applied_suggestion = i
                             # Brief #4: tag this scenario as Applied-from-Optimizer
-                            # so the main panel header reads "AI-assisted suggestion"
+                            # so the main panel header reads "machine-learning suggestion"
                             # and the D1 export records PROVENANCE_OPTIMIZER, not
                             # Explorer. The clearing logic at the top of the script
                             # resets the flag when slider values drift away. Clear

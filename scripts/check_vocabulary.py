@@ -65,6 +65,13 @@ RETIRED_TERMS = [
     "surrogate-driven",
     "uncertainty-band",
     "flood-retention",
+    # Relay 62: the fast model's user-facing descriptor is "machine-learning",
+    # not "AI-assisted". Retire the hyphenated descriptor ONLY — this is a
+    # substring so it also catches "AI-assisted search" / "AI-assisted
+    # suggestion". Bare "AI" is deliberately NOT banned (legitimate for
+    # external AI-derived data like AlphaEarth / Earth AI); "AI-assisted"
+    # does not match those, so no allow-marker is needed for them.
+    "AI-assisted",
 ]
 
 ALLOW_MARKER = "vocab-allow"
@@ -156,8 +163,20 @@ def selftest():
     runoff_retention_ok = find_hits_in_text(
         "Runoff retention shows the share of design-storm rainfall retained."
     ) == []
+    # Relay 62 — "AI-assisted" descriptor is caught (both forms), while the
+    # canonical "machine-learning search" and external-AI data references
+    # (AlphaEarth / Earth AI) and bare "AI" stay clean (no over-ban).
+    ai_caught = (
+        len(find_hits_in_text("This is an AI-assisted suggestion.")) == 1
+        and find_hits_in_text("The AI-assisted search ranks mixes.")[0][1] == "AI-assisted"
+    )
+    ai_no_false_pos = find_hits_in_text(
+        "The Citywide machine-learning search uses AlphaEarth and Earth AI "
+        "data; AI inputs are land-cover-derived."
+    ) == []
     return 0 if (ok and variants_ok and bare_surrogate_ok
-                 and runoff_retention_ok) else 1
+                 and runoff_retention_ok and ai_caught
+                 and ai_no_false_pos) else 1
 
 
 def main():

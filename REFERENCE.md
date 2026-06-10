@@ -109,7 +109,7 @@ Every scenario on the dashboard carries one of four **sources**, surfaced as a p
 | **Baseline** | The unmodified land cover for the active city. The engine has been validated against canonical InVEST per-pixel where comparable inputs exist; absolute NatCap citywide figures are not independently reproduced. |
 | **NatCap published reference** | A NatCap fixed-project scenario — the dashboard displays NatCap's own published number from the project's results file. We surface NatCap's value; we do not independently reproduce it (the exact scenario raster / aggregation path is not available). |
 | **Explorer-generated** | A scenario you constructed with the sidebar sliders. Computed by the InVEST-aligned evaluator; not a NatCap-published scenario. |
-| **AI-assisted suggestion** | A scenario suggested by the optimizer and then **Applied** to the sliders — at that point the displayed metric cards reflect an evaluation by the InVEST-aligned evaluator (not a fast estimate). Treat as an exploratory candidate worth deeper validation. |
+| **machine-learning suggestion** | A scenario suggested by the optimizer and then **Applied** to the sliders — at that point the displayed metric cards reflect an evaluation by the InVEST-aligned evaluator (not a fast estimate). Treat as an exploratory candidate worth deeper validation. |
 
 Per-card validation badges (§4) carry a finer-grained signal about each *individual metric* in the active scenario.
 
@@ -129,11 +129,11 @@ Each metric card displays one of four badges as an inline caption under its valu
 | Rendered text | Color | Fires when |
 |---|---|---|
 | **`NatCap published value`** | green | A `natcap_published`-class metric × the fixed-scenario reference view *only*. The card displays NatCap's own number directly from the reference outputs file. *Not a reproduction claim* — we surface NatCap's figure. |
-| **`≈ NatCap method`** | blue | A `natcap_published`-class metric × any other scenario context (Baseline / Explorer-generated / AI-assisted suggestion). The displayed value is the prototype's own computation; the methodology is aligned with NatCap's. Tooltip is metric-aware (e.g. temperature cites measured per-pixel parity; carbon cites four-pool methodology adoption). |
+| **`≈ NatCap method`** | blue | A `natcap_published`-class metric × any other scenario context (Baseline / Explorer-generated / machine-learning suggestion). The displayed value is the prototype's own computation; the methodology is aligned with NatCap's. Tooltip is metric-aware (e.g. temperature cites measured per-pixel parity; carbon cites four-pool methodology adoption). |
 | **`≈ Aligned method`** | blue | An `aligned_method` metric (canonical InVEST methodology with no directly-comparable NatCap citywide reference) in any context. |
 | **`Prototype`** | gray | A `prototype` metric (no canonical InVEST analog) in any context. |
 
-**Context-switch rule.** `NatCap published value` only fires when the dashboard is in the fixed-scenario reference view *and* a NatCap published number exists for that metric. In every other scenario context (Baseline / Explorer-generated / AI-assisted suggestion), a `natcap_published`-class metric reads `≈ NatCap method` because the displayed value is the prototype's own computation, not NatCap's published number.
+**Context-switch rule.** `NatCap published value` only fires when the dashboard is in the fixed-scenario reference view *and* a NatCap published number exists for that metric. In every other scenario context (Baseline / Explorer-generated / machine-learning suggestion), a `natcap_published`-class metric reads `≈ NatCap method` because the displayed value is the prototype's own computation, not NatCap's published number.
 
 Where each metric falls on these four states — and the underlying evidence (measured MAE against canonical, methodology adoption without per-pixel parity, etc.) — lives in §6 alongside each metric's mini-template. §4 documents only what the badges *mean*.
 
@@ -419,7 +419,7 @@ The Ecosystem Explorer combines NatCap-curated data, InVEST-aligned biophysical 
 | **LULC raster input** | NatCap-curated where available (San Antonio: compound NLCD × NLUD × tree-canopy framework from NatCap's 2024 NASA Urban project). Otherwise NLCD 2021 (Minneapolis: InVEST UFR/UCM/UNA sample data). |
 | **Biophysical model evaluation** | InVEST-aligned numpy reimplementations of Urban Cooling, Urban Flood Risk, Urban Nature Access, Urban Mental Health, and Carbon. Validated against canonical `natcap.invest.*` outputs where applicable — see the per-model sub-anchors below. |
 | **Scenario placement logic** | Prototype-specific. The five placement strategies are Ecosystem Explorer heuristics — InVEST models are placement-agnostic (see `docs/research/INVEST_PLACEMENT.md`). |
-| **Optimization / search** | Prototype-specific. The **AI-assisted search** (a fast machine-learning screen) surfaces candidate mixes, reframed as **scenario discovery** — see below. |
+| **Optimization / search** | Prototype-specific. The **machine-learning search** (a fast machine-learning screen) surfaces candidate mixes, reframed as **scenario discovery** — see below. |
 
 ### Official InVEST alignment
 
@@ -433,7 +433,9 @@ The five urban InVEST models and the Carbon model each have their own alignment 
 
 The **Discover scenarios to validate** panel runs in one of two modes depending on whether a region or ownership filter is active. Both modes are scenario-discovery tools — they surface options worth testing more rigorously, not a single best answer. Neither computes Pareto-optimal solutions in NatCap ROOT's rigorous LP sense.
 
-**Mode 1 — citywide surrogate (no filter active).** A Random Forest surrogate trained on the precomputed scenario library predicts metrics for ~10,000 random `(pct, GI%, FF%)` candidates, filters to those meeting the user's minimum-target sliders, and returns up to 5 suggestions ranked by a balanced score. The values shown on each suggestion are **surrogate predictions**, not engine outputs. Apply a suggestion to run the InVEST-aligned evaluator and replace the predictions with engine-verified values; provenance flips to **"AI-assisted suggestion."**
+**Mode 1 — citywide surrogate (no filter active).** A Random Forest surrogate trained on the precomputed scenario library predicts metrics for ~10,000 random `(pct, GI%, FF%)` candidates, filters to those meeting the user's minimum-target sliders, and returns up to 5 suggestions ranked by a balanced score. The values shown on each suggestion are **surrogate predictions**, not engine outputs. Apply a suggestion to run the InVEST-aligned evaluator and replace the predictions with engine-verified values; provenance flips to **"machine-learning suggestion."**
+
+The model is not a black box: its prediction error against the full engine has been **measured** by held-out cross-validation over the scenario grid (Relay 56) — per-metric residuals run ≈ 2–3 % of each metric's range on the dense grid (looser on the 90-row Fast grid), with near-zero bias except a small carbon/food under-prediction. Nature access is the weakest (spatially driven, so the mix-only surrogate sees it least). These residuals are what a calibrated citywide estimate range is derived from; region suggestions skip the surrogate's values entirely (engine-verified, Mode 2).
 
 **Mode 2 — region-prefilter + engine-verify ("Optimize selected area," region or ownership filter active).** A two-stage pipeline keeps the search fast while making the displayed values real:
 
@@ -441,7 +443,7 @@ The **Discover scenarios to validate** panel runs in one of two modes depending 
 2. **Engine-verify** — the full per-pixel engine evaluates each shortlisted recipe on the active `region ∩ ownership` mask. K × ~2.1 s ≈ 1–2 minutes; a progress bar shows `i / K`.
 3. **Rank + dedup** — weight-sum the engine values (sliders 0–1 per metric, direction-corrected: lower-better for cost and runoff), greedy knob-distance dedup to 5 meaningfully-distinct recipes.
 
-Returned values are **engine-true region-local** — not predictions, no P10/P90 bands. The shortlist may not be exhaustive, so the header reads *"Best tested mixes — selected area"* — framing them as the best among the candidates the engine actually tested rather than implying global optimality. Apply on a returned record sets the sliders, reruns the engine on the active mask, and flips provenance to **"Engine-verified — region-optimized"** (distinct from "AI-assisted suggestion"). Changing a weight slider does not auto-rerank — re-click **Optimize selected area** to apply new weights (the v1 implementation re-runs the full pipeline; the spec's "instant rerank without engine re-run" property is a future optimization, not the shipped behavior).
+Returned values are **engine-true region-local** — not predictions, no P10/P90 bands. The shortlist may not be exhaustive, so the header reads *"Best tested mixes — selected area"* — framing them as the best among the candidates the engine actually tested rather than implying global optimality. Apply on a returned record sets the sliders, reruns the engine on the active mask, and flips provenance to **"Engine-verified — region-optimized"** (distinct from "machine-learning suggestion"). Changing a weight slider does not auto-rerank — re-click **Optimize selected area** to apply new weights (the v1 implementation re-runs the full pipeline; the spec's "instant rerank without engine re-run" property is a future optimization, not the shipped behavior).
 
 | | Mode 1: citywide surrogate | Mode 2: Optimize selected area |
 |---|---|---|
@@ -450,7 +452,7 @@ Returned values are **engine-true region-local** — not predictions, no P10/P90
 | **Search size** | ~10,000 random candidates | Surrogate Pareto over the ~90-recipe training grid → cap at K ≈ 40 for engine-verify |
 | **Values displayed** | Surrogate predictions with P10/P90 bands | Engine-true region-local, **no bands** |
 | **When to trust the number** | After Apply (full-engine rerun) | At display time (already engine-evaluated) |
-| **Provenance after Apply** | "AI-assisted suggestion" | "Engine-verified — region-optimized" |
+| **Provenance after Apply** | "machine-learning suggestion" | "Engine-verified — region-optimized" |
 | **Caveat surfaced in caption** | Predictions need verification | Results are real; shortlist may not be exhaustive |
 | **Region / ownership awareness** | None — surrogate is citywide-trained and region-blind | Engine evaluates on `region ∩ ownership` directly; surrogate's role is shortlist-only |
 | **Comparison to NatCap ROOT** | Both modes are RF + heuristic ranking; neither computes ROOT's LP frontiers (max Σ wᵢ Vᵢₛₐ xₛₐ at spatial-decision-unit level with production possibility frontiers and agreement maps). ROOT remains a deferred reference point. | |
@@ -550,7 +552,7 @@ The locked terms below are the canonical names used across the app and docs. The
 - **Runoff Retention** — the canonical InVEST UFR per-pixel retention index `rnf_rt_idx = mean(1 − Q/P)`, shown as a percentage of design-storm rainfall retained; the per-pixel companion to the Flood Index (which inverts the *mean* CN). Engine-computed, aligned-method.
 - **Flood Damage Avoided** — dollars avoided; surfaced only where a damage-valuation table exists (MN). SA surfaces none.
 - **InVEST-aligned evaluator** — the prototype's numpy reimplementation of the InVEST urban models, verified against canonical InVEST where comparable; not canonical InVEST running live. Retired (visible): full evaluator, prototype evaluator, canonical engine — "full evaluator" allowed in internal docs only. <!-- vocab-allow: glossary names the retired terms -->
-- **AI-assisted search / fast estimates** — the citywide machine-learning screen plus its pre-verify values. Retired in user-facing text: "surrogate-driven optimizer". <!-- vocab-allow: glossary names the retired term -->
+- **machine-learning search / fast estimates** — the citywide machine-learning screen plus its pre-verify values. The model descriptor is "machine-learning", not "AI" — "random forest / surrogate / emulator" remain the docs-layer method words; bare "AI" stays reserved for external AI-derived data (AlphaEarth / Earth AI). Retired in user-facing text: "AI-assisted" (the descriptor, incl. "AI-assisted search" / "AI-assisted suggestion"), "surrogate-driven optimizer". <!-- vocab-allow: glossary names the retired terms -->
 - **model disagreement bands** — 10–90th percentile across the model's trees; not confidence intervals. Retired: "uncertainty bands". <!-- vocab-allow: glossary names the retired term -->
 - **Urban Mental Health outcomes** — per-pixel parity with InVEST UMH (v3.19.0); the NDVI input is a land-cover-derived proxy. Retired: "mental-health proxy outcomes", "mental-health effects". <!-- vocab-allow: glossary names the retired terms -->
 - **Schools with Nature Access** — share of mapped K–12 school points on adequately-served pixels; point-sampled, not attendance-boundary based. Avoid "school access".
