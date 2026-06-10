@@ -4880,6 +4880,33 @@ def _apply_region_optimizer_mix(row, index):
     st.session_state._show_apply_toast = True
 
 
+def _render_apply_toast():
+    """One-shot, mode-aware confirmation toast after an Apply (Relay 51).
+
+    Citywide AI-assisted suggestions, selected-area candidates, and best-by-goal
+    applies get handoff text matching their path. Read-only on the apply/
+    provenance flags — it does NOT set them (the apply helpers own that); it just
+    reads them to choose the message, then clears the one-shot toast flag."""
+    if not st.session_state.get("_show_apply_toast"):
+        return
+    if st.session_state.get("applied_from_optimizer"):
+        st.success(
+            "Applied the AI-assisted suggestion — recomputed with the "
+            "InVEST-aligned evaluator. Map, metrics, and comparison table updated."
+        )
+    elif st.session_state.get("applied_from_region_optimizer"):
+        st.success(
+            "Applied as the active scenario — under your selected area and "
+            "filters. Map and metrics updated."
+        )
+    else:
+        st.success(
+            "Applied as the active scenario — recomputed with the "
+            "InVEST-aligned evaluator. Map and metrics updated."
+        )
+    st.session_state._show_apply_toast = False
+
+
 def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
     """Selected-area tradeoff scatter — region-local axes only.
 
@@ -9076,9 +9103,7 @@ if _main_tab == 'Tradeoffs':
                         st.session_state._show_apply_toast = True
                         st.rerun()
 
-            if st.session_state.get("_show_apply_toast"):
-                st.success("Applied selected mix. Scenario metrics recomputed with the InVEST-aligned evaluator.")
-                st.session_state._show_apply_toast = False
+            _render_apply_toast()
 
         st.divider()
 
@@ -9200,8 +9225,8 @@ if _main_tab == 'Tradeoffs':
 
             st.markdown("#### Apply a suggestion")
             st.caption(
-                "Loading a recipe into the sliders re-runs the engine on your "
-                "selected area — provenance flips to \"Engine-verified — region-optimized\"."
+                "Applying a suggestion re-runs the engine on your selected "
+                "area; provenance becomes \"Engine-verified — region-optimized\"."
             )
             _r_btn_cols = st.columns(len(_ropt))
             for i, (_, row) in enumerate(_ropt.iterrows()):
@@ -9215,9 +9240,7 @@ if _main_tab == 'Tradeoffs':
                         _apply_region_optimizer_mix(row, i)
                         st.rerun()
 
-            if st.session_state.get("_show_apply_toast"):
-                st.success("Applied selected mix. Scenario metrics recomputed with the InVEST-aligned evaluator.")
-                st.session_state._show_apply_toast = False
+            _render_apply_toast()
 
             st.divider()
 
@@ -9301,6 +9324,10 @@ if _main_tab == 'Tradeoffs':
                     "Suggestions are ranked by balanced score across flood, cooling, "
                     "and food metrics. #1 is the top-ranked scenario."
                 )
+                st.caption(
+                    "Apply a suggestion to make it the active scenario — the map, "
+                    "metrics, and comparison table update."
+                )
 
                 btn_cols = st.columns(len(opt))
                 for i, (_, row) in enumerate(opt.iterrows()):
@@ -9335,9 +9362,7 @@ if _main_tab == 'Tradeoffs':
                 # One-shot confirmation toast: rendered on the rerun immediately
                 # following an Apply click, then cleared so it doesn't persist
                 # through unrelated reruns.
-                if st.session_state.get("_show_apply_toast"):
-                    st.success("Applied selected mix. Scenario metrics recomputed with the InVEST-aligned evaluator.")
-                    st.session_state._show_apply_toast = False
+                _render_apply_toast()
 
                 st.divider()
 
