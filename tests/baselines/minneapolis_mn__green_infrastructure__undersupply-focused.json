@@ -26,6 +26,7 @@
   "people_with_nature_access": 8078,
   "preventable_mh_cases": 477.8,
   "runoff_acre_feet": 1390.2,
+  "runoff_retention_idx": 0.484,
   "scenario_lulc__md5": "8a446dfb23d6501850ed94fdac05f812",
   "scenario_lulc_carbon__md5": "8a446dfb23d6501850ed94fdac05f812",
   "scenario_lulc_ucm__md5": "8a446dfb23d6501850ed94fdac05f812",

@@ -11,6 +11,7 @@
     "mean_cn",
     "flood_reduction",
     "runoff_acre_feet",
+    "runoff_retention_idx",
     "mean_hm",
     "temp_change_f",
     "flood_damage_avoided_usd",
@@ -41,7 +42,7 @@
   ],
   "fast_grid_format_version": 1,
   "n_recipes": 90,
-  "scenario_schema_version": 35,
+  "scenario_schema_version": 36,
   "step_alloc": 25,
   "step_pct": 10
 }

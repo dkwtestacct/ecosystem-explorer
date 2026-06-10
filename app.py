@@ -2212,6 +2212,30 @@ def cn_to_runoff_acre_feet(mean_cn, total_developed_acres):
     return round(Q_feet * total_developed_acres, 1)
 
 
+def cn_array_to_retention_index(cn_arr, valid_mask):
+    """Mean per-pixel runoff-retention index — the canonical InVEST UFR
+    reading `rnf_rt_idx = mean(1 − Q/P)`. Vectorizes the SAME SCS-CN chain
+    `cn_to_runoff_acre_feet` applies to the lumped mean CN, but PER PIXEL,
+    then averages the retained fraction over the valid mask.
+
+    Because Q is convex in CN, this is NOT equal to `1 − Q(mean_CN)/P`
+    (Jensen's inequality) — it is the faithful per-pixel retention average,
+    distinct from the mean-CN-lumped form the Flood Index (`100 − mean_CN`)
+    uses. Q ≤ P and Q ≥ 0 by construction, so the result is in [0, 1];
+    returns 0.0 when the mask is empty. `valid_mask` must match the masking
+    used for `mean_cn` (i.e. `cn_arr > 0`, optionally ∩ region mask).
+    """
+    cn = cn_arr[valid_mask].astype(np.float64)
+    if cn.size == 0:
+        return 0.0
+    P = DESIGN_STORM_INCHES
+    S = (1000.0 / cn) - 10.0
+    Ia = 0.2 * S
+    Q = np.where(P <= Ia, 0.0, (P - Ia) ** 2 / (P - Ia + S))
+    rnf = 1.0 - Q / P
+    return round(float(rnf.mean()), 4)
+
+
 def hm_to_temp_change_f(mean_hm):
     """Translate an HM-index delta vs baseline into an approximate °F
     temperature change: ΔT = T_after − T_before.
@@ -2673,6 +2697,11 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     total_developed_acres = len(developed_pixels) * PIXEL_AREA_ACRES
     total_cost_mln = compute_cost(n_wet, n_for, n_hd, cost_gi, cost_ff, cost_hd)
     runoff_acft    = cn_to_runoff_acre_feet(mean_cn, total_developed_acres)
+    # Additive third flood reading (Relay 58): canonical InVEST UFR per-pixel
+    # retention index `rnf_rt_idx = mean(1 − Q/P)`. Engine-computed (NOT a
+    # surrogate target — deterministic from CN, like UMH). Same masking as
+    # `mean_cn`. Distinct from the lumped Flood Index by Jensen's inequality.
+    runoff_retention_idx = cn_array_to_retention_index(cn_scenario, cn_scenario > 0)
     flood_damage_avoided_usd = compute_flood_damage_avoided(runoff_acft)
 
     # InVEST UMH preventable mental health cases + avoided cost (depression +
@@ -2720,6 +2749,9 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         _rl_flood_reduction = round(100 - _rl_mean_cn, 2)
         _rl_runoff_acft = cn_to_runoff_acre_feet(_rl_mean_cn, _rl_developed_acres)
         _rl_flood_damage_avoided_usd = compute_flood_damage_avoided(_rl_runoff_acft)
+        # Per-pixel retention index over the SAME region-masked CN pixels
+        # (`_rl_cn_valid` = (cn_scenario > 0) & rm), reusing the masking above.
+        _rl_runoff_retention_idx = cn_array_to_retention_index(cn_scenario, _rl_cn_valid)
 
         # Cooling energy savings — per-pixel kWh × $/kWh sum, masked.
         _rl_cooling_energy_savings_usd = compute_cooling_energy_savings(hmi_map, mask=rm)
@@ -2775,6 +2807,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
             'mean_cn':              _rl_mean_cn,
             'flood_reduction':      _rl_flood_reduction,
             'runoff_acre_feet':     _rl_runoff_acft,
+            'runoff_retention_idx': _rl_runoff_retention_idx,
             'flood_damage_avoided_usd': _rl_flood_damage_avoided_usd,
             'mean_hm':              _rl_mean_hm,
             'temp_change_f':        _rl_temp_change_f,
@@ -2812,6 +2845,10 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         'mean_cn':                  mean_cn,
         'flood_reduction':          round(100 - mean_cn, 2),
         'runoff_acre_feet':         runoff_acft,
+        # Relay 58 — canonical InVEST UFR per-pixel retention index
+        # `rnf_rt_idx = mean(1 − Q/P)`, in [0, 1]. Additive sibling to the
+        # Flood Index (which is unchanged). Engine-only; not a surrogate target.
+        'runoff_retention_idx':     runoff_retention_idx,
         'mean_hm':                  mean_hm,
         'temp_change_f':            hm_to_temp_change_f(mean_hm),
         'flood_damage_avoided_usd': flood_damage_avoided_usd,
@@ -2927,13 +2964,14 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 # ── Scenario grid and lookup table ─────────────────────────────────────────────
 # Bump SCENARIO_SCHEMA_VERSION whenever the surrogate target columns change so
 # Streamlit's @st.cache_data automatically invalidates stale grids/tables.
-SCENARIO_SCHEMA_VERSION = 35  # bumped: Nature Access at Schools RELAY — evaluate_scenario's return dict gains six new fields: `schools_nature_access_pct` (the % of K-12 school points sitting on adequately-served pixels, computed under the SAME 2SFCA adequate mask as Nature Access / Children's Nature Access — destination-based readout sampled at school POINT locations), `schools_n_total`, `schools_n_with_access`, and per-sector breakdowns `schools_public_pct`, `schools_charter_pct`, `schools_private_pct`. PLUS a non-snapshotted `schools_nature_access` dict carrying the full structured output (pct + n + by_sector breakdowns) for the UI card's tooltip + region-local consumer. None on cities without a `schools_file` configured (currently MN + SA configured; Mpls Full unset). All 40 SA + MN baselines re-snapshotted; the 2SFCA pipeline + UNA_DEMAND_M2_PER_CAPITA threshold are unchanged — only an additional point-sampling consumer is added. Source: NCES CCD 2022-23 + EDGE 2021-22 + PSS 2021-22; per-city school points clipped to the modelable extent (SA 647 K-12 schools; MN 60), prepped offline by `scripts/data/prep_school_points.py`. (34 was Children's nature access RELAY — children_nature_access_pct + children_with_nature_access.) — evaluate_scenario's return dict gains two new fields: `children_nature_access_pct` (the under-18 share of the modelable-extent population whose per-capita nature supply meets demand, computed under the SAME adequate mask as `nature_access_pct` but child-pop-weighted) and `children_with_nature_access` (count). region_local picks up the same two fields. None on cities without a `child_pop_file` configured (currently MN + SA configured; Mpls Full unset). All 40 SA + MN baselines re-snapshotted; reconciliation invariant (region_local over full AOI == citywide) holds for the new fields too. Child-pop staleness assertion in verify_baselines anchors each city's raster share to per-city `child_pop_extent_share` (MN 20.2%, SA 24.5% — measured from Census PL 94-171), tolerance ±2pp, with a halve-the-raster meta-test. (33 was Batch 4 v2 of Finer Ownership Classes — composite ownership_filter dict shape.)
+SCENARIO_SCHEMA_VERSION = 36  # bumped: Relay 58 — evaluate_scenario's return dict gains one new field `runoff_retention_idx`: the canonical InVEST UFR per-pixel runoff-retention index `rnf_rt_idx = mean(1 - Q/P)`, in [0, 1], computed by `cn_array_to_retention_index` over the same `cn_scenario > 0` mask as `mean_cn` (region_local applies the same mask & region). Engine-computed only - NOT added to the surrogate y-columns (deterministic from CN, like UMH). Additive third flood reading; the Flood Index (`100 - mean_CN`) is UNCHANGED. Distinct from the lumped form by Jensen's inequality (Q is convex in CN). Lands as `aligned_method` (blue) - no published NatCap SA flood value to match. All 40 SA + MN baselines re-snapshotted; every scenarios_fast_*/dense_* CSV regenerated + re-stamped to carry the new column; reconciliation invariant (region_local over full AOI == citywide) holds for the new field. (35 was Nature Access at Schools RELAY - six new schools_* fields + the schools_nature_access dict; NCES/EDGE/PSS school points, SA 647 / MN 60.) (34 was Children's nature access RELAY - children_nature_access_pct + children_with_nature_access.) (33 was Batch 4 v2 of Finer Ownership Classes - composite ownership_filter dict shape.)
 
 # Surrogate target columns that downstream code (train_surrogate, optimize_scenario)
 # requires. Listed explicitly so a missing column fails loudly instead of leaking
 # into a KeyError deep in fit().
 REQUIRED_TARGET_COLUMNS = [
     'flood_reduction', 'mean_hm', 'food_mln_lbs', 'runoff_acre_feet',
+    'runoff_retention_idx',  # Relay 58 — per-pixel UFR retention index
     'carbon_tons_co2', 'nature_access_pct',
     'preventable_mh_cases', 'avoided_mh_cost_usd',
 ]
@@ -4220,6 +4258,16 @@ MAX_COOL  = 1.1
 BASELINE_RUNOFF_ACRE_FEET = cn_to_runoff_acre_feet(
     _CURRENT_CITY_STATE.baseline_cn, len(developed_pixels) * PIXEL_AREA_ACRES
 )
+
+# Relay 58 — baseline per-pixel retention index. Every pct_converted=0 grid row
+# is the unconverted baseline (no conversions regardless of gi/ff), so the
+# no-conversion row's `runoff_retention_idx` is the baseline reading. Guarded
+# for the transient pre-regen state where the column may be absent.
+try:
+    _b0_ret = scenario_df.loc[scenario_df['pct_converted'] == 0, 'runoff_retention_idx']
+    BASELINE_RUNOFF_RETENTION_IDX = float(_b0_ret.iloc[0]) if len(_b0_ret) else None
+except (KeyError, IndexError):
+    BASELINE_RUNOFF_RETENTION_IDX = None
 
 BASELINE_NDVI = compute_mean_ndvi(cooling_lulc)
 
@@ -7154,7 +7202,7 @@ st.caption(
 )
 
 st.markdown("#### Ecological")
-eco1, eco2, eco3 = st.columns(3)
+eco1, eco2, eco3, eco3b = st.columns(4)
 eco1.metric(
     "Flood Index",
     f"{results['flood_reduction']:.1f}",
@@ -7196,6 +7244,27 @@ eco3.metric(
     )
 )
 _render_validation_caption(eco3, "runoff_acre_feet", _validation_scenario_context, explicit_status="aligned_method")
+eco3b.metric(
+    "Runoff retention",
+    f"{results['runoff_retention_idx'] * 100:.1f}%",
+    delta=None,
+    delta_color="off",
+    help=(
+        "Confidence: Aligned method — see 'How this prototype works' for tier "
+        "definitions. Share of design-storm rainfall retained on the landscape, "
+        "as the canonical InVEST UFR runoff-retention index "
+        "`rnf_rt_idx = mean(1 − Q/P)` — the mean over developed pixels of the "
+        "per-pixel retained fraction `1 − Q/P`, where Q is SCS-CN direct runoff "
+        f"for the {DESIGN_STORM_MM:.0f}-mm design storm ({DESIGN_STORM_INCHES:.2f} "
+        "inches; NatCap per-city canonical). This is the per-pixel companion to "
+        "the Flood Index — the Flood Index inverts the *mean* CN, while this "
+        "averages the per-pixel retained fraction (the two differ by Jensen's "
+        "inequality, since Q is convex in CN). Higher = more retention. "
+        "Underlying model: [InVEST Urban Flood Risk Mitigation]"
+        "(https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html)."
+    )
+)
+_render_validation_caption(eco3b, "runoff_retention_idx", _validation_scenario_context, explicit_status="aligned_method")
 
 _ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
 _ndvi_delta_str, _ndvi_delta_color = _delta_pill(_ndvi_delta, fmt=".3f", suffix="vs baseline", epsilon=0.001)
@@ -7886,6 +7955,7 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
         ("Flood Index",              f"{_region_local['flood_reduction']:.1f}",                       f"{results['flood_reduction']:.1f}"),
         ("Temp change",              _fmt_temp_change(_region_local['temp_change_f']),                _fmt_temp_change(results['temp_change_f'])),
         ("Runoff volume",            _fmt_runoff(_region_local['runoff_acre_feet']),                  _fmt_runoff(results['runoff_acre_feet'])),
+        ("Runoff retention",         f"{_region_local['runoff_retention_idx'] * 100:.1f}%",           f"{results['runoff_retention_idx'] * 100:.1f}%"),
         ("Mean NDVI",                f"{_region_local['mean_ndvi']:.3f}",                             f"{results['mean_ndvi']:.3f}"),
         (_rl_carbon_label,           _fmt_co2(_region_local['carbon_tons_co2']),                      _fmt_co2(results['carbon_tons_co2'])),
         ("Food Production",          _fmt_food(_region_local['food_mln_lbs']),                       _fmt_food(results['food_mln_lbs'])),
@@ -8067,13 +8137,14 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
         )
     comparison_data = {
         'Metric': [
-            'Flood Index', 'Runoff Volume', 'Temperature Change',
+            'Flood Index', 'Runoff Volume', 'Runoff Retention', 'Temperature Change',
             'Food Production', _carbon_metric_label, 'NDVI',
             *([_flood_label_table] if _flood_damage_monetized else []), 'Cooling Energy Savings', _carbon_dollar_label_table,
         ],
         'Baseline': [
             f'{_baseline_flood:.1f}',
             f'{BASELINE_RUNOFF_ACRE_FEET:,.0f} ac-ft',
+            (f'{BASELINE_RUNOFF_RETENTION_IDX * 100:.1f}%' if BASELINE_RUNOFF_RETENTION_IDX is not None else '—'),
             'Reference',
             '0 lbs',
             f'0 {_carbon_unit}',
@@ -8085,6 +8156,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
         'This Scenario': [
             f'{results["flood_reduction"]:.1f}',
             f'{results["runoff_acre_feet"]:,.0f} ac-ft',
+            f'{results["runoff_retention_idx"] * 100:.1f}%',
             _temp_change_label,
             f'{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'{_carbon_tons_table:,.0f} {_carbon_unit}',
@@ -8100,6 +8172,8 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
                 else f'{abs(_runoff_diff):,.0f} ac-ft prevented' if _runoff_diff < 0
                 else '0 ac-ft'
             ),
+            (f'{(results["runoff_retention_idx"] - BASELINE_RUNOFF_RETENTION_IDX) * 100:+.1f} pp'
+             if BASELINE_RUNOFF_RETENTION_IDX is not None else '—'),
             _temp_change_label,
             f'+{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
             f'{_carbon_tons_table:+,.0f} {_carbon_unit}',

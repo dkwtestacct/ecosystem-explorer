@@ -2991,9 +2991,12 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             (50, 100, 0),   # GI-only max-pct
         ]
         _COMPARE_KEYS = ("mean_hm", "flood_reduction", "runoff_acre_feet",
-                         "food_mln_lbs")  # 4 metrics; skip carbon (float32
-                                          # noise at 5e-7 on SA, well within
-                                          # the 1e-5 tol but noisy to surface)
+                         "food_mln_lbs",
+                         "runoff_retention_idx")  # Relay 58 — the new per-pixel
+                                          # UFR retention column; a stale CSV
+                                          # missing it raises KeyError here.
+                                          # (skip carbon — float32 noise at 5e-7
+                                          # on SA, within the 1e-5 tol but noisy)
         _REL_TOL = 1e-5
 
         for _city in [c for c in active_cities
@@ -3110,7 +3113,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import pandas as _pd2
         _FG_SAMPLES = [(10, 25, 25), (20, 50, 0), (30, 0, 50),
                        (40, 75, 25), (50, 25, 25)]
-        _FG_KEYS = ("mean_hm", "flood_reduction", "runoff_acre_feet", "food_mln_lbs")
+        _FG_KEYS = ("mean_hm", "flood_reduction", "runoff_acre_feet", "food_mln_lbs",
+                    "runoff_retention_idx")  # Relay 58 — new UFR retention column
         _FG_REL_TOL = 1e-5
         _probe = 100.0  # real grid value captured below for the meta-test
         for _city in [c for c in active_cities
@@ -3182,6 +3186,100 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         print(f"  ERROR fast-grid freshness: {e}")
         import traceback; traceback.print_exc()
         fast_grid_diffs += 1
+
+    # ── Runoff retention index — presence, bounds, Jensen non-degeneracy ────
+    # Relay 58: `runoff_retention_idx` = canonical UFR `rnf_rt_idx = mean(1 −
+    # Q/P)`, the per-pixel retention average. Three non-vacuous guards:
+    #   (1) present in evaluate_scenario's return dict + REQUIRED_TARGET_COLUMNS,
+    #       and ∈ [0, 1].
+    #   (2) Jensen gap is REAL — the per-pixel mean(1 − Q/P) must NOT equal the
+    #       mean-CN-lumped form 1 − Q(mean_CN)/P (Q is convex in CN). A
+    #       regression that silently reverts to the lumped Flood-Index math
+    #       collapses the gap → this FAILS.
+    #   (3) sign-of-change agreement — across two scenarios the per-pixel and
+    #       lumped readings move the SAME direction (greening raises retention),
+    #       so the new metric isn't inverted.
+    print(f"\n{'=' * 60}")
+    print("Runoff retention index — presence + bounds + Jensen non-degeneracy")
+    print(f"{'=' * 60}")
+    retention_idx_diffs = 0
+    try:
+        if 'runoff_retention_idx' not in app.REQUIRED_TARGET_COLUMNS:
+            print("  FAIL runoff_retention_idx absent from REQUIRED_TARGET_COLUMNS")
+            retention_idx_diffs += 1
+
+        def _lumped_retention(mean_cn, P):
+            """1 − Q(mean_CN)/P — the mean-CN-lumped retention (Flood-Index math)."""
+            if mean_cn <= 0:
+                return 0.0
+            S = (1000.0 / mean_cn) - 10.0
+            Ia = 0.2 * S
+            Q = 0.0 if P <= Ia else (P - Ia) ** 2 / (P - Ia + S)
+            return 1.0 - Q / P
+
+        for _city in active_cities:
+            _rebind_city(app, _city)
+            P = app.DESIGN_STORM_INCHES
+            # Two scenarios: low-greening (A) vs GI-heavy (B). GI lowers CN →
+            # raises retention, so both readings should rise A→B.
+            _A = app.evaluate_scenario(10, 0, 0, seed=42, placement_strategy="random")
+            _B = app.evaluate_scenario(50, 100, 0, seed=42, placement_strategy="random")
+            _bad = []
+            for _tag, _r in (("A", _A), ("B", _B)):
+                if 'runoff_retention_idx' not in _r:
+                    _bad.append(f"{_tag}:missing"); continue
+                _v = _r['runoff_retention_idx']
+                if not (isinstance(_v, (int, float)) and 0.0 <= _v <= 1.0):
+                    _bad.append(f"{_tag}:out-of-bounds({_v!r})")
+            if _bad:
+                print(f"  FAIL {_city}: {_bad}")
+                retention_idx_diffs += 1
+                continue
+            # (2) Jensen gap real — per-pixel ≠ lumped on a varied-CN AOI.
+            _new_A = _A['runoff_retention_idx']
+            _lump_A = _lumped_retention(_A['mean_cn'], P)
+            _gap = abs(_new_A - _lump_A)
+            if _gap <= 1e-4:
+                print(f"  FAIL {_city}: Jensen gap collapsed — per-pixel "
+                      f"mean(1−Q/P)={_new_A:.4f} ≈ lumped 1−Q(mean_CN)/P="
+                      f"{_lump_A:.4f} (gap {_gap:.2e}); did the metric silently "
+                      "revert to the lumped Flood-Index form?")
+                retention_idx_diffs += 1
+                continue
+            # (3) sign-of-change agreement between the two readings.
+            _new_d = _B['runoff_retention_idx'] - _new_A
+            _lump_d = _lumped_retention(_B['mean_cn'], P) - _lump_A
+            if _new_d == 0 or (_new_d > 0) != (_lump_d > 0):
+                print(f"  FAIL {_city}: sign-of-change disagreement — "
+                      f"per-pixel Δ={_new_d:+.4f}, lumped Δ={_lump_d:+.4f}")
+                retention_idx_diffs += 1
+                continue
+            print(f"  OK   {_city}: present + ∈[0,1]; Jensen gap {_gap:.4f} "
+                  f"(real, not lumped); Δ sign agrees (per-pixel {_new_d:+.4f}, "
+                  f"lumped {_lump_d:+.4f})")
+        # Meta-test (non-vacuous): the lumped form must actually differ from a
+        # constructed per-pixel mean — prove the gap check has teeth. Build a
+        # 2-pixel CN set whose mean(1−Q/P) ≠ 1−Q(mean_CN)/P by construction.
+        _Pm = 6.0
+        _cn_two = __import__('numpy').array([60.0, 95.0])
+        _S = 1000.0 / _cn_two - 10.0; _Ia = 0.2 * _S
+        _Q = __import__('numpy').where(_Pm <= _Ia, 0.0, (_Pm - _Ia) ** 2 / (_Pm - _Ia + _S))
+        _per_pixel_mean = float((1.0 - _Q / _Pm).mean())
+        _mcn = float(_cn_two.mean())
+        _Sm = 1000.0 / _mcn - 10.0; _Iam = 0.2 * _Sm
+        _Qm = 0.0 if _Pm <= _Iam else (_Pm - _Iam) ** 2 / (_Pm - _Iam + _Sm)
+        _lumped_two = 1.0 - _Qm / _Pm
+        if abs(_per_pixel_mean - _lumped_two) <= 1e-4:
+            print("  FAIL meta-test: constructed Jensen gap is ~0 — the gap "
+                  "check could pass vacuously")
+            retention_idx_diffs += 1
+        else:
+            print(f"  OK   meta-test: constructed Jensen gap "
+                  f"{abs(_per_pixel_mean - _lumped_two):.4f} > 0 (gap check has teeth)")
+    except Exception as e:
+        print(f"  ERROR runoff-retention index check: {e}")
+        import traceback; traceback.print_exc()
+        retention_idx_diffs += 1
 
     # ── Child-pop raster staleness — per-city anchored ─────────────────────
     # The under-18 raster is derived as P1_001N - P3_001N (PL 94-171, same
@@ -3529,7 +3627,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + two_relay_diffs + label_budget_diffs
                    + dense_freshness_diffs + rebind_completeness_diffs
                    + child_pop_diffs + bldg_precompute_diffs
-                   + toggle_diffs + vocab_diffs + fast_grid_diffs)
+                   + toggle_diffs + vocab_diffs + fast_grid_diffs
+                   + retention_idx_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3605,6 +3704,9 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "divergence(s) — re-run precompute_scenarios.py for the "
                   "affected city; Fast cold-start reads from disk and a "
                   "stale CSV would feed wrong values to the surrogate.")
+        if retention_idx_diffs:
+            print(f"{retention_idx_diffs} runoff-retention-index divergence(s) "
+                  "(presence / bounds / Jensen non-degeneracy).")
         if fast_grid_diffs:
             print(f"{fast_grid_diffs} fast-grid artifact freshness "
                   "divergence(s) — the precomputed Fast grid is stale or its "

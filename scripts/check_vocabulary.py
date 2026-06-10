@@ -150,7 +150,14 @@ def selftest():
     bare_surrogate_ok = find_hits_in_text(
         "Fast machine-learning model: a surrogate trained on precomputed runs."
     ) == []
-    return 0 if (ok and variants_ok and bare_surrogate_ok) else 1
+    # Relay 58 — the new canonical label "Runoff retention" must NOT collide
+    # with the retired "Flood Retention" / "flood-retention" guards (different
+    # word). Non-vacuous: proves the blessed term survives the guard.
+    runoff_retention_ok = find_hits_in_text(
+        "Runoff retention shows the share of design-storm rainfall retained."
+    ) == []
+    return 0 if (ok and variants_ok and bare_surrogate_ok
+                 and runoff_retention_ok) else 1
 
 
 def main():

@@ -35,6 +35,9 @@ _REGION_LOCAL_METRICS = {
     'mean_cn':              {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
     'flood_reduction':      {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
     'runoff_acre_feet':     {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
+    # Relay 58 — per-pixel UFR retention index rnf_rt_idx = mean(1 − Q/P). A
+    # masked mean, so region_local over the full AOI reproduces citywide exactly.
+    'runoff_retention_idx': {'decomposable': True,  'clip': 'pixel',      'reach_m': 0,   'caveat': 'routing'},
     'flood_damage_avoided_usd': {'decomposable': True,  'clip': 'pixel',  'reach_m': 0,   'caveat': 'routing'},
     # Pixel-clip + UCM spillover caveat (~600 m reach).
     'mean_hm':              {'decomposable': True,  'clip': 'pixel',      'reach_m': 600, 'caveat': 'spillover'},

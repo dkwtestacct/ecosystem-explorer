@@ -207,7 +207,7 @@ The dashboard groups 13 cards under three categories. Below are the metrics in t
 - **What it shows** — A unitless index of runoff potential derived from the area-weighted average Curve Number. Higher is better.
 - **How it is computed** — `100 − mean_CN`, where `mean_CN` is the area-weighted CN derived from the per-city CN biophysical table (`UFR_biophysical_table_<city>.csv`) by land cover × soil group, over the LULC raster.
 - **Units** — Index (0–100).
-- **Validation status** — `≈ Aligned method`. Canonical SCS-CN method. The card's metric is `100 − mean_CN`, monotone with InVEST UFR's per-watershed `rnf_rt_idx = 1 − Q/P` but computed differently — the app inverts the CN average rather than the post-storm runoff. Direction is consistent; the scale differs.
+- **Validation status** — `≈ Aligned method`. Canonical SCS-CN method. The card's metric is `100 − mean_CN` — it inverts the *mean* CN, which is monotone with but distinct from InVEST UFR's post-storm retention index. The per-pixel post-storm reading now ships alongside it as the separate **Runoff Retention** card (`rnf_rt_idx = mean(1 − Q/P)`, see below); the two differ by Jensen's inequality (Q is convex in CN). The Flood Index is retained unchanged as the headline runoff-potential indicator; Runoff Retention is the faithful per-pixel companion.
 - **Main caveat** — Not a direct percentage reduction in runoff volume. For SA specifically, the index is **nearly scenario-invariant** at the Bexar-County dashboard scale — developed pixels are a small share of the county-area extent, so total-metric movement is small even when per-pixel greening is effective. See §7 (SA).
 
 #### Temperature Change
@@ -233,6 +233,14 @@ The remaining divergence is in *Cooling Energy Savings*, not Temperature Change:
 - **Units** — acre-feet.
 - **Validation status** — `≈ Aligned method`. Canonical SCS-CN. No NatCap citywide reference for direct comparison.
 - **Main caveat** — Each city's design storm reflects its NatCap-project canonical depth; results for larger storms will differ. The card delta sub-label uses `±N ac-ft vs baseline` with green ↓ (reduction is better) and red ↑.
+
+#### Runoff Retention
+
+- **What it shows** — The share of design-storm rainfall retained on the landscape, as the canonical InVEST UFR runoff-retention index. Higher is better. Additive sibling to the Flood Index — the per-pixel companion to the lumped `100 − mean_CN` reading.
+- **How it is computed** — The canonical `rnf_rt_idx = mean(1 − Q/P)`: the per-pixel retained fraction `1 − Q/P` averaged over developed pixels (the same `cn_scenario > 0` mask the Flood Index / `mean_CN` uses), where `Q` is SCS-CN direct runoff (`S = 1000/CN − 10`, `Ia = 0.2·S`, `Q = (P − Ia)²/(P − Ia + S)`, guarded `P ≤ Ia → 0`) for the per-city design storm `P`. Implemented in `cn_array_to_retention_index` (`app.py`); engine-computed every `evaluate_scenario`, **not** a surrogate target (deterministic from CN, like UMH). Because `Q` is convex in CN, this is **not** equal to `1 − Q(mean_CN)/P` (Jensen's inequality) — it is the faithful per-pixel average, distinct from the Flood Index's mean-CN-lumped form.
+- **Units** — Index (0–1), displayed as a percentage of rainfall retained.
+- **Validation status** — `≈ Aligned method`. This is literally InVEST UFR's canonical `rnf_rt_idx`, but there is **no published NatCap SA flood value** to match against (Vibrant Land used UFRM without damage valuation), so it carries the aligned-method (blue) badge rather than a NatCap-match (green) one.
+- **Main caveat** — A closed-form per-pixel retention index, not routed hydrology — no flow accumulation or downstream routing. Region values are a masked mean over the selected area's developed pixels.
 
 #### Carbon Sequestration (MN) / Carbon Storage Change (SA)
 
@@ -539,6 +547,7 @@ The locked terms below are the canonical names used across the app and docs. The
 
 - **Flood Index** — CN-based unitless indicator, `100 − mean_CN`; not a flood volume or damage measure. Retired: Flood Retention, flood-reduction index, Flood Volume Reduction. <!-- vocab-allow: glossary names the retired terms -->
 - **Runoff Volume** — modeled runoff in ac-ft (SCS-CN); the physical volume signal.
+- **Runoff Retention** — the canonical InVEST UFR per-pixel retention index `rnf_rt_idx = mean(1 − Q/P)`, shown as a percentage of design-storm rainfall retained; the per-pixel companion to the Flood Index (which inverts the *mean* CN). Engine-computed, aligned-method.
 - **Flood Damage Avoided** — dollars avoided; surfaced only where a damage-valuation table exists (MN). SA surfaces none.
 - **InVEST-aligned evaluator** — the prototype's numpy reimplementation of the InVEST urban models, verified against canonical InVEST where comparable; not canonical InVEST running live. Retired (visible): full evaluator, prototype evaluator, canonical engine — "full evaluator" allowed in internal docs only. <!-- vocab-allow: glossary names the retired terms -->
 - **AI-assisted search / fast estimates** — the citywide machine-learning screen plus its pre-verify values. Retired in user-facing text: "surrogate-driven optimizer". <!-- vocab-allow: glossary names the retired term -->
