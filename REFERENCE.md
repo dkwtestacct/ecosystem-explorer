@@ -108,8 +108,8 @@ Every scenario on the dashboard carries one of four **sources**, surfaced as a p
 |---|---|
 | **Baseline** | The unmodified land cover for the active city. The engine has been validated against canonical InVEST per-pixel where comparable inputs exist; absolute NatCap citywide figures are not independently reproduced. |
 | **NatCap published reference** | A NatCap fixed-project scenario — the dashboard displays NatCap's own published number from the project's results file. We surface NatCap's value; we do not independently reproduce it (the exact scenario raster / aggregation path is not available). |
-| **Explorer-generated** | A scenario you constructed with the sidebar sliders. Computed by the canonical-engine-verified biophysical models; not a NatCap-published scenario. |
-| **Surrogate-suggested** | A scenario suggested by the optimizer and then **Applied** to the sliders — at that point the displayed metric cards reflect a full-raster evaluation by the canonical-engine-verified models (not a surrogate prediction). Treat as an exploratory candidate worth deeper validation. |
+| **Explorer-generated** | A scenario you constructed with the sidebar sliders. Computed by the InVEST-aligned evaluator; not a NatCap-published scenario. |
+| **AI-assisted suggestion** | A scenario suggested by the optimizer and then **Applied** to the sliders — at that point the displayed metric cards reflect an evaluation by the InVEST-aligned evaluator (not a fast estimate). Treat as an exploratory candidate worth deeper validation. |
 
 Per-card validation badges (§4) carry a finer-grained signal about each *individual metric* in the active scenario.
 
@@ -129,11 +129,11 @@ Each metric card displays one of four badges as an inline caption under its valu
 | Rendered text | Color | Fires when |
 |---|---|---|
 | **`NatCap published value`** | green | A `natcap_published`-class metric × the fixed-scenario reference view *only*. The card displays NatCap's own number directly from the reference outputs file. *Not a reproduction claim* — we surface NatCap's figure. |
-| **`≈ NatCap method`** | blue | A `natcap_published`-class metric × any other scenario context (Baseline / Explorer-generated / Surrogate-suggested). The displayed value is the prototype's own computation; the methodology is aligned with NatCap's. Tooltip is metric-aware (e.g. temperature cites measured per-pixel parity; carbon cites four-pool methodology adoption). |
+| **`≈ NatCap method`** | blue | A `natcap_published`-class metric × any other scenario context (Baseline / Explorer-generated / AI-assisted suggestion). The displayed value is the prototype's own computation; the methodology is aligned with NatCap's. Tooltip is metric-aware (e.g. temperature cites measured per-pixel parity; carbon cites four-pool methodology adoption). |
 | **`≈ Aligned method`** | blue | An `aligned_method` metric (canonical InVEST methodology with no directly-comparable NatCap citywide reference) in any context. |
 | **`Prototype`** | gray | A `prototype` metric (no canonical InVEST analog) in any context. |
 
-**Context-switch rule.** `NatCap published value` only fires when the dashboard is in the fixed-scenario reference view *and* a NatCap published number exists for that metric. In every other scenario context (Baseline / Explorer-generated / Surrogate-suggested), a `natcap_published`-class metric reads `≈ NatCap method` because the displayed value is the prototype's own computation, not NatCap's published number.
+**Context-switch rule.** `NatCap published value` only fires when the dashboard is in the fixed-scenario reference view *and* a NatCap published number exists for that metric. In every other scenario context (Baseline / Explorer-generated / AI-assisted suggestion), a `natcap_published`-class metric reads `≈ NatCap method` because the displayed value is the prototype's own computation, not NatCap's published number.
 
 Where each metric falls on these four states — and the underlying evidence (measured MAE against canonical, methodology adoption without per-pixel parity, etc.) — lives in §6 alongside each metric's mini-template. §4 documents only what the badges *mean*.
 
@@ -433,7 +433,7 @@ The **Discover scenarios to validate** panel runs in one of two modes depending 
 2. **Engine-verify** — the full per-pixel engine evaluates each shortlisted recipe on the active `region ∩ ownership` mask. K × ~2.1 s ≈ 1–2 minutes; a progress bar shows `i / K`.
 3. **Rank + dedup** — weight-sum the engine values (sliders 0–1 per metric, direction-corrected: lower-better for cost and runoff), greedy knob-distance dedup to 5 meaningfully-distinct recipes.
 
-Returned values are **engine-true region-local** — not predictions, no P10/P90 bands. The shortlist may not be exhaustive, so the header reads *"Best tested mixes — selected area"* — framing them as the best among the candidates the engine actually tested rather than implying global optimality. Apply on a returned record sets the sliders, reruns the engine on the active mask, and flips provenance to **"Engine-verified — region-optimized"** (distinct from "Surrogate-suggested"). Changing a weight slider does not auto-rerank — re-click **Optimize selected area** to apply new weights (the v1 implementation re-runs the full pipeline; the spec's "instant rerank without engine re-run" property is a future optimization, not the shipped behavior).
+Returned values are **engine-true region-local** — not predictions, no P10/P90 bands. The shortlist may not be exhaustive, so the header reads *"Best tested mixes — selected area"* — framing them as the best among the candidates the engine actually tested rather than implying global optimality. Apply on a returned record sets the sliders, reruns the engine on the active mask, and flips provenance to **"Engine-verified — region-optimized"** (distinct from "AI-assisted suggestion"). Changing a weight slider does not auto-rerank — re-click **Optimize selected area** to apply new weights (the v1 implementation re-runs the full pipeline; the spec's "instant rerank without engine re-run" property is a future optimization, not the shipped behavior).
 
 | | Mode 1: citywide surrogate | Mode 2: Optimize selected area |
 |---|---|---|
@@ -442,7 +442,7 @@ Returned values are **engine-true region-local** — not predictions, no P10/P90
 | **Search size** | ~10,000 random candidates | Surrogate Pareto over the ~90-recipe training grid → cap at K ≈ 40 for engine-verify |
 | **Values displayed** | Surrogate predictions with P10/P90 bands | Engine-true region-local, **no bands** |
 | **When to trust the number** | After Apply (full-engine rerun) | At display time (already engine-evaluated) |
-| **Provenance after Apply** | "Surrogate-suggested" | "Engine-verified — region-optimized" |
+| **Provenance after Apply** | "AI-assisted suggestion" | "Engine-verified — region-optimized" |
 | **Caveat surfaced in caption** | Predictions need verification | Results are real; shortlist may not be exhaustive |
 | **Region / ownership awareness** | None — surrogate is citywide-trained and region-blind | Engine evaluates on `region ∩ ownership` directly; surrogate's role is shortlist-only |
 | **Comparison to NatCap ROOT** | Both modes are RF + heuristic ranking; neither computes ROOT's LP frontiers (max Σ wᵢ Vᵢₛₐ xₛₐ at spatial-decision-unit level with production possibility frontiers and agreement maps). ROOT remains a deferred reference point. | |
@@ -506,7 +506,7 @@ General limitations independent of city — see §7 for per-city limitations.
 - **Carbon rates are placeholder for MN.** MN uses a provisional per-cover-class annual rate (USDA NRCS / IPCC midpoints). Treat as directional only until locally calibrated values are available. SA uses NatCap's four-pool framework directly and is on firmer ground methodologically.
 - **Food yield is a benchmark.** Yield is a per-acre benchmark for managed food forests, not site-specific. Actual yield depends on species mix, soil, and management intensity. NLCD 41 (deciduous forest) is the proxy class — no NLCD class specifically represents food forests.
 - **Cost estimates are placeholders.** Default per-acre costs ($50k GI, $10k FF, $5k HD) are mid-points to show how the math works, not sourced from local studies. Use the sliders.
-- **Optimizer is a surrogate.** The Random Forest surrogate is an approximation trained on pre-computed scenarios. Optimizer suggestions are candidates, not validated results — Apply them to the sliders to see the full canonical-engine evaluation (see §8).
+- **Optimizer is a surrogate.** The Random Forest surrogate is an approximation trained on pre-computed scenarios. Optimizer suggestions are candidates, not validated results — Apply them to the sliders to see the full evaluation by the InVEST-aligned evaluator (see §8).
 - **Optimizer cannot see spatial geometry.** The surrogate inputs only `pct, GI%, FF%` — it cannot see where pixels are placed. Nature Access predictions in particular are spatial-trend-only.
 
 ---
@@ -527,7 +527,7 @@ If you have a candidate scenario you want to take seriously, here is what to val
 | **Precise dollar magnitudes** | The Cooling Energy Savings, Flood Damage Avoided, and Cost Effectiveness ratios are order-of-magnitude. For an investment case, plug actual local cost data into the sidebar sliders, then replace the benchmark inputs (per-type damage rates, per-type AC consumption rates) with locally measured values. |
 | **Carbon sequestration rates (MN)** | MN's per-cover-class rates are provisional regional benchmarks, not site-calibrated. For carbon-credit accounting or net-zero reporting, replace with measured rates for the specific species mix and management regime. |
 | **Mental health outputs** | The UMH metric uses synthetic NDVI and uniform national CDC prevalence. For site-specific MH analysis, replace the NDVI raster with satellite-derived NDVI and use per-tract prevalence from local public-health data. |
-| **Optimizer suggestions** | Apply each candidate to the sliders. The displayed cards then reflect a full-raster evaluation by the InVEST-aligned evaluator, not a fast estimate. Re-verify there. |
+| **Optimizer suggestions** | Apply each candidate to the sliders. The displayed cards then reflect an evaluation by the InVEST-aligned evaluator, not a fast estimate. Re-verify there. |
 | **Full canonical InVEST re-run** | For SA: use the **Export for InVEST** bundle (§8) and re-run each model in canonical `natcap.invest`. Compare the resulting rasters and aggregated outputs against the dashboard's reported numbers. For MN: the same workflow is on the roadmap. |
 | **NatCap published reference values** | Where the dashboard surfaces a NatCap published value (green `NatCap published value` badge in the fixed-scenario reference view), it is displaying NatCap's number, not reproducing it. If the published number is decision-relevant, consult the underlying NatCap report (e.g. Vibrant Land for SA) for the methodology and assumptions behind that figure. |
 

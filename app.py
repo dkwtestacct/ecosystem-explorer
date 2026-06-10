@@ -1084,7 +1084,7 @@ with st.expander("How this prototype works", expanded=False):
         "- **Explorer-generated** — a slider-built scenario; engine-validated; "
         "scenario not NatCap-published.  \n"
         "- **AI-assisted suggestion** — an applied citywide search suggestion; "
-        "engine-validated; full-raster evaluated; exploratory candidate.  \n"
+        "engine-validated; exploratory candidate.  \n"
         "  \n"
         "**Per-card badge** — one of four states:  \n"
         "  \n"
@@ -5092,8 +5092,8 @@ _PROVENANCE_HEADER_INFO = {
     ),
     # Brief #4 — Applied-from-Optimizer flag is now plumbed through
     # session_state, so the OPTIMIZER provenance only ever fires on a scenario
-    # that has been Applied and therefore full-raster evaluated by the prototype
-    # engine. The validation line reflects that: "full-raster evaluated" rules
+    # that has been Applied and therefore evaluated by the InVEST-aligned
+    # evaluator. The validation line reflects that: "evaluated on apply" rules
     # out the misread that the displayed cards are still surrogate predictions.
     eib.PROVENANCE_OPTIMIZER: (
         # Two-RELAY lock — applied-result Source line. The applied citywide
@@ -5104,7 +5104,7 @@ _PROVENANCE_HEADER_INFO = {
         # "Engine-verified — region-optimized" below (Assertion C in
         # verify_baselines machine-locks the distinction).
         "Citywide AI-assisted suggestion — engine-evaluated on apply",
-        "engine-validated; full-raster evaluated — exploratory candidate "
+        "engine-validated — exploratory candidate "
         "for further validation",
         "blue",
     ),
@@ -6588,7 +6588,7 @@ def _build_invest_bundle_for_current_scenario():
     elif st.session_state.get("applied_from_optimizer"):
         # Brief #4 — the slider state matches the optimizer's just-Applied
         # values, so this scenario came from the surrogate's discovery loop and
-        # was then full-raster evaluated. Record OPTIMIZER provenance + an
+        # was then evaluated by the InVEST-aligned evaluator. Record OPTIMIZER provenance + an
         # honest generator note so downstream users (and the bundle metadata)
         # don't misread an optimizer-derived design as a manual Explorer one.
         provenance = eib.PROVENANCE_OPTIMIZER
@@ -6600,8 +6600,8 @@ def _build_invest_bundle_for_current_scenario():
             "high_density_pct":         int(results['pct_highdensity']),
             "placement_strategy":       placement_strategy,
             "random_seed":              42,
-            "note": ("Applied from Optimizer suggestion; full-raster evaluated "
-                     "by the prototype engine before export."),
+            "note": ("Applied from Optimizer suggestion; evaluated by the "
+                     "InVEST-aligned evaluator before export."),
         }
         scen_label = f"Optimizer suggestion · {results['scenario_name']}"
         scen_id = (f"optimizer_pct{int(results['pct_converted'])}"
@@ -8635,11 +8635,11 @@ if _main_tab == 'Tradeoffs':
             eib.PROVENANCE_BASELINE:     "evaluator-verified",
             eib.PROVENANCE_NATCAP_FIXED: "displayed (NatCap)",
             eib.PROVENANCE_EXPLORER:     "evaluator-verified",
-            eib.PROVENANCE_OPTIMIZER:    "evaluator + full-raster",
+            eib.PROVENANCE_OPTIMIZER:    "evaluator-verified",
             # Region-constrained optimizer (variant B). The displayed values are
             # engine-true region-local; the surrogate's role stopped at
-            # shortlisting. Distinct from PROVENANCE_OPTIMIZER's "evaluator +
-            # full-raster" (citywide).
+            # shortlisting. Distinct from PROVENANCE_OPTIMIZER's
+            # "evaluator-verified" (citywide).
             eib.PROVENANCE_REGION_OPTIMIZED: "evaluator-verified (region)",
         }
         def _cs_short_validation(prov):
@@ -8818,7 +8818,7 @@ if _main_tab == 'Tradeoffs':
             "• **NatCap reference** — displayed from NatCap published output; exact scenario raster / aggregation not available.\n\n"
             "• **Baseline** — prototype evaluator, verified against canonical InVEST where comparable; absolute NatCap citywide figures not reproduced.\n\n"
             "• **Explorer-generated** — InVEST-aligned evaluator, verified where comparable; scenario itself not NatCap-published.\n\n"
-            "• **AI-assisted suggestion** — engine-validated; full-raster evaluated — exploratory candidate for further validation."
+            "• **AI-assisted suggestion** — evaluated with the InVEST-aligned evaluator on apply — exploratory candidate for further validation."
         )
         st.dataframe(
             pd.DataFrame(_cs_rows),

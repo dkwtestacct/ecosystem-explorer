@@ -51,6 +51,9 @@ RETIRED_TERMS = [
     # too; no legitimate use found on the scanned surfaces.
     "raster engine",
     "full raster engine",
+    # Relay 52: the hyphenated "full-raster" descriptor too — cleared from all
+    # scanned surfaces (it stays legal in internal docs, which aren't scanned).
+    "full-raster",
 ]
 
 ALLOW_MARKER = "vocab-allow"
@@ -103,8 +106,10 @@ def selftest():
     suppressed = f"Retired: Flood Retention {ALLOW_MARKER}"
     clean = "The Flood Index is computed by the InVEST-aligned evaluator."
     eval_seeded = "Apply one to recompute it with the full evaluator."
+    raster_seeded = "Cards reflect a full-raster evaluation on apply."
     seeded_hits = find_hits_in_text(seeded)
     eval_hits = find_hits_in_text(eval_seeded)
+    raster_hits = find_hits_in_text(raster_seeded)
     ok = (
         len(seeded_hits) == 1
         and seeded_hits[0][1] == "Flood Retention"
@@ -113,6 +118,9 @@ def selftest():
         # Relay 31 entry has teeth: the retired evaluator noun is caught.
         and len(eval_hits) == 1
         and eval_hits[0][1] == "full evaluator"
+        # Relay 52 entry has teeth: the "full-raster" descriptor is caught.
+        and len(raster_hits) == 1
+        and raster_hits[0][1] == "full-raster"
     )
     return 0 if ok else 1
 
