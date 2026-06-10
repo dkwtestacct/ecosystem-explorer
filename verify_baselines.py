@@ -3406,6 +3406,46 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         retention_idx_diffs += 1
 
+    # ── Children's-card visibility lock — Relay 65 ─────────────────────────
+    # The Children's Nature Access card hides when |child − overall| < epsilon,
+    # so its PRESENCE means children are genuinely differently served — it does
+    # not imply a distinct beneficiary group when the measurement says they
+    # track overall access. Lock the predicate (`app._should_show_child_card`)
+    # at the boundary: hide near-equal, show on divergence or absent data.
+    print(f"\n{'=' * 60}")
+    print("Children's-card visibility lock — Relay 65")
+    print(f"{'=' * 60}")
+    child_card_diffs = 0
+    try:
+        _f = app._should_show_child_card
+        _EPS = app._CHILD_NAT_DIVERGENCE_EPSILON_PP
+        _cases = [
+            (None, 90.0, True,  "absent child data -> show ('—')"),
+            (90.0, 90.0, False, "exactly equal -> hide"),
+            (90.0 + _EPS - 0.1, 90.0, False, "below epsilon -> hide"),
+            (90.0 + _EPS + 0.1, 90.0, True,  "at/above epsilon -> show"),
+            (90.0 - _EPS - 0.1, 90.0, True,  "diverges below by > epsilon -> show"),
+        ]
+        for _child, _overall, _want, _desc in _cases:
+            _got = bool(_f(_child, _overall, _EPS))
+            if _got != _want:
+                print(f"  FAIL child-card visibility — {_desc}: got {_got}, want {_want}")
+                child_card_diffs += 1
+        if _EPS != 0.5:
+            print(f"  WARN _CHILD_NAT_DIVERGENCE_EPSILON_PP = {_EPS} (expected 0.5)")
+        # Non-vacuous meta-test: an always-show predicate would fail the hide
+        # cases; confirm the REAL predicate actually hides the equal case.
+        if _f(90.0, 90.0, _EPS) is not False:
+            print("  FAIL meta-test: predicate does not hide the equal case "
+                  "(an always-show regression would pass vacuously)")
+            child_card_diffs += 1
+        elif child_card_diffs == 0:
+            print(f"  OK   child-card visibility: hides near-equal (|delta| < {_EPS:g}pp), "
+                  "shows on divergence or absent data; equal-case hide is real")
+    except Exception as _e:
+        print(f"  ERROR child-card visibility lock: {_e}")
+        child_card_diffs += 1
+
     # ── Child-pop raster staleness — per-city anchored ─────────────────────
     # The under-18 raster is derived as P1_001N - P3_001N (PL 94-171, same
     # source as total pop). The single most likely failure mode is grabbing
@@ -3753,7 +3793,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + dense_freshness_diffs + rebind_completeness_diffs
                    + child_pop_diffs + bldg_precompute_diffs
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
-                   + retention_idx_diffs + calib_diffs)
+                   + retention_idx_diffs + calib_diffs + child_card_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3835,6 +3875,9 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         if calib_diffs:
             print(f"{calib_diffs} surrogate-calibration freshness divergence(s) "
                   "(stale/missing estimate-range artifact).")
+        if child_card_diffs:
+            print(f"{child_card_diffs} children's-card visibility divergence(s) "
+                  "(suppression predicate regressed).")
         if fast_grid_diffs:
             print(f"{fast_grid_diffs} fast-grid artifact freshness "
                   "divergence(s) — the precomputed Fast grid is stale or its "

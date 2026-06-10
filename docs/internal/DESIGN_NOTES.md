@@ -90,6 +90,18 @@ The Temperature-assumption tab is the reference example for the branch pattern.
 
 **Code touchpoints.** `config.py` per-city `una_*` keys; `_una_supply_percapita` / `_una_supply_percapita_pure` in `app.py`; the exponential kernel is built canonically per `pygeoprocessing.kernels.exponential_decay_kernel`.
 
+### 2.2a Children's nature access — measured, not built as an optimization target
+
+**Decision.** `children_nature_access_pct` (UNA access share reweighted by under-18 population) stays a **diagnostic card** (hidden when it tracks overall access within 0.5pp — `_should_show_child_card`, gate-locked) and stays in the comparison table + export. It is **not** an optimization target and there is **no children-framed placement strategy**.
+
+**Why (the Relay 55 → 59 thread, measured).** A cross-city sweep settled what the metric can actually move:
+- **San Antonio — near-moot.** Baseline children's access 93.9% (6.1pp headroom); it tracks overall access within **≤0.3pp** across the mix grid and **saturates to 100% under any moderate conversion regardless of placement** (placement span 0.0pp at a 30/50/50 mix). A children's target would duplicate the existing nature-access goal.
+- **Minneapolis downtown — real headroom but mix-driven.** Baseline 8.0% (92pp headroom); diverges from overall by up to **3.8pp**; **~96% of the downtown under-18 cohort (≈30,000) are underserved**. But the signal is **mix-driven** (26pp mix span vs 4.8pp placement span) — the lever is the *overall* conversion mix, not a child-specific search. The existing `undersupply-focused` strategy already captures most of the placement lift (+4.5pp), framed as "reach underserved residents," never "children."
+
+**Conclusion.** Where children's access tracks overall (SA), a separate target is redundant; where it has headroom (MN), the real lever is the overall mix the nature-access goal already optimizes. So: measure it, surface it honestly via the hide-when-near-equal card, but do not present children as a separately served or separately optimizable group. The card's framing was softened accordingly (Relay 65); the surrogate fork (the citywide Fast model doesn't predict child access) is therefore left unaddressed by design, not oversight.
+
+**Revisit if.** A city appears where children's access both diverges materially from overall AND responds to a lever the overall mix doesn't reach (a genuinely child-specific spatial signal) — then a child-weighted placement strategy (not a mix goal) would be the proportionate build.
+
 ### 2.3 UCM args — per-city UHI magnitude
 
 **Decision.** `uhi_max_c` is per-city: **MN 2.05 °C** (from the InVEST UCM sample args.json), **SA 11 °C** (from NatCap's SA README, modeling a heat-wave-day scenario at 35 °C reference + 11 °C peak UHI).

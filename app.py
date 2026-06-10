@@ -417,7 +417,6 @@ UNDERWAY_ENTRIES = []
 ON_THE_RADAR = """\
 - AlphaEarth-derived land-cover inputs, pixel-level spatial optimization, and nutrient retention (NDR) if canonical inputs become available.
 - Street-tree scenarios — explore planting along sidewalks and rights-of-way at street scale.
-- Children's access as an optimization target — let users search directly for mixes that maximize children's nature access.
 """
 
 def _build_whats_new():
@@ -7443,11 +7442,22 @@ st.markdown("#### Human & Social")
 # PRESENCE means "kids are differently served here." Keep it when child data is
 # absent (renders "—") or when it meaningfully diverges (>= EPSILON).
 _CHILD_NAT_DIVERGENCE_EPSILON_PP = 0.5
+
+
+def _should_show_child_card(child_nat, nature_access, eps):
+    """Children's Nature Access card visibility (Relay 65 — machine-locked).
+    Show only when child data is ABSENT (the card renders '—') OR children's
+    access diverges from overall by at least `eps` pp. Suppressing the
+    near-equal case keeps the card from implying children are a distinct
+    beneficiary group when the measurement says they track the overall metric
+    (SA ~0.3pp). Tested non-vacuously in verify_baselines."""
+    return (child_nat is None) or (abs(child_nat - nature_access) >= eps)
+
+
 _nature_access = results.get('nature_access_pct', 0.0)
 _child_nat = results.get('children_nature_access_pct')
-_show_child_card = (_child_nat is None) or (
-    abs(_child_nat - _nature_access) >= _CHILD_NAT_DIVERGENCE_EPSILON_PP
-)
+_show_child_card = _should_show_child_card(
+    _child_nat, _nature_access, _CHILD_NAT_DIVERGENCE_EPSILON_PP)
 
 # Two-row layout — Row 1 (Nature Access cluster) gets three columns (two when
 # the Children's card is suppressed); Row 2 (MH outcomes) gets two.
@@ -7523,9 +7533,8 @@ if _show_child_card:
             "standard. Same adequate mask as the adult Nature Access metric — the "
             "2SFCA supply/demand calculation stays on total population (the InVEST "
             "UNA convention), only the access SHARE is reweighted by child "
-            "population. Children may diverge from adults when residential "
-            "distribution of under-18s differs from total — e.g. school-zone "
-            "interventions can lift this without moving the citywide adult metric. "
+            "population. It closely tracks overall nature access, diverging only "
+            "modestly where access is scarce — not a separate optimization target. "
             "**Source:** US Census 2020 PL 94-171, block-level — under-18 derived "
             "as `P1_001N - P3_001N` (total − 18+), uniform-spread to NLCD grid via "
             "the same method as the total-pop raster. "
