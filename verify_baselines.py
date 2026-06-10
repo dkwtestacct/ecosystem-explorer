@@ -1377,6 +1377,53 @@ def main(update: bool) -> int:
             ro_baseline = ro_state.lulc
             print(f"  region optimizer returned {len(ro_records)} records")
 
+            # ── Relay 60 Part A: region-no-band lock ──────────────────────
+            # Region suggestions are engine-verified; they must NEVER carry a
+            # surrogate-derived prediction band. Two non-vacuous guards:
+            #  (1) data — no returned region record carries any *_lower/*_upper
+            #      band column (we just constructed a real region scenario).
+            #  (2) render — plot_tradeoff_region's source attaches no band
+            #      (no error_y / _lower / _upper), while the citywide
+            #      plot_tradeoff DOES render error_y. The citywide reference
+            #      proves bands exist in the codebase — so a green region check
+            #      means "deliberately omitted," not "bands don't exist." A
+            #      future change routing a citywide band onto the region path
+            #      trips one of these.
+            import inspect as _insp
+            _BAND_KEYS = ('flood_lower', 'flood_upper', 'hm_lower', 'hm_upper',
+                          'food_lower', 'food_upper', 'carbon_lower', 'carbon_upper')
+            _bands_in_records = [k for k in _BAND_KEYS if k in ro_records.columns]
+            if _bands_in_records:
+                print(f"  FAIL region-no-band lock (data): region records carry "
+                      f"surrogate band keys {_bands_in_records} — region values "
+                      "must be engine-verified, band-free")
+                region_opt_diffs += 1
+            else:
+                print("  OK   region-no-band lock (data): region records carry no "
+                      "surrogate band keys")
+            try:
+                _reg_src = _insp.getsource(app.plot_tradeoff_region)
+                _cw_src = _insp.getsource(app.plot_tradeoff)
+                _reg_band = [t for t in ('error_y', '_lower', '_upper') if t in _reg_src]
+                _cw_has_band = 'error_y' in _cw_src
+                if _reg_band:
+                    print(f"  FAIL region-no-band lock (render): plot_tradeoff_region "
+                          f"references band tokens {_reg_band} — region render must "
+                          "attach no surrogate band")
+                    region_opt_diffs += 1
+                elif not _cw_has_band:
+                    print("  FAIL region-no-band lock (render): citywide plot_tradeoff "
+                          "no longer renders error_y — the non-vacuous reference is "
+                          "broken (can't prove region omission is deliberate)")
+                    region_opt_diffs += 1
+                else:
+                    print("  OK   region-no-band lock (render): plot_tradeoff_region "
+                          "attaches no band; citywide plot_tradeoff renders error_y "
+                          "(reference intact)")
+            except Exception as _e:
+                print(f"  FAIL region-no-band lock (render): source scan errored: {_e}")
+                region_opt_diffs += 1
+
             for i, (_, rec) in enumerate(ro_records.iterrows()):
                 _recipe = dict(
                     pct_converted=int(rec['pct_converted']),
