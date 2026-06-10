@@ -3234,6 +3234,84 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         fast_grid_diffs += 1
 
+    # ── Surrogate calibration artifact freshness — Relay 60 Part B ──────────
+    # The citywide "Estimate range" is derived from
+    # data/<slug>/surrogate_calibration_<mode>.json. Each artifact's stamp must
+    # match the live SCENARIO_SCHEMA_VERSION AND the live grid content
+    # (grid_hash recomputed from the CSV via the calibration script's own
+    # hasher). A schema bump or a regenerated grid must force a re-run of
+    # scripts/calibrate_surrogate_band.py — otherwise the range silently goes
+    # stale. (city, mode) with a grid file but no artifact → FAIL; with no grid
+    # file (e.g. MN Fast) → SKIP (range intentionally absent at runtime).
+    print(f"\n{'=' * 60}")
+    print("Surrogate calibration freshness — Relay 60 Part B")
+    print(f"{'=' * 60}")
+    calib_diffs = 0
+    try:
+        import json as _jc
+        import importlib.util as _ilu2
+        import pandas as _pdc
+        _cal_script = Path(__file__).resolve().parent / "scripts" / "calibrate_surrogate_band.py"
+        _cspec = _ilu2.spec_from_file_location("calibrate_surrogate_band", _cal_script)
+        _cmod = _ilu2.module_from_spec(_cspec)
+        _cspec.loader.exec_module(_cmod)
+        for _city in active_cities:
+            _cfg = app.CITIES[_city]
+            _cslug = _cmod.SLUG.get(_city)
+            if not _cslug:
+                continue
+            for _mode, _key in (("fast", "fast_grid_file"),
+                                ("balanced", "dense_scenarios_file")):
+                _grid = _cfg.get(_key)
+                _cal = Path(f"data/{_cslug}/surrogate_calibration_{_mode}.json")
+                if not _grid or not Path(_grid).exists():
+                    if _cal.exists():
+                        print(f"  WARN {_cslug}/{_mode}: calibration artifact exists "
+                              "but no grid file — runtime ignores it (no range shown)")
+                    else:
+                        print(f"  SKIP {_cslug}/{_mode}: no grid file — range "
+                              "intentionally absent for this mode")
+                    continue
+                if not _cal.exists():
+                    print(f"  FAIL {_cslug}/{_mode}: grid exists but calibration "
+                          "artifact missing — run scripts/calibrate_surrogate_band.py")
+                    calib_diffs += 1
+                    continue
+                _art = _jc.loads(_cal.read_text())
+                _prov = _art.get("provenance", {})
+                _bad = []
+                if _prov.get("scenario_schema_version") != app.SCENARIO_SCHEMA_VERSION:
+                    _bad.append(f"schema({_prov.get('scenario_schema_version')}"
+                                f"!={app.SCENARIO_SCHEMA_VERSION})")
+                _live_hash = _cmod._grid_hash(_pdc.read_csv(_grid))
+                if _prov.get("grid_hash") != _live_hash:
+                    _bad.append("grid_hash")
+                if _bad:
+                    print(f"  FAIL {_cslug}/{_mode}: calibration stamp mismatch "
+                          f"{_bad} — re-run scripts/calibrate_surrogate_band.py")
+                    calib_diffs += 1
+                else:
+                    print(f"  OK   {_cslug}/{_mode}: calibration stamp matches "
+                          "(schema + grid_hash)")
+        # Meta-test (non-vacuous): a poisoned grid_hash must differ from the live
+        # hash, so the equality check above would fire.
+        _probe = Path("data/sa/surrogate_calibration_balanced.json")
+        if _probe.exists():
+            _live = _cmod._grid_hash(_pdc.read_csv(
+                app.CITIES["San Antonio, TX"]["dense_scenarios_file"]))
+            _poison = "0" * 16 if _live != "0" * 16 else "f" * 16
+            if _poison != _live:
+                print("  OK   meta-test: a poisoned grid_hash differs from the live "
+                      "hash → freshness check fires (non-vacuous)")
+            else:
+                print("  FAIL meta-test: poisoned grid_hash equals live hash")
+                calib_diffs += 1
+    except Exception as _e:
+        print(f"  ERROR calibration freshness: {_e}")
+        import traceback
+        traceback.print_exc()
+        calib_diffs += 1
+
     # ── Runoff retention index — presence, bounds, Jensen non-degeneracy ────
     # Relay 58: `runoff_retention_idx` = canonical UFR `rnf_rt_idx = mean(1 −
     # Q/P)`, the per-pixel retention average. Three non-vacuous guards:
@@ -3675,7 +3753,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + dense_freshness_diffs + rebind_completeness_diffs
                    + child_pop_diffs + bldg_precompute_diffs
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
-                   + retention_idx_diffs)
+                   + retention_idx_diffs + calib_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3754,6 +3832,9 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         if retention_idx_diffs:
             print(f"{retention_idx_diffs} runoff-retention-index divergence(s) "
                   "(presence / bounds / Jensen non-degeneracy).")
+        if calib_diffs:
+            print(f"{calib_diffs} surrogate-calibration freshness divergence(s) "
+                  "(stale/missing estimate-range artifact).")
         if fast_grid_diffs:
             print(f"{fast_grid_diffs} fast-grid artifact freshness "
                   "divergence(s) — the precomputed Fast grid is stale or its "

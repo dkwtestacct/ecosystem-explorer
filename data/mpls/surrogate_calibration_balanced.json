@@ -1,0 +1,52 @@
+{
+  "provenance": {
+    "calib_format_version": 1,
+    "scenario_schema_version": 36,
+    "grid_hash": "8e2db9d74ddabf08",
+    "surrogate_signature": "n726_066ac329fbca",
+    "n_rows": 726,
+    "n_folds": 10,
+    "rf_n_estimators": 100,
+    "rf_random_state": 42,
+    "residual_convention": "engine_true - surrogate_pred",
+    "generated_utc": "2026-06-10T17:03:44Z"
+  },
+  "residual_quantiles": {
+    "flood_reduction": {
+      "p10": -0.38,
+      "p90": 0.60065,
+      "rmse": 0.408656,
+      "bias": 0.062292
+    },
+    "mean_hm": {
+      "p10": -0.004922,
+      "p90": 0.008515,
+      "rmse": 0.005663,
+      "bias": 0.000852
+    },
+    "food_mln_lbs": {
+      "p10": -0.33429,
+      "p90": 0.42778,
+      "rmse": 0.397698,
+      "bias": 0.032327
+    },
+    "runoff_acre_feet": {
+      "p10": -36.947,
+      "p90": 24.255,
+      "rmse": 25.30917,
+      "bias": -3.76788
+    },
+    "carbon_tons_co2": {
+      "p10": -207.9445,
+      "p90": 328.027,
+      "rmse": 214.105127,
+      "bias": 29.959012
+    },
+    "nature_access_pct": {
+      "p10": -0.773,
+      "p90": 1.3075,
+      "rmse": 0.870014,
+      "bias": 0.131824
+    }
+  }
+}

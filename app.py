@@ -538,7 +538,7 @@ if "optimized_results" not in st.session_state:
     st.session_state.optimized_results = None
 # Region-constrained optimizer (variant B). Distinct slot from the citywide
 # `optimized_results` so the tradeoff tab can pick the right render branch:
-# citywide shows surrogate-predicted values + model-disagreement bands; region-active
+# citywide shows surrogate-predicted values + calibrated estimate ranges; region-active
 # shows engine-true region_local values (no bands — values are real, not
 # quantiles). See docs/internal/REGION_OPTIMIZER_SPEC.md.
 if "region_optimized_results" not in st.session_state:
@@ -4254,6 +4254,76 @@ MAX_FOOD  = float(scenario_df['food_mln_lbs'].max())
 MAX_FLOOD = 100.0
 MAX_COOL  = 1.1
 
+# ── Relay 60 Part B — calibrated estimate ranges ────────────────────────────
+# The citywide suggestion "Estimate range" is the empirically-calibrated 10th–
+# 90th residual interval [estimate + p10, estimate + p90] from
+# scripts/calibrate_surrogate_band.py (k-fold CV vs the engine grid). Residual
+# convention is engine_true − surrogate_pred, so the interval brackets the
+# engine truth and carbon/food under-prediction shows as upward skew. Loaded
+# per (city slug, active mode); None → ranges are suppressed for that mode
+# (e.g. MN Fast, which has no precomputed grid file to calibrate against).
+# Region suggestions never get a range (engine-verified — Relay 60 Part A).
+_CALIB_MODE = {"fast": "fast", "balanced": "balanced", "high": "balanced"}.get(
+    ACTIVE_MODEL_QUALITY, "balanced")
+# City slug derived from the dense-grid filename (config-driven, no hardcoded
+# city names): 'data/scenarios_dense_sa.csv' → 'sa'.
+_dense_file = city_cfg.get("dense_scenarios_file") or ""
+_CITY_SLUG = (os.path.basename(_dense_file)
+              .replace("scenarios_dense_", "").replace(".csv", "")) if _dense_file else None
+# Band metric → (lower_col, upper_col) on the optimizer DataFrame. Nature access
+# is deliberately absent: it is SUPPRESSED (lattice CV understates its true,
+# placement-driven uncertainty) — it keeps its caveat, not a calibrated band.
+_CALIB_BAND_METRICS = {
+    "flood_reduction": ("flood_lower", "flood_upper"),
+    "mean_hm":         ("hm_lower", "hm_upper"),
+    "food_mln_lbs":    ("food_lower", "food_upper"),
+    "carbon_tons_co2": ("carbon_lower", "carbon_upper"),
+}
+
+
+@st.cache_data(show_spinner=False)
+def _load_surrogate_calibration(slug, mode, schema_version):
+    """Load data/<slug>/surrogate_calibration_<mode>.json, or None. Validates
+    the stamp's schema against the live SCENARIO_SCHEMA_VERSION so a stale
+    artifact is ignored (runtime falls back to no range — never a wrong one)."""
+    if not slug:
+        return None
+    path = Path(f"data/{slug}/surrogate_calibration_{mode}.json")
+    if not path.exists():
+        return None
+    try:
+        art = json.loads(path.read_text())
+    except Exception:
+        return None
+    prov = art.get("provenance", {})
+    if prov.get("scenario_schema_version") != schema_version:
+        return None
+    return art.get("residual_quantiles") or None
+
+
+_ACTIVE_CALIBRATION = _load_surrogate_calibration(
+    _CITY_SLUG, _CALIB_MODE, SCENARIO_SCHEMA_VERSION)
+
+
+def _apply_calibrated_ranges(opt_df, calib):
+    """Replace the optimizer's inter-tree bands with the calibrated 10th–90th
+    residual interval [est + p10, est + p90] per metric. With no calibration
+    for the active mode, DROP the band columns so every downstream surface
+    suppresses ranges (no error bars, no range columns). Returns opt_df."""
+    if not isinstance(opt_df, pd.DataFrame) or opt_df.empty:
+        return opt_df
+    q = calib or {}
+    for est_col, (lo_col, hi_col) in _CALIB_BAND_METRICS.items():
+        mq = q.get(est_col)
+        if mq and est_col in opt_df.columns:
+            opt_df[lo_col] = (opt_df[est_col] + mq["p10"])
+            opt_df[hi_col] = (opt_df[est_col] + mq["p90"])
+        else:
+            opt_df.drop(columns=[c for c in (lo_col, hi_col)
+                                 if c in opt_df.columns],
+                        inplace=True, errors="ignore")
+    return opt_df
+
 # read from state to avoid silent-staleness if city switches
 BASELINE_RUNOFF_ACRE_FEET = cn_to_runoff_acre_feet(
     _CURRENT_CITY_STATE.baseline_cn, len(developed_pixels) * PIXEL_AREA_ACRES
@@ -4416,10 +4486,13 @@ def _fire_citywide_optimize(
     `st.session_state.optimized_results`. Surfaces success / no-result
     feedback inline."""
     with st.spinner("Searching for most efficient tradeoff scenarios..."):
-        st.session_state.optimized_results = optimize_scenario(
-            surrogate_model, min_flood, min_cool, min_food, max_runoff,
-            min_carbon=min_carbon, max_food=max_food,
-            max_flood=max_flood_const, max_cool=max_cool_const,
+        st.session_state.optimized_results = _apply_calibrated_ranges(
+            optimize_scenario(
+                surrogate_model, min_flood, min_cool, min_food, max_runoff,
+                min_carbon=min_carbon, max_food=max_food,
+                max_flood=max_flood_const, max_cool=max_cool_const,
+            ),
+            _ACTIVE_CALIBRATION,
         )
     _opt_res = st.session_state.optimized_results
     if _opt_res is None or (
@@ -4820,30 +4893,49 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             and len(optimized) > 0
             and 'food_mln_lbs' in optimized.columns):
         opt_sizes = np.clip(food_to_size(optimized['food_mln_lbs'].values, max_food), 6, 18)
-        # Error bars from model-disagreement bands
-        flood_err_minus = (optimized['flood_reduction'] - optimized['flood_lower']).values
-        flood_err_plus  = (optimized['flood_upper']     - optimized['flood_reduction']).values
-        hm_err_minus    = (optimized['mean_hm']         - optimized['hm_lower']).values
-        hm_err_plus     = (optimized['hm_upper']        - optimized['mean_hm']).values
+        # Relay 60 Part B — error bars are the CALIBRATED estimate range
+        # [est + p10, est + p90] (set by _apply_calibrated_ranges). When the
+        # active mode has no calibration artifact, the band columns were dropped
+        # → no error bars + estimate-only hover. (Region never reaches here.)
+        _has_range = ('flood_lower' in optimized.columns
+                      and 'hm_lower' in optimized.columns)
+        _err_x = _err_y = None
+        if _has_range:
+            flood_err_minus = (optimized['flood_reduction'] - optimized['flood_lower']).values
+            flood_err_plus  = (optimized['flood_upper']     - optimized['flood_reduction']).values
+            hm_err_minus    = (optimized['mean_hm']         - optimized['hm_lower']).values
+            hm_err_plus     = (optimized['hm_upper']        - optimized['mean_hm']).values
+            _err_x = dict(type='data', symmetric=False,
+                          array=flood_err_plus, arrayminus=flood_err_minus,
+                          color='rgba(255,165,0,0.2)', thickness=1, width=4)
+            _err_y = dict(type='data', symmetric=False,
+                          array=hm_err_plus, arrayminus=hm_err_minus,
+                          color='rgba(255,165,0,0.2)', thickness=1, width=4)
+
+        def _opt_hover(r):
+            if _has_range:
+                return (
+                    f"<b>Suggested scenario</b><br>{r.scenario_name}<br>"
+                    f"Flood — fast estimate: {r.flood_reduction:.1f}; "
+                    f"estimate range: {r.flood_lower:.1f}–{r.flood_upper:.1f}<br>"
+                    f"HMI — fast estimate: {r.mean_hm:.4f}; "
+                    f"estimate range: {r.hm_lower:.4f}–{r.hm_upper:.4f}<br>"
+                    f"Range type: calibrated 10th–90th residual range"
+                )
+            return (
+                f"<b>Suggested scenario</b><br>{r.scenario_name}<br>"
+                f"Flood — fast estimate: {r.flood_reduction:.1f}<br>"
+                f"HMI — fast estimate: {r.mean_hm:.4f}"
+            )
         fig.add_trace(go.Scatter(
             x=optimized['flood_reduction'],
             y=optimized['mean_hm'],
             mode='markers',
             marker=dict(size=opt_sizes, color='orange', symbol='diamond',
                         line=dict(color='black', width=1.5)),
-            error_x=dict(type='data', symmetric=False,
-                    array=flood_err_plus, arrayminus=flood_err_minus,
-                    color='rgba(255,165,0,0.2)', thickness=1, width=4),
-            error_y=dict(type='data', symmetric=False,
-                    array=hm_err_plus, arrayminus=hm_err_minus,
-                    color='rgba(255,165,0,0.2)', thickness=1, width=4),
-            text=optimized.apply(
-                lambda r: (
-                    f"<b>Suggested scenario</b><br>{r.scenario_name}<br>"
-                    f"Flood: {r.flood_reduction:.1f} [{r.flood_lower:.1f}–{r.flood_upper:.1f}]<br>"
-                    f"HMI: {r.mean_hm:.4f} [{r.hm_lower:.4f}–{r.hm_upper:.4f}]<br>"
-                    f"Food: {r.food_mln_lbs:.3f}M lbs [{r.food_lower:.3f}–{r.food_upper:.3f}]"
-                ), axis=1),
+            error_x=_err_x,
+            error_y=_err_y,
+            text=optimized.apply(_opt_hover, axis=1),
             hoverinfo='text',
             name='Suggested scenarios',
         ))
@@ -8277,7 +8369,7 @@ with st.expander("Assumptions and limitations"):
             f"Values come from the InVEST UCM args JSON for the Minneapolis AOI "
             f"(`uhi_max = {UHI_MAX_C:.2f} °C`, humid continental Köppen Dfa). "
             "Treat the °F output as ±2 °F at best. This reflects HMI-to-temperature "
-            "calibration accuracy, not machine-learning model disagreement.\n"
+            "calibration accuracy, not the machine-learning estimate range.\n"
             if selected_city.startswith("Minneapolis") else
             f"- **Calibration:** {HM_TO_FAHRENHEIT:.2f} °F per HMI unit. "
             f"No published InVEST args exist for hot semi-arid Köppen BSh; "
@@ -8285,7 +8377,7 @@ with st.expander("Assumptions and limitations"):
             f"(`uhi_max = {UHI_MAX_C:.2f} °C`). "
             "Treat the °F output as ±2 °F at best — calibration uncertainty is "
             "larger here than for MN. This reflects HMI-to-temperature calibration "
-            "accuracy, not machine-learning model disagreement.\n"
+            "accuracy, not the machine-learning estimate range.\n"
         )
         st.markdown(
             "- **Method:** InVEST Urban Cooling Model. Per-pixel "
@@ -8707,10 +8799,10 @@ if _main_tab == 'Tradeoffs':
                     "**top-right** — both axes are higher-is-better (Flood Index "
                     "on x, Heat Mitigation Index on y). The **purple star** is your "
                     "current scenario; **orange diamonds** are citywide machine-learning "
-                    "suggestions, shown as fast estimates with 10th–90th percentile "
-                    "model-disagreement bands. Bubble size shows food production for "
+                    "suggestions, shown as fast estimates with calibrated estimate "
+                    "ranges. Bubble size shows food production for "
                     "saved and optimizer points. Applied scenarios and selected-area "
-                    "results are evaluator-computed, so they carry no bands."
+                    "results are evaluator-computed, so they carry no range."
                 )
             st.plotly_chart(plot_tradeoff(
                 results, scenario_df,
@@ -8718,6 +8810,12 @@ if _main_tab == 'Tradeoffs':
                 saved=_saved_for_city,
                 optimized=_opt_for_chart,
             ), use_container_width=True)
+            if _opt_for_chart is not None and len(_opt_for_chart):
+                st.caption(
+                    "Orange points are citywide machine-learning estimates. "
+                    "Bars show estimate ranges; apply a suggestion to recompute "
+                    "with the InVEST-aligned evaluator."
+                )
 
         st.divider()
 
@@ -9414,14 +9512,15 @@ if _main_tab == 'Tradeoffs':
                 st.caption(
                     "Top scenarios meeting the minimum Flood Index, cooling, food, and carbon "
                     "thresholds set by the sliders — ranked by balanced score. "
-                    "Numbers are fast estimates from the machine-learning model, with 10th–90th percentile model-disagreement bands."
+                    "Numbers are fast estimates from the machine-learning model, with calibrated 10th–90th estimate ranges."
                 )
 
-                # Display table with model-disagreement columns
+                # Display table with estimate-range columns
                 display_cols = ['scenario_name', 'pct_converted', 'green_infrastructure_pct',
                                 'food_forest_pct', 'flood_reduction', 'mean_hm', 'food_mln_lbs',
                                 'carbon_tons_co2']
-                # Add model-disagreement columns if present
+                # Add estimate-range columns if present (dropped when the active
+                # mode has no calibration artifact — then no range is shown).
                 unc_cols = [c for c in ['flood_lower', 'flood_upper', 'hm_lower', 'hm_upper',
                                         'food_lower', 'food_upper',
                                         'carbon_lower', 'carbon_upper'] if c in opt.columns]
@@ -9441,15 +9540,16 @@ if _main_tab == 'Tradeoffs':
                     "These are fast estimates from the machine-learning model. Click Apply to compute it "
                     "with the InVEST-aligned evaluator and verify the result."
                 )
-                with st.expander("Show model disagreement bands", expanded=False):
-                    st.caption(
-                        "These ranges show how much the machine-learning model's "
-                        "individual trees disagree. They help compare machine-learning "
-                        "suggestions, but they are not calibrated confidence "
-                        "intervals and may not contain the evaluator-computed value."
-                    )
-                    st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
-                                 width='stretch', hide_index=True)
+                if unc_cols:
+                    with st.expander("Show estimate ranges", expanded=False):
+                        st.caption(
+                            "Estimate ranges are empirically calibrated from "
+                            "cross-validation errors against evaluator-computed "
+                            "results. They apply only to citywide machine-learning "
+                            "estimates and are not guarantees."
+                        )
+                        st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
+                                     width='stretch', hide_index=True)
                 st.dataframe(opt[display_cols].rename(columns=_col_rename),
                              width='stretch', hide_index=True)
                 st.caption(

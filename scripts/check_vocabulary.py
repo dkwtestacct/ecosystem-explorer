@@ -72,6 +72,15 @@ RETIRED_TERMS = [
     # external AI-derived data like AlphaEarth / Earth AI); "AI-assisted"
     # does not match those, so no allow-marker is needed for them.
     "AI-assisted",
+    # Relay 60 Part B: the citywide suggestion interval is now an "Estimate
+    # range" (calibrated 10th–90th CV residual), not an inter-tree "model
+    # disagreement band". Retire both spacings. Note "inter-tree disagreement
+    # band" (no "model") is NOT retired — it's used once in REFERENCE to name
+    # what was replaced.
+    "model disagreement band",
+    "model disagreement bands",
+    "model-disagreement band",
+    "model-disagreement bands",
 ]
 
 ALLOW_MARKER = "vocab-allow"
@@ -174,9 +183,22 @@ def selftest():
         "The Citywide machine-learning search uses AlphaEarth and Earth AI "
         "data; AI inputs are land-cover-derived."
     ) == []
+    # Relay 60 Part B — "model disagreement band(s)" caught (both spacings),
+    # while the canonical "Estimate range" and the once-allowed "inter-tree
+    # disagreement band" naming stay clean.
+    band_caught = (
+        "model disagreement bands" in
+        {t for (_l, t, _ln) in find_hits_in_text("Show the model disagreement bands here.")}
+        and "model-disagreement band" in
+        {t for (_l, t, _ln) in find_hits_in_text("a model-disagreement band on the chart")}
+    )
+    band_no_false_pos = find_hits_in_text(
+        "The Estimate range replaces the earlier inter-tree disagreement band."
+    ) == []
     return 0 if (ok and variants_ok and bare_surrogate_ok
                  and runoff_retention_ok and ai_caught
-                 and ai_no_false_pos) else 1
+                 and ai_no_false_pos and band_caught
+                 and band_no_false_pos) else 1
 
 
 def main():
