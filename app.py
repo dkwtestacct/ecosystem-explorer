@@ -7026,24 +7026,29 @@ with st.expander("Scenario audit", expanded=False):
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
 
-# Relay 46 — explicit scope anchor above the metric cards. Behavior unchanged:
-# the cards are citywide. The heading is always "Citywide impact"; a subtitle
-# appears only when the scenario is constrained (region and/or ownership filter
-# active), pointing to the Selected-region impact table. Supersedes the prior
-# conditional "Metric cards show citywide…" header and the lower duplicate
-# caption near the map — scope is now stated once.
-st.markdown("### Citywide impact")
-if ((results.get('region_selection') or {}).get('mode') == 'selected_regions'
-        or st.session_state.get('selected_ownership_mask') is not None):
+# Relay 46/48 — interpretation header above the metric cards. Behavior unchanged:
+# the cards are citywide. The heading reflects whether the scenario is
+# constrained; the constrained scope line and the higher/lower direction line are
+# each stated ONCE here (the direction line is removed from the region-local
+# header below). Badge meaning lives in the color legend + signposting line just
+# below — not duplicated here, and no "provenance" (Relay 43).
+_scope_constrained = (
+    (results.get('region_selection') or {}).get('mode') == 'selected_regions'
+    or st.session_state.get('selected_ownership_mask') is not None
+)
+st.markdown(
+    "### Citywide impact from selected-area placement" if _scope_constrained
+    else "### Citywide impact"
+)
+if _scope_constrained:
     st.caption(
-        "From a constrained scenario — changes are placed only within the "
-        "selected area and eligibility filters. Local effects are in the "
-        "Selected-region impact table."
+        "Cards report impact across the full modeled region, even when changes "
+        "are constrained to selected areas. Local effects are in the Scenario "
+        "tab and selected-area tradeoff plot."
     )
 st.markdown(
     "Higher is generally better for benefit metrics; lower is better for "
-    "Runoff Volume and Implementation Cost. Badges describe method/provenance, "
-    "not performance."
+    "Runoff Volume and Implementation Cost."
 )
 st.caption(
     "Badge colors show how each number was checked — green = matches NatCap, "
@@ -7754,9 +7759,7 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
         "Region-local values summarize the selected area; citywide "
         "values show the system-level result. Reach effects for "
         "cooling, nature access, and mental-health exposure may "
-        "extend beyond the selected boundary. Higher is generally better "
-        "for benefit metrics; lower is better for Runoff Volume and "
-        "Implementation Cost."
+        "extend beyond the selected boundary."
     )
 
     # Locked per-metric display rows. Each row pulls citywide from `results`,
