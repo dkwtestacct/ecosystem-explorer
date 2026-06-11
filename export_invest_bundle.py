@@ -41,6 +41,10 @@ from typing import Optional
 
 import numpy as np
 
+# Single source of truth for the validated-model set (Stage 1). Low-level module;
+# the badge path imports it too, so neither has to import the other.
+from model_validation import MODEL_VALIDATION as _MODEL_VALIDATION
+
 # Provenance taxonomy (Brief B1).
 from natcap_scenarios import (
     PROVENANCE_BASELINE,
@@ -52,50 +56,12 @@ from natcap_scenarios import (
 
 EXPORT_SCHEMA_VERSION = "1.0"
 
-# Per-model validation state (from REFERENCE.md "Official InVEST alignment" +
-# the compare_*_invest.py harnesses). Frozen text — surfaced in metadata.json.
-_VALIDATION = {
-    "ucm": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
-            "reference": "natcap.invest.urban_cooling_model 3.19.0",
-            "notes": "HMI = max(CC_local, CC_park) validated to per-pixel parity "
-                     "(compare_ucm_invest.py). Export is biophysical-cooling-only "
-                     "(do_energy_valuation=False)."},
-    "una": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
-            "reference": "natcap.invest.urban_nature_access 3.19.0",
-            "notes": "2SFCA re-implementation validated per-pixel. Per-block-group "
-                     "aggregation differs from a citywide mean — see "
-                     "NATCAP_ALIGNMENT.md."},
-    "ufr": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
-            "reference": "natcap.invest.urban_flood_risk_mitigation 3.19.0",
-            "notes": "The per-pixel runoff-retention index (1 − Q/P, "
-                     "app.cn_array_to_retention_index) is validated to per-pixel "
-                     "parity against UFRM's runoff_retention_index: MAE ~5e-8, "
-                     "r = 1.0 over 3.36M pixels, value-identical CN "
-                     "(compare_ufr_invest.py, Relay 71). UFRM λ=0.2 / "
-                     "S_max=25400/CN−254 mm is algebraically identical to the "
-                     "evaluator's Ia=0.2S / S=1000/CN−10 in. The dashboard's "
-                     "headline Flood Index (100 − mean_CN) and Runoff Volume are "
-                     "lumped mean-CN proxies, NOT per-pixel UFRM outputs — they "
-                     "stay aligned-method. SA uses NatCap's NLCD×tree CN table; "
-                     "damage valuation disabled (no SA damage table, Path C)."},
-    "carbon": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
-               "reference": "natcap.invest.carbon 3.19.0",
-               "notes": "SA four-pool stock framework per NatCap Vibrant Land "
-                        "(Guerry et al. 2023), validated to per-pixel parity against "
-                        "natcap.invest.carbon 3.19.0 in matched units "
-                        "(compare_carbon_sa_fourpool_invest.py): per-pixel MAE ~3e-7 "
-                        "Mg C, r = 1.0. do_valuation=False in the export (stock change "
-                        "only)."},
-    "umh": {"status": "validated",
-            "reference": "natcap.invest.urban_mental_health 3.19.0",
-            "notes": "Per-pixel kernel parity validated (Brief B); canonical "
-                     "execution on the baseline bundle verified (D1 Phase 3). "
-                     "Two args files emitted (depression, anxiety). Inputs use a "
-                     "synthetic uniform baseline-prevalence vector "
-                     "(risk_rate = CDC ever-diagnosed BIR) and a synthetic NDVI "
-                     "proxy, not satellite NDVI — input-quality caveats, "
-                     "separate from algorithmic parity."},
-}
+# Per-model validation state — single-sourced in model_validation.MODEL_VALIDATION
+# (Stage 1) so the 'validated' flag can't drift between this bundle and the
+# per-card badges. Re-exported here UNCHANGED; the bundle's metadata.json output
+# is byte-identical to the prior inline literal. To change a model's parity
+# status, edit model_validation.py (the verify_baselines source check pins it).
+_VALIDATION = _MODEL_VALIDATION
 
 
 # Honesty-Surface Pass Commit 2 — locked seed list of known divergences from

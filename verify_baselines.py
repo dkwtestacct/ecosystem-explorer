@@ -3420,6 +3420,88 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         delta_dir_diffs += 1
 
+    # ── Validated-model set single source — Stage 1 ─────────────────────────
+    # The 'validated' flag (per-pixel parity vs canonical natcap.invest 3.19.0)
+    # has ONE canonical home: model_validation.MODEL_VALIDATION. The export bundle
+    # re-exports it (eib._VALIDATION IS that object); Stage 2 badges read it too.
+    # Assert the canonical set is exactly the expected models with parity metadata,
+    # that the bundle is sourced (identity, not a re-declared literal that could
+    # drift), and a non-vacuous flip-test. Doubles as a deliberate-change detector:
+    # validating a 6th model trips this until the expected set is updated on purpose.
+    print(f"\n{'=' * 60}")
+    print("Validated-model set — single source of truth (Stage 1)")
+    print(f"{'=' * 60}")
+    src_diffs = 0
+    try:
+        import model_validation as _mv
+        import export_invest_bundle as _eib
+        if not hasattr(_mv, "MODEL_VALIDATION"):
+            raise AttributeError("model_validation.MODEL_VALIDATION not found "
+                                 "(canonical source moved?)")
+        _EXPECTED_VALIDATED = {"ucm", "una", "umh", "carbon", "ufr"}
+
+        def _validated_of(d):
+            return {k for k, v in d.items() if v.get("status") == "validated"}
+
+        def _aligned_of(d):
+            return {k for k, v in d.items() if v.get("status") == "methodology_aligned"}
+
+        _validated = _validated_of(_mv.MODEL_VALIDATION)
+        _aligned = _aligned_of(_mv.MODEL_VALIDATION)
+        if _validated != _EXPECTED_VALIDATED:
+            print(f"  FAIL canonical validated set {sorted(_validated)} != expected "
+                  f"{sorted(_EXPECTED_VALIDATED)} — a model was added/dropped; if "
+                  "intentional, update _EXPECTED_VALIDATED on purpose")
+            src_diffs += 1
+        else:
+            print(f"  OK   canonical validated set = {sorted(_validated)}")
+        if _aligned:
+            print(f"  FAIL methodology_aligned must be empty, got {sorted(_aligned)}")
+            src_diffs += 1
+        else:
+            print("  OK   methodology_aligned empty (all five models measured)")
+        # Parity metadata present on every validated model (reference + notes; the
+        # four numeric ones also carry pearson_r — UMH's parity is kernel-based).
+        _meta_missing = [k for k in _validated
+                         if not _mv.MODEL_VALIDATION[k].get("reference")
+                         or not _mv.MODEL_VALIDATION[k].get("notes")]
+        if _meta_missing:
+            print(f"  FAIL validated models missing reference/notes metadata: {_meta_missing}")
+            src_diffs += 1
+        else:
+            print("  OK   every validated model carries reference + notes metadata")
+        # Bundle is SOURCED from the canonical object (identity → can't drift).
+        if _eib._VALIDATION is not _mv.MODEL_VALIDATION:
+            print("  FAIL eib._VALIDATION is not model_validation.MODEL_VALIDATION "
+                  "— the bundle re-declared a literal instead of re-exporting")
+            src_diffs += 1
+        else:
+            print("  OK   eib._VALIDATION IS the canonical object (sourced, not copied)")
+        # Bundle content unchanged — every model's status is 'validated'.
+        _actual_status = {k: v.get("status") for k, v in _eib._VALIDATION.items()}
+        if _actual_status != {k: "validated" for k in _EXPECTED_VALIDATED}:
+            print(f"  FAIL bundle status dict changed: {_actual_status}")
+            src_diffs += 1
+        else:
+            print("  OK   bundle status dict unchanged (all validated)")
+        # Flip-test (non-vacuous): the predicates actually catch seeded drift.
+        _poison_drop = {k: v for k, v in _mv.MODEL_VALIDATION.items() if k != "carbon"}
+        _poison_align = dict(_mv.MODEL_VALIDATION)
+        _poison_align["ufr"] = {**_poison_align["ufr"], "status": "methodology_aligned"}
+        if (_validated_of(_poison_drop) == _EXPECTED_VALIDATED
+                or not _aligned_of(_poison_align)):
+            print("  FAIL flip-test: a dropped/aligned model did NOT change the "
+                  "derived set — the check is blind")
+            src_diffs += 1
+        else:
+            print("  OK   flip-test: dropping or aligning a model correctly trips "
+                  "the validated/aligned predicates")
+    except Exception as _e:
+        print(f"  ERROR validated-model source check: {_e}")
+        import traceback
+        traceback.print_exc()
+        src_diffs += 1
+
     # ── Runoff retention index — presence, bounds, Jensen non-degeneracy ────
     # Relay 58: `runoff_retention_idx` = canonical UFR `rnf_rt_idx = mean(1 −
     # Q/P)`, the per-pixel retention average. Three non-vacuous guards:
@@ -3902,7 +3984,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + child_pop_diffs + bldg_precompute_diffs
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
                    + retention_idx_diffs + calib_diffs + child_card_diffs
-                   + loader_diffs + delta_dir_diffs)
+                   + loader_diffs + delta_dir_diffs + src_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3988,6 +4070,12 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"{delta_dir_diffs} delta-direction divergence(s) — a "
                   "lower-is-better card lost its inverse delta (or a higher-is-"
                   "better card gained one); see card-row delta colours.")
+        if src_diffs:
+            print(f"{src_diffs} validated-model source divergence(s) — the "
+                  "canonical validated set drifted, the bundle stopped sourcing "
+                  "model_validation.MODEL_VALIDATION, or a model's parity status "
+                  "changed (update model_validation.py + _EXPECTED_VALIDATED on "
+                  "purpose if intentional).")
         if loader_diffs:
             print(f"{loader_diffs} calibration-loader divergence(s) — "
                   "_load_surrogate_calibration returned None/wrong shape on a "
