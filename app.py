@@ -522,9 +522,14 @@ if 'entry_city' not in st.session_state:
             "infrastructure, food forest, or higher-density development.  \n"
             "• **Target where it happens** — citywide, in selected council "
             "districts, or on eligible public, vacant, school, or other land.  \n"
+            # "five" is sourced from model_validation.VALIDATED_MODELS (UCM, UNA,
+            # UMH, UFR, Carbon). If that set changes, update this copy — the
+            # verify_baselines validated-set check pins the count at 5.
             "• **Evaluate impacts** — flood, cooling, carbon, greenness, nature "
-            "access for residents, children, and school locations, mental health, food, and "
-            "cost.  \n"
+            "access, mental health, food, and cost, built around five InVEST "
+            "model pathways. Five InVEST model pathways provide the core "
+            "ecological and social outcomes; prototype food and cost modules add "
+            "planning-screening context.  \n"
             "• **Optimize & compare** — find promising citywide mixes or "
             "best-tested mixes for a selected area, then compare tradeoffs.  \n"
             "• **Trust the results** — each result shows where it came from "
