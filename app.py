@@ -4991,7 +4991,7 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         hovermode='closest',
     )
     fig.add_annotation(
-        text="Current scenario shown as the purple star",
+        text="Current scenario shown as the purple star; dotted lines mark its position",
         xref='paper', yref='paper', x=0, y=1.06,
         xanchor='left', yanchor='bottom',
         showarrow=False, font=dict(size=11, color='gray'),
@@ -8851,7 +8851,7 @@ if _main_tab == 'Tradeoffs':
             if _opt_for_chart is not None and len(_opt_for_chart):
                 st.caption(
                     "Orange points are citywide machine-learning estimates. "
-                    "Bars show estimate ranges; apply a suggestion to recompute "
+                    "Hover a point for its estimate range; apply a suggestion to recompute "
                     "with the InVEST-aligned evaluator."
                 )
 
