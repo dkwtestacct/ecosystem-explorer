@@ -3357,6 +3357,67 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         loader_diffs += 1
 
+    # ── Delta-direction discipline — lower-is-better cards invert the arrow ──
+    # Runoff Volume (lower is better) must render an increase as a regression
+    # (delta_color "inverse"); higher-is-better cards (Flood Index, NDVI) must
+    # not. Pins both the _delta_pill mechanism AND the per-card call sites so a
+    # future edit can't silently flip one back to green-up. (Relay — Runoff
+    # Volume delta read backwards, contradicting the "lower is better" caption.)
+    print(f"\n{'=' * 60}")
+    print("Delta-direction discipline — lower-is-better cards invert")
+    print(f"{'=' * 60}")
+    delta_dir_diffs = 0
+    try:
+        # Mechanism (non-vacuous: both directions + the zero/off case).
+        if app._delta_pill(5.0, inverse=True)[1] != "inverse":
+            print("  FAIL _delta_pill(+, inverse=True) should colour 'inverse'")
+            delta_dir_diffs += 1
+        if app._delta_pill(-5.0, inverse=True)[1] != "inverse":
+            print("  FAIL _delta_pill(-, inverse=True) should colour 'inverse'")
+            delta_dir_diffs += 1
+        if app._delta_pill(5.0)[1] != "normal":
+            print("  FAIL _delta_pill(+) default should colour 'normal'")
+            delta_dir_diffs += 1
+        if app._delta_pill(0.0) != (None, "off"):
+            print("  FAIL _delta_pill(0) should be (None, 'off')")
+            delta_dir_diffs += 1
+        if delta_dir_diffs == 0:
+            print("  OK   _delta_pill mechanism: inverse↔'inverse', "
+                  "default↔'normal', zero↔(None,'off')")
+        # Call sites (source scan): Runoff Volume inverts; Flood/NDVI do not.
+        import re as _re_dd
+        _src_dd = Path("app.py").read_text()
+
+        def _pill_args(_var):
+            _m = _re_dd.search(
+                rf"{_re_dd.escape(_var)},\s*\w+\s*=\s*_delta_pill\((.*?)\)\s*\n",
+                _src_dd, _re_dd.S)
+            return _m.group(1) if _m else None
+
+        _runoff_args = _pill_args("_runoff_delta_str")
+        if _runoff_args is None:
+            print("  FAIL could not locate Runoff Volume _delta_pill call "
+                  "(source scan stale — re-point it)")
+            delta_dir_diffs += 1
+        elif "inverse=True" not in _runoff_args:
+            print("  FAIL Runoff Volume delta must pass inverse=True "
+                  "(lower is better — an increase is a regression, not green-up)")
+            delta_dir_diffs += 1
+        else:
+            print("  OK   Runoff Volume delta passes inverse=True")
+        for _hb in ("_flood_delta_str", "_ndvi_delta_str"):
+            _args = _pill_args(_hb)
+            if _args is not None and "inverse=True" in _args:
+                print(f"  FAIL {_hb}: higher-is-better card must NOT use inverse=True")
+                delta_dir_diffs += 1
+            else:
+                print(f"  OK   {_hb}: higher-is-better, no inverse")
+    except Exception as _e:
+        print(f"  ERROR delta-direction check: {_e}")
+        import traceback
+        traceback.print_exc()
+        delta_dir_diffs += 1
+
     # ── Runoff retention index — presence, bounds, Jensen non-degeneracy ────
     # Relay 58: `runoff_retention_idx` = canonical UFR `rnf_rt_idx = mean(1 −
     # Q/P)`, the per-pixel retention average. Three non-vacuous guards:
@@ -3839,7 +3900,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + child_pop_diffs + bldg_precompute_diffs
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
                    + retention_idx_diffs + calib_diffs + child_card_diffs
-                   + loader_diffs)
+                   + loader_diffs + delta_dir_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3921,6 +3982,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         if calib_diffs:
             print(f"{calib_diffs} surrogate-calibration freshness divergence(s) "
                   "(stale/missing estimate-range artifact).")
+        if delta_dir_diffs:
+            print(f"{delta_dir_diffs} delta-direction divergence(s) — a "
+                  "lower-is-better card lost its inverse delta (or a higher-is-"
+                  "better card gained one); see card-row delta colours.")
         if loader_diffs:
             print(f"{loader_diffs} calibration-loader divergence(s) — "
                   "_load_surrogate_calibration returned None/wrong shape on a "

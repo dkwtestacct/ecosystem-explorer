@@ -7028,17 +7028,21 @@ def _fmt_temp_change(dt, *, threshold=0.1):
         return "No change"
     return f"{abs(dt):.1f}°F warmer" if dt > 0 else f"{abs(dt):.1f}°F cooler"
 
-def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", epsilon=0.05):
+def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", epsilon=0.05,
+                inverse=False):
     """Consistent delta string + color for st.metric cards.
 
     Returns (delta_str, delta_color).
     - Zero-delta  →  (None, "off")  — pill suppressed entirely
-    - Positive    →  ("+{value} {suffix}", "normal")  — green ↑
-    - Negative    →  ("-{abs(value)} {suffix}", "normal")  — red ↓
+    - Otherwise   →  ("±{value} {suffix}", color), where color is "normal" for
+      higher-is-better metrics (green ↑ / red ↓) or "inverse" for
+      lower-is-better metrics (`inverse=True` → red ↑ / green ↓).
 
-    Sign convention: the helper does not invert signs for lower-is-better
-    metrics. Callers pass the delta pre-flipped for direction-of-goodness
-    (e.g. runoff_prevented = baseline − scenario, so positive = good).
+    Pass the RAW signed delta (scenario − baseline) and set `inverse` to match
+    the metric's direction-of-goodness, so the arrow tracks the real change and
+    the colour tracks whether that change is good. Lower-is-better cards (e.g.
+    Runoff Volume) MUST pass `inverse=True` — an increase is a regression, not a
+    green-up improvement.
 
     For zero-baselined metrics (currently Carbon), callers may pass the raw
     value rather than a computed delta — the helper treats them equivalently.
@@ -7047,9 +7051,10 @@ def _delta_pill(value_delta, *, fmt="", suffix="vs baseline", epsilon=0.05):
     """
     if abs(value_delta) < epsilon:
         return None, "off"
+    color = "inverse" if inverse else "normal"
     if value_delta > 0:
-        return f"+{value_delta:{fmt}} {suffix}", "normal"
-    return f"-{abs(value_delta):{fmt}} {suffix}", "normal"
+        return f"+{value_delta:{fmt}} {suffix}", color
+    return f"-{abs(value_delta):{fmt}} {suffix}", color
 
 # The active scenario's context. Drives the badge's anchored-vs-aligned color
 # rule. Baseline = pct_converted == 0; any slider-derived non-zero scenario is
@@ -7067,11 +7072,17 @@ _flood_delta_str, _flood_delta_color = _delta_pill(_flood_delta, fmt=".1f", epsi
 _temp_change_f = results['temp_change_f']
 _temp_change_label = _fmt_temp_change(_temp_change_f)
 _hm_delta = results['mean_hm'] - _CURRENT_CITY_STATE.baseline_hm
-_runoff_prevented = BASELINE_RUNOFF_ACRE_FEET - results['runoff_acre_feet']
+# Lower Runoff Volume is better, so pass the RAW change (scenario − baseline)
+# with inverse=True: a decrease renders green ↓ (improvement), an increase
+# renders red ↑ (regression) — matching the "lower Runoff Volume is better"
+# caption. (Was pre-flipped `prevented` + "normal", which showed a reduction as
+# a green ↑ "+803 vs baseline" that read as runoff going up.)
+_runoff_change = results['runoff_acre_feet'] - BASELINE_RUNOFF_ACRE_FEET
 _runoff_delta_str, _runoff_delta_color = _delta_pill(
-    _runoff_prevented, fmt=",.0f",
+    _runoff_change, fmt=",.0f",
     suffix="ac-ft vs baseline",
     epsilon=1.0,
+    inverse=True,
 )
 _people_fed = results['people_fed']
 _food_delta_str = f"feeds ~{_people_fed:,} people" if _people_fed > 0 else None
