@@ -7459,9 +7459,15 @@ eco4.metric(
     delta_color="off",
     help="Cooler is better. Approximate temperature change from the Heat Mitigation Index. Useful for comparing scenarios; treat °F changes as approximate, about ±2°F at best, because HMI-to-temperature calibration is uncertain. See 'How this prototype works'."
 )
+# Badge BEFORE the cooler/warmer caption so Temp's badge baseline aligns with
+# Carbon / NDVI in this row (which go value → badge directly). The other rows'
+# sub-captions already sit after their badges. POST-COMMIT EYEBALL: confirm
+# "cooler"/"warmer" still reads right sitting BELOW the badge; if it reads as
+# attached to the badge instead of the value, fall back to folding the direction
+# back into the value string (e.g. a compact "0.3°F cooler" form).
+_render_validation_caption(eco4, "temp_change_f", _validation_scenario_context)
 if _temp_card_dir:
     eco4.caption(_temp_card_dir)
-_render_validation_caption(eco4, "temp_change_f", _validation_scenario_context)
 # `_carbon_card_label` is set above alongside the value/delta (Brief 2,
 # Approach Y) so the SA loss-flip label survives.
 _carbon_card_help = (
