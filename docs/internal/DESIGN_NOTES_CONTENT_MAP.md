@@ -61,7 +61,7 @@ Header keeps the 5-field block, **rewritten away from "append-only / chronologic
 | SA compound LULC integration (565) | §3 + §4 | CRS reproject + compound encoding → §3; conversion implications → §4. Strip brief. |
 | SA UCM compound table (667) | §3 / §6 | Durable adoption → §3/§6. Note this is the **measured-parity** evidence for temperature (backs "≈ NatCap method" for temp). Strip brief. |
 | SA UNA compound table (761) | §2 / §3 | Durable → §2/§3. Strip brief. |
-| SA Carbon four-pool (845) | §6 | Durable carbon-framework decision. Note: **method-adoption, not measured parity** (ties to REFERENCE §6 carbon honesty). Strip brief. |
+| SA Carbon four-pool (845) | §6 | Durable carbon-framework decision. Note: **method adoption AND measured per-pixel parity** (validated vs InVEST 3.19.0, Relay 69). Strip brief. |
 | SA AOI → ACS block-group (1003) | §2 | Durable AOI decision. Strip brief. |
 | SA flood damage table — Path C + 4 paths + resolution (1070) | §6 (+ §10 xref) | Decision (embrace $0); the 4 paths = "Alternatives considered." "Explain on dashboard" → cross-ref §10. Strip brief. |
 | Lookup-overlay safety contract (1234) | **§4 (owns)** + ARCHITECTURE §5 references it | Durable safety invariant — keep; future-you will forget it. **DESIGN_NOTES §4 owns the rationale + the 12 live-overwrite fields.** ARCHITECTURE §5 cross-refs §4 instead of restating the field list (avoids double-routing). |
@@ -113,7 +113,7 @@ Header keeps the 5-field block, **rewritten away from "append-only / chronologic
 | SA compound LULC (565) | EPSG:3857 → EPSG:5070 prep, NLCD×NLUD×tree compound | `data/sa/flood/land_use_compound_sa.tif` exists; loader reads compound | **current** |
 | SA UCM compound (667) | adopted via NatCap's `ucm__nlcd_nlud_tree.csv` | `config.py:233` declares `ucm__nlcd_nlud_tree.csv` for SA | **current** |
 | SA UNA compound (761) | adopted via NatCap's `una__nlcd_nlud_tree.csv` + per-city 800/16.7/dichotomy | `config.py:274–276` confirms per-city values | **current — fold UNA fix here** |
-| SA Carbon four-pool (845) | NatCap compound `carbon__nlcd_nlud_tree.csv`; one-time stock | `app.py: _compute_carbon_four_pool` | **current — note method-adoption, NOT measured parity** |
+| SA Carbon four-pool (845) | NatCap compound `carbon__nlcd_nlud_tree.csv`; one-time stock | `app.py: _compute_carbon_four_pool` | **current — method adoption AND measured per-pixel parity (Relay 69)** |
 | SA AOI block-group (1003) | ACS block-groups for SA per-tract aggregation | `config.py: tracts_file` = `acs_block_groups_3857.gpkg` for SA | **current** |
 | SA flood damage Path C (1070) | embrace $0; label as "Flood Volume Reduction" | matches REFERENCE §6 Flood Damage Avoided card relabel | **current** |
 | Lookup-overlay safety contract (1234) | live-overwrite invariant for ~12 fields after lookup hit | matches ARCHITECTURE map `[VERIFY] 4` live-overwrite list | **current — load-bearing** |

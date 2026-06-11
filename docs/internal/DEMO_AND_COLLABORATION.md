@@ -23,7 +23,7 @@ NatCap's urban InVEST work (e.g. the San Antonio study) produces a fixed set of 
 The spine of every conversation. Say these plainly — don't overclaim, don't undersell the real result.
 
 **Validated (measured):**
-- The core model engine is validated against canonical `natcap.invest` where comparable inputs exist — UCM, UNA, and UMH match per-pixel at MAE ≈ 0. Other metrics (flood, carbon, food, cost, monetized outputs) carry their own validation / prototype badges rather than this measured-parity claim.
+- The core model engine is validated against canonical `natcap.invest` where comparable inputs exist — UCM, UNA, UMH, and SA Carbon match per-pixel at MAE ≈ 0 (carbon: r 1.0 vs InVEST 3.19.0 in matched units, Relay 69). Other metrics (flood, food, cost, monetized outputs) carry their own validation / prototype badges rather than this measured-parity claim.
 
 **Displayed, not reproduced:**
 - NatCap's published San Antonio project-scenario values, where available, are shown as labeled reference points. We surface NatCap's own numbers; we do not independently reproduce all of them, because the exact scenario rasters, aggregation scripts, and model arguments behind some published values weren't available.

@@ -51,7 +51,7 @@ Target: §1 Alignment summary · §2 Validation badge taxonomy · §3 Metric met
 |---|---|---|
 | Intro + "Validation story" (11–18, 99–106) | §1 | High-level summary; the per-pixel-parity-not-citywide-absolute framing. |
 | §1 Metric Methodology Fidelity table + parity taxonomy (20–50) | §3 | **Trim per-city values out of the Nature Access + Carbon rows** (→ CITY_PARITY). Keep the method/parity claim. |
-| "Validated reference outputs (SA)" badge block (52–88) | §2 + §4 | The badge taxonomy → §2 (**authoritative home**, keep the temp-can-cite-parity / carbon-cannot nuance). The natcap_published/aligned_method/prototype states + computed-vs-displayed → §4. |
+| "Validated reference outputs (SA)" badge block (52–88) | §2 + §4 | The badge taxonomy → §2 (**authoritative home**, keep the per-metric-evidence nuance — temp and carbon both cite measured per-pixel parity). The natcap_published/aligned_method/prototype states + computed-vs-displayed → §4. |
 | A3 "comparison-ready, never executed" (90–97) | §4 | The displayed-not-reproduced boundary. |
 | Per-model validation in export bundle (108–112) | §6 | Validation travels with the bundle; "export ≠ validated." |
 | §2 Data Source Alignment (114–142) | **CITY_PARITY** (delete) | Per-city data inputs — CITY_PARITY is the keeper. Split-config rationale → CITY_PARITY MN divergence note (or DESIGN_NOTES). |
@@ -76,7 +76,7 @@ This is the single written authority for the badge vocabulary (app code = ground
 | Prototype | Exploratory proxy or assumption | Useful for exploration | Not a final quantitative result |
 
 **Note below the table (both points, kept short):**
-1. **Per-metric evidence varies within "≈ NatCap method."** Temperature can cite measured per-pixel parity (HMI MAE≈0); carbon is four-pool methodology adoption with no per-pixel parity measurement — do not imply parity for carbon.
+1. **Per-metric evidence varies within "≈ NatCap method."** Temperature cites measured per-pixel parity (HMI MAE≈0); SA carbon's four-pool framework now also carries measured per-pixel parity (MAE≈0 / r 1.0 vs InVEST 3.19.0, Relay 69).
 2. **Badges are per-metric × per-context.** A `natcap_published` metric shows "NatCap published value" *only* in the fixed-scenario reference view; in baseline / Explorer / optimizer contexts the same metric shows "≈ NatCap method" (the prototype computed it). This is what prevents an Explorer-scenario number from reading as a NatCap-published one.
 
 ---

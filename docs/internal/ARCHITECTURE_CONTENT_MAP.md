@@ -250,7 +250,7 @@ The "three knobs" framing (training scenarios / trees / optimizer candidates) ma
 | `verify_baselines.py` | Baseline regression check — snapshots `evaluate_scenario` for 40 (city × scenario × strategy) combos against committed JSON. CI gate before commits. |
 | `precompute_scenarios.py` | Offline dense-CSV builder for Balanced-mode training set; stubs streamlit + reuses `evaluate_scenario` |
 
-**`validation/` (5):** `compare_carbon_invest.py`, `compare_ucm_invest.py`, `compare_umh_invest.py`, `compare_una_invest.py`, `verify_cooling.py` — canonical-InVEST parity comparators.
+**`validation/` (6):** `compare_carbon_invest.py`, `compare_carbon_sa_fourpool_invest.py`, `compare_ucm_invest.py`, `compare_umh_invest.py`, `compare_una_invest.py`, `verify_cooling.py` — canonical-InVEST parity comparators.
 
 **`diagnostics/` (5 — one retired):** `compare_una_lulc.py`, `analyze_placement_diagnostic.py`, `placement_strategy_diagnostic.py`, `check_expanded_coverage.py`, `validate_surrogate_predictions.py`. (`validate_scenarios.py` retired in `943119d`.)
 

@@ -73,7 +73,7 @@ Reserved for the fixed-scenario reference view, where the card displays NatCap's
 **Blue — "≈ NatCap method"** (a `natcap_published`-class metric on the prototype's own computation: baseline / Explorer / Optimizer)
 NatCap also publishes this metric, and the prototype computes it with canonical InVEST methodology — but the displayed value is the prototype's own, for a scenario with no NatCap anchor. Metric-aware tooltip:
 - *Temperature* can cite measured per-pixel HMI parity vs canonical InVEST UCM (MAE 0.0000, r 1.0000 — Brief 28b).
-- *Carbon* cannot cite parity — it is four-pool methodology *adoption* (Brief 30), not a measured per-pixel comparison.
+- *Carbon* cites measured per-pixel parity too — the four-pool stock framework (Brief 30) is validated vs canonical InVEST 3.19.0 at MAE ≈ 0 / r 1.0 in matched units (Relay 69, `compare_carbon_sa_fourpool_invest.py`).
 
 **Blue — "≈ Aligned method"** (`aligned_method`)
 Canonical InVEST methodology, but no directly-comparable NatCap citywide reference, or the framing differs (statistic / scope / aggregation). Currently: SA UNA (per-block-group aggregation needed for citywide comparison), SA cooling energy (scope difference), SA flood (canonical UFR, no NatCap published value), UMH (canonical kernel parity at MAE≈0, but synthetic NDVI proxy).
@@ -163,10 +163,10 @@ Tracks and their dependency order. Strikethrough = completed.
 ## 8. Honest assessments
 
 **What's validated rigorously (measured):**
-- UCM, UNA, UMH all at MAE ≈ 0 vs canonical InVEST (UMH after Brief B kernel fix). This is per-pixel parity on the prototype's own grid — the real validated core.
+- UCM, UNA, UMH, and SA Carbon all at MAE ≈ 0 vs canonical InVEST (UMH after Brief B kernel fix; SA Carbon four-pool per-pixel, r 1.0 vs InVEST 3.19.0 in matched units — Relay 69). This is per-pixel parity on the prototype's own grid — the real validated core.
 
 **What's methodology-aligned but NOT a measured match:**
-- SA Carbon uses NatCap's four-pool stock framework (Brief 30) — a methodology *choice*. Per-pixel parity vs canonical InVEST Carbon has not been measured, and the citywide total is not reproduced (below).
+- Flood / UFR uses the canonical SCS-CN method, but per-pixel parity vs canonical InVEST UFRM has not been measured (no committed UFRM parity harness). *(SA Carbon sat here until Relay 69 — it now has measured per-pixel parity and moved up; what remains unreproduced for carbon is NatCap's published citywide absolute, below.)*
 
 **What is NOT established (2026-05-29 investigation, under a no-parameter-fitting guardrail):**
 - **NatCap's published citywide absolutes are not reproducible from what's on disk.**

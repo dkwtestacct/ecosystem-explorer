@@ -52,7 +52,7 @@ Header block keeps the 5-field status header, with: **Use this for:** "Understan
 | Rendered text (verbatim) | Color | Fires when |
 |---|---|---|
 | `NatCap published value` | green | a `natcap_published`-class metric × the fixed-scenario reference view, where the card displays NatCap's own published number directly from `natcap_reference_outputs.csv`. The card surfaces NatCap's figure; the prototype does not claim independent reproduction. |
-| `≈ NatCap method` | blue | a `natcap_published`-class metric × any other scenario context (Baseline / Explorer / Optimizer). The displayed value is the prototype's own computation; the methodology is aligned with NatCap's. Tooltip is metric-aware (temperature cites measured per-pixel HMI parity; carbon cites four-pool methodology adoption with no per-pixel parity). |
+| `≈ NatCap method` | blue | a `natcap_published`-class metric × any other scenario context (Baseline / Explorer / Optimizer). The displayed value is the prototype's own computation; the methodology is aligned with NatCap's. Tooltip is metric-aware (temperature and carbon both cite measured per-pixel parity vs canonical InVEST 3.19.0). |
 | `≈ Aligned method` | blue | an `aligned_method` metric (canonical InVEST methodology with no directly-comparable NatCap citywide reference) in any context. |
 | `Prototype` | gray | a `prototype` metric (no canonical InVEST analog) in any context. |
 
@@ -69,7 +69,7 @@ Header block keeps the 5-field status header, with: **Use this for:** "Understan
 - The **provenance header** answers: *whose scenario is this?* (per-scenario, four sources).
 - The **per-card badge** answers: *how trustworthy is this specific number on this card right now?* (per-metric × per-context).
 - The **context-switch:** `NatCap published value` fires only in the fixed-scenario reference view (when the dashboard surfaces NatCap's published number directly); in every other scenario context (Baseline / Explorer / Optimizer), a `natcap_published`-class metric is shown as `≈ NatCap method` because the displayed value is the prototype's own computation.
-- **Per-metric validation evidence does NOT live in §4.** §4 documents only what the badges *mean* in the abstract. The per-metric "where the evidence comes from" detail (measured MAE numbers for UCM/UNA/UMH; four-pool methodology adoption for SA carbon without per-pixel parity; canonical methodology with no comparable NatCap reference for the aligned-method metrics) belongs in **§6 — Metrics**, in each metric's mini-template under **Validation status**.
+- **Per-metric validation evidence does NOT live in §4.** §4 documents only what the badges *mean* in the abstract. The per-metric "where the evidence comes from" detail (measured MAE numbers for UCM/UNA/UMH/SA-carbon; canonical methodology with no comparable NatCap reference for the aligned-method metrics) belongs in **§6 — Metrics**, in each metric's mini-template under **Validation status**.
 - **§6 must explicitly distinguish:**
   - **Measured per-pixel parity** (temperature, nature access, MH cases) — concrete MAE numbers against `natcap.invest.*.execute()`.
   - **Method-adoption-without-parity** (SA carbon four-pool framework — methodology choice, no measured per-pixel comparison).

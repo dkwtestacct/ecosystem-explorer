@@ -71,11 +71,14 @@ _VALIDATION = {
                      "index reports 100 − mean_CN rather than InVEST's runoff "
                      "retention index. SA uses NatCap's NLCD×tree CN table; "
                      "damage valuation disabled (no SA damage table, Path C)."},
-    "carbon": {"status": "methodology_aligned",
+    "carbon": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
                "reference": "natcap.invest.carbon 3.19.0",
-               "notes": "SA: four-pool stock framework per NatCap Vibrant Land "
-                        "(Guerry et al. 2023). do_valuation=False in the export "
-                        "(stock change only)."},
+               "notes": "SA four-pool stock framework per NatCap Vibrant Land "
+                        "(Guerry et al. 2023), validated to per-pixel parity against "
+                        "natcap.invest.carbon 3.19.0 in matched units "
+                        "(compare_carbon_sa_fourpool_invest.py): per-pixel MAE ~3e-7 "
+                        "Mg C, r = 1.0. do_valuation=False in the export (stock change "
+                        "only)."},
     "umh": {"status": "validated",
             "reference": "natcap.invest.urban_mental_health 3.19.0",
             "notes": "Per-pixel kernel parity validated (Brief B); canonical "

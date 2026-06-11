@@ -160,11 +160,11 @@ ALL_SCENARIO_CONTEXTS = (
 def _natcap_method_tooltip_for_metric(metric_name):
     """Per-metric tooltip body for the blue '≈ NatCap method' state.
 
-    Temperature CAN cite measured per-pixel HMI parity (Brief 28b). Carbon
-    MUST NOT — adoption of NatCap's four-pool stock framework (Brief 30) is
-    methodology alignment, not a per-pixel parity measurement. Other
-    natcap_published-class metrics fall back to a generic tooltip with no
-    parity claim.
+    Temperature cites measured per-pixel HMI parity (Brief 28b). Carbon now
+    also cites measured per-pixel parity — its four-pool stock framework
+    (Brief 30) is validated against canonical InVEST 3.19.0 at MAE ≈ 0 / r 1.0
+    in matched units (Relay 69). Other natcap_published-class metrics fall back
+    to a generic tooltip with no parity claim.
     """
     if metric_name == "temp_change_f":
         return (
@@ -179,7 +179,8 @@ def _natcap_method_tooltip_for_metric(metric_name):
             "NatCap's InVEST four-pool stock framework, adopted per "
             "Vibrant Land (Guerry et al. 2023, Brief 30). The displayed "
             "value is the prototype's own computation; per-pixel parity vs "
-            "canonical InVEST Carbon has NOT been measured. NatCap's "
+            "canonical InVEST Carbon IS measured (MAE ≈ 0, r 1.0 vs "
+            "natcap.invest 3.19.0 in matched units — Relay 69). NatCap's "
             "published citywide baseline carbon isn't reproducible from "
             "disk (their aggregation script isn't shipped); see "
             "docs/internal/OPEN_QUESTIONS.md."
@@ -211,9 +212,9 @@ def render_validation_badge(metric_name: str, scenario_context: str,
       reference CSV; we don't claim reproduction.
     - **Blue ≈ NatCap method** for `natcap_published`-class metrics in **every
       other context** (BASELINE / EXPLORER / OPTIMIZER) — the displayed value is
-      the prototype's own computation. Tooltip is METRIC-AWARE: temp can cite
-      measured per-pixel HMI parity (Brief 28b); carbon must not (four-pool
-      methodology adoption only, Brief 30 — no per-pixel parity measured).
+      the prototype's own computation. Tooltip is METRIC-AWARE: temp cites
+      measured per-pixel HMI parity (Brief 28b); carbon cites measured per-pixel
+      parity too (four-pool framework validated vs InVEST 3.19.0, Relay 69).
     - **Blue ≈ Aligned method** for `aligned_method` metrics regardless of
       scenario context.
     - **Gray Prototype** for `prototype` metrics.
@@ -328,7 +329,8 @@ if __name__ == "__main__":
     #    not reproducible from disk).
     #  - explorer/optimizer + natcap_published → BLUE "≈ NatCap method".
     #  - METRIC-AWARE tooltip: temp cites Brief-28b per-pixel HMI parity;
-    #    carbon cites Brief-30 four-pool adoption with NO parity claim.
+    #    carbon cites Brief-30 four-pool adoption with MEASURED per-pixel
+    #    parity (Relay 69, vs natcap.invest 3.19.0).
     b_base  = render_validation_badge("temp_change_f", SCENARIO_CONTEXT_BASELINE)
     b_fixed = render_validation_badge("temp_change_f", SCENARIO_CONTEXT_NATCAP_FIXED)
     b_expl  = render_validation_badge("temp_change_f", SCENARIO_CONTEXT_EXPLORER)
@@ -348,8 +350,8 @@ if __name__ == "__main__":
     assert b_expl["state"] == "natcap_method" and b_expl["color"] == "blue", b_expl
     assert b_opt["state"] == "natcap_method" and b_opt["color"] == "blue", b_opt
 
-    # METRIC-AWARE tooltip rule: temp CAN cite per-pixel HMI parity;
-    # carbon MUST NOT (Brief 30 is methodology adoption, not parity).
+    # METRIC-AWARE tooltip rule: temp cites per-pixel HMI parity; carbon now
+    # also cites measured per-pixel parity (Relay 69).
     assert "brief 28b" in b_base["tooltip"].lower(), b_base
     assert "hmi parity" in b_base["tooltip"].lower(), b_base
 
@@ -357,10 +359,10 @@ if __name__ == "__main__":
     assert b_carbon["state"] == "natcap_method", b_carbon
     assert "brief 30" in b_carbon["tooltip"].lower(), b_carbon
     assert "four-pool" in b_carbon["tooltip"].lower(), b_carbon
-    # Carbon tooltip must NOT claim per-pixel parity.
+    # Carbon NOW cites measured per-pixel parity (Relay 69) — must claim it,
+    # but must not borrow temperature's HMI-specific wording.
     assert "per-pixel hmi parity" not in b_carbon["tooltip"].lower(), b_carbon
-    assert ("has not been measured" in b_carbon["tooltip"].lower()
-            or "not measured" in b_carbon["tooltip"].lower()), b_carbon
+    assert "is measured" in b_carbon["tooltip"].lower(), b_carbon
 
     # carbon-$ (non-CSV; explicit_status="natcap_published") inherits the
     # same metric-aware tooltip path as carbon_tons_co2.
