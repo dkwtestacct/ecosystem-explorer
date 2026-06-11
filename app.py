@@ -6513,6 +6513,14 @@ with _sec_discover:
             )
 
         with st.container(border=True):
+            # Group caption — scoped to the UPPER LIMIT only: the slider maxes come
+            # from the scenario library's achievable range (+ small headroom), but
+            # the floors (0 / −1) and defaults are fixed, so don't claim those.
+            st.caption(
+                "Each target's upper limit is the best the scenario library "
+                "reached, with a little headroom — reachable screening targets, "
+                "not physical limits."
+            )
             # Flood slider max uses the precomputed grid's actual achievable maximum
             # rather than the theoretical 0–100 ceiling, so the slider range
             # represents reachable targets. Round up to the next 5 for headroom.
@@ -6628,6 +6636,11 @@ with _sec_discover:
 
         with st.container(border=True):
             st.markdown("**Weight each objective** (0 = ignore, 1 = full weight)")
+            st.caption(
+                "Weights set how much each objective matters when ranking the "
+                "best-tested mixes — they are not performance targets. The flood "
+                "weight also covers runoff."
+            )
             w_cool = st.slider("Cooling", 0.0, 1.0, 1.0, 0.1, key="region_opt_w_cool")
             w_flood = st.slider("Flood Index", 0.0, 1.0, 1.0, 0.1,
                                 key="region_opt_w_flood")
