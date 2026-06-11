@@ -19,6 +19,7 @@ a per-metric comparison-mode flag — today both published metrics are deltas.)
 """
 from __future__ import annotations
 import os
+import re
 from functools import lru_cache
 
 import pandas as pd
@@ -41,6 +42,34 @@ _METRIC_TO_MODEL = {
     "runoff_retention_idx": "ufr",
     "carbon_tons_co2":     "carbon",
 }
+
+# Per-tier colorblind glyph (Slice 4 Fix B). Shape-distinct, NOT color — the four
+# tier hexes (green/teal/blue/gray) collapse to near-identical grayscale luminance,
+# and four COLORED dots would re-collapse, so each glyph is a different SHAPE. This
+# is an additive/redundant channel; hex colors are unchanged. Keyed by badge state.
+_TIER_GLYPH = {
+    "natcap_anchored":  "◆",   # NatCap published value
+    "invest_validated": "✓",   # InVEST-validated
+    "invest_aligned":   "○",   # InVEST-aligned
+    "prototype":        "△",   # Prototype
+}
+
+
+def _glyphed(state, name):
+    """Prefix a tier label with its glyph in an aria-hidden span — purely visual,
+    so screen readers skip the glyph and read the tier name cleanly. The card
+    render path (unsafe_allow_html) keeps the span; the badge_glyph() parser below
+    recovers the glyph for the render-path lock."""
+    return f'<span aria-hidden="true">{_TIER_GLYPH[state]}</span> {name}'
+
+
+def badge_glyph(text):
+    """The leading aria-hidden glyph from a badge ['text'], or None — the
+    render-path proof that the glyph actually reaches the rendered string."""
+    if not text:
+        return None
+    m = re.match(r'<span aria-hidden="true">(.*?)</span>', text)
+    return m.group(1) if m else None
 
 
 def _city_key(city: str) -> str:
@@ -292,8 +321,8 @@ def render_validation_badge(metric_name: str, scenario_context: str,
             "The prototype does not independently reproduce it (compound "
             "scenario inputs are unavailable; see docs/internal/OPEN_QUESTIONS.md)."
         )
-        return {"text": "NatCap published value", "tooltip": tooltip,
-                "color": "green", "state": "natcap_anchored"}
+        return {"text": _glyphed("natcap_anchored", "NatCap published value"),
+                "tooltip": tooltip, "color": "green", "state": "natcap_anchored"}
 
     # Everyday view — InVEST-validated iff the card's model has measured per-pixel
     # parity (read from the Stage-1 canonical set, never re-hardcoded) AND it is on
@@ -303,10 +332,7 @@ def render_validation_badge(metric_name: str, scenario_context: str,
     _model = _METRIC_TO_MODEL.get(metric_name)
     if (_model in model_validation.VALIDATED_MODELS and validated_path
             and scenario_context != SCENARIO_CONTEXT_NATCAP_FIXED):
-        # Leading ✓ glyph (Slice 4 colorblind fix): green/teal/blue collapse to
-        # near-identical grayscale luminance (~35%), so the validated tier needs a
-        # hue-independent marker. The glyph is on this tier ONLY.
-        return {"text": "✓ InVEST-validated",
+        return {"text": _glyphed("invest_validated", "InVEST-validated"),
                 "tooltip": _badge_tooltip_for_metric(metric_name, vstatus),
                 "color": "teal", "state": "invest_validated"}
 
@@ -314,7 +340,7 @@ def render_validation_badge(metric_name: str, scenario_context: str,
     # Flood Index / Runoff Volume, the natcap-published metrics off their fixed
     # view, and any aligned-method card whose model isn't validated).
     if vstatus in ("natcap_published", "aligned_method"):
-        return {"text": "InVEST-aligned",
+        return {"text": _glyphed("invest_aligned", "InVEST-aligned"),
                 "tooltip": _badge_tooltip_for_metric(metric_name, vstatus),
                 "color": "blue", "state": "invest_aligned"}
 
@@ -323,7 +349,7 @@ def render_validation_badge(metric_name: str, scenario_context: str,
             "Exploratory metric — no canonical InVEST analog. Useful as a "
             "directional signal, not a validated number."
         )
-        return {"text": "Prototype", "tooltip": tooltip,
+        return {"text": _glyphed("prototype", "Prototype"), "tooltip": tooltip,
                 "color": "gray", "state": "prototype"}
 
     return {"text": None, "tooltip": None, "color": None,
@@ -381,14 +407,14 @@ if __name__ == "__main__":
     # Fixed-scenario reference view: green "NatCap published value".
     assert b_fixed["state"] == "natcap_anchored", b_fixed
     assert b_fixed["color"] == "green", b_fixed
-    assert b_fixed["text"] == "NatCap published value", b_fixed
+    assert badge_glyph(b_fixed["text"]) == "◆" and "NatCap published value" in b_fixed["text"], b_fixed
     assert "natcap's published value" in b_fixed["tooltip"].lower(), b_fixed
 
     # Everyday view: temperature (UCM) is in the Stage-1 validated set → teal
     # "InVEST-validated" in baseline / explorer / optimizer.
     for _b in (b_base, b_expl, b_opt):
         assert _b["state"] == "invest_validated" and _b["color"] == "teal", _b
-        assert _b["text"] == "✓ InVEST-validated", _b
+        assert badge_glyph(_b["text"]) == "✓" and "InVEST-validated" in _b["text"], _b
     # Tooltip still cites the measured HMI parity (bodies rewritten in Slice 3).
     assert "brief 28b" in b_base["tooltip"].lower(), b_base
     assert "hmi parity" in b_base["tooltip"].lower(), b_base
@@ -404,7 +430,7 @@ if __name__ == "__main__":
     b_carbon_mn = render_validation_badge(
         "carbon_tons_co2", SCENARIO_CONTEXT_EXPLORER,
         explicit_status="prototype", validated_path=False)
-    assert b_carbon_mn["state"] == "prototype" and b_carbon_mn["text"] == "Prototype", b_carbon_mn
+    assert b_carbon_mn["state"] == "prototype" and badge_glyph(b_carbon_mn["text"]) == "△" and "Prototype" in b_carbon_mn["text"], b_carbon_mn
 
     # carbon-$ is NOT in the validated map (a dollar valuation, not the per-pixel
     # stock output): everyday → InVEST-aligned; fixed view → green.
@@ -421,12 +447,12 @@ if __name__ == "__main__":
     # proxies (model not validated for that output) → InVEST-aligned.
     b_ret = render_validation_badge("runoff_retention_idx", SCENARIO_CONTEXT_EXPLORER,
                                     explicit_status="aligned_method")
-    assert b_ret["state"] == "invest_validated" and b_ret["text"] == "✓ InVEST-validated", b_ret
+    assert b_ret["state"] == "invest_validated" and badge_glyph(b_ret["text"]) == "✓" and "InVEST-validated" in b_ret["text"], b_ret
     assert "is measured" in b_ret["tooltip"].lower(), b_ret
     assert "ufrm" in b_ret["tooltip"].lower(), b_ret
     b_runoff = render_validation_badge("runoff_acre_feet", SCENARIO_CONTEXT_EXPLORER,
                                        explicit_status="aligned_method")
-    assert b_runoff["state"] == "invest_aligned" and b_runoff["text"] == "InVEST-aligned", b_runoff
+    assert b_runoff["state"] == "invest_aligned" and badge_glyph(b_runoff["text"]) == "○" and "InVEST-aligned" in b_runoff["text"], b_runoff
     assert "is measured" not in b_runoff["tooltip"].lower(), b_runoff  # lumped proxy
     # Nature Access (UNA) + Preventable MH (UMH) are in the validated set too.
     for _m in ("nature_access_pct", "preventable_mh_cases"):

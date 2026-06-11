@@ -3573,6 +3573,113 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         badge_src_diffs += 1
 
+    # ── Per-tier colorblind glyph — render-path lock (Stage 2 Fix B) ─────────
+    # The four badge tiers share near-identical grayscale luminance (green/teal/
+    # blue/gray collapse to ~35% luma), so a shape-distinct leading glyph is the
+    # ONLY channel that keeps them apart for colorblind viewers. This lock proves
+    # the glyph actually reaches the rendered ["text"] for ALL FOUR tiers via the
+    # live render_validation_badge path — not just the legend caption — and that
+    # the legend's glyphs match what the renderer emits 1:1. Flip-test +
+    # locate-guard so it can't pass vacuously.
+    print(f"\n{'=' * 60}")
+    print("Per-tier colorblind glyph — render-path lock")
+    print(f"{'=' * 60}")
+    glyph_diffs = 0
+    try:
+        import re as _re_g
+        import natcap_validation as _nvg
+        # (1) Every tier's live badge carries its expected shape glyph in ["text"].
+        #     Representative (metric, kwargs) per tier that lands that tier.
+        _tier_cases = {
+            "natcap_anchored":  ("◆", "NatCap published value",
+                ("temp_change_f", _nvg.SCENARIO_CONTEXT_NATCAP_FIXED, {})),
+            "invest_validated": ("✓", "InVEST-validated",
+                ("temp_change_f", _nvg.SCENARIO_CONTEXT_EXPLORER, {})),
+            "invest_aligned":   ("○", "InVEST-aligned",
+                ("flood_reduction", _nvg.SCENARIO_CONTEXT_BASELINE, {})),
+            "prototype":        ("△", "Prototype",
+                ("food_mln_lbs", _nvg.SCENARIO_CONTEXT_EXPLORER, {})),
+        }
+        _render_glyph = {}   # state -> glyph the renderer actually emits
+        for _state, (_want_g, _want_name, (_m, _ctx, _kw)) in _tier_cases.items():
+            _b = _nvg.render_validation_badge(_m, _ctx, **_kw)
+            if _b["state"] != _state:
+                print(f"  FAIL tier case {_state}: badge landed state={_b['state']} "
+                      f"(metric={_m}, ctx={_ctx}); re-pick a representative case")
+                glyph_diffs += 1
+                continue
+            _got_g = _nvg.badge_glyph(_b["text"])
+            _render_glyph[_state] = _got_g
+            if _got_g != _want_g:
+                print(f"  FAIL {_state}: rendered glyph {_got_g!r} != expected "
+                      f"{_want_g!r} (the colorblind shape channel is missing/wrong)")
+                glyph_diffs += 1
+            elif _want_name not in _b["text"]:
+                print(f"  FAIL {_state}: tier name {_want_name!r} absent from "
+                      f"rendered text {_b['text']!r}")
+                glyph_diffs += 1
+        if glyph_diffs == 0:
+            print("  OK   all 4 tiers carry their shape glyph (◆ ✓ ○ △) in the "
+                  "live rendered ['text']")
+        # (2) Flip-test (non-vacuous): Prototype text must NOT carry the validated
+        #     glyph, and the validated text must NOT carry the Prototype glyph.
+        _proto_t = _nvg.render_validation_badge(
+            "food_mln_lbs", _nvg.SCENARIO_CONTEXT_EXPLORER)["text"]
+        _val_t = _nvg.render_validation_badge(
+            "temp_change_f", _nvg.SCENARIO_CONTEXT_EXPLORER)["text"]
+        if _nvg.badge_glyph(_proto_t) == "✓":
+            print("  FAIL flip-test: a Prototype badge carries the ✓ validated glyph")
+            glyph_diffs += 1
+        elif _nvg.badge_glyph(_val_t) == "△":
+            print("  FAIL flip-test: an InVEST-validated badge carries the △ "
+                  "Prototype glyph")
+            glyph_diffs += 1
+        else:
+            print("  OK   flip-test: Prototype text isn't glyphed ✓, validated "
+                  "text isn't glyphed △")
+        # (3) Legend↔render consistency: parse the 4 glyphs out of the live legend
+        #     caption in app.py and assert each equals what the renderer emits for
+        #     that tier. Catches a legend that drifts from the render path.
+        _app_src_g = Path("app.py").read_text(encoding="utf-8")
+        _legend_glyph = {}
+        for _state, _name in (("natcap_anchored", "NatCap published value"),
+                              ("invest_validated", "InVEST-validated"),
+                              ("invest_aligned", "InVEST-aligned"),
+                              ("prototype", "Prototype")):
+            _lm = _re_g.search(r"([◆✓○△])\s+" + _re_g.escape(_name), _app_src_g)
+            if _lm is None:
+                print(f"  FAIL could not locate the legend glyph for {_name!r} "
+                      "(legend caption moved/renamed — re-point the scan)")
+                glyph_diffs += 1
+            else:
+                _legend_glyph[_state] = _lm.group(1)
+        for _state, _lg in _legend_glyph.items():
+            _rg = _render_glyph.get(_state)
+            if _rg is not None and _lg != _rg:
+                print(f"  FAIL legend↔render mismatch for {_state}: legend {_lg!r} "
+                      f"!= renderer {_rg!r}")
+                glyph_diffs += 1
+        if (len(_legend_glyph) == 4
+                and all(_legend_glyph[s] == _render_glyph.get(s)
+                        for s in _legend_glyph)):
+            print("  OK   legend caption's 4 glyphs match the renderer 1:1")
+        # (4) Locate-guard flip-test: the legend regex has teeth (a wrong glyph
+        #     in a seeded string is detected as a mismatch, not silently passed).
+        _seed = "✗ NatCap published value"
+        _sm = _re_g.search(r"([◆✓○△])\s+NatCap published value", _seed)
+        if _sm is not None:
+            print("  FAIL locate-guard: the glyph regex matched a non-tier glyph "
+                  "(✗) — the character class is too loose")
+            glyph_diffs += 1
+        else:
+            print("  OK   locate-guard: the glyph regex only matches the 4 real "
+                  "tier shapes")
+    except Exception as _e:
+        print(f"  ERROR per-tier glyph render-path lock: {_e}")
+        import traceback
+        traceback.print_exc()
+        glyph_diffs += 1
+
     # ── Flood Damage Avoided conditional render — table-presence gate lock ───
     # The card is hidden ONLY when the city has no damage-valuation table; the
     # gate must key on TOTAL_POTENTIAL_DAMAGE_USD (table presence), NEVER on the
@@ -4112,7 +4219,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
                    + retention_idx_diffs + calib_diffs + child_card_diffs
                    + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
-                   + fda_diffs)
+                   + glyph_diffs + fda_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4209,6 +4316,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "render InVEST-validated whose model isn't in the Stage-1 set, "
                   "a lumped-proxy/dollar/food/cost card leaked into the validated "
                   "map, or the carbon city-split broke.")
+        if glyph_diffs:
+            print(f"{glyph_diffs} colorblind-glyph divergence(s) — a badge tier "
+                  "lost its shape glyph (◆ ✓ ○ △) on the live render path, the "
+                  "flip-test caught a cross-tier glyph, or the legend caption's "
+                  "glyphs drifted from what render_validation_badge emits.")
         if fda_diffs:
             print(f"{fda_diffs} flood-damage gate divergence(s) — the card hide "
                   "keys on the computed value instead of table presence, or the "
