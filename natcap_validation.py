@@ -23,8 +23,24 @@ from functools import lru_cache
 
 import pandas as pd
 
+import model_validation  # Stage 1 — single source of truth for the validated set.
+
 # Per-city reference CSV. MN has no nootenboom coverage yet (deferred).
 _CITY_CSV = {"SA": "data/sa/natcap_reference_outputs.csv"}
+
+# Card-metric → InVEST model, for the cards that CAN render "InVEST-validated".
+# Validation is read from model_validation.VALIDATED_MODELS (the Stage-1 source) —
+# this map only says which model backs each metric; it never re-declares which are
+# validated. Only the validated-5 cards appear here; everything else is aligned /
+# prototype. carbon_value_usd is deliberately absent (a dollar valuation, not the
+# per-pixel stock output), as are the lumped Flood Index / Runoff Volume.
+_METRIC_TO_MODEL = {
+    "temp_change_f":       "ucm",
+    "nature_access_pct":   "una",
+    "preventable_mh_cases": "umh",
+    "runoff_retention_idx": "ufr",
+    "carbon_tons_co2":     "carbon",
+}
 
 
 def _city_key(city: str) -> str:
@@ -192,9 +208,31 @@ def _natcap_method_tooltip_for_metric(metric_name):
     )
 
 
+def _badge_tooltip_for_metric(metric_name, vstatus):
+    """Existing per-metric badge tooltip body, factored so the InVEST-validated
+    and InVEST-aligned branches reuse it unchanged (tooltip *bodies* are rewritten
+    in Slice 3, not here)."""
+    if vstatus == "natcap_published":
+        return _natcap_method_tooltip_for_metric(metric_name)
+    if vstatus == "aligned_method" and metric_name == "runoff_retention_idx":
+        return (
+            "Canonical InVEST UFR runoff-retention index (1 − Q/P). The "
+            "displayed value is the prototype's own computation; per-pixel "
+            "parity vs canonical InVEST UFRM IS measured (MAE ≈ 0, r 1.0 vs "
+            "natcap.invest 3.19.0 in matched units — Relay 71). No published "
+            "NatCap SA flood value exists to match against."
+        )
+    return (
+        "Canonical InVEST methodology. No directly-comparable NatCap citywide "
+        "reference exists, or the framing differs (different summary statistic, "
+        "scope, or aggregation level). See docs/internal/NATCAP_ALIGNMENT.md."
+    )
+
+
 def render_validation_badge(metric_name: str, scenario_context: str,
                             city: str = "San Antonio, TX",
-                            explicit_status: str = None) -> dict:
+                            explicit_status: str = None,
+                            validated_path: bool = True) -> dict:
     """Return the badge state for a (metric, scenario-context) pair.
 
     Returns dict:
@@ -244,45 +282,38 @@ def render_validation_badge(metric_name: str, scenario_context: str,
         row = lookup_reference(city, "baseline", metric_name)
         vstatus = row.get("validation_status") if row else None
 
-    if vstatus == "natcap_published":
-        if scenario_context == SCENARIO_CONTEXT_NATCAP_FIXED:
-            # The only green case: the fixed-scenario reference view directly
-            # surfaces NatCap's published value from natcap_reference_outputs.csv.
-            tooltip = (
-                "Displayed value is **NatCap's published value for this "
-                "scenario**, sourced from `natcap_reference_outputs.csv` "
-                "(originally `nootenboom_results/citywide_results_UPDATED.xlsx`). "
-                "The prototype does not independently reproduce it (compound "
-                "scenario inputs are unavailable; see docs/internal/OPEN_QUESTIONS.md)."
-            )
-            return {"text": "NatCap published value", "tooltip": tooltip,
-                    "color": "green", "state": "natcap_anchored"}
-        # Baseline / Explorer / Optimizer — prototype's own computation,
-        # methodology-aligned. Metric-aware tooltip.
-        return {"text": "≈ NatCap method",
-                "tooltip": _natcap_method_tooltip_for_metric(metric_name),
-                "color": "blue", "state": "natcap_method"}
+    # Fixed reference view: surfaces NatCap's published number directly (green).
+    if (vstatus == "natcap_published"
+            and scenario_context == SCENARIO_CONTEXT_NATCAP_FIXED):
+        tooltip = (
+            "Displayed value is **NatCap's published value for this "
+            "scenario**, sourced from `natcap_reference_outputs.csv` "
+            "(originally `nootenboom_results/citywide_results_UPDATED.xlsx`). "
+            "The prototype does not independently reproduce it (compound "
+            "scenario inputs are unavailable; see docs/internal/OPEN_QUESTIONS.md)."
+        )
+        return {"text": "NatCap published value", "tooltip": tooltip,
+                "color": "green", "state": "natcap_anchored"}
 
-    if vstatus == "aligned_method":
-        if metric_name == "runoff_retention_idx":
-            # Canonical UFR retention index — per-pixel parity measured (Relay 71).
-            tooltip = (
-                "Canonical InVEST UFR runoff-retention index (1 − Q/P). The "
-                "displayed value is the prototype's own computation; per-pixel "
-                "parity vs canonical InVEST UFRM IS measured (MAE ≈ 0, r 1.0 vs "
-                "natcap.invest 3.19.0 in matched units — Relay 71). No published "
-                "NatCap SA flood value exists to match against, so the badge stays "
-                "aligned-method rather than a NatCap-anchored one."
-            )
-        else:
-            tooltip = (
-                "Canonical InVEST methodology. No directly-comparable NatCap "
-                "citywide reference exists, or the framing differs (different "
-                "summary statistic, scope, or aggregation level). See "
-                "docs/internal/NATCAP_ALIGNMENT.md."
-            )
-        return {"text": "≈ Aligned method", "tooltip": tooltip,
-                "color": "blue", "state": "aligned_method"}
+    # Everyday view — InVEST-validated iff the card's model has measured per-pixel
+    # parity (read from the Stage-1 canonical set, never re-hardcoded) AND it is on
+    # the validated compute path (validated_path — e.g. carbon only when SA
+    # four-pool stock, not the MN proxy). This extends the committed-reproducer
+    # rule to the badge: no card claims validated unless the source says so.
+    _model = _METRIC_TO_MODEL.get(metric_name)
+    if (_model in model_validation.VALIDATED_MODELS and validated_path
+            and scenario_context != SCENARIO_CONTEXT_NATCAP_FIXED):
+        return {"text": "InVEST-validated",
+                "tooltip": _badge_tooltip_for_metric(metric_name, vstatus),
+                "color": "teal", "state": "invest_validated"}
+
+    # Canonical-method basis, but parity not measured for THIS output (lumped
+    # Flood Index / Runoff Volume, the natcap-published metrics off their fixed
+    # view, and any aligned-method card whose model isn't validated).
+    if vstatus in ("natcap_published", "aligned_method"):
+        return {"text": "InVEST-aligned",
+                "tooltip": _badge_tooltip_for_metric(metric_name, vstatus),
+                "color": "blue", "state": "invest_aligned"}
 
     if vstatus == "prototype":
         tooltip = (
@@ -332,16 +363,13 @@ if __name__ == "__main__":
             txt = b["text"] or "(no row)"
             print(f"    {m:24s} → {txt:24s} state={b['state']}")
 
-    # Conservative-floor sanity checks (B2-revised, 2026-05-29):
+    # Stage 2 badge-tier checks:
     #  - natcap_fixed + natcap_published → GREEN "NatCap published value".
-    #    The only green case; surfaces NatCap's number directly.
-    #  - baseline + natcap_published → BLUE "≈ NatCap method"
-    #    (downgrade — prototype computes its own baseline; absolute citywide
-    #    not reproducible from disk).
-    #  - explorer/optimizer + natcap_published → BLUE "≈ NatCap method".
-    #  - METRIC-AWARE tooltip: temp cites Brief-28b per-pixel HMI parity;
-    #    carbon cites Brief-30 four-pool adoption with MEASURED per-pixel
-    #    parity (Relay 69, vs natcap.invest 3.19.0).
+    #  - everyday + model in the Stage-1 validated set + validated path → TEAL
+    #    "InVEST-validated" (temp/nature/MH/runoff-retention/SA-carbon).
+    #  - everyday, canonical method but parity not measured for this output →
+    #    BLUE "InVEST-aligned".
+    #  - proxy / no canonical analog → GRAY "Prototype".
     b_base  = render_validation_badge("temp_change_f", SCENARIO_CONTEXT_BASELINE)
     b_fixed = render_validation_badge("temp_change_f", SCENARIO_CONTEXT_NATCAP_FIXED)
     b_expl  = render_validation_badge("temp_change_f", SCENARIO_CONTEXT_EXPLORER)
@@ -353,49 +381,62 @@ if __name__ == "__main__":
     assert b_fixed["text"] == "NatCap published value", b_fixed
     assert "natcap's published value" in b_fixed["tooltip"].lower(), b_fixed
 
-    # Baseline downgrades to blue (the prototype's own baseline computation
-    # is methodology-aligned; no airtight reproduction of NatCap's absolute).
-    assert b_base["state"] == "natcap_method" and b_base["color"] == "blue", b_base
-    assert b_base["text"] == "≈ NatCap method", b_base
-    # Explorer / Optimizer same blue downgrade.
-    assert b_expl["state"] == "natcap_method" and b_expl["color"] == "blue", b_expl
-    assert b_opt["state"] == "natcap_method" and b_opt["color"] == "blue", b_opt
-
-    # METRIC-AWARE tooltip rule: temp cites per-pixel HMI parity; carbon now
-    # also cites measured per-pixel parity (Relay 69).
+    # Everyday view: temperature (UCM) is in the Stage-1 validated set → teal
+    # "InVEST-validated" in baseline / explorer / optimizer.
+    for _b in (b_base, b_expl, b_opt):
+        assert _b["state"] == "invest_validated" and _b["color"] == "teal", _b
+        assert _b["text"] == "InVEST-validated", _b
+    # Tooltip still cites the measured HMI parity (bodies rewritten in Slice 3).
     assert "brief 28b" in b_base["tooltip"].lower(), b_base
     assert "hmi parity" in b_base["tooltip"].lower(), b_base
 
+    # SA carbon (four-pool stock, validated path) → InVEST-validated.
     b_carbon = render_validation_badge("carbon_tons_co2", SCENARIO_CONTEXT_EXPLORER)
-    assert b_carbon["state"] == "natcap_method", b_carbon
-    assert "brief 30" in b_carbon["tooltip"].lower(), b_carbon
+    assert b_carbon["state"] == "invest_validated", b_carbon
     assert "four-pool" in b_carbon["tooltip"].lower(), b_carbon
-    # Carbon NOW cites measured per-pixel parity (Relay 69) — must claim it,
-    # but must not borrow temperature's HMI-specific wording.
-    assert "per-pixel hmi parity" not in b_carbon["tooltip"].lower(), b_carbon
     assert "is measured" in b_carbon["tooltip"].lower(), b_carbon
+    assert "per-pixel hmi parity" not in b_carbon["tooltip"].lower(), b_carbon
+    # City-split: MN carbon is the proxy path (validated_path=False) → Prototype,
+    # NOT validated — gated on the stock/proxy condition, not the city name.
+    b_carbon_mn = render_validation_badge(
+        "carbon_tons_co2", SCENARIO_CONTEXT_EXPLORER,
+        explicit_status="prototype", validated_path=False)
+    assert b_carbon_mn["state"] == "prototype" and b_carbon_mn["text"] == "Prototype", b_carbon_mn
 
-    # carbon-$ (non-CSV; explicit_status="natcap_published") inherits the
-    # same metric-aware tooltip path as carbon_tons_co2.
+    # carbon-$ is NOT in the validated map (a dollar valuation, not the per-pixel
+    # stock output): everyday → InVEST-aligned; fixed view → green.
     b_cd_fixed = render_validation_badge("carbon_value_usd", SCENARIO_CONTEXT_NATCAP_FIXED,
                                          explicit_status="natcap_published")
     b_cd_expl  = render_validation_badge("carbon_value_usd", SCENARIO_CONTEXT_EXPLORER,
                                          explicit_status="natcap_published")
     assert b_cd_fixed["state"] == "natcap_anchored" and b_cd_fixed["color"] == "green", b_cd_fixed
-    assert b_cd_expl["state"]  == "natcap_method"   and b_cd_expl["color"]  == "blue",  b_cd_expl
+    assert b_cd_expl["state"]  == "invest_aligned"  and b_cd_expl["color"]  == "blue",  b_cd_expl
     assert "four-pool" in b_cd_expl["tooltip"].lower(), b_cd_expl
 
-    # Runoff Retention (aligned_method, non-CSV) — metric-aware tooltip now cites
-    # measured per-pixel UFRM parity (Relay 71). Flood Index / Runoff Volume stay
-    # generic aligned-method (lumped proxies, not per-pixel UFRM outputs).
+    # Runoff Retention (UFR, validated set, non-CSV) → InVEST-validated; tooltip
+    # cites the measured UFRM parity. Runoff Volume / Flood Index are lumped
+    # proxies (model not validated for that output) → InVEST-aligned.
     b_ret = render_validation_badge("runoff_retention_idx", SCENARIO_CONTEXT_EXPLORER,
                                     explicit_status="aligned_method")
-    assert b_ret["state"] == "aligned_method" and b_ret["text"] == "≈ Aligned method", b_ret
+    assert b_ret["state"] == "invest_validated" and b_ret["text"] == "InVEST-validated", b_ret
     assert "is measured" in b_ret["tooltip"].lower(), b_ret
     assert "ufrm" in b_ret["tooltip"].lower(), b_ret
     b_runoff = render_validation_badge("runoff_acre_feet", SCENARIO_CONTEXT_EXPLORER,
                                        explicit_status="aligned_method")
+    assert b_runoff["state"] == "invest_aligned" and b_runoff["text"] == "InVEST-aligned", b_runoff
     assert "is measured" not in b_runoff["tooltip"].lower(), b_runoff  # lumped proxy
+    # Nature Access (UNA) + Preventable MH (UMH) are in the validated set too.
+    for _m in ("nature_access_pct", "preventable_mh_cases"):
+        _bm = render_validation_badge(_m, SCENARIO_CONTEXT_EXPLORER,
+                                      explicit_status="aligned_method")
+        assert _bm["state"] == "invest_validated" and _bm["color"] == "teal", (_m, _bm)
+    # Flood Index is a lumped proxy (its model UFR is validated, but flood_reduction
+    # isn't the per-pixel output) → InVEST-aligned, never validated.
+    b_flood = render_validation_badge("flood_reduction", SCENARIO_CONTEXT_BASELINE)
+    assert b_flood["state"] == "invest_aligned", b_flood
+    # A prototype metric stays Prototype.
+    b_food = render_validation_badge("food_mln_lbs", SCENARIO_CONTEXT_EXPLORER)
+    assert b_food["state"] == "prototype", b_food
 
     # Non-CSV metric without explicit_status → unknown_metric.
     b_unk = render_validation_badge("runoff_acre_feet", SCENARIO_CONTEXT_EXPLORER)

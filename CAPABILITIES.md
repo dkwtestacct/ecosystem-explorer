@@ -61,14 +61,14 @@ Urban land-use tradeoff prototype · San Antonio + Minneapolis · canonical-InVE
 - Scenario source: Explorer-generated / NatCap reference / optimizer-suggested / selected-area optimized
 - Validation status shown at scenario and per-metric levels
 - Scenario audit records source, area, ownership filter, placement, seed, validation state
-- Locked badge vocabulary: NatCap published value · ≈ NatCap method · ≈ Aligned method · Prototype
+- Locked badge vocabulary: NatCap published value · InVEST-validated · InVEST-aligned · Prototype
 - UI principle: visible text = what · tooltip/expander = how · docs = why
 
 ## Validation / rigor
 - Regression / snapshot harness — 40 byte-identical baseline checks across city / scenario / strategy outputs (guards drift)
 - Canonical-InVEST parity checks where comparable inputs exist; baseline engine-verified vs canonical InVEST
 - Urban Mental Health: per-pixel parity vs canonical InVEST 3.19.0 — algorithm validated; NDVI input is a synthetic land-cover proxy
-- Per-metric validation badges (locked vocab): NatCap published value · ≈ NatCap method · ≈ Aligned method · Prototype (temperature & carbon = published; cooling / nature / flood = aligned-method)
+- Per-metric validation badges (locked vocab): NatCap published value · InVEST-validated · InVEST-aligned · Prototype (temperature & carbon = published; cooling / nature / flood = aligned-method)
 - Subset-invariant tests: converted pixels stay within eligible / region / ownership masks
 - Static lints for key UI and provenance invariants
 

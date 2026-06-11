@@ -3502,6 +3502,77 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         src_diffs += 1
 
+    # ── InVEST-validated badge ↔ Stage-1 source cross-check (Stage 2 Slice 1) ─
+    # Extends the committed-reproducer rule to the badge: a card renders
+    # "InVEST-validated" ONLY if its model is in model_validation.VALIDATED_MODELS
+    # AND it's on the validated compute path. No lumped-proxy / dollar / food /
+    # cost / MN-carbon card may ever render validated. Flip-test + locate guard.
+    print(f"\n{'=' * 60}")
+    print("InVEST-validated badge ↔ Stage-1 source cross-check")
+    print(f"{'=' * 60}")
+    badge_src_diffs = 0
+    try:
+        import natcap_validation as _nv
+        import model_validation as _mv
+        if not hasattr(_nv, "_METRIC_TO_MODEL"):
+            raise AttributeError("natcap_validation._METRIC_TO_MODEL not found "
+                                 "(badge source map moved?)")
+        # (1) Every validated-capable metric maps to a model in the Stage-1 set.
+        _bad_map = [m for m, mod in _nv._METRIC_TO_MODEL.items()
+                    if mod not in _mv.VALIDATED_MODELS]
+        if _bad_map:
+            print(f"  FAIL metrics mapped to a non-validated model: {_bad_map}")
+            badge_src_diffs += 1
+        else:
+            print(f"  OK   all {len(_nv._METRIC_TO_MODEL)} validated-capable metrics "
+                  "map to a model in the Stage-1 validated set")
+        # (2) Forbidden cards must NOT be in the map (can't render validated).
+        _FORBIDDEN = ["flood_reduction", "runoff_acre_feet", "food_mln_lbs",
+                      "total_cost_mln", "carbon_value_usd", "ndvi",
+                      "cost_per_acft", "cost_per_degf", "cost_per_1k_people",
+                      "cooling_energy_savings_usd", "flood_damage_avoided_usd",
+                      "avoided_mh_cost_usd"]
+        _leaked = [m for m in _FORBIDDEN if m in _nv._METRIC_TO_MODEL]
+        if _leaked:
+            print(f"  FAIL lumped-proxy/dollar/food/cost cards in the validated map: {_leaked}")
+            badge_src_diffs += 1
+        else:
+            print("  OK   no lumped-proxy / dollar / food / cost card can render validated")
+        # (3) Live badge behaviour: carbon city-split + lumped proxy stays aligned.
+        _ctx = _nv.SCENARIO_CONTEXT_EXPLORER
+        _sa = _nv.render_validation_badge("carbon_tons_co2", _ctx, validated_path=True)
+        _mn = _nv.render_validation_badge("carbon_tons_co2", _ctx,
+                                          explicit_status="prototype", validated_path=False)
+        _flood = _nv.render_validation_badge("flood_reduction", _nv.SCENARIO_CONTEXT_BASELINE)
+        if _sa["state"] != "invest_validated":
+            print(f"  FAIL SA carbon (stock path) should be invest_validated, got {_sa['state']}")
+            badge_src_diffs += 1
+        if _mn["state"] == "invest_validated":
+            print("  FAIL MN carbon (proxy path) must NOT render invest_validated")
+            badge_src_diffs += 1
+        if _flood["state"] == "invest_validated":
+            print("  FAIL Flood Index (lumped proxy) must NOT render invest_validated")
+            badge_src_diffs += 1
+        if (_sa["state"] == "invest_validated" and _mn["state"] != "invest_validated"
+                and _flood["state"] != "invest_validated"):
+            print("  OK   carbon SA→validated / MN→not; Flood Index → not validated")
+        # (4) Flip-test (non-vacuous): inject a forbidden card into the map — the
+        # forbidden-leak predicate must catch it.
+        _poison_map = dict(_nv._METRIC_TO_MODEL)
+        _poison_map["flood_reduction"] = "ufr"
+        if "flood_reduction" not in [m for m in _FORBIDDEN if m in _poison_map]:
+            print("  FAIL flip-test: the forbidden-leak check is blind to a seeded "
+                  "lumped-proxy card in the map")
+            badge_src_diffs += 1
+        else:
+            print("  OK   flip-test: a forbidden card injected into the validated "
+                  "map is caught by the leak check")
+    except Exception as _e:
+        print(f"  ERROR badge↔source cross-check: {_e}")
+        import traceback
+        traceback.print_exc()
+        badge_src_diffs += 1
+
     # ── Runoff retention index — presence, bounds, Jensen non-degeneracy ────
     # Relay 58: `runoff_retention_idx` = canonical UFR `rnf_rt_idx = mean(1 −
     # Q/P)`, the per-pixel retention average. Three non-vacuous guards:
@@ -3984,7 +4055,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + child_pop_diffs + bldg_precompute_diffs
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
                    + retention_idx_diffs + calib_diffs + child_card_diffs
-                   + loader_diffs + delta_dir_diffs + src_diffs)
+                   + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4076,6 +4147,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "model_validation.MODEL_VALIDATION, or a model's parity status "
                   "changed (update model_validation.py + _EXPECTED_VALIDATED on "
                   "purpose if intentional).")
+        if badge_src_diffs:
+            print(f"{badge_src_diffs} badge↔source divergence(s) — a card can "
+                  "render InVEST-validated whose model isn't in the Stage-1 set, "
+                  "a lumped-proxy/dollar/food/cost card leaked into the validated "
+                  "map, or the carbon city-split broke.")
         if loader_diffs:
             print(f"{loader_diffs} calibration-loader divergence(s) — "
                   "_load_surrogate_calibration returned None/wrong shape on a "

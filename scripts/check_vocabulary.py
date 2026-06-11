@@ -81,6 +81,11 @@ RETIRED_TERMS = [
     "model disagreement bands",
     "model-disagreement band",
     "model-disagreement bands",
+    # Stage 2 — the cryptic "≈ …" badge labels are retired for the plain new
+    # tier vocabulary: NatCap published value / InVEST-validated / InVEST-aligned
+    # / Prototype. Guard the distinctive "≈ … method" forms.
+    "≈ NatCap method",
+    "≈ Aligned method",
 ]
 
 ALLOW_MARKER = "vocab-allow"
@@ -195,10 +200,22 @@ def selftest():
     band_no_false_pos = find_hits_in_text(
         "The Estimate range replaces the earlier inter-tree disagreement band."
     ) == []
+    # Stage 2 — the retired "≈ … method" badge labels are caught (both forms),
+    # while the new tier strings stay clean (no over-ban / false positive).
+    badge_caught = (
+        "≈ NatCap method" in
+        {t for (_l, t, _ln) in find_hits_in_text("Shows the ≈ NatCap method badge.")}
+        and "≈ Aligned method" in
+        {t for (_l, t, _ln) in find_hits_in_text("the ≈ Aligned method tier here")}
+    )
+    badge_no_false_pos = find_hits_in_text(
+        "Badges: NatCap published value, InVEST-validated, InVEST-aligned, Prototype."
+    ) == []
     return 0 if (ok and variants_ok and bare_surrogate_ok
                  and runoff_retention_ok and ai_caught
                  and ai_no_false_pos and band_caught
-                 and band_no_false_pos) else 1
+                 and band_no_false_pos
+                 and badge_caught and badge_no_false_pos) else 1
 
 
 def main():

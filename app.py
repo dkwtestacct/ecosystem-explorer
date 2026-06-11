@@ -511,7 +511,7 @@ if 'entry_city' not in st.session_state:
     # What you can do — a plain-language capability teaser for first-time
     # visitors. Each line leads with its emphasized phrase and describes a
     # capability in the visitor's words; the in-app badge vocab (NatCap
-    # published value / ≈ NatCap method / etc.) stays one layer in, not on
+    # published value / InVEST-validated / etc.) stays one layer in, not on
     # this landing. Mirrors the synced CAPABILITIES.md so the two don't drift.
     # Bordered container visually separates the teaser from the primary
     # city-picker decision above.
@@ -1096,22 +1096,21 @@ with st.expander("How this prototype works", expanded=False):
         "- **`NatCap published value`** (green) — fires only in the fixed-scenario "
         "reference view for metrics with NatCap-published values. *Displays "
         "NatCap's number*; not a reproduction claim.  \n"
-        "- **`≈ NatCap method`** (blue) — prototype's own computation using "
-        "NatCap-aligned methodology. The per-card tooltip surfaces per-metric "
-        "nuance: temperature and carbon can both cite measured per-pixel parity "
-        "(HMI MAE ≈ 0; carbon four-pool MAE ≈ 0 / r = 1.0 vs natcap.invest "
-        "3.19.0).  \n"
-        "- **`≈ Aligned method`** (blue) — canonical InVEST methodology with no "
-        "directly-comparable NatCap citywide reference (runoff, flood damage, "
-        "cooling energy savings, MH costs).  \n"
+        "- **`InVEST-validated`** (teal) — the card's InVEST model has measured "
+        "per-pixel parity against canonical natcap.invest 3.19.0 via a committed "
+        "comparison harness: Temperature/cooling (UCM), Nature Access (UNA), "
+        "Preventable MH (UMH), Runoff Retention (UFR), and SA four-pool Carbon.  \n"
+        "- **`InVEST-aligned`** (blue) — canonical InVEST methodology, but "
+        "per-pixel parity isn't measured for this output (Flood Index, Runoff "
+        "Volume, and the dollar / derived cards).  \n"
         "- **`Prototype`** (gray) — no canonical InVEST analog (synthetic NDVI "
         "proxy, food yield benchmark, implementation-cost sliders, "
-        "cost-effectiveness ratios).  \n"
+        "cost-effectiveness ratios, MN carbon proxy).  \n"
         "  \n"
         "**Context-switch rule.** A `NatCap published value`-class metric shows "
         "the green badge *only* in the fixed-scenario reference view; in "
-        "Baseline / Explorer / Optimizer scenarios it shows `≈ NatCap method` "
-        "because the prototype computed it.  \n"
+        "Baseline / Explorer / Optimizer scenarios it shows its everyday tier "
+        "(InVEST-validated for the parity-measured models, else InVEST-aligned).  \n"
         "  \n"
         "The badges describe the *method's* trustworthiness, not whether the "
         "number is large or small. A `Prototype`-badged card showing a precise "
@@ -5231,25 +5230,26 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
 # ── Brief B2 (revised, 2026-05-29): per-metric VALIDATION badges ──────────────
 # Replaces the previous High/Medium/Prototype confidence tiers. Sourced from
 # data/sa/natcap_reference_outputs.csv via `natcap_validation.py`:
-#  - green ✓ NatCap-anchored  — displayed value IS an actual NatCap value
-#    (baseline: prototype reproduces; natcap_fixed: NatCap published).
-#  - blue  ≈ NatCap method    — natcap_published-class metric on a scenario
-#    with no NatCap analog (Explorer / Optimizer): methodology aligned, value
-#    is the prototype's own computation, not anchored to NatCap.
-#  - blue  ≈ Aligned method   — aligned_method metric (canonical InVEST, no
-#    directly-comparable NatCap citywide reference).
-#  - gray  Prototype          — exploratory metric, no canonical InVEST analog.
+#  - green  NatCap published value — fixed reference view; displayed value IS a
+#    NatCap published number (read from the CSV directly).
+#  - teal   InVEST-validated  — everyday view; the card's model has measured
+#    per-pixel parity (model_validation.VALIDATED_MODELS) and is on the
+#    validated compute path (carbon stock, not the MN proxy).
+#  - blue   InVEST-aligned    — canonical method, parity not measured for this
+#    output (lumped Flood Index / Runoff Volume, dollar / derived cards).
+#  - gray   Prototype          — exploratory metric, no canonical InVEST analog.
 # See docs/internal/DESIGN_NOTES.md §8.1 "Two-surface validation vocabulary — locked" for the non-CSV-card curated map.
 
 _VALIDATION_BADGE_COLOR_HEX = {
-    "green": "#1a7f37",
-    "blue":  "#0969da",
-    "gray":  "#6e7681",
+    "green": "#1a7f37",   # NatCap published value (fixed reference view)
+    "teal":  "#0f766e",   # InVEST-validated (per-pixel parity, Stage-1 source)
+    "blue":  "#0969da",   # InVEST-aligned (canonical method, parity not measured here)
+    "gray":  "#6e7681",   # Prototype
 }
 
 
 def _render_validation_caption(col, metric_name, scenario_context,
-                               explicit_status=None):
+                               explicit_status=None, validated_path=True):
     """Render the per-card validation badge as a colored caption with a
     scenario-aware tooltip. Replaces the previous `_confidence_caption`.
 
@@ -5257,9 +5257,14 @@ def _render_validation_caption(col, metric_name, scenario_context,
     metric is in `natcap_reference_outputs.csv`; otherwise `explicit_status`
     must be passed for the non-CSV-card curated map (`'natcap_published'` /
     `'aligned_method'` / `'prototype'`).
+
+    `validated_path` gates the InVEST-validated tier on the compute path actually
+    being the validated one — pass `_CARBON_IS_STOCK` for carbon (SA four-pool =
+    True, MN proxy = False). Defaults True for cards validated on every city.
     """
     badge = nv.render_validation_badge(metric_name, scenario_context,
-                                       explicit_status=explicit_status)
+                                       explicit_status=explicit_status,
+                                       validated_path=validated_path)
     if badge["text"] is None:
         col.caption("—")
         return
@@ -5578,7 +5583,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
     # distinction lives in the metric value (absolute on baseline rows;
     # signed Δ on alternative rows), never in the title or badge string.
     # The validation badge underneath each card is one of the locked four
-    # (NatCap published value / ≈ NatCap method / ≈ Aligned method /
+    # (NatCap published value / InVEST-validated / InVEST-aligned /
     # Prototype) — render_validation_badge returns the locked text, and
     # the "baseline" framing never appears in the badge.
     st.markdown("#### Ecological")
@@ -5616,7 +5621,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         eco_b.metric("Carbon Stock", "—")
     _render_validation_caption(eco_b, "carbon_tons_co2", ctx_for_metrics)
 
-    # Row 2 — derived/computed cards. Carbon Value (≈ Aligned method) +
+    # Row 2 — derived/computed cards. Carbon Value (InVEST-aligned) +
     # Flood Index (Prototype).
     eco_c, eco_d = st.columns(2)
 
@@ -5636,7 +5641,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         eco_c.metric("Carbon Value", "—")
     # Carbon Value badge: derived from NatCap-published carbon × EPA SC-CO2
     # — NOT a NatCap-published dollar value. Explicit_status='aligned_method'
-    # surfaces as "≈ Aligned method" (the third locked badge). The
+    # surfaces as "InVEST-aligned" (the third locked badge). The
     # "derived from NatCap carbon" framing lives in the tooltip below,
     # never in the badge string itself.
     _render_validation_caption(eco_c, "carbon_value_usd", ctx_for_metrics,
@@ -5671,7 +5676,7 @@ def _render_natcap_fixed_scenario_view(scenario_id):
         eco_d.metric("Flood Index", "—")
     # Flood badge: NatCap published no SA flood metric (UFRM without
     # damage valuation, no published number); the prototype's flood
-    # value is a Prototype computation, not "≈ Aligned method." Override
+    # value is a Prototype computation, not "InVEST-aligned." Override
     # the CSV-derived status to keep the locked vocab honest here.
     _render_validation_caption(eco_d, "flood_reduction", ctx_for_metrics,
                                explicit_status="prototype")
@@ -7488,7 +7493,7 @@ eco5.metric(
     delta_color=_carbon_delta_color,
     help=_carbon_card_help,
 )
-_render_validation_caption(eco5, "carbon_tons_co2", _validation_scenario_context, explicit_status=None if _CARBON_IS_STOCK else "prototype")
+_render_validation_caption(eco5, "carbon_tons_co2", _validation_scenario_context, explicit_status=None if _CARBON_IS_STOCK else "prototype", validated_path=_CARBON_IS_STOCK)
 eco6.metric(
     "NDVI",
     f"{results['mean_ndvi']:.3f}",
@@ -7675,7 +7680,7 @@ hs_sch.metric(
         "PSS 2021-22. Schools clipped to the city's modelable extent. "
         "**Method:** point-sample the canonical Nature Access adequate mask "
         "at each school's (row, col) pixel. "
-        "**Tier:** ≈ Aligned method (reuses the validated UNA 2SFCA pipeline "
+        "**Tier:** InVEST-aligned (reuses the validated UNA 2SFCA pipeline "
         "and per-city demand threshold unchanged). "
         "**Caveats:** vintage offset (CCD 2022-23 vs EDGE/PSS 2021-22; "
         "schools don't churn fast); private school set is the PSS Universe "
