@@ -1112,7 +1112,7 @@ with st.expander("How this prototype works", expanded=False):
         "- **`NatCap published value`** (green) — fires only in the fixed-scenario "
         "reference view for metrics with NatCap-published values. *Displays "
         "NatCap's number*; not a reproduction claim.  \n"
-        "- **`InVEST-validated`** (teal) — the card's InVEST model has measured "
+        "- **`✓ InVEST-validated`** (teal) — the card's InVEST model has measured "
         "per-pixel parity against canonical natcap.invest 3.19.0 via a committed "
         "comparison harness: Temperature/cooling (UCM), Nature Access (UNA), "
         "Preventable MH (UMH), Runoff Retention (UFR), and SA four-pool Carbon.  \n"
@@ -7380,7 +7380,7 @@ st.markdown(
 )
 st.caption(
     "Badges show how each number was checked: NatCap published value · "
-    "InVEST-validated (per-pixel parity with canonical InVEST) · InVEST-aligned "
+    "✓ InVEST-validated (per-pixel parity with canonical InVEST) · InVEST-aligned "
     "(same method, parity not measured here) · Prototype (exploratory indicator). "
     "Full definitions are in 'How this prototype works'."
 )

@@ -303,7 +303,10 @@ def render_validation_badge(metric_name: str, scenario_context: str,
     _model = _METRIC_TO_MODEL.get(metric_name)
     if (_model in model_validation.VALIDATED_MODELS and validated_path
             and scenario_context != SCENARIO_CONTEXT_NATCAP_FIXED):
-        return {"text": "InVEST-validated",
+        # Leading ✓ glyph (Slice 4 colorblind fix): green/teal/blue collapse to
+        # near-identical grayscale luminance (~35%), so the validated tier needs a
+        # hue-independent marker. The glyph is on this tier ONLY.
+        return {"text": "✓ InVEST-validated",
                 "tooltip": _badge_tooltip_for_metric(metric_name, vstatus),
                 "color": "teal", "state": "invest_validated"}
 
@@ -385,7 +388,7 @@ if __name__ == "__main__":
     # "InVEST-validated" in baseline / explorer / optimizer.
     for _b in (b_base, b_expl, b_opt):
         assert _b["state"] == "invest_validated" and _b["color"] == "teal", _b
-        assert _b["text"] == "InVEST-validated", _b
+        assert _b["text"] == "✓ InVEST-validated", _b
     # Tooltip still cites the measured HMI parity (bodies rewritten in Slice 3).
     assert "brief 28b" in b_base["tooltip"].lower(), b_base
     assert "hmi parity" in b_base["tooltip"].lower(), b_base
@@ -418,7 +421,7 @@ if __name__ == "__main__":
     # proxies (model not validated for that output) → InVEST-aligned.
     b_ret = render_validation_badge("runoff_retention_idx", SCENARIO_CONTEXT_EXPLORER,
                                     explicit_status="aligned_method")
-    assert b_ret["state"] == "invest_validated" and b_ret["text"] == "InVEST-validated", b_ret
+    assert b_ret["state"] == "invest_validated" and b_ret["text"] == "✓ InVEST-validated", b_ret
     assert "is measured" in b_ret["tooltip"].lower(), b_ret
     assert "ufrm" in b_ret["tooltip"].lower(), b_ret
     b_runoff = render_validation_badge("runoff_acre_feet", SCENARIO_CONTEXT_EXPLORER,

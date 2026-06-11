@@ -129,7 +129,7 @@ Each metric card displays one of four badges as an inline caption under its valu
 | Rendered text | Color | Fires when |
 |---|---|---|
 | **`NatCap published value`** | green | A `natcap_published`-class metric × the fixed-scenario reference view *only*. The card displays NatCap's own number directly from the reference outputs file. *Not a reproduction claim* — we surface NatCap's figure. |
-| **`InVEST-validated`** | teal | An everyday-view card whose InVEST model has measured per-pixel parity against canonical `natcap.invest` 3.19.0 via a committed comparison harness (read from `model_validation.VALIDATED_MODELS`) AND is on the validated compute path: Temperature/cooling (UCM), Nature Access (UNA), Preventable MH (UMH), Runoff Retention (UFR), and SA four-pool Carbon. |
+| **`✓ InVEST-validated`** | teal | An everyday-view card whose InVEST model has measured per-pixel parity against canonical `natcap.invest` 3.19.0 via a committed comparison harness (read from `model_validation.VALIDATED_MODELS`) AND is on the validated compute path: Temperature/cooling (UCM), Nature Access (UNA), Preventable MH (UMH), Runoff Retention (UFR), and SA four-pool Carbon. The leading ✓ is a hue-independent marker (the validated/aligned/published tiers share near-identical grayscale luminance). |
 | **`InVEST-aligned`** | blue | Canonical InVEST methodology, but per-pixel parity isn't measured for *this* output: the lumped Flood Index and Runoff Volume, and the dollar / derived cards. |
 | **`Prototype`** | gray | A `prototype` metric (no canonical InVEST analog) in any context, plus MN carbon (proxy, not the four-pool stock model). |
 
