@@ -12,7 +12,7 @@
 
 This document covers the prototype's alignment with canonical InVEST organized **by model/metric**. The validation story sits at two levels, and they are not interchangeable:
 
-- **Per-pixel parity against canonical InVEST** — the prototype reimplements UCM / UFR / UNA / UMH / Carbon in numpy and validates each against `natcap.invest.*.execute()` on matched inputs (`compare_*_invest.py` harnesses). HMI MAE = 0.0000 / r = 1.0000 (UCM, Brief 28b); UMH MAE ≈ 0 / r = 1.000000 on aligned input (Brief B). This is the prototype's anchored reproduction claim.
+- **Per-pixel parity against canonical InVEST** — the prototype reimplements UCM / UFR / UNA / UMH / Carbon in numpy and validates each against `natcap.invest.*.execute()` on matched inputs (`compare_*_invest.py` harnesses). HMI MAE = 0.0000 / r = 1.0000 (UCM, Brief 28b); UMH MAE ≈ 0 / r = 1.000000 on aligned input (Brief B). Carbon four-pool: per-pixel spatial r = 1.00000000 vs InVEST 3.16.2 (Relay 61), the raw MAE explained entirely by a units convention — but carbon's bundle status stays `methodology_aligned`, not elevated; see §6 "Carbon — parity measured, elevation pending." This is the prototype's anchored reproduction claim.
 - **Citywide-absolute reproduction of NatCap's published values** — **NOT established.** NatCap's SA UCM `args.json` isn't in the drive pull, and `tot_c_cur.tif` doesn't aggregate to NatCap's published 107.32 M t CO2e by any standard interpretation. The published numbers came from runs whose inputs (UCM args + carbon aggregation script) weren't shared. See OPEN_QUESTIONS.md "Per-scenario compound LULC inputs."
 
 The result: the prototype reproduces **canonical InVEST per-pixel**, uses canonical InVEST methodology, and **surfaces NatCap's own published scenario outcomes** as reference. It does *not* claim independent reproduction of NatCap's citywide aggregates.
@@ -32,7 +32,7 @@ The dashboard surfaces alignment status on each metric card via a four-state bad
 | **Blue "≈ Aligned method"** | InVEST-style/canonical method, no project-specific anchor | Comparable methodology | Not NatCap project-specific |
 | **Gray "Prototype"** | Exploratory proxy or assumption | Useful for exploration | Not a final quantitative result |
 
-1. **Per-metric evidence varies within "≈ NatCap method."** Temperature can cite measured per-pixel parity (HMI MAE ≈ 0, Brief 28b); carbon is four-pool methodology adoption (Brief 30) with no per-pixel parity measurement — do not imply parity for carbon. The per-card tooltip surfaces this nuance.
+1. **Per-metric evidence varies within "≈ NatCap method."** Temperature can cite measured per-pixel parity (HMI MAE ≈ 0, Brief 28b); carbon is four-pool methodology adoption (Brief 30) — a per-pixel spatial parity check now exists (r = 1.00000000 vs InVEST 3.16.2, Relay 61), but its bundle status stays `methodology_aligned` pending two reconciliations (§6), so the card still frames carbon as method adoption, not yet measured parity. The per-card tooltip surfaces this nuance.
 2. **Badges are per-metric × per-context.** A `natcap_published` metric shows **"NatCap published value"** *only* in the fixed-scenario reference view; in baseline / Explorer / optimizer contexts the same metric shows **"≈ NatCap method"** (the prototype computed it). This is what prevents an Explorer-scenario number from reading as a NatCap-published one.
 
 ### Validated reference outputs (SA)
@@ -119,9 +119,11 @@ The InVEST export bundle (DESIGN_NOTES §9; ARCHITECTURE §7) is the bridge for 
 | Bundle state | Meaning | Emitted for |
 |---|---|---|
 | **`validated`** | Per-pixel parity measured against canonical `natcap.invest.*.execute()` | UCM, UNA, UMH |
-| **`methodology_aligned`** | Canonical method, no per-pixel parity check | UFR, Carbon |
+| **`methodology_aligned`** | Canonical method, no per-pixel parity check | UFR, Carbon† |
 
 Each entry includes the reference InVEST version (3.19.0) and a per-model notes string sourced from this file. The two-state taxonomy answers a yes/no question per model (does the prototype's output match canonical?), while the §2 four-state badge captures per-metric methodology nuance (e.g. temperature can cite measured parity while carbon is methodology adoption). They are distinct surfaces for distinct audiences.
+
+**† Carbon — parity measured, elevation pending (Relay 61).** The carbon four-pool methodology is proven identical to canonical InVEST — per-pixel spatial correlation **r = 1.00000000**. The raw per-pixel MAE = 121 Mg C is explained entirely by a units convention: InVEST 3.16.2's `c_storage` reports per-hectare density, while the evaluator reports per-pixel total (= density × `pixel_area_ha` 0.09). Normalizing by pixel area makes them exactly equal. This was run on `natcap.invest` **3.16.2**, not the **3.19.0** used to validate UMH/UCM/UNA. Status stays `methodology_aligned` (not elevated to `validated`) until **(a)** the units convention is reconciled so MAE ≈ 0 in consistent units, and **(b)** the comparison is re-run against 3.19.0 for version consistency with the other validated models. Both are reconcilable — a cheap post-symposium win, not a methodological gap.
 
 **Export ≠ already-validated.** The bundle records the prototype's own measured parity against canonical InVEST per model. Running canonical `execute()` on the bundle produces fresh canonical outputs which the user can then compare against the prototype's reported card values. Validation travels with the bundle; the bundle isn't itself a validation result.
 
