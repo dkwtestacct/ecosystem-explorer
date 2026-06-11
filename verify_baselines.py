@@ -2910,7 +2910,9 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         # any long-form text reappears as an st.metric label literal, fail.
         _LABEL_REGRESSIONS = {
             "Temperature Change":         "Temp change",
-            "Runoff Volume":              "Runoff volume",
+            # Units moved into the label ("(ac-ft)") so the card value doesn't
+            # ellipsize at 1/3 width — the short form is the unit-suffixed label.
+            "Runoff Volume":              "Runoff volume (ac-ft)",
             "Cost / Citywide °F Cooling": "Cost / °F cooling",
             # Relay 31 — ceff1/ceff3 de-truncated to short forms.
             "Cost / Acre-Foot Runoff Prevented": "Cost / ac-ft runoff",
@@ -2987,7 +2989,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                       if lab in _LABEL_REGRESSIONS]
         _seed_short = {lab for (_ln, lab) in _seed_labels}
         # Meta seed reintroduces "Temperature Change" (should flag) and
-        # omits "Temp change" + "Runoff volume" (should both flag as missing).
+        # omits "Temp change" + "Runoff volume (ac-ft)" (should both flag as missing).
         _seed_missing = [s for s in _LABEL_REGRESSIONS.values()
                          if s not in _seed_short]
         if not _seed_regs:

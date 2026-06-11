@@ -7009,6 +7009,13 @@ def _fmt_runoff(af):
         return f"{af / 1_000:.1f}K ac-ft"
     return f"{af:.0f} ac-ft"
 
+def _fmt_runoff_value(af):
+    """Units-less runoff magnitude for the card value (the unit lives in the
+    card label, so the value doesn't ellipsize at 1/3 width)."""
+    if af >= 1_000:
+        return f"{af / 1_000:.1f}K"
+    return f"{af:.0f}"
+
 def _fmt_food(mln_lbs):
     if mln_lbs >= 1:
         return f"{mln_lbs:.2f}M lbs/yr"
@@ -7094,10 +7101,15 @@ _carbon_value = results['carbon_tons_co2']
 _carbon_unit_suffix = "t CO2e" if _CARBON_IS_STOCK else "t CO2e/yr"
 
 def _fmt_carbon(tons):
-    """Compact carbon display — k notation kicks in at 1,000 t to avoid card truncation."""
-    if abs(tons) >= 1000:
-        return f"{tons / 1000:.1f}k {_carbon_unit_suffix}"
-    return f"{tons:,.0f} {_carbon_unit_suffix}"
+    """Compact, units-less carbon magnitude for the card value (the unit lives in
+    the card label). M/k notation keeps wide stock values from truncating at 1/3
+    width — e.g. 3,095,697 → '3.1M', not '3095.7k t CO2e'."""
+    a = abs(tons)
+    if a >= 1e6:
+        return f"{tons / 1e6:.1f}M"
+    if a >= 1e3:
+        return f"{tons / 1e3:.0f}k"
+    return f"{tons:,.0f}"
 
 # Brief 2 (Approach Y): the SA four-pool stock card is bespoke, mirroring
 # Brief 1's signed-card pattern — flip to a "Loss" label with a positive
@@ -7105,29 +7117,35 @@ def _fmt_carbon(tons):
 # annual sequestration flow is always ≥ 0, so it keeps the shared `_delta_pill`
 # path and the "Carbon Sequestration" label. Lifting only the SA branch out of
 # `_delta_pill` leaves the other three callers (flood, runoff, NDVI) untouched.
+# Units live in the card LABEL ("… (t CO2e)") and the value/delta carry just the
+# abbreviated magnitude, so nothing ellipsizes at 1/3 width.
 _CARBON_PILL_EPSILON = 1.0
+_carbon_unit_label = f"({_carbon_unit_suffix})"
 if _CARBON_IS_STOCK:
     if _carbon_value < -_CARBON_PILL_EPSILON:
-        _carbon_card_label = "Carbon Storage Loss"
+        _carbon_card_label = f"Carbon Storage Loss {_carbon_unit_label}"
         _carbon_value_str = _fmt_carbon(abs(_carbon_value))
-        _carbon_delta_str = f"+{abs(_carbon_value):,.0f} t CO2e lost from conversions"
+        _carbon_delta_str = f"+{_fmt_carbon(abs(_carbon_value))} lost"
         _carbon_delta_color = "inverse"
     elif _carbon_value > _CARBON_PILL_EPSILON:
-        _carbon_card_label = "Carbon Storage Change"
+        _carbon_card_label = f"Carbon Storage Change {_carbon_unit_label}"
         _carbon_value_str = _fmt_carbon(_carbon_value)
-        _carbon_delta_str = f"+{_carbon_value:,.0f} t CO2e stock change from conversions"
+        _carbon_delta_str = f"+{_fmt_carbon(_carbon_value)} stock change"
         _carbon_delta_color = "normal"
     else:
-        _carbon_card_label = "Carbon Storage Change"
+        _carbon_card_label = f"Carbon Storage Change {_carbon_unit_label}"
         _carbon_value_str = _fmt_carbon(_carbon_value)
         _carbon_delta_str = None
         _carbon_delta_color = "off"
 else:
-    _carbon_card_label = "Carbon Sequestration"
+    _carbon_card_label = f"Carbon Sequestration {_carbon_unit_label}"
     _carbon_value_str = _fmt_carbon(_carbon_value)
-    _carbon_delta_str, _carbon_delta_color = _delta_pill(
-        _carbon_value, fmt=",.0f", suffix="t CO2e/yr from conversions", epsilon=1.0,
-    )
+    if _carbon_value > _CARBON_PILL_EPSILON:
+        _carbon_delta_str = f"+{_fmt_carbon(_carbon_value)} from conversions"
+        _carbon_delta_color = "normal"
+    else:
+        _carbon_delta_str = None
+        _carbon_delta_color = "off"
 
 # ── Scenario header (Brief #3 — unified Source + Validation) ─────────────────
 # The fixed-scenario reference view has its own header above (rendered inside
@@ -7365,8 +7383,8 @@ eco2.metric(
 )
 _render_validation_caption(eco2, "runoff_retention_idx", _validation_scenario_context, explicit_status="aligned_method")
 eco3.metric(
-    "Runoff volume",
-    _fmt_runoff(results['runoff_acre_feet']),
+    "Runoff volume (ac-ft)",
+    _fmt_runoff_value(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
     delta_color=_runoff_delta_color,
     help=(
@@ -7390,10 +7408,17 @@ _ndvi_delta_str, _ndvi_delta_color = _delta_pill(_ndvi_delta, fmt=".3f", suffix=
 
 # Second eco row: Temp change → Carbon Storage Change → NDVI.
 eco4, eco5, eco6 = st.columns(3)
+# Temp card: magnitude in the value, cooler/warmer in the (gray, arrow-less)
+# delta slot, so "0.3°F cooler" doesn't ellipsize to "0.3°F co…" at 1/3 width.
+if abs(_temp_change_f) < 0.1:
+    _temp_card_value, _temp_card_dir = "No change", None
+else:
+    _temp_card_value = f"{abs(_temp_change_f):.1f}°F"
+    _temp_card_dir = "warmer" if _temp_change_f > 0 else "cooler"
 eco4.metric(
     "Temp change",
-    _temp_change_label,
-    delta=None,
+    _temp_card_value,
+    delta=_temp_card_dir,
     delta_color="off",
     help=f"Confidence: High — see 'How this prototype works' for tier definitions. Approximate temperature change vs baseline, shown as °F cooler or warmer. Derived from mean Heat Mitigation Index (HMI) under the InVEST UCM (calibration factor {HM_TO_FAHRENHEIT:.2f}°F/HMI unit, UHI_max = {UHI_MAX_C:.2f}°C; ±2°F accuracy). HMI is the canonical InVEST UCM output, validated at MAE = 0.0000 against `natcap.invest.urban_cooling_model.execute()`. Underlying model: [InVEST Urban Cooling Model](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_cooling_model.html)."
 )
