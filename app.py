@@ -7363,9 +7363,10 @@ st.markdown(
     "Runoff Volume and Implementation Cost."
 )
 st.caption(
-    "Badge colors show how each number was checked — green = matches NatCap, "
-    "blue = aligned method, gray = prototype. Full definitions are in 'How this "
-    "prototype works'."
+    "Badges show how each number was checked: NatCap published value · "
+    "InVEST-validated (per-pixel parity with canonical InVEST) · InVEST-aligned "
+    "(same method, parity not measured here) · Prototype (exploratory indicator). "
+    "Full definitions are in 'How this prototype works'."
 )
 st.caption(
     "Details are available through metric badges, tooltips, and the Scenario audit."
