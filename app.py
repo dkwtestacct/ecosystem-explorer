@@ -1114,7 +1114,11 @@ with st.expander("How this prototype works", expanded=False):
         "  \n"
         "The badges describe the *method's* trustworthiness, not whether the "
         "number is large or small. A `Prototype`-badged card showing a precise "
-        "number is still a prototype number."
+        "number is still a prototype number.  \n"
+        "  \n"
+        "**Conditional outputs.** *Flood Damage Avoided* is shown only for cities "
+        "with a local damage-valuation table; San Antonio reports Flood Index, "
+        "Runoff Retention, and Runoff Volume instead."
     )
 
 with st.expander("Validation status", expanded=False):
@@ -7832,14 +7836,26 @@ _render_validation_caption(econ2, "total_cost_mln", _validation_scenario_context
 
 # Row 2: the three model-derived dollar metrics (each computed downstream
 # from the scenario, not directly from the user's sliders).
-econ3, econ4, econ5 = st.columns(3)
-
 _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
-# Render dollars only when the city has *both* per-building types AND a
-# damage table — `TOTAL_POTENTIAL_DAMAGE_USD > 0` is the single signal that
-# covers both. SA has types now (OSM mapping) but no damage table, so the
-# total is still $0 and the card must render "—", not "$0.0M".
-if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_USD > 0:
+# Flood Damage Avoided is a CONDITIONAL capability. The gate is TABLE-PRESENCE,
+# never the computed value: TOTAL_POTENTIAL_DAMAGE_USD > 0 is the single signal
+# for "this city has per-building types AND a damage-valuation table". A city
+# WITH a table that genuinely produced $0 avoided damage still renders the card
+# (with its "no avoided damage" caveat). When NO table is loaded, the card is
+# hidden entirely — no empty "—" slot — and a compact, visible unavailable note
+# takes its place (the dash on an absent table read as a broken card, not a
+# scoped capability).
+_show_flood_damage = (BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES
+                      and TOTAL_POTENTIAL_DAMAGE_USD > 0)
+if not _show_flood_damage:
+    st.caption(
+        f"Not shown for {selected_city.split(',')[0]}: **Flood Damage Avoided** "
+        "— requires a city-specific damage-valuation table. The flood signal is "
+        "in the Flood Index, Runoff Retention, and Runoff Volume cards above."
+    )
+    econ4, econ5 = st.columns(2)
+else:
+    econ3, econ4, econ5 = st.columns(3)
     _n_typed_buildings = int(np.sum(BUILDINGS_TYPE_RASTER > 0))
     econ3.metric(
         "Flood Damage Avoided",
@@ -7869,49 +7885,6 @@ if BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES and TOTAL_POTENTIAL_DAMAGE_
         ),
     )
     _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="aligned_method")
-elif BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES:
-    # Typed buildings but no damage-valuation table (SA today). SA has no
-    # InVEST UFR damage-loss table; NatCap's Vibrant Land report (Guerry et
-    # al. 2023) used InVEST UFRM for SA but explicitly did NOT enable damage
-    # valuation and published NO flood dollar value. So SA surfaces no
-    # damage-avoided figure here — the hydrologic signal lives in the Flood
-    # Index and Runoff Volume cards above. The earlier "Flood Volume
-    # Reduction (% vs baseline)" card is removed: it presented the unitless
-    # CN index (100 − mean_CN) as a percent of flood volume, which it is not.
-    # The underlying `flood_damage_avoided_usd` field stays at $0 (no schema
-    # change). Validation badge is "prototype", not aligned_method — there is
-    # no value and no NatCap-aligned flood dollar to align to.
-    econ3.metric(
-        "Flood Damage Avoided",
-        "—",
-        help=(
-            "No damage-valuation table for this city, so no dollar "
-            "damage-avoided figure is computed. The InVEST UFR damage-loss "
-            "table maps building type → \\$/m² damage; San Antonio lacks it "
-            "(NatCap's Vibrant Land report used InVEST UFRM for SA without "
-            "enabling damage valuation). For the hydrologic signal see the "
-            "Flood Index and Runoff Volume cards above."
-        ),
-    )
-    _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="prototype")
-else:
-    if BUILDINGS_DATA_AVAILABLE and not BUILDINGS_HAVE_TYPES:
-        _help_text = (
-            "Building-type data not available for this extent — requires "
-            "per-building type codes (1=commercial, 2=residential, "
-            "3=industrial) to look up damage rates."
-        )
-    else:
-        _help_text = (
-            "Buildings shapefile or damage-loss table not loaded — see "
-            "data/invest/flood/UFR_sample_data_MN/."
-        )
-    econ3.metric(
-        "Flood Damage Avoided",
-        "—",
-        help="Confidence: Medium — see 'How this prototype works' for tier definitions. " + _help_text + " Underlying model: [InVEST Urban Flood Risk Mitigation](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_flood_mitigation.html).",
-    )
-    _render_validation_caption(econ3, "flood_damage_avoided_usd", _validation_scenario_context, explicit_status="prototype")
 
 _energy_savings = results.get('cooling_energy_savings_usd', 0.0)
 _energy_available = (

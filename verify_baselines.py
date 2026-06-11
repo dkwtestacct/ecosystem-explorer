@@ -3573,6 +3573,62 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         badge_src_diffs += 1
 
+    # ── Flood Damage Avoided conditional render — table-presence gate lock ───
+    # The card is hidden ONLY when the city has no damage-valuation table; the
+    # gate must key on TOTAL_POTENTIAL_DAMAGE_USD (table presence), NEVER on the
+    # computed value _flood_damage_avoided — else a legitimate $0 result with a
+    # table loaded would be wrongly suppressed. The gate can't see rendered
+    # output (same blind spot as the dark loader / range table), so source-scan
+    # the render gate + the unavailable note. Flip-test + locate guard.
+    print(f"\n{'=' * 60}")
+    print("Flood Damage Avoided — table-presence render gate")
+    print(f"{'=' * 60}")
+    fda_diffs = 0
+    try:
+        import re as _re_fda
+        _app_src = Path("app.py").read_text(encoding="utf-8")
+
+        def _gate_ok(g):
+            return ("TOTAL_POTENTIAL_DAMAGE_USD" in g
+                    and "_flood_damage_avoided" not in g)
+
+        _m = _re_fda.search(r"_show_flood_damage\s*=\s*\((.*?)\)", _app_src, _re_fda.S)
+        if _m is None:
+            print("  FAIL could not locate the _show_flood_damage render gate "
+                  "(re-point the scan)")
+            fda_diffs += 1
+        elif not _gate_ok(_m.group(1)):
+            print("  FAIL flood-damage gate must key on TOTAL_POTENTIAL_DAMAGE_USD "
+                  "(table presence) and NOT on the computed value")
+            fda_diffs += 1
+        else:
+            print("  OK   hide gates on table presence (TOTAL_POTENTIAL_DAMAGE_USD), "
+                  "not the computed value")
+        # The unavailable note replaces the hidden card (no empty '—' slot).
+        if "requires a city-specific damage-valuation table" not in _app_src:
+            print("  FAIL the unavailable-metrics note is missing for the no-table case")
+            fda_diffs += 1
+        else:
+            print("  OK   unavailable-metrics note present for the no-table case")
+        # A table-present card still renders the value (zero included) — the
+        # value branch survives, so a real $0 result isn't hidden.
+        if "_fmt_usd(_flood_damage_avoided)" not in _app_src:
+            print("  FAIL the table-present value branch (renders $0 too) is missing")
+            fda_diffs += 1
+        else:
+            print("  OK   table-present branch still renders the value (zero included)")
+        # Flip-test (non-vacuous): the predicate rejects a value-keyed gate.
+        if _gate_ok("BUILDINGS_DATA_AVAILABLE and _flood_damage_avoided > 0"):
+            print("  FAIL flip-test: a value-keyed gate slipped past the checker")
+            fda_diffs += 1
+        else:
+            print("  OK   flip-test: a value-keyed gate is correctly rejected")
+    except Exception as _e:
+        print(f"  ERROR flood-damage gate lock: {_e}")
+        import traceback
+        traceback.print_exc()
+        fda_diffs += 1
+
     # ── Runoff retention index — presence, bounds, Jensen non-degeneracy ────
     # Relay 58: `runoff_retention_idx` = canonical UFR `rnf_rt_idx = mean(1 −
     # Q/P)`, the per-pixel retention average. Three non-vacuous guards:
@@ -4055,7 +4111,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + child_pop_diffs + bldg_precompute_diffs
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
                    + retention_idx_diffs + calib_diffs + child_card_diffs
-                   + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs)
+                   + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
+                   + fda_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4152,6 +4209,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "render InVEST-validated whose model isn't in the Stage-1 set, "
                   "a lumped-proxy/dollar/food/cost card leaked into the validated "
                   "map, or the carbon city-split broke.")
+        if fda_diffs:
+            print(f"{fda_diffs} flood-damage gate divergence(s) — the card hide "
+                  "keys on the computed value instead of table presence, or the "
+                  "unavailable note / value branch is missing.")
         if loader_diffs:
             print(f"{loader_diffs} calibration-loader divergence(s) — "
                   "_load_surrogate_calibration returned None/wrong shape on a "
