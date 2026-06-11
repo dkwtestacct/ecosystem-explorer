@@ -9620,7 +9620,7 @@ if _main_tab == 'Tradeoffs':
                 st.caption(
                     "Top scenarios meeting the minimum Flood Index, cooling, food, and carbon "
                     "thresholds set by the sliders — ranked by balanced score. "
-                    "Numbers are fast estimates from the machine-learning model, with calibrated 10th–90th estimate ranges."
+                    "Numbers are fast estimates from the machine-learning model, with calibrated estimate ranges."
                 )
 
                 # Display table with estimate-range columns
@@ -9649,15 +9649,48 @@ if _main_tab == 'Tradeoffs':
                     "with the InVEST-aligned evaluator and verify the result."
                 )
                 if unc_cols:
-                    with st.expander("Show estimate ranges", expanded=False):
+                    # Long table for the TOP candidate (#1): Metric | Fast estimate
+                    # | Estimate range, lo–hi combined into one cell, no raw column
+                    # names surfaced. The plot hover covers the other candidates
+                    # per-point, so no selectbox. Nature access is excluded (no band).
+                    _exp_label = ("Estimate ranges" if len(opt) == 1
+                                  else "Estimate ranges (top candidate)")
+                    with st.expander(_exp_label, expanded=False):
                         st.caption(
-                            "Estimate ranges are empirically calibrated from "
+                            "Ranges are calibrated from the fast model's "
                             "cross-validation errors against evaluator-computed "
                             "results. They apply only to citywide machine-learning "
-                            "estimates and are not guarantees."
+                            "suggestions and are not guarantees."
                         )
-                        st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
-                                     width='stretch', hide_index=True)
+                        _t = opt.iloc[0]
+
+                        def _carb_cell(*vals):
+                            # Consistent unit across the cell (k vs M), not _fmt_sig's
+                            # auto-float — so a range reads '0.76M–1.06M', not
+                            # '760k–1.06M'. Suffix added by the caller.
+                            mx = max(abs(v) for v in vals)
+                            if mx >= 1e6:
+                                return [f"{v / 1e6:.2f}M" for v in vals]
+                            if mx >= 1e3:
+                                return [f"{v / 1e3:.0f}k" for v in vals]
+                            return [f"{v:,.0f}" for v in vals]
+
+                        _cf, _cl, _ch = _carb_cell(
+                            _t['carbon_tons_co2'], _t['carbon_lower'], _t['carbon_upper'])
+                        _range_rows = [
+                            ("Flood Index", _fmt_sig(_t['flood_reduction']),
+                             f"{_fmt_sig(_t['flood_lower'])}–{_fmt_sig(_t['flood_upper'])}"),
+                            ("Cooling HM", _fmt_sig(_t['mean_hm']),
+                             f"{_fmt_sig(_t['hm_lower'])}–{_fmt_sig(_t['hm_upper'])}"),
+                            ("Food production", f"{_t['food_mln_lbs']:.1f}M lbs",
+                             f"{_t['food_lower']:.1f}–{_t['food_upper']:.1f}M lbs"),
+                            (f"Carbon storage ({_carbon_unit_suffix})", _cf,
+                             f"{_cl}–{_ch}"),
+                        ]
+                        st.dataframe(
+                            pd.DataFrame(_range_rows,
+                                         columns=["Metric", "Fast estimate", "Estimate range"]),
+                            width='stretch', hide_index=True)
                 # Compact candidate table — one row per scenario, screening
                 # precision. The conversion / GI / FF % columns are dropped: the
                 # Scenario name already carries "N% converted — GI x / FF y".
