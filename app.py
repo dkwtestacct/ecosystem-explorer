@@ -7421,10 +7421,13 @@ st.caption(
 _ndvi_delta = results['mean_ndvi'] - BASELINE_NDVI
 _ndvi_delta_str, _ndvi_delta_color = _delta_pill(_ndvi_delta, fmt=".3f", suffix="vs baseline", epsilon=0.001)
 
-# Second eco row: Temp change → Carbon Storage Change → NDVI.
-eco4, eco5, eco6 = st.columns(3)
-# Temp card: magnitude in the value, cooler/warmer in the (gray, arrow-less)
-# delta slot, so "0.3°F cooler" doesn't ellipsize to "0.3°F co…" at 1/3 width.
+# Second eco row: Temp change → Carbon Storage Change → NDVI. Carbon gets extra
+# width (weighted row, per follow-up relay) so "Carbon Storage Change (t CO2e)"
+# doesn't truncate; trades row-1/row-2 column alignment for a full label+unit.
+eco4, eco5, eco6 = st.columns([2, 3, 2])
+# Temp card: magnitude in the value; the cooler/warmer direction goes in a plain
+# caption beneath — NOT st.metric's delta slot, which renders a meaningless arrow
+# (identical for cooler and warmer under delta_color="off", so it carries no info).
 if abs(_temp_change_f) < 0.1:
     _temp_card_value, _temp_card_dir = "No change", None
 else:
@@ -7433,10 +7436,12 @@ else:
 eco4.metric(
     "Temp change",
     _temp_card_value,
-    delta=_temp_card_dir,
+    delta=None,
     delta_color="off",
     help=f"Confidence: High — see 'How this prototype works' for tier definitions. Approximate temperature change vs baseline, shown as °F cooler or warmer. Derived from mean Heat Mitigation Index (HMI) under the InVEST UCM (calibration factor {HM_TO_FAHRENHEIT:.2f}°F/HMI unit, UHI_max = {UHI_MAX_C:.2f}°C; ±2°F accuracy). HMI is the canonical InVEST UCM output, validated at MAE = 0.0000 against `natcap.invest.urban_cooling_model.execute()`. Underlying model: [InVEST Urban Cooling Model](https://storage.googleapis.com/releases.naturalcapitalproject.org/invest-userguide/latest/en/urban_cooling_model.html)."
 )
+if _temp_card_dir:
+    eco4.caption(_temp_card_dir)
 _render_validation_caption(eco4, "temp_change_f", _validation_scenario_context)
 # `_carbon_card_label` is set above alongside the value/delta (Brief 2,
 # Approach Y) so the SA loss-flip label survives.
