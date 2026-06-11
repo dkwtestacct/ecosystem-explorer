@@ -7,6 +7,7 @@ from matplotlib.patches import Patch
 import plotly.graph_objects as go
 import os
 import json
+import math
 from pathlib import Path
 from typing import NamedTuple, Any, Optional
 
@@ -2312,6 +2313,31 @@ def compute_cost_effectiveness(results, baseline_runoff_acft):
     }
 
 
+def _fmt_sig(x, sig=3):
+    """Screening-precision number — the SINGLE source of value precision across
+    cards, plot hover, and the suggestion tables. Shows `sig` significant figures
+    with a floating k/M/B unit and no fixed decimal places, so precision tracks
+    the magnitude rather than an arbitrary dp count:
+        3,095,697 → '3.10M'   559,410,000 → '559M'   16.93 → '16.9'
+        79,300,000 → '79.3M'  0.4670 → '0.467'        100,800 → '101k'
+    Callers append the unit (or move it into the label). For °F/% the caller
+    layers the unit; Temp keeps a bespoke 1-dp form (sub-unit, see card)."""
+    if x is None or not math.isfinite(x) or x == 0:
+        return "0"
+    a = abs(x)
+    div, suf = 1.0, ""
+    if a >= 1e9:
+        div, suf = 1e9, "B"
+    elif a >= 1e6:
+        div, suf = 1e6, "M"
+    elif a >= 1e3:
+        div, suf = 1e3, "k"
+    m = x / div
+    intdigits = int(math.floor(math.log10(abs(m)))) + 1
+    dp = max(0, sig - intdigits)
+    return f"{m:.{dp}f}{suf}"
+
+
 def _fmt_ce(val):
     if val is None:
         return "N/A"
@@ -2321,14 +2347,11 @@ def _fmt_ce(val):
 
 
 def _fmt_usd(v):
-    """Adaptive USD card-VALUE formatter (Relay 40). |v| >= $1M -> '$X.XXM';
-    $1k <= |v| < $1M -> '$X,XXX'; |v| < $1k -> '$X'. Keeps small-scenario dollar
-    cards from collapsing to '$0.00M' (surfaced by the ~260-acre school preset).
-    Value-only — labels stay $-free. Carbon keeps its own _fmt_carbon_dollars
-    (lower $M threshold) so its '$0.87M' display is unaffected."""
-    if abs(v) >= 1e6:
-        return f"${v / 1e6:.2f}M"
-    return f"${v:,.0f}"
+    """USD card-VALUE formatter — single-sourced on _fmt_sig so dollar precision
+    matches every other card (3 sig figs, floating k/M): 559,410,000 → '$559M',
+    870,000 → '$870k'. Value-only — labels stay $-free. Carbon keeps its own
+    _fmt_carbon_dollars (lower $M threshold) so its '$0.87M' display is unaffected."""
+    return f"${_fmt_sig(v)}"
 
 
 # ── Placement strategies ──────────────────────────────────────────────────────
@@ -7010,16 +7033,14 @@ def _fmt_runoff(af):
     return f"{af:.0f} ac-ft"
 
 def _fmt_runoff_value(af):
-    """Units-less runoff magnitude for the card value (the unit lives in the
-    card label, so the value doesn't ellipsize at 1/3 width)."""
-    if af >= 1_000:
-        return f"{af / 1_000:.1f}K"
-    return f"{af:.0f}"
+    """Units-less runoff magnitude for the card value (unit lives in the label).
+    Single-sourced on _fmt_sig — 100,800 → '101k'."""
+    return _fmt_sig(af)
 
 def _fmt_food(mln_lbs):
-    if mln_lbs >= 1:
-        return f"{mln_lbs:.2f}M lbs/yr"
-    return f"{mln_lbs * 1_000:.1f}K lbs/yr"
+    """Food yield — single-sourced on _fmt_sig (pass raw lbs so the k/M unit
+    floats): 79.3 → '79.3M lbs/yr', 0.5 → '500k lbs/yr'."""
+    return f"{_fmt_sig(mln_lbs * 1e6)} lbs/yr"
 
 def _fmt_people(n):
     if n >= 1_000:
@@ -7101,15 +7122,9 @@ _carbon_value = results['carbon_tons_co2']
 _carbon_unit_suffix = "t CO2e" if _CARBON_IS_STOCK else "t CO2e/yr"
 
 def _fmt_carbon(tons):
-    """Compact, units-less carbon magnitude for the card value (the unit lives in
-    the card label). M/k notation keeps wide stock values from truncating at 1/3
-    width — e.g. 3,095,697 → '3.1M', not '3095.7k t CO2e'."""
-    a = abs(tons)
-    if a >= 1e6:
-        return f"{tons / 1e6:.1f}M"
-    if a >= 1e3:
-        return f"{tons / 1e3:.0f}k"
-    return f"{tons:,.0f}"
+    """Units-less carbon magnitude for the card value (unit lives in the label).
+    Single-sourced on _fmt_sig — 3,095,697 → '3.10M' (screening precision)."""
+    return _fmt_sig(tons)
 
 # Brief 2 (Approach Y): the SA four-pool stock card is bespoke, mirroring
 # Brief 1's signed-card pattern — flip to a "Loss" label with a positive
@@ -7341,7 +7356,7 @@ st.markdown("#### Ecological")
 eco1, eco2, eco3 = st.columns(3)
 eco1.metric(
     "Flood Index",
-    f"{results['flood_reduction']:.1f}",
+    _fmt_sig(results['flood_reduction']),
     delta=_flood_delta_str,
     delta_color=_flood_delta_color,
     help=(
@@ -7360,7 +7375,7 @@ eco1.metric(
 _render_validation_caption(eco1, "flood_reduction", _validation_scenario_context)
 eco2.metric(
     "Runoff retention",
-    f"{results['runoff_retention_idx'] * 100:.1f}%",
+    f"{_fmt_sig(results['runoff_retention_idx'] * 100)}%",
     delta=None,
     delta_color="off",
     help=(
