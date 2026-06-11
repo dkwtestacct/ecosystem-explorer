@@ -250,7 +250,7 @@ Two rendered surfaces:
 
 **Per-card badge wiring.** Every metric-card column gets a `_render_validation_caption(col, ...)` call after its `st.metric(...)` call. The call site supplies either a CSV-derived `metric_name` (for metrics tracked in `data/sa/natcap_reference_outputs.csv`) or an `explicit_status` string for non-CSV cards (runoff, NDVI, cost-effectiveness ratios, carbon-$ on SA, etc.).
 
-**Validation in the export bundle.** The bundle's `metadata.json → validation` block records each model's state using a **two-state taxonomy distinct from the per-card badge's four states**: `validated` (per-pixel parity measured against canonical `natcap.invest.*.execute()` — emitted for UCM, UNA, UMH, Carbon) or `methodology_aligned` (canonical method, no per-pixel parity check — emitted for UFR). Each entry includes the reference InVEST version + a per-model notes string sourced from NATCAP_ALIGNMENT.md. A downstream user opening an exported bundle reads the validation context without re-deriving it from these docs. See §7.
+**Validation in the export bundle.** The bundle's `metadata.json → validation` block records each model's state using a **two-state taxonomy distinct from the per-card badge's four states**: `validated` (per-pixel parity measured against canonical `natcap.invest.*.execute()` — emitted for UCM, UNA, UMH, Carbon, and UFR via its per-pixel runoff-retention index) or `methodology_aligned` (canonical method, no per-pixel parity check — none currently). Each entry includes the reference InVEST version + a per-model notes string sourced from NATCAP_ALIGNMENT.md. A downstream user opening an exported bundle reads the validation context without re-deriving it from these docs. See §7.
 
 ---
 
@@ -293,7 +293,7 @@ ecosystem_explorer_export_<city_slug>_<scenario_id>_<timestamp>.zip
 - `scenario` — block with `provenance` (one of the four `PROVENANCE_*` constants from §2), `scenario_name`, `pct_converted`, `gi_pct`, `ff_pct`, `hd_pct`, `placement_strategy`
 - `generator` — block with `type` (matching the provenance) and generator-specific parameters
 - `raster_lineage` — per-raster source path inside the bundle + the on-disk source it was derived from
-- `validation` — per-model state (one entry per UCM / UNA / UFR / Carbon / UMH), each emitting one of two values: `validated` (UCM, UNA, UMH, Carbon — per-pixel parity measured) or `methodology_aligned` (UFR — canonical method, no per-pixel parity check). This is the **export-bundle's two-state taxonomy** — distinct from the per-card badge's four states (see §6)
+- `validation` — per-model state (one entry per UCM / UNA / UFR / Carbon / UMH), each emitting one of two values: `validated` (UCM, UNA, UMH, Carbon, UFR — per-pixel parity measured; UFR via its runoff-retention index) or `methodology_aligned` (none currently). This is the **export-bundle's two-state taxonomy** — distinct from the per-card badge's four states (see §6)
 - `model_availability` — per-model `available: bool` with `reason` string for the cases where it isn't (e.g. for fixed alternatives: *"NatCap did not ship a compound LULC for this fixed scenario; only flood is exported."*)
 
 **Running canonical InVEST on the bundle.** From the bundle root, e.g.:
@@ -323,7 +323,7 @@ Substitute the module and args path for each of the five models. The bundle's RE
 | `verify_baselines.py` | Baseline regression test — snapshots `evaluate_scenario` for 40 (city × scenario × strategy) combinations against committed JSON snapshots; the pre-commit gate |
 | `precompute_scenarios.py` | Offline dense-CSV builder for Balanced-mode training set; stubs Streamlit and reuses `evaluate_scenario` |
 
-**`validation/` (6):** `compare_carbon_invest.py` (MN single-pool AOI-sum check, not a parity test), `compare_carbon_sa_fourpool_invest.py` (SA four-pool per-pixel parity, Relay 69), `compare_ucm_invest.py`, `compare_umh_invest.py`, `compare_una_invest.py`, `verify_cooling.py` — canonical-InVEST parity comparators.
+**`validation/` (7):** `compare_carbon_invest.py` (MN single-pool AOI-sum check, not a parity test), `compare_carbon_sa_fourpool_invest.py` (SA four-pool per-pixel parity, Relay 69), `compare_ufr_invest.py` (SA UFR runoff-retention per-pixel parity, Relay 71), `compare_ucm_invest.py`, `compare_umh_invest.py`, `compare_una_invest.py`, `verify_cooling.py` — canonical-InVEST parity comparators.
 
 **`diagnostics/` (5):** `compare_una_lulc.py`, `analyze_placement_diagnostic.py`, `placement_strategy_diagnostic.py`, `check_expanded_coverage.py`, `validate_surrogate_predictions.py`. (`validate_scenarios.py` retired — see HISTORY.)
 

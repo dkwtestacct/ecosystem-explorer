@@ -163,10 +163,10 @@ Tracks and their dependency order. Strikethrough = completed.
 ## 8. Honest assessments
 
 **What's validated rigorously (measured):**
-- UCM, UNA, UMH, and SA Carbon all at MAE ≈ 0 vs canonical InVEST (UMH after Brief B kernel fix; SA Carbon four-pool per-pixel, r 1.0 vs InVEST 3.19.0 in matched units — Relay 69). This is per-pixel parity on the prototype's own grid — the real validated core.
+- UCM, UNA, UMH, SA Carbon, and the UFR runoff-retention index all at MAE ≈ 0 vs canonical InVEST (UMH after Brief B kernel fix; SA Carbon four-pool per-pixel, r 1.0 vs InVEST 3.19.0 — Relay 69; UFR retention index `1 − Q/P`, r 1.0 vs UFRM 3.19.0 — Relay 71). This is per-pixel parity on the prototype's own grid — the real validated core. (For UFR this is the per-pixel retention index; the lumped Flood Index / Runoff Volume stay aligned-method.)
 
 **What's methodology-aligned but NOT a measured match:**
-- Flood / UFR uses the canonical SCS-CN method, but per-pixel parity vs canonical InVEST UFRM has not been measured (no committed UFRM parity harness). *(SA Carbon sat here until Relay 69 — it now has measured per-pixel parity and moved up; what remains unreproduced for carbon is NatCap's published citywide absolute, below.)*
+- The **lumped** flood readings — Flood Index (`100 − mean_CN`) and Runoff Volume (lumped mean-CN) — are canonical SCS-CN but are scalar proxies, not per-pixel UFRM outputs, so they carry no per-pixel parity claim. *(The per-pixel UFR **runoff-retention index** moved up to measured — validated vs UFRM 3.19.0 at MAE ≈ 0 / r 1.0, Relay 71. SA Carbon likewise moved up in Relay 69; what remains unreproduced for carbon is NatCap's published citywide absolute, below.)*
 
 **What is NOT established (2026-05-29 investigation, under a no-parameter-fitting guardrail):**
 - **NatCap's published citywide absolutes are not reproducible from what's on disk.**

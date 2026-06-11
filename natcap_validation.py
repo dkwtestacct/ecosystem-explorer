@@ -264,12 +264,23 @@ def render_validation_badge(metric_name: str, scenario_context: str,
                 "color": "blue", "state": "natcap_method"}
 
     if vstatus == "aligned_method":
-        tooltip = (
-            "Canonical InVEST methodology. No directly-comparable NatCap "
-            "citywide reference exists, or the framing differs (different "
-            "summary statistic, scope, or aggregation level). See "
-            "docs/internal/NATCAP_ALIGNMENT.md."
-        )
+        if metric_name == "runoff_retention_idx":
+            # Canonical UFR retention index — per-pixel parity measured (Relay 71).
+            tooltip = (
+                "Canonical InVEST UFR runoff-retention index (1 − Q/P). The "
+                "displayed value is the prototype's own computation; per-pixel "
+                "parity vs canonical InVEST UFRM IS measured (MAE ≈ 0, r 1.0 vs "
+                "natcap.invest 3.19.0 in matched units — Relay 71). No published "
+                "NatCap SA flood value exists to match against, so the badge stays "
+                "aligned-method rather than a NatCap-anchored one."
+            )
+        else:
+            tooltip = (
+                "Canonical InVEST methodology. No directly-comparable NatCap "
+                "citywide reference exists, or the framing differs (different "
+                "summary statistic, scope, or aggregation level). See "
+                "docs/internal/NATCAP_ALIGNMENT.md."
+            )
         return {"text": "≈ Aligned method", "tooltip": tooltip,
                 "color": "blue", "state": "aligned_method"}
 
@@ -373,6 +384,18 @@ if __name__ == "__main__":
     assert b_cd_fixed["state"] == "natcap_anchored" and b_cd_fixed["color"] == "green", b_cd_fixed
     assert b_cd_expl["state"]  == "natcap_method"   and b_cd_expl["color"]  == "blue",  b_cd_expl
     assert "four-pool" in b_cd_expl["tooltip"].lower(), b_cd_expl
+
+    # Runoff Retention (aligned_method, non-CSV) — metric-aware tooltip now cites
+    # measured per-pixel UFRM parity (Relay 71). Flood Index / Runoff Volume stay
+    # generic aligned-method (lumped proxies, not per-pixel UFRM outputs).
+    b_ret = render_validation_badge("runoff_retention_idx", SCENARIO_CONTEXT_EXPLORER,
+                                    explicit_status="aligned_method")
+    assert b_ret["state"] == "aligned_method" and b_ret["text"] == "≈ Aligned method", b_ret
+    assert "is measured" in b_ret["tooltip"].lower(), b_ret
+    assert "ufrm" in b_ret["tooltip"].lower(), b_ret
+    b_runoff = render_validation_badge("runoff_acre_feet", SCENARIO_CONTEXT_EXPLORER,
+                                       explicit_status="aligned_method")
+    assert "is measured" not in b_runoff["tooltip"].lower(), b_runoff  # lumped proxy
 
     # Non-CSV metric without explicit_status → unknown_metric.
     b_unk = render_validation_badge("runoff_acre_feet", SCENARIO_CONTEXT_EXPLORER)

@@ -65,11 +65,18 @@ _VALIDATION = {
             "notes": "2SFCA re-implementation validated per-pixel. Per-block-group "
                      "aggregation differs from a citywide mean — see "
                      "NATCAP_ALIGNMENT.md."},
-    "ufr": {"status": "methodology_aligned",
+    "ufr": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
             "reference": "natcap.invest.urban_flood_risk_mitigation 3.19.0",
-            "notes": "Canonical SCS-CN method; the prototype's flood-retention "
-                     "index reports 100 − mean_CN rather than InVEST's runoff "
-                     "retention index. SA uses NatCap's NLCD×tree CN table; "
+            "notes": "The per-pixel runoff-retention index (1 − Q/P, "
+                     "app.cn_array_to_retention_index) is validated to per-pixel "
+                     "parity against UFRM's runoff_retention_index: MAE ~5e-8, "
+                     "r = 1.0 over 3.36M pixels, value-identical CN "
+                     "(compare_ufr_invest.py, Relay 71). UFRM λ=0.2 / "
+                     "S_max=25400/CN−254 mm is algebraically identical to the "
+                     "evaluator's Ia=0.2S / S=1000/CN−10 in. The dashboard's "
+                     "headline Flood Index (100 − mean_CN) and Runoff Volume are "
+                     "lumped mean-CN proxies, NOT per-pixel UFRM outputs — they "
+                     "stay aligned-method. SA uses NatCap's NLCD×tree CN table; "
                      "damage valuation disabled (no SA damage table, Path C)."},
     "carbon": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
                "reference": "natcap.invest.carbon 3.19.0",
