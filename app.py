@@ -1053,6 +1053,17 @@ with st.expander("How this prototype works", expanded=False):
         "ecological changes into concrete impacts for planners and decision-makers."
     )
     st.markdown(
+        "**Five InVEST model pathways.** Urban Cooling, Urban Flood Risk "
+        "Mitigation, Urban Nature Access, Urban Mental Health, and Carbon "
+        "Storage/Sequestration — evaluated by a prototype evaluator validated "
+        "against canonical InVEST 3.19.0 where comparable (the **where comparable** "
+        "hedge honestly excludes the cases that aren't, notably MN carbon, which "
+        "runs a proxy rather than the four-pool stock model). The app does not run "
+        "canonical InVEST live; export is available for formal InVEST handoff. "
+        "These five pathways provide the core ecological and social outcomes; "
+        "prototype food and cost modules add planning-screening context."
+    )
+    st.markdown(
         '- **Green Infrastructure (wetlands)** — strongest per-pixel improvement in the runoff / curve-number indicators; citywide changes may be small  \n'
         '- **Food Forest** — best for cooling + food  \n'
         '- **High Density** — worst for ecological and nature-access outcomes  \n'
