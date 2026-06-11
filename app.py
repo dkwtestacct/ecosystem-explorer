@@ -6,6 +6,7 @@ import matplotlib.colors as mcolors
 from matplotlib.patches import Patch
 import plotly.graph_objects as go
 import os
+import json
 from pathlib import Path
 from typing import NamedTuple, Any, Optional
 
@@ -4284,7 +4285,15 @@ _CALIB_BAND_METRICS = {
 def _load_surrogate_calibration(slug, mode, schema_version):
     """Load data/<slug>/surrogate_calibration_<mode>.json, or None. Validates
     the stamp's schema against the live SCENARIO_SCHEMA_VERSION so a stale
-    artifact is ignored (runtime falls back to no range — never a wrong one)."""
+    artifact is ignored (runtime falls back to no range — never a wrong one).
+
+    Failure policy: only *data* problems degrade to None — missing file,
+    unreadable file, malformed JSON, wrong-shaped or missing keys, stale stamp.
+    *Code* problems (NameError / AttributeError / TypeError) PROPAGATE loudly.
+    Hence the narrow `except (OSError, ValueError)` around the read+parse plus
+    explicit dict-shape guards — NOT a bare `except Exception`, which previously
+    swallowed a `json` NameError and left the Estimate range dark for every
+    city/mode since Relay 60B."""
     if not slug:
         return None
     path = Path(f"data/{slug}/surrogate_calibration_{mode}.json")
@@ -4292,12 +4301,15 @@ def _load_surrogate_calibration(slug, mode, schema_version):
         return None
     try:
         art = json.loads(path.read_text())
-    except Exception:
+    except (OSError, ValueError):
+        return None  # unreadable file or malformed JSON — a data problem
+    if not isinstance(art, dict):
         return None
     prov = art.get("provenance", {})
-    if prov.get("scenario_schema_version") != schema_version:
+    if not isinstance(prov, dict) or prov.get("scenario_schema_version") != schema_version:
         return None
-    return art.get("residual_quantiles") or None
+    rq = art.get("residual_quantiles")
+    return rq if isinstance(rq, dict) and rq else None
 
 
 _ACTIVE_CALIBRATION = _load_surrogate_calibration(

@@ -3312,6 +3312,51 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         calib_diffs += 1
 
+    # ── Calibration LOADER end-to-end — json-NameError regression ───────────
+    # Gate-gap closer: the freshness block above reads the JSON directly and
+    # checks stamps, but NEVER calls `app._load_surrogate_calibration`. A `json`
+    # NameError in the loader's swallowed `except` therefore left the Estimate
+    # range dark for every city/mode since Relay 60B while the file checks stayed
+    # green. This exercises the loader on the runtime path. Bug-catcher: RED
+    # (None) on the pre-fix code, GREEN after app.py's module-level `import json`.
+    print(f"\n{'=' * 60}")
+    print("Calibration loader end-to-end — json-NameError regression")
+    print(f"{'=' * 60}")
+    loader_diffs = 0
+    try:
+        _CALIB_METRICS = ("flood_reduction", "mean_hm",
+                          "food_mln_lbs", "carbon_tons_co2")
+        _ld = app._load_surrogate_calibration(
+            "sa", "fast", app.SCENARIO_SCHEMA_VERSION)
+        if not isinstance(_ld, dict):
+            print(f"  FAIL loader returned {type(_ld).__name__}, expected dict — "
+                  "the swallowed json NameError is back (Estimate range dark)")
+            loader_diffs += 1
+        elif not all(m in _ld for m in _CALIB_METRICS):
+            print(f"  FAIL loader dict missing calibrated metrics "
+                  f"{[m for m in _CALIB_METRICS if m not in _ld]}")
+            loader_diffs += 1
+        else:
+            print("  OK   (sa, fast, live schema) loads a dict carrying "
+                  "residual_quantiles for all calibrated metrics")
+        # No over-correction: a stale schema and a missing file each → None.
+        if app._load_surrogate_calibration("sa", "fast", -1) is not None:
+            print("  FAIL stale-schema calibration should return None")
+            loader_diffs += 1
+        else:
+            print("  OK   stale schema → None (data problem degrades quietly)")
+        if app._load_surrogate_calibration(
+                "sa", "nonexistent_mode", app.SCENARIO_SCHEMA_VERSION) is not None:
+            print("  FAIL missing-file calibration should return None")
+            loader_diffs += 1
+        else:
+            print("  OK   missing file → None")
+    except Exception as _e:
+        print(f"  ERROR calibration loader test: {_e}")
+        import traceback
+        traceback.print_exc()
+        loader_diffs += 1
+
     # ── Runoff retention index — presence, bounds, Jensen non-degeneracy ────
     # Relay 58: `runoff_retention_idx` = canonical UFR `rnf_rt_idx = mean(1 −
     # Q/P)`, the per-pixel retention average. Three non-vacuous guards:
@@ -3793,7 +3838,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + dense_freshness_diffs + rebind_completeness_diffs
                    + child_pop_diffs + bldg_precompute_diffs
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
-                   + retention_idx_diffs + calib_diffs + child_card_diffs)
+                   + retention_idx_diffs + calib_diffs + child_card_diffs
+                   + loader_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -3875,6 +3921,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         if calib_diffs:
             print(f"{calib_diffs} surrogate-calibration freshness divergence(s) "
                   "(stale/missing estimate-range artifact).")
+        if loader_diffs:
+            print(f"{loader_diffs} calibration-loader divergence(s) — "
+                  "_load_surrogate_calibration returned None/wrong shape on a "
+                  "valid artifact (the swallowed json NameError, or over-narrowed "
+                  "data handling).")
         if child_card_diffs:
             print(f"{child_card_diffs} children's-card visibility divergence(s) "
                   "(suppression predicate regressed).")
