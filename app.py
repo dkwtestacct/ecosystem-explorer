@@ -9658,8 +9658,17 @@ if _main_tab == 'Tradeoffs':
                         )
                         st.dataframe(opt[display_cols + unc_cols].rename(columns=_col_rename),
                                      width='stretch', hide_index=True)
-                st.dataframe(opt[display_cols].rename(columns=_col_rename),
-                             width='stretch', hide_index=True)
+                # Compact candidate table — one row per scenario, screening
+                # precision. The conversion / GI / FF % columns are dropped: the
+                # Scenario name already carries "N% converted — GI x / FF y".
+                _cand_display = pd.DataFrame({
+                    'Scenario':              opt['scenario_name'].values,
+                    'Flood Index':           [_fmt_sig(v) for v in opt['flood_reduction']],
+                    'Cooling HM':            [_fmt_sig(v) for v in opt['mean_hm']],
+                    'Food':                  [_fmt_food(v) for v in opt['food_mln_lbs']],
+                    _opt_carbon_col_label:   [_fmt_sig(v) for v in opt['carbon_tons_co2']],
+                })
+                st.dataframe(_cand_display, width='stretch', hide_index=True)
                 st.caption(
                     "Note: suggestions with small amounts of High Density (2–10%) may "
                     "reflect the machine-learning model's approximation — consider setting HD to 0% when applying."
