@@ -4950,16 +4950,16 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
             if _has_range:
                 return (
                     f"<b>Suggested scenario</b><br>{r.scenario_name}<br>"
-                    f"Flood — fast estimate: {r.flood_reduction:.1f}; "
-                    f"estimate range: {r.flood_lower:.1f}–{r.flood_upper:.1f}<br>"
-                    f"HMI — fast estimate: {r.mean_hm:.4f}; "
-                    f"estimate range: {r.hm_lower:.4f}–{r.hm_upper:.4f}<br>"
-                    f"Range type: calibrated 10th–90th residual range"
+                    f"Flood — fast estimate: {_fmt_sig(r.flood_reduction)}; "
+                    f"estimate range: {_fmt_sig(r.flood_lower)}–{_fmt_sig(r.flood_upper)}<br>"
+                    f"HMI — fast estimate: {_fmt_sig(r.mean_hm)}; "
+                    f"estimate range: {_fmt_sig(r.hm_lower)}–{_fmt_sig(r.hm_upper)}<br>"
+                    f"Calibrated from evaluator-comparison errors"
                 )
             return (
                 f"<b>Suggested scenario</b><br>{r.scenario_name}<br>"
-                f"Flood — fast estimate: {r.flood_reduction:.1f}<br>"
-                f"HMI — fast estimate: {r.mean_hm:.4f}"
+                f"Flood — fast estimate: {_fmt_sig(r.flood_reduction)}<br>"
+                f"HMI — fast estimate: {_fmt_sig(r.mean_hm)}"
             )
         fig.add_trace(go.Scatter(
             x=optimized['flood_reduction'],
@@ -8906,9 +8906,10 @@ if _main_tab == 'Tradeoffs':
             ), use_container_width=True)
             if _opt_for_chart is not None and len(_opt_for_chart):
                 st.caption(
-                    "Orange points are citywide machine-learning estimates. "
-                    "Hover a point for its estimate range; apply a suggestion to recompute "
-                    "with the InVEST-aligned evaluator."
+                    "Orange diamonds are citywide machine-learning suggestions; "
+                    "hover one for its calibrated estimate range. Applied scenarios "
+                    "and selected-area results are evaluator-computed, so they carry "
+                    "no range."
                 )
 
         st.divider()
