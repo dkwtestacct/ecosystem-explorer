@@ -7459,10 +7459,13 @@ st.markdown(
     "Runoff Volume and Implementation Cost."
 )
 st.caption(
-    "Badges show validation/provenance: ◆ NatCap published value = reference; "
-    "■ InVEST-validated = checked against canonical InVEST; ○ InVEST-aligned = "
-    "same method, not directly checked here; △ Prototype = exploratory. "
-    "Full definitions in 'How this prototype works'."
+    "Badges show validation/provenance. Full definitions in 'How this prototype works'."
+)
+# Glyph + exact tier name kept contiguous and glyph-leading so the legend↔render
+# 1:1 lock (verify_baselines glyph parser) still matches; the per-tier "= def"
+# clauses now live only in the "How this prototype works" methodology expander.
+st.caption(
+    "◆ NatCap published value · ■ InVEST-validated · ○ InVEST-aligned · △ Prototype"
 )
 st.caption(
     "Details are available through metric badges, tooltips, and the Scenario audit."
