@@ -2120,7 +2120,7 @@ def main(update: bool) -> int:
                 ("Neighborhood breakdown",
                  'st.markdown("#### Neighborhood breakdown"'),
                 ("Best scenarios by goal",
-                 'st.markdown("#### Best scenarios by goal"'),
+                 'st.markdown("#### Best citywide scenarios by goal"'),
             ]
             _prev_line = _tab2_start
             _prev_name = "tab2 open"

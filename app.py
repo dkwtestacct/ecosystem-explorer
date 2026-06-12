@@ -9228,14 +9228,14 @@ if _main_tab == 'Tradeoffs':
             # plus the action that brings it back.
             st.divider()
             st.caption(
-                "_'Best scenarios by goal' is hidden under a region or "
+                "_'Best citywide scenarios by goal' is hidden under a region or "
                 "ownership filter — the precomputed library is citywide "
                 "and its rankings don't reflect your filter. Clear the "
                 "region selection and ownership filter to see it._"
             )
         else:
             st.divider()
-            st.markdown("#### Best scenarios by goal")
+            st.markdown("#### Best citywide scenarios by goal")
             st.caption("From the pre-computed scenario library — InVEST-aligned evaluator results, not fast estimates. Citywide library results; not filtered by selected region or ownership.")
 
             # Best-scenarios-by-goal uses the lookup table when High Resolution mode
