@@ -7764,8 +7764,8 @@ _show_flood_damage = (BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES
 if not _show_flood_damage:
     st.caption(
         f"Not shown for {selected_city.split(',')[0]}: **Flood Damage Avoided** "
-        "— requires a city-specific damage-valuation table. The flood signal is "
-        "in the Flood Index, Runoff Retention, and Runoff Volume cards above."
+        "requires a city-specific damage-valuation table. Use the Flood Index, "
+        "Runoff Retention, and Runoff Volume cards above for the flood signal."
     )
     econ4, econ5 = st.columns(2)
 else:
