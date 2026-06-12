@@ -4589,6 +4589,36 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                 tradeoff_axis_diffs += 1
             else:
                 print("  OK   meta-test: a seeded x=[0.0] baseline pin is caught")
+            # (3) Plot self-documentation: both Y-axis titles spell out the
+            #     cooling metric (no bare "HMI" acronym in an axis title), and
+            #     both plots carry the identical "↗ better" direction cue
+            #     (parity). Render is gate-blind; these are static label checks.
+            for _nm, _body in (("plot_tradeoff", _city_body),
+                               ("plot_tradeoff_region", _region_body)):
+                _axis_titles = _re_ax.findall(r"[xy]axis_title='([^']*)'", _body)
+                _bare_hmi = [_t for _t in _axis_titles if "HMI" in _t]
+                if _bare_hmi:
+                    print(f"  FAIL {_nm} axis title still uses the bare 'HMI' "
+                          f"acronym {_bare_hmi} — spell it 'Heat Mitigation Index'")
+                    tradeoff_axis_diffs += 1
+                if not any("Heat Mitigation Index" in _t for _t in _axis_titles):
+                    print(f"  FAIL {_nm} Y axis no longer spells "
+                          f"'Heat Mitigation Index'")
+                    tradeoff_axis_diffs += 1
+                if "↗ better" not in _body:
+                    print(f"  FAIL {_nm} missing the '↗ better' direction cue "
+                          f"(both plots must carry it — parity)")
+                    tradeoff_axis_diffs += 1
+            # Flip-test (non-vacuous): the bare-HMI detector must fire on a
+            # seeded bare-acronym axis title.
+            if "HMI" not in _re_ax.findall(
+                    r"[xy]axis_title='([^']*)'",
+                    "yaxis_title='Cooling / HMI'")[0]:
+                print("  FAIL meta-test: bare-HMI axis-title detector is vacuous")
+                tradeoff_axis_diffs += 1
+            else:
+                print("  OK   spelled-axis + '↗ better' parity hold; "
+                      "bare-HMI detector non-vacuous")
     except Exception as _e:
         print(f"  ERROR tradeoff-plot flood-axis lock: {_e}")
         import traceback

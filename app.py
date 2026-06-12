@@ -5078,6 +5078,14 @@ def plot_tradeoff(results, scenario_df, lookup_table=None, saved=None, optimized
         xanchor='left', yanchor='bottom',
         showarrow=False, font=dict(size=11, color='gray'),
     )
+    # Muted "↗ better" hint in the top-right corner — the strictly-better
+    # direction is self-evident without spoken framing. Identical cue on the
+    # selected-area plot (parity).
+    fig.add_annotation(
+        text="↗ better", xref='paper', yref='paper', x=0.98, y=0.98,
+        xanchor='right', yanchor='top', showarrow=False,
+        font=dict(size=10, color='gray'),
+    )
     return fig
 
 
@@ -5281,7 +5289,7 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
     fig.update_layout(
         title='',
         xaxis_title='Flood Index — region (higher = better)',
-        yaxis_title='Cooling / HMI — region (higher = better)',
+        yaxis_title='Cooling / Heat Mitigation Index — region (higher = better)',
         xaxis=dict(autorange=True),
         yaxis=dict(autorange=True),
         height=500,
@@ -5290,6 +5298,14 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
                     yanchor='top', font=dict(size=11),
                     bordercolor='rgba(0,0,0,0.1)', borderwidth=1),
         hovermode='closest',
+    )
+    # Muted "↗ better" hint in the top-right corner — the strictly-better
+    # direction is self-evident without spoken framing. Identical cue on the
+    # citywide plot (parity).
+    fig.add_annotation(
+        text="↗ better", xref='paper', yref='paper', x=0.98, y=0.98,
+        xanchor='right', yanchor='top', showarrow=False,
+        font=dict(size=10, color='gray'),
     )
     return fig
 
