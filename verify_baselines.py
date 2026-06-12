@@ -1880,9 +1880,9 @@ def main(update: bool) -> int:
         guard_diffs += 1
 
     # ── Default-scenario state consistency (Relay A) ─────────────────────────
-    # Title, sentence, and audit are all rendered from the same
+    # Title, line-1 summary, and audit are all rendered from the same
     # `_resolved_scenario` dict via three display helpers
-    # (`_explorer_scenario_label`, `_explorer_scenario_sentence`,
+    # (`_explorer_scenario_label`, `_active_scenario_line1`,
     # `_explorer_audit_sentence`). Assert the helpers stay self-consistent at
     # (a) the documented default 10/50/50, (b) pct=0 → "no conversion" form,
     # (c) a mixed scenario, AND (d) the post-city-switch reset reproduces the
@@ -1946,8 +1946,8 @@ def main(update: bool) -> int:
             app.SCENARIO_DEFAULT_FF_PCT,
         )
         label = app._explorer_scenario_label(default_state)
-        sentence = app._explorer_scenario_sentence(
-            default_state, "developed land", "using random placement",
+        sentence = app._active_scenario_line1(
+            default_state, app.eib.PROVENANCE_EXPLORER,
         )
         audit = app._explorer_audit_sentence(
             default_state, "Citywide", "", "Random",
@@ -1973,8 +1973,8 @@ def main(update: bool) -> int:
         # (b) pct=0 — "no conversion" branch.
         zero_state = app._resolve_scenario(0, 0, 0)
         label_z = app._explorer_scenario_label(zero_state)
-        sentence_z = app._explorer_scenario_sentence(
-            zero_state, "developed land", "",
+        sentence_z = app._active_scenario_line1(
+            zero_state, app.eib.PROVENANCE_EXPLORER,
         )
         audit_z = app._explorer_audit_sentence(
             zero_state, "Citywide", "", "Random",
@@ -1991,8 +1991,8 @@ def main(update: bool) -> int:
         # (c) Mixed scenario.
         mixed_state = app._resolve_scenario(30, 75, 25)
         label_m = app._explorer_scenario_label(mixed_state)
-        sentence_m = app._explorer_scenario_sentence(
-            mixed_state, "developed land", "",
+        sentence_m = app._active_scenario_line1(
+            mixed_state, app.eib.PROVENANCE_EXPLORER,
         )
         audit_m = app._explorer_audit_sentence(
             mixed_state, "Citywide", "", "Random",
@@ -2039,9 +2039,9 @@ def main(update: bool) -> int:
         state_A = app._resolve_scenario(10, 50, 50)
         state_B = app._resolve_scenario(30, 75, 25)
         label_meta = app._explorer_scenario_label(state_A)
-        # sentence built from state_B — deliberately desynced from label.
-        sentence_meta = app._explorer_scenario_sentence(
-            state_B, "developed land", "",
+        # line-1 built from state_B — deliberately desynced from label.
+        sentence_meta = app._active_scenario_line1(
+            state_B, app.eib.PROVENANCE_EXPLORER,
         )
         audit_meta = app._explorer_audit_sentence(
             state_A, "Citywide", "", "Random",
@@ -3900,6 +3900,86 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         ce_diffs += 1
 
+    # ── Active-scenario line-1 helper lock ───────────────────────────────────
+    # The page-root Active-scenario block builds line 1 via _active_scenario_line1
+    # (pure: resolved dict + provenance). Lock the prefix-per-provenance mapping,
+    # the pct=0 → "Baseline · no conversion" override (a 0%-conversion scenario is
+    # indistinguishable from baseline), and that the mix string always names all
+    # three components (GI/FF/HD). Also assert the prefix map covers EVERY value
+    # _scen_provenance is assigned in app.py, so a new provenance can't render an
+    # empty prefix. The gate can't render the block; this locks its content.
+    print(f"\n{'=' * 60}")
+    print("Active-scenario line-1 helper lock")
+    print(f"{'=' * 60}")
+    active_scn_diffs = 0
+    try:
+        import re as _re_as2
+        _line1 = app._active_scenario_line1
+        _eib = app.eib
+
+        def _res(pct, gi=50, ff=30):
+            return {'pct_converted': pct, 'green_infrastructure_pct': gi,
+                    'food_forest_pct': ff, 'pct_highdensity': 100 - gi - ff}
+
+        # (provenance, expected line-1 prefix) for pct>0.
+        _prov_prefix = [
+            (_eib.PROVENANCE_EXPLORER,         "Explorer scenario"),
+            (_eib.PROVENANCE_OPTIMIZER,        "Optimizer-applied"),
+            (_eib.PROVENANCE_REGION_OPTIMIZED, "Selected-area optimized"),
+            (_eib.PROVENANCE_BASELINE,         "Baseline"),
+        ]
+        for _prov, _pref in _prov_prefix:
+            _out = _line1(_res(25), _prov)
+            if not _out.startswith(_pref + " · "):
+                print(f"  FAIL provenance {_prov!r}: line 1 {_out!r} doesn't "
+                      f"start with {_pref + ' · '!r}")
+                active_scn_diffs += 1
+            for _comp in ("GI ", "FF ", "HD "):
+                if _comp not in _out:
+                    print(f"  FAIL provenance {_prov!r}: mix string missing "
+                          f"{_comp!r} component — {_out!r}")
+                    active_scn_diffs += 1
+        # pct=0 → baseline line regardless of provenance (override).
+        for _prov, _ in _prov_prefix:
+            _out0 = _line1(_res(0), _prov)
+            if _out0 != "Baseline · no conversion":
+                print(f"  FAIL pct=0 with provenance {_prov!r}: got {_out0!r}, "
+                      "want 'Baseline · no conversion'")
+                active_scn_diffs += 1
+        # Non-vacuous flip-test: an Explorer line must NOT carry another tier's
+        # prefix (proves the mapping discriminates, not a constant).
+        _expl = _line1(_res(25), _eib.PROVENANCE_EXPLORER)
+        if _expl.startswith("Optimizer-applied") or _expl.startswith("Selected-area"):
+            print("  FAIL flip-test: Explorer line carries a non-Explorer prefix")
+            active_scn_diffs += 1
+        if active_scn_diffs == 0:
+            print("  OK   line-1 prefix per provenance + pct=0 baseline override "
+                  "+ GI/FF/HD always present (flip-test discriminates)")
+        # Coverage: every PROVENANCE_* assigned to _scen_provenance in app.py must
+        # be a key in the prefix map, so a new provenance can't render empty.
+        _app_src_as2 = Path("app.py").read_text(encoding="utf-8")
+        _assigned = set(_re_as2.findall(
+            r"_scen_provenance\s*=\s*eib\.(PROVENANCE_\w+)", _app_src_as2))
+        if not _assigned:
+            print("  FAIL could not find any _scen_provenance assignment "
+                  "(re-point the coverage scan)")
+            active_scn_diffs += 1
+        _map_keys = {k for k in app._ACTIVE_SCENARIO_PREFIX}
+        _uncovered = [p for p in _assigned
+                      if getattr(_eib, p) not in _map_keys]
+        if _uncovered:
+            print(f"  FAIL provenance value(s) assigned but not in the prefix "
+                  f"map: {_uncovered} — would render an empty/fallback prefix")
+            active_scn_diffs += 1
+        else:
+            print(f"  OK   prefix map covers all {len(_assigned)} _scen_provenance "
+                  f"assignment(s): {sorted(_assigned)}")
+    except Exception as _e:
+        print(f"  ERROR active-scenario line-1 helper lock: {_e}")
+        import traceback
+        traceback.print_exc()
+        active_scn_diffs += 1
+
     # ── Flood Damage Avoided conditional render — table-presence gate lock ───
     # The card is hidden ONLY when the city has no damage-valuation table; the
     # gate must key on TOTAL_POTENTIAL_DAMAGE_USD (table presence), NEVER on the
@@ -4440,7 +4520,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + retention_idx_diffs + calib_diffs + child_card_diffs
                    + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
                    + glyph_diffs + carbon_unit_diffs + autoswitch_diffs
-                   + ce_diffs + fda_diffs)
+                   + ce_diffs + active_scn_diffs + fda_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4557,6 +4637,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "compute_cost_effectiveness changed which denominators yield None "
                   "(zero/negative/below-epsilon, or warming→None), so the dashboard "
                   "card-hide condition drifted. Re-confirm the floors on purpose.")
+        if active_scn_diffs:
+            print(f"{active_scn_diffs} active-scenario line-1 divergence(s) — a "
+                  "provenance prefix drifted, the pct=0 baseline override broke, "
+                  "the GI/FF/HD mix lost a component, or a new _scen_provenance "
+                  "value isn't covered by _ACTIVE_SCENARIO_PREFIX.")
         if fda_diffs:
             print(f"{fda_diffs} flood-damage gate divergence(s) — the card hide "
                   "keys on the computed value instead of table presence, or the "

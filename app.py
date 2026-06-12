@@ -319,24 +319,35 @@ def _explorer_scenario_label(resolved):
             f"FF {resolved['food_forest_pct']}%")
 
 
-def _explorer_scenario_sentence(resolved, within_phrase, mode_text):
-    """The "This scenario converts …" sentence rendered in the main panel.
+# Active-scenario line-1 prefix per provenance — keyed on the PROVENANCE_* value
+# so it shares its source with `_scen_provenance` and the provenance header. pct=0
+# overrides to a baseline line (a 0%-conversion scenario is indistinguishable from
+# baseline), so the PROVENANCE_BASELINE entry is only a safety net; the fallback
+# covers any unmapped provenance so a new value can't render an empty prefix.
+_ACTIVE_SCENARIO_PREFIX = {
+    eib.PROVENANCE_EXPLORER:         "Explorer scenario",
+    eib.PROVENANCE_OPTIMIZER:        "Optimizer-applied",
+    eib.PROVENANCE_REGION_OPTIMIZED: "Selected-area optimized",
+    eib.PROVENANCE_BASELINE:         "Baseline",
+}
 
-    Branches on `pct_converted == 0` so a no-conversion state reads honestly
-    ("makes no conversions — metrics reflect the baseline") rather than
-    listing 0%/0%/100% allocations that don't fire."""
+
+def _active_scenario_line1(resolved, provenance):
+    """Line 1 of the page-root Active-scenario block: provenance prefix + mix.
+
+    pct=0 → "Baseline · no conversion" regardless of provenance (a no-conversion
+    scenario reads as baseline). Otherwise "{prefix} · {pct}% converted — GI {gi}%
+    / FF {ff}% / HD {hd}%", always showing all three mix components (they sum to
+    100 on their face)."""
     pct = resolved['pct_converted']
     if pct == 0:
-        return (
-            "This scenario makes no conversions — the displayed metrics "
-            "reflect the baseline."
-        )
+        return "Baseline · no conversion"
+    prefix = _ACTIVE_SCENARIO_PREFIX.get(provenance, "Scenario")
     return (
-        f"This scenario converts **{pct}%** of {within_phrase}, allocating "
-        f"**{resolved['green_infrastructure_pct']}%** to green infrastructure, "
-        f"**{resolved['food_forest_pct']}%** to food forest, and "
-        f"**{resolved['pct_highdensity']}%** to high-density development, "
-        f"{mode_text}."
+        f"{prefix} · {pct}% converted — "
+        f"GI {resolved['green_infrastructure_pct']}% / "
+        f"FF {resolved['food_forest_pct']}% / "
+        f"HD {resolved['pct_highdensity']}%"
     )
 
 
@@ -5915,9 +5926,9 @@ with _sec_scenario:
         st.stop()
 
     # ── Resolved scenario state (Relay A) ────────────────────────────────
-    # Single source of truth for the banner title, the main-panel sentence,
-    # the audit-expander sentence, and the metric-card label flow. The
-    # display helpers (_explorer_scenario_label / _explorer_scenario_sentence
+    # Single source of truth for the banner title, the page-root Active-scenario
+    # block, the audit-expander sentence, and the metric-card label flow. The
+    # display helpers (_explorer_scenario_label / _active_scenario_line1
     # / _explorer_audit_sentence) read this dict — they do not interpolate
     # the raw module-level variables. HD is canonical 100 - GI - FF here
     # (the slider isn't keyed and can drift; this fixes the source).
@@ -8429,46 +8440,41 @@ with st.expander("Assumptions and limitations"):
 
 st.divider()
 
-mode_text = f"using {PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()}"
-# Region active → name the region in the sentence so the user sees the
-# placement scope inline ("...eligible developed land within Council District 5,
-# allocating...") rather than only reading it as a sidebar caveat. Derived
-# from results['region_selection'] — layer display name + selected_ids.
-_rs_info = (results.get('region_selection') or {})
-_rs_layer_key = _rs_info.get('layer')
-_rs_ids_inline = _rs_info.get('selected_ids') or []
-if _rs_layer_key and _rs_ids_inline:
-    _rs_display_inline = _CURRENT_CITY_STATE.region_layer_display_names.get(_rs_layer_key, "region")
-    _rs_plural_inline = "s" if len(_rs_ids_inline) != 1 else ""
-    _within_phrase = (
-        f"eligible developed land within {_rs_display_inline}{_rs_plural_inline} "
-        f"{', '.join(_rs_ids_inline)}"
-    )
-else:
-    _within_phrase = "developed land"
-st.write(_explorer_scenario_sentence(
-    _resolved_scenario, _within_phrase, mode_text,
-))
-
-# Relay 42 [A] — "Current setup" one-liner from live state (supersedes the prior
-# "Scenario scope" line; adds city + conversion % and uses the locked
-# "regional extent" vocab). Reuses the audit-row helpers so it stays in lockstep
-# with the Scenario audit expander below.
+# ── Active scenario (page-root summary) ─────────────────────────────────────
+# Provenance-led compact block composed from the single-source `_scen_provenance`
+# + `_resolved_scenario` (line 1) and the same scope helpers the prior "Current
+# setup" line used (line 2). Replaces the verbose "This scenario converts…"
+# sentence + the "Current setup:" line; onboarding prose moved to the "What does
+# this mean?" expander below. Scope pieces stay in lockstep with the Scenario
+# audit expander (same _cs_* helpers, "regional extent" vocab).
 _scope_area = _cs_area_for_row(results)
 _scope_own  = _cs_ownership_for_row(results)
 _setup_region = "regional extent" if _scope_area == "Citywide" else _scope_area
 _setup_own = ("no ownership filter" if _scope_own == "None"
               else _scope_own.lower())
-# Relay 47 [D] — use the short strategy key (not the descriptive label, whose
-# "Random placement" doubled the trailing " placement"). Dedup guard keeps it
-# reading "<strategy> placement" once for any current or future key.
+# Short strategy key (not the descriptive label, whose "Random placement" doubled
+# the trailing " placement"). Dedup guard keeps it reading "<strategy> placement".
 _setup_place = placement_strategy
 if not _setup_place.endswith("placement"):
     _setup_place += " placement"
-st.caption(
-    f"Current setup: {selected_city} · {_setup_region} · {_setup_own} · "
-    f"{int(results['pct_converted'])}% converted · {_setup_place}"
+st.markdown(
+    f"**Active scenario**  \n"
+    f"{_active_scenario_line1(_resolved_scenario, _scen_provenance)}"
 )
+if results['pct_converted'] > 0:
+    st.caption(
+        f"Scope: {selected_city} · {_setup_region} · {_setup_own} · {_setup_place}"
+    )
+else:
+    # No conversion → ownership/placement are moot; show only city + region.
+    st.caption(f"Scope: {selected_city} · {_setup_region}")
+with st.expander("What does this mean?"):
+    st.write(
+        "The scenario converts a share of eligible developed land into green "
+        "infrastructure, food forest, or higher-density development. Roads, "
+        "buildings, existing natural land, and active filters determine the "
+        "eligible pool."
+    )
 
 _MAIN_TAB_NAMES = ["Scenario", "Tradeoffs", "Map View", "NatCap Reference"]
 # Seed the widget's session_state key once instead of passing default= — the
