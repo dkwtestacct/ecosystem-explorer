@@ -7257,7 +7257,7 @@ else:
 # above the Source+Validation header + Discover centerpiece — so "what am I
 # looking at" sits above the trust/validation layer. Replaces the verbose "This
 # scenario converts…" sentence + the "Current setup:" line (both deleted from the
-# old page-root location); onboarding prose lives in the "What does this mean?"
+# old page-root location); onboarding prose lives in the "How to read this scenario"
 # expander. Scope pieces stay in lockstep with the Scenario audit expander (same
 # _cs_* helpers, "regional extent" vocab).
 _scope_area = _cs_area_for_row(results)
@@ -7281,7 +7281,7 @@ if results['pct_converted'] > 0:
 else:
     # No conversion → ownership/placement are moot; show only city + region.
     st.caption(f"Scope: {selected_city} · {_setup_region}")
-with st.expander("What does this mean?"):
+with st.expander("How to read this scenario"):
     st.write(
         "The scenario converts a share of eligible developed land into green "
         "infrastructure, food forest, or higher-density development. Roads, "
