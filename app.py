@@ -463,6 +463,15 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
     border-color: #4a7aa6;
     color: white;
 }
+/* District/region multiselect chips: match the primary button blue instead of
+   BaseWeb's default red (which read as an error state). Selector targets the
+   BaseWeb tag inside stMultiSelect; baseweb class names shift by Streamlit
+   version, so this is an ASYNC eyeball item — confirm the rendered chip is blue. */
+div[data-testid="stMultiSelect"] [data-baseweb="tag"] {
+    background-color: #5b8db8;
+    border-color: #5b8db8;
+    color: white;
+}
 </style>
 ''', unsafe_allow_html=True)
 
