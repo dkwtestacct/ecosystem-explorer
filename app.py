@@ -1145,9 +1145,10 @@ with st.expander("How this prototype works", expanded=False):
         "number is large or small. A `Prototype`-badged card showing a precise "
         "number is still a prototype number.  \n"
         "  \n"
-        "**Conditional outputs.** *Flood Damage Avoided* is shown only for cities "
-        "with a local damage-valuation table; San Antonio reports Flood Index, "
-        "Runoff Retention, and Runoff Volume instead."
+        "**Conditional outputs.** *Flood Damage Avoided* "
+        "requires a city-specific damage-valuation table, so it is shown only "
+        "for cities that have one; San Antonio reports Flood Index, Runoff "
+        "Retention, and Runoff Volume instead."
     )
 
 with st.expander("Validation status", expanded=False):
@@ -7831,11 +7832,10 @@ _flood_damage_avoided = results.get('flood_damage_avoided_usd', 0.0)
 _show_flood_damage = (BUILDINGS_DATA_AVAILABLE and BUILDINGS_HAVE_TYPES
                       and TOTAL_POTENTIAL_DAMAGE_USD > 0)
 if not _show_flood_damage:
-    st.caption(
-        f"Not shown for {selected_city.split(',')[0]}: **Flood Damage Avoided** "
-        "requires a city-specific damage-valuation table. Use the Flood Index, "
-        "Runoff Retention, and Runoff Volume cards above for the flood signal."
-    )
+    # Card is hidden (not blanked) for cities without a damage-valuation table;
+    # the explanation lives in the "How this prototype works" methodology
+    # expander (Conditional outputs), not as an in-dashboard note drawing the
+    # eye to the absence. Layout-only branch here.
     econ4, econ5 = st.columns(2)
 else:
     econ3, econ4, econ5 = st.columns(3)
