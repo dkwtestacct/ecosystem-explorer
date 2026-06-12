@@ -5318,7 +5318,7 @@ _PROVENANCE_HEADER_INFO = {
     ),
     eib.PROVENANCE_EXPLORER: (
         "Explorer-generated",
-        "InVEST-aligned evaluator, verified where comparable; scenario not NatCap-published",
+        "InVEST-aligned evaluator; verified where comparable; scenario not NatCap-published",
         "blue",
     ),
     # Brief #4 — Applied-from-Optimizer flag is now plumbed through
@@ -8997,7 +8997,7 @@ if _main_tab == 'Tradeoffs':
             "Each source has a different validation context:\n\n"
             "• **NatCap reference** — displayed from NatCap published output; exact scenario raster / aggregation not available.\n\n"
             "• **Baseline** — prototype evaluator, verified against canonical InVEST where comparable; absolute NatCap citywide figures not reproduced.\n\n"
-            "• **Explorer-generated** — InVEST-aligned evaluator, verified where comparable; scenario itself not NatCap-published.\n\n"
+            "• **Explorer-generated** — InVEST-aligned evaluator; verified where comparable; scenario itself not NatCap-published.\n\n"
             "• **machine-learning suggestion** — evaluated with the InVEST-aligned evaluator on apply — exploratory candidate for further validation."
         )
         st.dataframe(
