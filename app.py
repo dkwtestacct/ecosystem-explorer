@@ -9108,6 +9108,19 @@ if _main_tab == 'Tradeoffs':
                       'people_with_nature_access', 'preventable_mh_cases',
                       'avoided_mh_cost_usd', 'total_cost_mln', 'runoff_acre_feet'):
                 row[k] = d.get(k)
+            # Flood Damage Avoided — complete-record column for the CSV handoff
+            # (the dashboard family curates it out; the export stays complete).
+            # Damage-table cities (MN) emit the raw value; no-damage-table cities
+            # (SA) emit an EMPTY cell — the engine returns 0.0 there, which as a
+            # raw "0" would misread as "avoided zero damage", and a string
+            # sentinel would break the numeric column. Same single-source
+            # availability gate (TOTAL_POTENTIAL_DAMAGE_USD > 0) the dashboard
+            # and comparison surfaces use. `d.get` keeps it null-safe for older
+            # saves missing the field.
+            row['flood_damage_avoided_usd'] = (
+                d.get('flood_damage_avoided_usd')
+                if TOTAL_POTENTIAL_DAMAGE_USD > 0 else ''
+            )
             for k, cfg in _REGION_LOCAL_METRICS.items():
                 if cfg.get('decomposable'):
                     row[f'region_local__{k}'] = rl.get(k) if rl else ''
