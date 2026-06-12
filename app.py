@@ -8076,6 +8076,14 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
         ("Preventable MH Cases",     _fmt_cases(_region_local['preventable_mh_cases']),              _fmt_cases(results['preventable_mh_cases'])),
         ("Avoided MH Cost",          _fmt_money(_region_local['avoided_mh_cost_usd']),               _fmt_money(results['avoided_mh_cost_usd'])),
     ]
+    # No damage-valuation table (SA): curate the Flood Damage Avoided row out of
+    # the comparison table, the same way the Economic cards and the
+    # Baseline-vs-Scenario audit expander already omit it. Damage-table cities
+    # (MN) keep the row with its real value. The methodology expander explains
+    # the absence; the engine still computes flood_damage_avoided_usd in
+    # `results`, so the underlying record stays complete.
+    if TOTAL_POTENTIAL_DAMAGE_USD <= 0:
+        _rl_rows = [r for r in _rl_rows if r[0] != "Flood Damage Avoided"]
     _rl_df = pd.DataFrame(_rl_rows, columns=["Metric", f"Region ({_rs_label})", "Citywide"])
     st.dataframe(_rl_df, width="stretch", hide_index=True)
 
@@ -8093,24 +8101,6 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
                 "area, so small counts on institutional land (e.g. school "
                 "parcels) reflect that allocation, not on-site residents."
             )
-
-    # UI feedback #6 — "why" tooltip for the flood-damage row. Triggers
-    # on the city PROPERTY (TOTAL_POTENTIAL_DAMAGE_USD <= 0 is set by
-    # the `damage_table_file` config — None on SA, the InVEST UFR table
-    # on MN). Does NOT key on the computed value, so an MN scenario
-    # that legitimately produces $0 avoided still renders the dollar
-    # column, not n/a.
-    if TOTAL_POTENTIAL_DAMAGE_USD <= 0:
-        st.caption(
-            "_Flood Damage Avoided reads n/a because this city has no "
-            "infrastructure damage-valuation table — the InVEST UFR "
-            "damage-loss table maps building type → \\$/m² damage, and San "
-            "Antonio lacks it (NatCap's Vibrant Land report used InVEST UFRM "
-            "for SA but did not enable damage valuation). The app instead "
-            "reports a curve-number-based Flood Index and modeled Runoff "
-            "Volume: Runoff Volume carries the physical volume signal, and "
-            "Flood Index is a unitless comparative indicator._"
-        )
 
     # Honesty-Surface Pass Commit 1 — make the validation-state inheritance
     # explicit. The Region-Local table has no per-row validation badge
