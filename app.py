@@ -8621,12 +8621,30 @@ if _main_tab == 'Tradeoffs':
         if _region_mask_active:
             # ── SELECTED-AREA mode (region-local primary) ───────────────
             st.subheader("Selected-area tradeoff space")
-            st.caption(
-                "Each point is a tested mix evaluated **inside the current "
-                "selected region and conversion filters**. Axes use "
-                "selected-area outcomes, so points are not directly "
-                "comparable to citywide NatCap reference scenarios."
+            # State-aware caption: before a search the plot holds only the
+            # current scenario star + the region baseline (no searched points),
+            # so the pre-search copy describes those rather than the searched
+            # mixes. Both branches keep the not-comparable-to-citywide-NatCap
+            # caveat visible.
+            _region_opt_for_caption = st.session_state.get('region_optimized_results')
+            _has_searched_mixes = (
+                isinstance(_region_opt_for_caption, pd.DataFrame)
+                and not _region_opt_for_caption.empty
             )
+            if _has_searched_mixes:
+                st.caption(
+                    "Each point is a tested mix evaluated **inside the current "
+                    "selected region and conversion filters**. Axes use "
+                    "selected-area outcomes, so points are not directly "
+                    "comparable to citywide NatCap reference scenarios."
+                )
+            else:
+                st.caption(
+                    "Your current scenario (★) and the region baseline. Run a "
+                    "search to populate candidate mixes. Axes use selected-area "
+                    "outcomes, so points are not directly comparable to citywide "
+                    "NatCap reference scenarios."
+                )
             # Compute region-local baseline HMI (flood baseline = 0 by
             # definition — flood_reduction is delta vs baseline). Mean
             # of the per-pixel baseline HMI raster restricted to the
