@@ -3974,6 +3974,26 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         else:
             print(f"  OK   prefix map covers all {len(_assigned)} _scen_provenance "
                   f"assignment(s): {sorted(_assigned)}")
+        # Static order guard — the Active-scenario block must render ABOVE the
+        # Discover centerpiece. Cheap source-position check the 40/40 won't catch
+        # (both render fine wherever they sit); locks the above-Discover placement
+        # so a future edit can't silently drop the block back down the page.
+        _blk = _app_src_as2.find('**Active scenario**')
+        _disc = _app_src_as2.find('### Discover scenarios')
+        if _blk == -1:
+            print("  FAIL could not locate the '**Active scenario**' render call "
+                  "(block removed or renamed — re-point the order guard)")
+            active_scn_diffs += 1
+        elif _disc == -1:
+            print("  FAIL could not locate the '### Discover scenarios' marker "
+                  "(re-point the order guard)")
+            active_scn_diffs += 1
+        elif _blk > _disc:
+            print("  FAIL Active-scenario block renders BELOW the Discover "
+                  "centerpiece — it must sit above it (placement regressed)")
+            active_scn_diffs += 1
+        else:
+            print("  OK   Active-scenario block renders above the Discover centerpiece")
     except Exception as _e:
         print(f"  ERROR active-scenario line-1 helper lock: {_e}")
         import traceback

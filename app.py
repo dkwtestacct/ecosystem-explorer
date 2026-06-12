@@ -7249,6 +7249,46 @@ else:
     # honestly instead of advertising 0%/0%/100% allocation knobs that
     # don't fire.
     _scen_label = _explorer_scenario_label(_resolved_scenario)
+
+# ── Active scenario (page-root summary) ─────────────────────────────────────
+# Provenance-led compact block composed from the single-source `_scen_provenance`
+# + `_resolved_scenario` (line 1) and the scope helpers the prior "Current setup"
+# line used (line 2). Rendered HIGH — right after provenance resolves and just
+# above the Source+Validation header + Discover centerpiece — so "what am I
+# looking at" sits above the trust/validation layer. Replaces the verbose "This
+# scenario converts…" sentence + the "Current setup:" line (both deleted from the
+# old page-root location); onboarding prose lives in the "What does this mean?"
+# expander. Scope pieces stay in lockstep with the Scenario audit expander (same
+# _cs_* helpers, "regional extent" vocab).
+_scope_area = _cs_area_for_row(results)
+_scope_own  = _cs_ownership_for_row(results)
+_setup_region = "regional extent" if _scope_area == "Citywide" else _scope_area
+_setup_own = ("no ownership filter" if _scope_own == "None"
+              else _scope_own.lower())
+# Short strategy key (not the descriptive label, whose "Random placement" doubled
+# the trailing " placement"). Dedup guard keeps it reading "<strategy> placement".
+_setup_place = placement_strategy
+if not _setup_place.endswith("placement"):
+    _setup_place += " placement"
+st.markdown(
+    f"**Active scenario**  \n"
+    f"{_active_scenario_line1(_resolved_scenario, _scen_provenance)}"
+)
+if results['pct_converted'] > 0:
+    st.caption(
+        f"Scope: {selected_city} · {_setup_region} · {_setup_own} · {_setup_place}"
+    )
+else:
+    # No conversion → ownership/placement are moot; show only city + region.
+    st.caption(f"Scope: {selected_city} · {_setup_region}")
+with st.expander("What does this mean?"):
+    st.write(
+        "The scenario converts a share of eligible developed land into green "
+        "infrastructure, food forest, or higher-density development. Roads, "
+        "buildings, existing natural land, and active filters determine the "
+        "eligible pool."
+    )
+
 # Region Selection Phase 1 (Commit 5) + Ownership Integration Commit 3 —
 # augment the Source line text when an Explorer scenario is region- and/or
 # ownership-constrained. Baseline (pct=0) reads just 'Baseline' — don't
@@ -8439,42 +8479,6 @@ with st.expander("Assumptions and limitations"):
         )
 
 st.divider()
-
-# ── Active scenario (page-root summary) ─────────────────────────────────────
-# Provenance-led compact block composed from the single-source `_scen_provenance`
-# + `_resolved_scenario` (line 1) and the same scope helpers the prior "Current
-# setup" line used (line 2). Replaces the verbose "This scenario converts…"
-# sentence + the "Current setup:" line; onboarding prose moved to the "What does
-# this mean?" expander below. Scope pieces stay in lockstep with the Scenario
-# audit expander (same _cs_* helpers, "regional extent" vocab).
-_scope_area = _cs_area_for_row(results)
-_scope_own  = _cs_ownership_for_row(results)
-_setup_region = "regional extent" if _scope_area == "Citywide" else _scope_area
-_setup_own = ("no ownership filter" if _scope_own == "None"
-              else _scope_own.lower())
-# Short strategy key (not the descriptive label, whose "Random placement" doubled
-# the trailing " placement"). Dedup guard keeps it reading "<strategy> placement".
-_setup_place = placement_strategy
-if not _setup_place.endswith("placement"):
-    _setup_place += " placement"
-st.markdown(
-    f"**Active scenario**  \n"
-    f"{_active_scenario_line1(_resolved_scenario, _scen_provenance)}"
-)
-if results['pct_converted'] > 0:
-    st.caption(
-        f"Scope: {selected_city} · {_setup_region} · {_setup_own} · {_setup_place}"
-    )
-else:
-    # No conversion → ownership/placement are moot; show only city + region.
-    st.caption(f"Scope: {selected_city} · {_setup_region}")
-with st.expander("What does this mean?"):
-    st.write(
-        "The scenario converts a share of eligible developed land into green "
-        "infrastructure, food forest, or higher-density development. Roads, "
-        "buildings, existing natural land, and active filters determine the "
-        "eligible pool."
-    )
 
 _MAIN_TAB_NAMES = ["Scenario", "Tradeoffs", "Map View", "NatCap Reference"]
 # Seed the widget's session_state key once instead of passing default= — the
