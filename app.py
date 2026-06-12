@@ -6077,16 +6077,16 @@ with _sec_costs:
 if _sec_carbon_rates is not None:
     with _sec_carbon_rates:
         st.slider(
-            "Food Forest carbon rate (tons CO2e/acre/yr)",
+            "Food Forest carbon rate (t CO2e/acre/yr)",
             0.5, 18.0, 3.5, 0.5,
             key="carbon_rate_ff",
             help="Provisional range 1.76–18.2 (USDA NRCS 2022). Default 3.5 is conservative for a mature system.",
         )
         st.slider(
-            "Green Infrastructure carbon rate (tons CO2e/acre/yr)",
+            "Green Infrastructure carbon rate (t CO2e/acre/yr)",
             0.5, 5.0, 2.0, 0.5,
             key="carbon_rate_gi",
-            help="Provisional range for woody wetlands. Default 2.0 tons CO2e/acre/yr.",
+            help="Provisional range for woody wetlands. Default 2.0 t CO2e/acre/yr.",
         )
         st.caption(
             "These are provisional regional estimates. Adjust to reflect locally calibrated "
@@ -6583,8 +6583,8 @@ with _sec_discover:
             )
             # Brief 30: SA framing = stock change (t CO2e); MN framing = annual flow.
             _opt_carbon_label = (
-                "Carbon storage change ≥ (tons CO2e)" if _CARBON_IS_STOCK
-                else "Carbon sequestration ≥ (tons CO2e/yr)"
+                "Carbon storage change ≥ (t CO2e)" if _CARBON_IS_STOCK
+                else "Carbon sequestration ≥ (t CO2e/yr)"
             )
             _opt_carbon_help = (
                 "Corresponds to the Carbon Storage Change metric card (one-time stock value). "

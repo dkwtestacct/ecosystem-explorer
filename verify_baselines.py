@@ -3745,6 +3745,23 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         else:
             print("  OK   flip-test: seeded re-introduction caught, shared "
                   "_carbon_unit_suffix not mistaken for it")
+        # Carbon INPUT-slider labels read "t CO2e" too (last holdout normalized).
+        # Anchor on the distinctive label text so the "tons CO2e" doc comments
+        # (sequestration-rate conversion notes) don't false-positive: those say
+        # "tons CO2e/acre/yr" but never "carbon rate (tons CO2e" / "≥ (tons CO2e".
+        _slider_bad = ['carbon rate (tons CO2e', '≥ (tons CO2e']
+        _slider_good = ['carbon rate (t CO2e/acre/yr)', '≥ (t CO2e']
+        _bad_hit = [s for s in _slider_bad if s in _app_src_cu]
+        _good_missing = [s for s in _slider_good if s not in _app_src_cu]
+        if _bad_hit:
+            print(f"  FAIL carbon slider label still reads 'tons CO2e': {_bad_hit}")
+            carbon_unit_diffs += 1
+        elif _good_missing:
+            print(f"  FAIL carbon slider 't CO2e' label missing/renamed: {_good_missing}")
+            carbon_unit_diffs += 1
+        else:
+            print("  OK   carbon input-slider labels normalized to 't CO2e' "
+                  "(rate + optimizer-target sliders)")
     except Exception as _e:
         print(f"  ERROR carbon unit single-source lock: {_e}")
         import traceback
