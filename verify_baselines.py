@@ -4525,6 +4525,76 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         vocab_diffs = 1
 
+    # ── Tradeoff-plot flood-axis convention lock (region ↔ citywide) ────────
+    # Both plot_tradeoff (citywide) and plot_tradeoff_region (selected-area)
+    # place every point — INCLUDING the baseline — on the ABSOLUTE Flood Index
+    # (100 - mean_cn). The region baseline used to be pinned at x=[0.0] (a delta
+    # convention) while its scenario points were absolute, so the two charts read
+    # as unrelated. Lock that the region baseline marker is sourced from the
+    # absolute `flood_reduction_baseline`, NOT a hardcoded zero, and that both
+    # functions take flood from `flood_reduction` (absolute) + cooling from
+    # `mean_hm`. Source-scan (render is gate-blind). Flip-test = non-vacuous.
+    print(f"\n{'=' * 60}")
+    print("Tradeoff-plot flood-axis convention lock (region ↔ citywide)")
+    print(f"{'=' * 60}")
+    tradeoff_axis_diffs = 0
+    try:
+        import re as _re_ax
+        _ax_src = Path("app.py").read_text(encoding="utf-8")
+
+        def _func_body(_name):
+            _m = _re_ax.search(
+                r"\ndef " + _re_ax.escape(_name) + r"\(.*?(?=\ndef |\nclass |\Z)",
+                _ax_src, _re_ax.S,
+            )
+            return _m.group(0) if _m else None
+
+        _city_body = _func_body("plot_tradeoff")
+        _region_body = _func_body("plot_tradeoff_region")
+        if not _city_body or not _region_body:
+            print("  FAIL could not locate plot_tradeoff / plot_tradeoff_region "
+                  "(re-point the convention lock)")
+            tradeoff_axis_diffs += 1
+        else:
+            # (1) Region baseline marker must come from the absolute
+            #     flood_reduction_baseline, never a hardcoded x=[0.0] delta-pin.
+            if "flood_reduction_baseline" not in _region_body:
+                print("  FAIL region baseline no longer sourced from the absolute "
+                      "`flood_reduction_baseline` — it may have reverted to a "
+                      "delta/zero pin")
+                tradeoff_axis_diffs += 1
+            elif _re_ax.search(r"x=\[0\.0\]", _region_body):
+                print("  FAIL region baseline marker pinned at x=[0.0] (delta "
+                      "convention) — must sit at its absolute Flood Index")
+                tradeoff_axis_diffs += 1
+            else:
+                print("  OK   region baseline marker uses the absolute "
+                      "flood_reduction_baseline (not pinned at 0)")
+            # (2) Both functions plot flood from the absolute `flood_reduction`
+            #     field and cooling from `mean_hm` — same convention.
+            for _nm, _body in (("plot_tradeoff", _city_body),
+                               ("plot_tradeoff_region", _region_body)):
+                if "flood_reduction" not in _body or "mean_hm" not in _body:
+                    print(f"  FAIL {_nm} axis source drifted — expected absolute "
+                          f"`flood_reduction` (X) + `mean_hm` (Y) in both plots")
+                    tradeoff_axis_diffs += 1
+            if tradeoff_axis_diffs == 0:
+                print("  OK   both plots take flood from the absolute "
+                      "`flood_reduction` field + cooling from `mean_hm`")
+            # Flip-test (non-vacuous): the delta-pin detector must fire on a
+            # seeded x=[0.0] baseline trace.
+            if not _re_ax.search(r"x=\[0\.0\]",
+                                 "fig.add_trace(go.Scatter(x=[0.0], y=[b]"):
+                print("  FAIL meta-test: x=[0.0] delta-pin detector is vacuous")
+                tradeoff_axis_diffs += 1
+            else:
+                print("  OK   meta-test: a seeded x=[0.0] baseline pin is caught")
+    except Exception as _e:
+        print(f"  ERROR tradeoff-plot flood-axis lock: {_e}")
+        import traceback
+        traceback.print_exc()
+        tradeoff_axis_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -4540,7 +4610,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + retention_idx_diffs + calib_diffs + child_card_diffs
                    + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
                    + glyph_diffs + carbon_unit_diffs + autoswitch_diffs
-                   + ce_diffs + active_scn_diffs + fda_diffs)
+                   + ce_diffs + active_scn_diffs + fda_diffs
+                   + tradeoff_axis_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4666,6 +4737,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"{fda_diffs} flood-damage gate divergence(s) — the card hide "
                   "keys on the computed value instead of table presence, or the "
                   "unavailable note / value branch is missing.")
+        if tradeoff_axis_diffs:
+            print(f"{tradeoff_axis_diffs} tradeoff-plot flood-axis divergence(s) — "
+                  "the region baseline reverted to a delta/zero pin or a plot's "
+                  "flood/cooling axis source drifted from the absolute convention.")
         if loader_diffs:
             print(f"{loader_diffs} calibration-loader divergence(s) — "
                   "_load_surrogate_calibration returned None/wrong shape on a "

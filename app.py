@@ -2812,6 +2812,26 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
 
         # Closed-form runoff + derived flood_reduction.
         _rl_flood_reduction = round(100 - _rl_mean_cn, 2)
+        # Region BASELINE absolute Flood Index (100 - baseline mean CN over the
+        # region mask). Same absolute convention as `_rl_flood_reduction`
+        # (scenario) and the citywide plot's Baseline ref — lets the tradeoff
+        # plot place the region baseline marker at its REAL position instead of
+        # pinning it to 0. Mirrors the load-time baseline-CN derivation
+        # (reduce_compound_to_nlcd_tree → cn_table lookup) but from the baseline
+        # LULC (`cooling_lulc` / its compound view) and masked to the region.
+        if cooling_lulc_compound is not None:
+            _rl_base_cn_lookup_lulc = reduce_compound_to_nlcd_tree(
+                cooling_lulc_compound, COMPOUND_TO_NLCD_TREE)
+        else:
+            _rl_base_cn_lookup_lulc = cooling_lulc
+        _rl_base_lulc_safe = np.clip(_rl_base_cn_lookup_lulc, 0, len(lucode_idx_arr) - 1)
+        _rl_base_cn_grid = cn_table[lucode_idx_arr[_rl_base_lulc_safe], soil_clamped]
+        _rl_base_cn_valid = (_rl_base_cn_grid > 0) & rm
+        _rl_base_mean_cn = (
+            float(_rl_base_cn_grid[_rl_base_cn_valid].mean().round(2))
+            if _rl_base_cn_valid.any() else float(_CURRENT_CITY_STATE.baseline_cn)
+        )
+        _rl_flood_reduction_baseline = round(100 - _rl_base_mean_cn, 2)
         _rl_runoff_acft = cn_to_runoff_acre_feet(_rl_mean_cn, _rl_developed_acres)
         _rl_flood_damage_avoided_usd = compute_flood_damage_avoided(_rl_runoff_acft)
         # Per-pixel retention index over the SAME region-masked CN pixels
@@ -2871,6 +2891,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         region_local = {
             'mean_cn':              _rl_mean_cn,
             'flood_reduction':      _rl_flood_reduction,
+            'flood_reduction_baseline': _rl_flood_reduction_baseline,
             'runoff_acre_feet':     _rl_runoff_acft,
             'runoff_retention_idx': _rl_runoff_retention_idx,
             'flood_damage_avoided_usd': _rl_flood_damage_avoided_usd,
@@ -5172,13 +5193,20 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
     region_local = results.get('region_local') or {}
     cur_flood = float(region_local.get('flood_reduction') or 0.0)
     cur_hm = float(region_local.get('mean_hm') or 0.0)
+    # Region baseline ABSOLUTE Flood Index (100 - region baseline mean CN),
+    # engine-computed in region_local. Same convention as cur_flood and the
+    # citywide plot — so the baseline marker sits at its real position, not
+    # pinned to 0. Fall back to cur_flood's frame only if absent (older record).
+    _baseline_flood_region = region_local.get('flood_reduction_baseline')
+    if _baseline_flood_region is None:
+        _baseline_flood_region = 0.0
 
-    # Region-local baseline marker — flood_reduction = 0 by definition (no
-    # change from baseline); mean_hm is the per-pixel baseline HMI averaged
-    # inside the active mask.
+    # Region-local baseline marker — placed at the region's absolute baseline
+    # Flood Index × the per-pixel baseline HMI averaged inside the active mask
+    # (both absolute, matching the scenario star and the citywide chart).
     if baseline_hm_region is not None:
         fig.add_trace(go.Scatter(
-            x=[0.0], y=[float(baseline_hm_region)],
+            x=[float(_baseline_flood_region)], y=[float(baseline_hm_region)],
             mode='markers+text',
             marker=dict(size=16, color='steelblue', opacity=1.0,
                         line=dict(color='black', width=2)),
@@ -5186,8 +5214,8 @@ def plot_tradeoff_region(results, region_optimized_df, baseline_hm_region):
             textposition='top right',
             textfont=dict(size=10),
             hovertemplate=(
-                "<b>Region baseline</b><br>"
-                f"Flood Index: 0.0 (no conversion)<br>"
+                "<b>Region baseline</b> (no conversion)<br>"
+                f"Flood Index: {float(_baseline_flood_region):.1f}<br>"
                 f"Cooling HMI: {float(baseline_hm_region):.4f}"
                 "<extra></extra>"
             ),
