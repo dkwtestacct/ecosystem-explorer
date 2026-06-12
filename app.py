@@ -5863,9 +5863,10 @@ _sec_carbon_rates      = (
     st.sidebar.expander("Carbon rates", expanded=False)
     if _carbon_rates_available else None
 )
-# The capstone "find better options", below the setup sections.
+# The capstone "find better options", below the setup sections. Calm default:
+# collapsed like the other setup sections — only Scenario opens by default.
 _sec_discover          = st.sidebar.expander("Search goals",
-                                              expanded=True)
+                                              expanded=False)
 # Power-user detail, demoted beneath Discover.
 _sec_advanced_quality  = st.sidebar.expander("Advanced: model quality",
                                               expanded=False)
