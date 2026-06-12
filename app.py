@@ -7410,7 +7410,7 @@ eco1.metric(
 )
 _render_validation_caption(eco1, "flood_reduction", _validation_scenario_context)
 eco2.metric(
-    "Runoff retention",
+    "Runoff Retention",
     f"{_fmt_sig(results['runoff_retention_idx'] * 100)}%",
     delta=None,
     delta_color="off",
@@ -7424,7 +7424,7 @@ eco2.metric(
 )
 _render_validation_caption(eco2, "runoff_retention_idx", _validation_scenario_context, explicit_status="aligned_method")
 eco3.metric(
-    "Runoff volume (ac-ft)",
+    "Runoff Volume (ac-ft)",
     _fmt_runoff_value(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
     delta_color=_runoff_delta_color,
@@ -7992,8 +7992,8 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
     _rl_rows = [
         ("Flood Index",              f"{_region_local['flood_reduction']:.1f}",                       f"{results['flood_reduction']:.1f}"),
         ("Temp change",              _fmt_temp_change(_region_local['temp_change_f']),                _fmt_temp_change(results['temp_change_f'])),
-        ("Runoff volume",            _fmt_runoff(_region_local['runoff_acre_feet']),                  _fmt_runoff(results['runoff_acre_feet'])),
-        ("Runoff retention",         f"{_region_local['runoff_retention_idx'] * 100:.1f}%",           f"{results['runoff_retention_idx'] * 100:.1f}%"),
+        ("Runoff Volume",            _fmt_runoff(_region_local['runoff_acre_feet']),                  _fmt_runoff(results['runoff_acre_feet'])),
+        ("Runoff Retention",         f"{_region_local['runoff_retention_idx'] * 100:.1f}%",           f"{results['runoff_retention_idx'] * 100:.1f}%"),
         ("Mean NDVI",                f"{_region_local['mean_ndvi']:.3f}",                             f"{results['mean_ndvi']:.3f}"),
         (_rl_carbon_label,           _fmt_co2(_region_local['carbon_tons_co2']),                      _fmt_co2(results['carbon_tons_co2'])),
         ("Food Production",          _fmt_food(_region_local['food_mln_lbs']),                       _fmt_food(results['food_mln_lbs'])),
