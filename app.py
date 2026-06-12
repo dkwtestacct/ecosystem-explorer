@@ -7262,7 +7262,13 @@ else:
 # _cs_* helpers, "regional extent" vocab).
 _scope_area = _cs_area_for_row(results)
 _scope_own  = _cs_ownership_for_row(results)
-_setup_region = "regional extent" if _scope_area == "Citywide" else _scope_area
+# Lead the scope with the area itself — citywide reuses the locked
+# "<city> regional extent" descriptor (state suffix dropped; the city
+# subheader directly above already carries it), region active leads with the
+# region/district label alone. No standalone "{city}, {state}" token.
+_city_short = selected_city.split(',')[0]
+_setup_region = (f"{_city_short} regional extent" if _scope_area == "Citywide"
+                 else _scope_area)
 _setup_own = ("no ownership filter" if _scope_own == "None"
               else _scope_own.lower())
 # Short strategy key (not the descriptive label, whose "Random placement" doubled
@@ -7276,11 +7282,11 @@ st.markdown(
 )
 if results['pct_converted'] > 0:
     st.caption(
-        f"Scope: {selected_city} · {_setup_region} · {_setup_own} · {_setup_place}"
+        f"Scope: {_setup_region} · {_setup_own} · {_setup_place}"
     )
 else:
-    # No conversion → ownership/placement are moot; show only city + region.
-    st.caption(f"Scope: {selected_city} · {_setup_region}")
+    # No conversion → ownership/placement are moot; show only the area phrase.
+    st.caption(f"Scope: {_setup_region}")
 with st.expander("How to read this scenario"):
     st.write(
         "The scenario converts a share of eligible developed land into green "
