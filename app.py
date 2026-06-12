@@ -5848,28 +5848,28 @@ _carbon_rates_available = not _CARBON_IS_STOCK
 # UNMOVED, so data flow + the Assertion-B button/mode-label pairings are
 # untouched. Only Discover + Advanced model quality move down vs the old order.
 _sec_scenario          = st.sidebar.expander("Scenario", expanded=True)
-_sec_where             = st.sidebar.expander("Spatial targeting",
+_sec_where             = st.sidebar.expander("Choose area",
                                               expanded=_where_expanded)
 _sec_eligibility       = (
-    st.sidebar.expander("Where conversions can be placed", expanded=False)
+    st.sidebar.expander("Eligible land", expanded=False)
     if _eligibility_available else None
 )
 _sec_placement         = st.sidebar.expander("Placement Strategy",
                                               expanded=False)
 _sec_costs             = st.sidebar.expander(
-    "Implementation Costs (\\$/acre)", expanded=False,
+    "Cost assumptions", expanded=False,
 )
 _sec_carbon_rates      = (
     st.sidebar.expander("Carbon rates", expanded=False)
     if _carbon_rates_available else None
 )
 # The capstone "find better options", below the setup sections.
-_sec_discover          = st.sidebar.expander("Discover scenarios",
+_sec_discover          = st.sidebar.expander("Search goals",
                                               expanded=True)
 # Power-user detail, demoted beneath Discover.
-_sec_advanced_quality  = st.sidebar.expander("Advanced model quality",
+_sec_advanced_quality  = st.sidebar.expander("Advanced: model quality",
                                               expanded=False)
-_sec_export            = st.sidebar.expander("Export", expanded=False)
+_sec_export            = st.sidebar.expander("Export / handoff", expanded=False)
 # Quick Start moved to the bottom of the sidebar — it's a presets
 # shortcut, not a primary control; the user's relay says it belongs
 # below Export.
