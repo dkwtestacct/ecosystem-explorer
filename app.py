@@ -8158,7 +8158,6 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
     # Brief 30: SA = stock change (one-time); MN = annual sequestration.
     _carbon_metric_label = 'Carbon Storage Change' if _CARBON_IS_STOCK else 'Carbon Sequestration'
     _carbon_dollar_label_table = 'Carbon Storage Value' if _CARBON_IS_STOCK else 'Avoided Carbon Cost'
-    _carbon_unit = 'tons CO2e' if _CARBON_IS_STOCK else 'tons CO2e/yr'
     _carbon_dollar_period = '' if _CARBON_IS_STOCK else '/yr'
     # Per-city flood-damage rendering. Only cities with a damage table (MN)
     # get a Flood Damage Avoided row; cities without (SA) omit it — the CN
@@ -8189,7 +8188,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             (f'{BASELINE_RUNOFF_RETENTION_IDX * 100:.1f}%' if BASELINE_RUNOFF_RETENTION_IDX is not None else '—'),
             'Reference',
             '0 lbs',
-            f'0 {_carbon_unit}',
+            f'0 {_carbon_unit_suffix}',
             f'{BASELINE_NDVI:.3f}',
             *([_flood_baseline_table] if _flood_damage_monetized else []),
             '$0/yr',
@@ -8201,7 +8200,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
             f'{results["runoff_retention_idx"] * 100:.1f}%',
             _temp_change_label,
             f'{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
-            f'{_carbon_tons_table:,.0f} {_carbon_unit}',
+            f'{_carbon_tons_table:,.0f} {_carbon_unit_suffix}',
             f'{results["mean_ndvi"]:.3f}',
             *([_flood_scenario_table] if _flood_damage_monetized else []),
             f'{_fmt_usd(_energy_savings_table)}/yr',
@@ -8218,7 +8217,7 @@ with st.expander("Baseline vs Scenario Comparison", expanded=False):
              if BASELINE_RUNOFF_RETENTION_IDX is not None else '—'),
             _temp_change_label,
             f'+{results["food_mln_lbs"] * 1e6:,.0f} lbs/yr',
-            f'{_carbon_tons_table:+,.0f} {_carbon_unit}',
+            f'{_carbon_tons_table:+,.0f} {_carbon_unit_suffix}',
             f'{results["mean_ndvi"] - BASELINE_NDVI:+.3f}',
             *([_flood_change_table] if _flood_damage_monetized else []),
             f'+{_fmt_usd(_energy_savings_table)}/yr' if _energy_savings_table >= 1e3 else '$0/yr',
@@ -8565,9 +8564,9 @@ if _main_tab == 'Scenario':
             # MN = annual sequestration rate. Title + Y-label branch on framing.
             _carbon_title = 'Carbon Storage Change' if _CARBON_IS_STOCK else 'Carbon Sequestration'
             _carbon_ylabel = (
-                'Carbon stock change (tons CO2e)\n(higher = more carbon stored)'
+                f'{_carbon_title} ({_carbon_unit_suffix})\n(higher = more carbon stored)'
                 if _CARBON_IS_STOCK
-                else 'Carbon (tons CO2e/year)\n(higher = more sequestration)'
+                else f'{_carbon_title} ({_carbon_unit_suffix})\n(higher = more sequestration)'
             )
             ax.bar(['Baseline', 'This Scenario'],
                    [0, results['carbon_tons_co2']],
@@ -9440,7 +9439,6 @@ if _main_tab == 'Tradeoffs':
             st.caption("Scroll down to see suggestions and apply them to the sliders.")
             opt = st.session_state.optimized_results
             # Brief 30: SA optimizer reports stock-change; MN reports annual flow.
-            _opt_carbon_unit = "tons CO2e" if _CARBON_IS_STOCK else "tons CO2e/yr"
             _opt_carbon_col_label = _carbon_table_col_label
             if isinstance(opt, dict) and not opt.get('found'):
                 st.warning(
@@ -9449,7 +9447,7 @@ if _main_tab == 'Tradeoffs':
                     f"- Flood Index: up to **{opt['max_flood']}** (your target: {min_flood})  \n"
                     f"- Cooling: up to **{opt['max_cool']:.4f} HMI** (your target: {min_cool:.4f})  \n"
                     f"- Food: up to **{opt['max_food']:.3f}M lbs** (your target: {min_food:.3f})  \n"
-                    f"- Carbon: up to **{opt['max_carbon']:,.0f} {_opt_carbon_unit}** (your target: {min_carbon:,})  \n"
+                    f"- Carbon: up to **{opt['max_carbon']:,.0f} {_carbon_unit_suffix}** (your target: {min_carbon:,})  \n"
                     f"Try lowering the target for whichever metric is furthest from its maximum."
                 )
             else:

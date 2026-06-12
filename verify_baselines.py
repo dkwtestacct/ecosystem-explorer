@@ -3692,6 +3692,55 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         glyph_diffs += 1
 
+    # ── Carbon unit single-source lock — no duplicate long-form unit vars ────
+    # All carbon value-display surfaces (scatter Y-label, comparison table, the
+    # no-results warning) route through the shared _carbon_unit_suffix ("t CO2e"
+    # / "t CO2e/yr"). The two retired long-form unit vars (_carbon_unit,
+    # _opt_carbon_unit = "tons CO2e") must NOT reappear — they were the source of
+    # the "tons CO2e" drift. The gate can't render the labels, so source-scan for
+    # a bare assignment of either var (word-boundary, so _carbon_unit_suffix /
+    # _carbon_unit_label don't false-positive). Flip-test seeds a re-introduction
+    # and asserts it's caught. Input sliders keep "tons CO2e" by design and are
+    # NOT scanned (they don't assign these vars).
+    print(f"\n{'=' * 60}")
+    print("Carbon unit single-source lock")
+    print(f"{'=' * 60}")
+    carbon_unit_diffs = 0
+    try:
+        import re as _re_cu
+        _app_src_cu = Path("app.py").read_text(encoding="utf-8")
+        # Bare assignment of either retired unit var. \b before the name keeps
+        # _carbon_unit_suffix / _carbon_unit_label / _opt_carbon_col_label clean.
+        _dup_pat = _re_cu.compile(r"(?<![\w])(_carbon_unit|_opt_carbon_unit)\s*=")
+        _hits = [m.group(1) for m in _dup_pat.finditer(_app_src_cu)]
+        if _hits:
+            print(f"  FAIL duplicate carbon unit source(s) reintroduced: {_hits} "
+                  "— route value-display units through _carbon_unit_suffix instead")
+            carbon_unit_diffs += len(_hits)
+        else:
+            print("  OK   no _carbon_unit / _opt_carbon_unit assignment remains "
+                  "(single source: _carbon_unit_suffix)")
+        # Flip-test (non-vacuous): a seeded re-introduction must be caught, and
+        # the shared-suffix var must NOT be mistaken for the retired one.
+        _seed_bad = "    _carbon_unit = 'tons CO2e' if x else 'tons CO2e/yr'\n"
+        _seed_ok = "    _carbon_unit_suffix = 't CO2e' if x else 't CO2e/yr'\n"
+        if not _dup_pat.search(_seed_bad):
+            print("  FAIL flip-test: a seeded _carbon_unit re-introduction was "
+                  "NOT caught — the scan is blind")
+            carbon_unit_diffs += 1
+        elif _dup_pat.search(_seed_ok):
+            print("  FAIL flip-test: the scan false-positives on "
+                  "_carbon_unit_suffix (word-boundary too loose)")
+            carbon_unit_diffs += 1
+        else:
+            print("  OK   flip-test: seeded re-introduction caught, shared "
+                  "_carbon_unit_suffix not mistaken for it")
+    except Exception as _e:
+        print(f"  ERROR carbon unit single-source lock: {_e}")
+        import traceback
+        traceback.print_exc()
+        carbon_unit_diffs += 1
+
     # ── Flood Damage Avoided conditional render — table-presence gate lock ───
     # The card is hidden ONLY when the city has no damage-valuation table; the
     # gate must key on TOTAL_POTENTIAL_DAMAGE_USD (table presence), NEVER on the
@@ -4231,7 +4280,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
                    + retention_idx_diffs + calib_diffs + child_card_diffs
                    + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
-                   + glyph_diffs + fda_diffs)
+                   + glyph_diffs + carbon_unit_diffs + fda_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4333,6 +4382,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "lost its shape glyph (◆ ■ ○ △) on the live render path, the "
                   "flip-test caught a cross-tier glyph, or the legend caption's "
                   "glyphs drifted from what render_validation_badge emits.")
+        if carbon_unit_diffs:
+            print(f"{carbon_unit_diffs} carbon-unit single-source divergence(s) — "
+                  "a duplicate long-form unit var (_carbon_unit / _opt_carbon_unit, "
+                  "'tons CO2e') reappeared; route value-display units through the "
+                  "shared _carbon_unit_suffix instead.")
         if fda_diffs:
             print(f"{fda_diffs} flood-damage gate divergence(s) — the card hide "
                   "keys on the computed value instead of table presence, or the "
