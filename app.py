@@ -6639,9 +6639,9 @@ with _sec_discover:
         # Two-RELAY lock — selected-area mode label + caption + Optimize
         # button co-render in the same block (Assertion B). Mode label is
         # promoted markdown (visible), not a faint caption.
-        st.markdown("**Region machine-learning search**")
+        st.markdown("**Selected-area search**")
         st.caption(
-            "Finds best tested mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not predicted by the model."
+            "Searches candidate mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not model predictions."
         )
         with st.popover("How this works"):
             st.markdown(
@@ -7262,9 +7262,9 @@ _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
 with st.container(border=True):
     st.markdown("### Discover scenarios")
     if _filter_active:
-        st.markdown("**Region machine-learning search**")
+        st.markdown("**Selected-area search**")
         st.caption(
-            "Finds best tested mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not predicted by the model."
+            "Searches candidate mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not model predictions."
         )
         _cta_optimize_help = _OPTIMIZE_HELP_REGION
     else:

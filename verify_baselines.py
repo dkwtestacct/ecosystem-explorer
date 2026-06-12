@@ -2433,10 +2433,11 @@ def main(update: bool) -> int:
         # within the same st.container scope). Both surfaces have mode
         # labels:
         #   "Citywide machine-learning search"   (citywide)
-        #   "Region machine-learning search"          (region)
+        #   "Selected-area search"               (region — engine-verified, so
+        #                                         no "machine-learning" claim)
         MODE_LABEL_STRINGS = (
             "Citywide machine-learning search",
-            "Region machine-learning search",
+            "Selected-area search",
         )
         # Find Optimize button call sites.
         _button_lines = []
@@ -2466,7 +2467,7 @@ def main(update: bool) -> int:
                       f"a mode label in the preceding 120 lines:")
                 for _l in _unpaired:
                     print(f"    line {_l}: no 'Citywide surrogate search' "
-                          f"or 'Region machine-learning search' nearby")
+                          f"or 'Selected-area search' nearby")
                 two_relay_diffs += len(_unpaired)
             else:
                 print(f"  OK   all {len(_button_lines)} Optimize "
@@ -2549,9 +2550,9 @@ def main(update: bool) -> int:
         #   citywide → "Fast estimates suggest promising mixes; apply one to
         #              recompute it with the InVEST-aligned evaluator." (fast
         #              estimates, not InVEST-aligned-evaluator outputs)
-        #   region   → "Finds best tested mixes under the current area and
+        #   region   → "Searches candidate mixes under the current area and
         #              filters. Displayed values are computed by the
-        #              InVEST-aligned evaluator, not predicted by the model."
+        #              InVEST-aligned evaluator, not model predictions."
         # Both expected literals must appear ≥2× in app.py (sidebar + CTA),
         # and each must appear immediately after a matching mode label
         # within a small window (so they pair with their mode, not float).
@@ -2563,8 +2564,8 @@ def main(update: bool) -> int:
             "with the InVEST-aligned evaluator."
         )
         _RG_CAPTION_EXPECTED = (
-            "Finds best tested mixes under the current area and filters. "
-            "Displayed values are computed by the InVEST-aligned evaluator, not predicted by the model."
+            "Searches candidate mixes under the current area and filters. "
+            "Displayed values are computed by the InVEST-aligned evaluator, not model predictions."
         )
         _cw_cap_count = _src2.count(_CW_CAPTION_EXPECTED)
         _rg_cap_count = _src2.count(_RG_CAPTION_EXPECTED)
@@ -2592,7 +2593,7 @@ def main(update: bool) -> int:
         #        must fail the exact-literal check.
         _seed_d_cw = ("st.caption(\"Fast estimates suggest promising mixes. "
                       "Apply one to compute it with the engine.\")\n")
-        _seed_d_rg = ("st.caption(\"Finds best tested mixes under whatever "
+        _seed_d_rg = ("st.caption(\"Searches candidate mixes under whatever "
                       "filters.\")\n")
         _meta_d_ok = True
         if _CW_CAPTION_EXPECTED in _seed_d_cw:
