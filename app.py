@@ -7162,6 +7162,16 @@ _carbon_value = results['carbon_tons_co2']
 # above; here we derive the dependent display strings.
 _carbon_unit_suffix = "t CO2e" if _CARBON_IS_STOCK else "t CO2e/yr"
 
+# Optimizer candidate tables + the Fast-estimate range table all render the SAME
+# field (carbon_tons_co2 — a one-time stock CHANGE vs baseline for SA, an annual
+# sequestration flow for MN), so they share ONE column label and can never
+# diverge. Wording matches the card ("Carbon Storage Change" / "Carbon
+# Sequestration"); unit is the normalized suffix (t CO2e — never "tons CO2e").
+_carbon_table_col_label = (
+    f"Carbon storage change ({_carbon_unit_suffix})" if _CARBON_IS_STOCK
+    else f"Carbon sequestration ({_carbon_unit_suffix})"
+)
+
 def _fmt_carbon(tons):
     """Units-less carbon magnitude for the card value (unit lives in the label).
     Single-sourced on _fmt_sig — 3,095,697 → '3.10M' (screening precision)."""
@@ -9381,10 +9391,7 @@ if _main_tab == 'Tradeoffs':
                 ),
                 axis=1,
             )
-            _opt_carbon_col_label_r = (
-                "Carbon (tons CO2e stock)" if _CARBON_IS_STOCK
-                else "Carbon (tons CO2e/yr)"
-            )
+            _opt_carbon_col_label_r = _carbon_table_col_label
             _r_display_cols = [
                 'Rank', 'Mix', 'weighted_score', 'converted_acres',
                 'mean_hm', 'flood_reduction', 'carbon_tons_co2',
@@ -9434,10 +9441,7 @@ if _main_tab == 'Tradeoffs':
             opt = st.session_state.optimized_results
             # Brief 30: SA optimizer reports stock-change; MN reports annual flow.
             _opt_carbon_unit = "tons CO2e" if _CARBON_IS_STOCK else "tons CO2e/yr"
-            _opt_carbon_col_label = (
-                "Carbon (tons CO2e stock)" if _CARBON_IS_STOCK
-                else "Carbon (tons CO2e/yr)"
-            )
+            _opt_carbon_col_label = _carbon_table_col_label
             if isinstance(opt, dict) and not opt.get('found'):
                 st.warning(
                     f"No scenarios found meeting all targets simultaneously.  \n"
@@ -9516,7 +9520,7 @@ if _main_tab == 'Tradeoffs':
                              f"{_fmt_sig(_t['hm_lower'])}–{_fmt_sig(_t['hm_upper'])}"),
                             ("Food production", f"{_t['food_mln_lbs']:.1f}M lbs",
                              f"{_t['food_lower']:.1f}–{_t['food_upper']:.1f}M lbs"),
-                            (f"Carbon storage ({_carbon_unit_suffix})", _cf,
+                            (_carbon_table_col_label, _cf,
                              f"{_cl}–{_ch}"),
                         ]
                         st.dataframe(
