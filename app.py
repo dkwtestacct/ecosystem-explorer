@@ -663,7 +663,6 @@ def _reset_state_for_city_switch(session_state) -> None:
     session_state.active_example_scenario = 'balanced'
     session_state.optimized_results = None
     session_state.region_optimized_results = None
-    session_state.just_optimized = False
     session_state.applied_from_optimizer = False
     session_state._applied_optimizer_values = None
     session_state.applied_from_region_optimizer = False
@@ -4554,7 +4553,6 @@ def _fire_citywide_optimize(
     if _opt_res is None or (
             isinstance(_opt_res, dict) and not _opt_res.get('found')):
         st.warning("No scenarios found — try lowering the targets.")
-        st.session_state.just_optimized = False
     else:
         # On success, jump directly to Tradeoffs instead of nudging
         # the user to switch tabs manually. Setting the segmented_control's
@@ -4562,7 +4560,6 @@ def _fire_citywide_optimize(
         # very next rerun (before any tab body renders this turn). Toast
         # replaces the prior 'open the Tradeoffs tab →' success
         # banner since the switch is the actual confirmation.
-        st.session_state.just_optimized = True
         st.session_state['main_tab'] = "Tradeoffs"
         st.toast("Results ready — opening Tradeoffs ↓")
         st.rerun()
@@ -4626,12 +4623,10 @@ def _fire_region_optimize(
             "selecting a different region."
         )
         st.session_state.region_optimized_results = None
-        st.session_state.just_optimized = False
     else:
         st.session_state.region_optimized_results = region_out
         # Auto-switch to Tradeoffs on success — same pattern as the
         # citywide branch above. See its comment for why.
-        st.session_state.just_optimized = True
         st.session_state['main_tab'] = "Tradeoffs"
         st.toast("Results ready — opening Tradeoffs ↓")
         st.rerun()
@@ -8431,25 +8426,6 @@ with st.expander("Assumptions and limitations"):
 
 st.divider()
 
-if st.session_state.get("just_optimized"):
-    _applied_idx = st.session_state.get("applied_suggestion")
-    if _applied_idx is not None:
-        _banner_msg = (
-            f"Sliders updated to match suggestion #{_applied_idx + 1}. "
-            "Switch to Tradeoffs to verify."
-        )
-    else:
-        _banner_msg = (
-            "Optimization complete — switch to the Tradeoffs tab to see results."
-        )
-    banner_col, dismiss_col = st.columns([5, 1])
-    with banner_col:
-        st.info(_banner_msg)
-    with dismiss_col:
-        if st.button("✕", key="dismiss_optimize_banner"):
-            st.session_state.just_optimized = False
-            st.rerun()
-
 mode_text = f"using {PLACEMENT_STRATEGY_LABELS[placement_strategy].lower()}"
 # Region active → name the region in the sentence so the user sees the
 # placement scope inline ("...eligible developed land within Council District 5,
@@ -8492,10 +8468,16 @@ st.caption(
 )
 
 _MAIN_TAB_NAMES = ["Scenario", "Tradeoffs", "Map View", "NatCap Reference"]
+# Seed the widget's session_state key once instead of passing default= — the
+# optimize branches write st.session_state['main_tab'] = "Tradeoffs" before this
+# widget instantiates, and a default= alongside a pre-existing key value makes
+# Streamlit emit a "default will be ignored" warning. Seeding first-load only
+# (Scenario) leaves the post-optimize Tradeoffs write authoritative.
+if "main_tab" not in st.session_state:
+    st.session_state["main_tab"] = _MAIN_TAB_NAMES[0]
 _main_tab = st.segmented_control(
     "Main view",
     options=_MAIN_TAB_NAMES,
-    default=_MAIN_TAB_NAMES[0],
     label_visibility="collapsed",
     key="main_tab",
 )
@@ -8581,14 +8563,6 @@ if _main_tab == 'Scenario':
 
 if _main_tab == 'Tradeoffs':
     with tab2:
-        # NOTE: We deliberately do NOT auto-clear `just_optimized` here. Streamlit
-        # executes every `with tabX:` block on every rerun (regardless of which
-        # tab is visible), so an auto-clear inside this block fires on the next
-        # rerun rather than only when the user actually opens this tab — which
-        # made the optimization banner vanish prematurely. The dismiss-X button
-        # on the banner is now the only way to clear the flag, plus running a
-        # new optimization (which sets it back to True or False).
-
         # Brief A.3: filter saved scenarios to the active city. The .get("city",
         # selected_city) default is backward-compatible — in-memory saves from
         # before A.3 lacked the `city` key; treat them as belonging to the

@@ -1809,7 +1809,6 @@ def main(update: bool) -> int:
             'slider_gi_pct':                        70,
             'slider_ff_pct':                        20,
             'optimized_results':                    'fake-results-from-SA',
-            'just_optimized':                       True,
             'applied_from_optimizer':               True,
             '_applied_optimizer_values':            (25, 70, 20),
             'active_example_scenario':              'cooling',
@@ -1849,8 +1848,6 @@ def main(update: bool) -> int:
             # Optimizer + preset-highlight state reset.
             ('optimized_results cleared',
                 test_ss.get('optimized_results'), None),
-            ('just_optimized = False',
-                test_ss.get('just_optimized'), False),
             ('applied_from_optimizer = False',
                 test_ss.get('applied_from_optimizer'), False),
             ('_applied_optimizer_values cleared',
@@ -3741,6 +3738,71 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         carbon_unit_diffs += 1
 
+    # ── Post-optimize auto-switch migration lock ─────────────────────────────
+    # The optimize branches auto-switch to Tradeoffs (set main_tab + toast +
+    # rerun); the old manual-switch "just_optimized" banner was removed. The gate
+    # can't render a removed banner or catch a Streamlit runtime warning, so
+    # source-scan: (1) the dead flag never reappears, and (2) the main_tab
+    # segmented_control carries no default=/value=/index= (which would re-trigger
+    # the "default ignored" warning against the seeded session_state key). Both
+    # have flip-test seeds so the scan can't pass vacuously.
+    print(f"\n{'=' * 60}")
+    print("Post-optimize auto-switch migration lock")
+    print(f"{'=' * 60}")
+    autoswitch_diffs = 0
+    try:
+        import re as _re_as
+        _app_src_as = Path("app.py").read_text(encoding="utf-8")
+        # Guard 1 — the dead flag is gone and stays gone.
+        if "just_optimized" in _app_src_as:
+            print("  FAIL 'just_optimized' still appears in app.py — the dead "
+                  "manual-switch flag wasn't fully removed")
+            autoswitch_diffs += 1
+        else:
+            print("  OK   'just_optimized' absent (dead manual-switch flag removed)")
+        # Guard 2 — the main_tab segmented_control has no default=/value=/index=.
+        # Isolate the keyed call body, then scan it for the forbidden kwargs.
+        def _main_tab_widget_body(src):
+            _m = _re_as.search(r"st\.segmented_control\((.*?)\)",
+                               src, _re_as.S)
+            # Walk all segmented_control calls; return the one keyed "main_tab".
+            for _mm in _re_as.finditer(r"st\.segmented_control\((.*?)\)",
+                                       src, _re_as.S):
+                if 'key="main_tab"' in _mm.group(1) or "key='main_tab'" in _mm.group(1):
+                    return _mm.group(1)
+            return None
+        _body = _main_tab_widget_body(_app_src_as)
+        if _body is None:
+            print("  FAIL could not locate the main_tab st.segmented_control "
+                  "call (re-point the scan)")
+            autoswitch_diffs += 1
+        elif _re_as.search(r"\b(default|value|index)\s*=", _body):
+            print("  FAIL the main_tab segmented_control passes a "
+                  "default=/value=/index= arg — collides with the seeded "
+                  "session_state key (Streamlit 'default ignored' warning)")
+            autoswitch_diffs += 1
+        else:
+            print("  OK   main_tab segmented_control has no default/value/index "
+                  "(session_state key seeded separately)")
+        # Flip-test (non-vacuous): both guards must fire on reintroduced code.
+        if "just_optimized" not in "st.session_state.just_optimized = True":
+            print("  FAIL flip-test: Guard 1 is blind to a seeded flag write")
+            autoswitch_diffs += 1
+        _seed_widget = ('st.segmented_control("Main view", options=X, '
+                        'default=X[0], key="main_tab")')
+        _seed_body = _main_tab_widget_body(_seed_widget)
+        if _seed_body is None or not _re_as.search(r"\b(default|value|index)\s*=",
+                                                   _seed_body):
+            print("  FAIL flip-test: Guard 2 is blind to a seeded default= arg")
+            autoswitch_diffs += 1
+        if autoswitch_diffs == 0:
+            print("  OK   flip-test: both guards fire on reintroduced banner/default")
+    except Exception as _e:
+        print(f"  ERROR post-optimize auto-switch migration lock: {_e}")
+        import traceback
+        traceback.print_exc()
+        autoswitch_diffs += 1
+
     # ── Flood Damage Avoided conditional render — table-presence gate lock ───
     # The card is hidden ONLY when the city has no damage-valuation table; the
     # gate must key on TOTAL_POTENTIAL_DAMAGE_USD (table presence), NEVER on the
@@ -4280,7 +4342,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + toggle_diffs + vocab_diffs + fast_grid_diffs
                    + retention_idx_diffs + calib_diffs + child_card_diffs
                    + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
-                   + glyph_diffs + carbon_unit_diffs + fda_diffs)
+                   + glyph_diffs + carbon_unit_diffs + autoswitch_diffs
+                   + fda_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4387,6 +4450,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "a duplicate long-form unit var (_carbon_unit / _opt_carbon_unit, "
                   "'tons CO2e') reappeared; route value-display units through the "
                   "shared _carbon_unit_suffix instead.")
+        if autoswitch_diffs:
+            print(f"{autoswitch_diffs} post-optimize auto-switch divergence(s) — "
+                  "the removed 'just_optimized' banner flag reappeared, or the "
+                  "main_tab segmented_control regained a default=/value=/index= "
+                  "arg that collides with the seeded session_state key.")
         if fda_diffs:
             print(f"{fda_diffs} flood-damage gate divergence(s) — the card hide "
                   "keys on the computed value instead of table presence, or the "
