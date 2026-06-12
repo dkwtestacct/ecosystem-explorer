@@ -7342,15 +7342,16 @@ with st.container(border=True):
         st.caption(
             "Searches candidate mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not model predictions."
         )
-        _cta_optimize_help = _OPTIMIZE_HELP_REGION
     else:
         st.markdown("**Citywide machine-learning search**")
         st.caption("Fast estimates suggest promising mixes; apply one to recompute with the InVEST-aligned evaluator.")
-        _cta_optimize_help = _OPTIMIZE_HELP_CITYWIDE
+    # No help= on the main CTA button: the card already explains itself (mode
+    # label + caption above), and a help tooltip here floats over the card. The
+    # sidebar Optimize buttons keep their help (_OPTIMIZE_HELP_*), where there's
+    # less overlap.
     if st.button("Optimize", type="primary",
                   key="main_cta_optimize_button",
-                  width="stretch",
-                  help=_cta_optimize_help):
+                  width="stretch"):
         if _filter_active:
             _fire_region_optimize(
                 _CURRENT_CITY_STATE, selected_city,
