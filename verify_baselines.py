@@ -2965,17 +2965,30 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"  OK   no long-form labels reappeared in {len(_metric_labels)} "
                   f"st.metric call(s) scanned ({len(_LABEL_REGRESSIONS)} regression strings checked).")
 
-        # Half (b) — short-form labels must still be present.
-        _present_short = {lab for (_ln, lab) in _metric_labels}
+        # Half (b) — short-form labels must still be present. The three Cost
+        # Effectiveness labels now live in app.py's _CE_CARD_SPECS list and reach
+        # st.metric via a variable (col.metric(_lbl, …)) so they're string-literal
+        # Constants but NOT metric-label args — scan ALL string-literal Constants
+        # for the presence check, not only metric labels. (Half (a) stays on
+        # metric-label args: a long form must not RENDER as a metric label.)
+        try:
+            _tree_all = _ast2.parse(_app_src)
+            _all_str_consts = {n.value for n in _ast2.walk(_tree_all)
+                               if isinstance(n, _ast2.Constant)
+                               and isinstance(n.value, str)}
+        except SyntaxError:
+            _all_str_consts = set()
+        _present_short = {lab for (_ln, lab) in _metric_labels} | _all_str_consts
         _missing = [s for s in _LABEL_REGRESSIONS.values()
                     if s not in _present_short]
         if _missing:
             for s in _missing:
-                print(f"  FAIL short-form label '{s}' is missing from "
-                      "app.py st.metric calls (label disappeared entirely?)")
+                print(f"  FAIL short-form label '{s}' is missing from app.py "
+                      "(metric-label arg or _CE_CARD_SPECS — disappeared entirely?)")
             label_budget_diffs += len(_missing)
         else:
-            print(f"  OK   all {len(_LABEL_REGRESSIONS)} shortened labels still present in st.metric calls")
+            print(f"  OK   all {len(_LABEL_REGRESSIONS)} shortened labels still present "
+                  "(st.metric args + _CE_CARD_SPECS literals)")
 
         # Meta-test (load-bearing): synthesize a snippet that reintroduces
         # one long form and one missing short form; confirm the scan catches
@@ -3803,6 +3816,73 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         autoswitch_diffs += 1
 
+    # ── Cost-effectiveness suppression condition lock ────────────────────────
+    # The dashboard #### Cost Effectiveness section renders a ratio card ONLY
+    # where compute_cost_effectiveness returns a number; it hides the card (vs an
+    # "N/A" card) when the ratio is None. This locks the SUPPRESSION CONDITION the
+    # render keys on — compute_cost_effectiveness is pure, so call it directly with
+    # crafted results dicts, both directions, non-vacuous. The honesty-critical
+    # case: WARMING (temp_change_f ≥ 0) must yield None (no cooling ratio), so a
+    # bad outcome can never masquerade as a cheap one.
+    print(f"\n{'=' * 60}")
+    print("Cost-effectiveness suppression condition lock")
+    print(f"{'=' * 60}")
+    ce_diffs = 0
+    try:
+        _ce_fn = app.compute_cost_effectiveness
+        _BR = 1000.0   # baseline runoff ac-ft
+
+        def _ce_res(**ov):
+            _d = {'total_cost_mln': 5.0, 'runoff_acre_feet': 980.0,
+                  'temp_change_f': -0.5, 'people_fed': 500}
+            _d.update(ov)
+            return _d
+
+        # (label, results-overrides, key, want_number)  want_number=True → a
+        # numeric ratio must render; False → None (card suppressed).
+        _cases = [
+            # runoff: ≥10 ac-ft prevented → number; 0 prevented / negative → None.
+            ("runoff prevented 20 ac-ft", {'runoff_acre_feet': 980.0},
+             'cost_per_acft', True),
+            ("runoff prevented 0",        {'runoff_acre_feet': 1000.0},
+             'cost_per_acft', False),
+            ("runoff went UP (negative)", {'runoff_acre_feet': 1010.0},
+             'cost_per_acft', False),
+            # cooling: ≤ −0.05 °F → number; warming (≥0) → None; |Δ|<0.05 → None.
+            ("cooling −0.5 °F",           {'temp_change_f': -0.5},
+             'cost_per_degf', True),
+            ("WARMING +0.5 °F",           {'temp_change_f': 0.5},
+             'cost_per_degf', False),
+            ("cooling tiny −0.01 °F",     {'temp_change_f': -0.01},
+             'cost_per_degf', False),
+            # food: ≥100 people → number; 0 (<100) → None.
+            ("people fed 500",            {'people_fed': 500},
+             'cost_per_1k_people', True),
+            ("people fed 0",              {'people_fed': 0},
+             'cost_per_1k_people', False),
+        ]
+        for _name, _ov, _key, _want_num in _cases:
+            _out = _ce_fn(_ce_res(**_ov), _BR)[_key]
+            _is_num = isinstance(_out, (int, float)) and _out is not None
+            if _is_num != _want_num:
+                print(f"  FAIL {_name}: {_key} = {_out!r}, "
+                      f"want {'a number' if _want_num else 'None'}")
+                ce_diffs += 1
+        # cost ≤ 0 → all three None (nothing is cost-effective at zero cost).
+        for _cost in (0.0, -1.0):
+            _all = _ce_fn(_ce_res(total_cost_mln=_cost), _BR)
+            if any(v is not None for v in _all.values()):
+                print(f"  FAIL cost={_cost}: expected all None, got {_all}")
+                ce_diffs += 1
+        if ce_diffs == 0:
+            print(f"  OK   suppression condition holds across {len(_cases)} crafted "
+                  "cases + cost≤0 (warming→None is the honesty-critical case)")
+    except Exception as _e:
+        print(f"  ERROR cost-effectiveness suppression lock: {_e}")
+        import traceback
+        traceback.print_exc()
+        ce_diffs += 1
+
     # ── Flood Damage Avoided conditional render — table-presence gate lock ───
     # The card is hidden ONLY when the city has no damage-valuation table; the
     # gate must key on TOTAL_POTENTIAL_DAMAGE_USD (table presence), NEVER on the
@@ -4343,7 +4423,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + retention_idx_diffs + calib_diffs + child_card_diffs
                    + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
                    + glyph_diffs + carbon_unit_diffs + autoswitch_diffs
-                   + fda_diffs)
+                   + ce_diffs + fda_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4455,6 +4535,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "the removed 'just_optimized' banner flag reappeared, or the "
                   "main_tab segmented_control regained a default=/value=/index= "
                   "arg that collides with the seeded session_state key.")
+        if ce_diffs:
+            print(f"{ce_diffs} cost-effectiveness suppression divergence(s) — "
+                  "compute_cost_effectiveness changed which denominators yield None "
+                  "(zero/negative/below-epsilon, or warming→None), so the dashboard "
+                  "card-hide condition drifted. Re-confirm the floors on purpose.")
         if fda_diffs:
             print(f"{fda_diffs} flood-damage gate divergence(s) — the card hide "
                   "keys on the computed value instead of table presence, or the "

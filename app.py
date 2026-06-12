@@ -8105,40 +8105,43 @@ st.divider()
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
 st.markdown("#### Cost Effectiveness")
 st.caption(
-    "Screening ratios estimate implementation cost per unit of benefit using the "
-    "\\$/acre assumptions in the sidebar. Useful for comparing scenarios, not "
-    "budgeting. Lower is better. If a scenario produces little, zero, or negative "
-    "benefit, the ratio is not meaningful and may show N/A."
+    "Screening ratios: implementation cost per unit of positive benefit, using "
+    "the \\$/acre assumptions in the sidebar — for comparing scenarios, not "
+    "budgeting (lower is better). A ratio appears only where the scenario "
+    "meaningfully improves that metric; anything it doesn't improve, including "
+    "negative impacts, stays visible in the outcome cards above."
 )
-ceff1, ceff2, ceff3 = st.columns(3)
-ceff1.metric(
-    "Cost / ac-ft runoff",
-    _fmt_ce(ce['cost_per_acft']),
-    delta=None,
-    help=("Implementation cost divided by acre-feet of runoff volume reduced "
-          "versus baseline. Lower is better. N/A if runoff does not improve. "
-          "See 'How this prototype works'.")
-)
-_render_validation_caption(ceff1, "cost_per_acft", _validation_scenario_context, explicit_status="prototype")
-ceff2.metric(
-    "Cost / °F cooling",
-    _fmt_ce(ce['cost_per_degf']),
-    delta=None,
-    delta_color="off" if _temp_change_f >= 0 else "normal",
-    help=("Implementation cost divided by city-average °F cooling versus "
-          "baseline. Lower is better. N/A if cooling is too small or not "
-          "meaningful. See 'How this prototype works'.")
-)
-_render_validation_caption(ceff2, "cost_per_degf", _validation_scenario_context, explicit_status="prototype")
-ceff3.metric(
-    "Cost / 1k people fed",
-    _fmt_ce(ce['cost_per_1k_people']),
-    delta=None,
-    help=("Implementation cost divided by estimated people fed, in thousands. "
-          "Lower is better. N/A if food production is zero or too small to "
-          "interpret. See 'How this prototype works'.")
-)
-_render_validation_caption(ceff3, "cost_per_1k_people", _validation_scenario_context, explicit_status="prototype")
+# Render a ratio card only where the ratio is meaningful. compute_cost_effectiveness
+# returns None for zero/negative/below-epsilon denominators (incl. warming, which
+# yields no cooling ratio); an "N/A" card on the dashboard reads as broken, so we
+# hide it instead. The outcome cards above are a separate, unconditional section
+# that still shows good/zero/negative impacts — so hiding a ratio never hides bad
+# news. Tables/CSV/audit/optimizer keep _fmt_ce → "N/A" for stable columns.
+_CE_CARD_SPECS = [
+    ("Cost / ac-ft runoff", "cost_per_acft",
+     "Implementation cost divided by acre-feet of runoff reduced versus "
+     "baseline. Lower is better. See 'How this prototype works'."),
+    ("Cost / °F cooling", "cost_per_degf",
+     "Implementation cost divided by city-average °F cooling versus baseline. "
+     "Lower is better. See 'How this prototype works'."),
+    ("Cost / 1k people fed", "cost_per_1k_people",
+     "Implementation cost divided by estimated people fed, in thousands. "
+     "Lower is better. See 'How this prototype works'."),
+]
+_ce_cards = [(lbl, ce[key], hlp, key) for (lbl, key, hlp) in _CE_CARD_SPECS
+             if ce[key] is not None]
+if _ce_cards:
+    _ce_cols = st.columns(len(_ce_cards))
+    for _col, (_lbl, _val, _hlp, _key) in zip(_ce_cols, _ce_cards):
+        _col.metric(_lbl, _fmt_ce(_val), delta=None, help=_hlp)
+        _render_validation_caption(_col, _key, _validation_scenario_context,
+                                   explicit_status="prototype")
+else:
+    st.caption(
+        "No cost-effectiveness ratios for this scenario — it doesn't meaningfully "
+        "improve runoff, cooling, or food production. Its impacts are in the "
+        "outcome cards above."
+    )
 
 with st.expander("Baseline vs Scenario Comparison", expanded=False):
     # read from state to avoid silent-staleness if city switches
