@@ -5859,10 +5859,6 @@ _sec_placement         = st.sidebar.expander("Placement Strategy",
 _sec_costs             = st.sidebar.expander(
     "Cost assumptions", expanded=False,
 )
-_sec_carbon_rates      = (
-    st.sidebar.expander("Carbon rates", expanded=False)
-    if _carbon_rates_available else None
-)
 # The capstone "find better options", below the setup sections. Calm default:
 # collapsed like the other setup sections — only Scenario opens by default.
 _sec_discover          = st.sidebar.expander("Search goals",
@@ -6083,13 +6079,15 @@ with _sec_costs:
         help="Marginal cost of additional impervious development. Default is an illustrative estimate — adjust to reflect local project costs.",
     )
 
-# ── Sidebar section: Carbon rates (MN only) ────────────────────────────────
-# Extracted out of Scenario. SA's Carbon uses NatCap's four-pool stock
-# table directly — no per-pool override is exposed; the expander only
-# renders for MN. SA's path seeds session_state defaults outside any
-# expander so downstream `st.session_state.carbon_rate_*` reads still work.
-if _sec_carbon_rates is not None:
-    with _sec_carbon_rates:
+    # ── Carbon valuation (MN only) — folded in from the former standalone
+    # "Carbon rates" expander. SA's Carbon uses NatCap's four-pool stock table
+    # directly (no per-pool override exposed), so this subsection renders only
+    # for MN; SA seeds the same session_state defaults outside any expander
+    # below so downstream `st.session_state.carbon_rate_*` reads still work.
+    # A small divider keeps the two groups ($/acre costs vs carbon $ valuation)
+    # visually distinct.
+    if _carbon_rates_available:
+        st.markdown("**Carbon valuation**")
         st.slider(
             "Food Forest carbon rate (t CO2e/acre/yr)",
             0.5, 18.0, 3.5, 0.5,
@@ -6107,7 +6105,10 @@ if _sec_carbon_rates is not None:
             "values or sensitivity test assumptions. See Methodology & Data Sources for "
             "sources and caveats."
         )
-else:
+
+# SA (and any stock-carbon city) seeds carbon-rate defaults outside any expander
+# — no MN carbon subsection renders — so downstream reads still resolve.
+if not _carbon_rates_available:
     st.session_state.setdefault("carbon_rate_ff", 3.5)
     st.session_state.setdefault("carbon_rate_gi", 2.0)
 
