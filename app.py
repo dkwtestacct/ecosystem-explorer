@@ -5381,7 +5381,8 @@ def _ownership_source_suffix(results_or_saved) -> str:
 def _render_scenario_provenance_header(provenance, scenario_label=None,
                                        scenario_id=None,
                                        trailing_caption=None,
-                                       source_suffix=""):
+                                       source_suffix="",
+                                       show_scenario_label=True):
     """Render a prominent Source + Validation header for the active scenario.
 
     `provenance` is one of `eib.PROVENANCE_*`. `scenario_label` is the
@@ -5401,7 +5402,7 @@ def _render_scenario_provenance_header(provenance, scenario_label=None,
     source = f"{source}{source_suffix}"
     color = _VALIDATION_BADGE_COLOR_HEX.get(color_key, "#6e7681")
     id_caption = f" · <code>scenario_id={scenario_id}</code>" if scenario_id else ""
-    if scenario_label:
+    if scenario_label and show_scenario_label:
         st.markdown(f"## {scenario_label}")
     st.markdown(
         f'<div style="margin: 0.2em 0 1.0em 0; padding: 0.5em 0.75em; '
@@ -7308,8 +7309,14 @@ _source_suffix = (
     (" · selected region" if _region_active else "")
     + (_ownership_source_suffix(results) if _scen_provenance == eib.PROVENANCE_EXPLORER else "")
 )
+# show_scenario_label=False — the Active scenario block (line 1) directly above
+# already names the recipe, and the Source line below restates it; the big ##
+# heading here was a third copy. Drop it; the Source/Validation box is
+# self-labelled, and the actual metrics live two sections down (Discover +
+# tabs), so a "results" header here would be misplaced.
 _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
-                                    source_suffix=_source_suffix)
+                                    source_suffix=_source_suffix,
+                                    show_scenario_label=False)
 
 # ── Optimizer Promotion — main-panel CTA (centerpiece) ──────────────────────
 # Two-RELAY lock structure: card title "Discover scenarios" (constant) +
