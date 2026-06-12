@@ -5817,37 +5817,34 @@ st.session_state.setdefault("slider_gi_pct",
 st.session_state.setdefault("slider_ff_pct",
                             SCENARIO_DEFAULT_FF_PCT)
 
-# ── Sidebar visual order (Optimizer Promotion) ─────────────────────────────
-# Pre-create the five section expanders in VISUAL order — Scenario,
-# Discover scenarios (promoted to position 2 per the Optimizer
-# Promotion brief), Spatial targeting, Eligibility filters, Export.
-# Code below populates each via `with _sec_<name>:` in DEPENDENCY order
-# (Scenario → Where → Eligibility → Discover → Export) so the Discover
-# block reads session_state that the Where + Eligibility blocks set
-# in the same rerun — no one-rerun mode-switch lag.
+# ── Sidebar visual order ───────────────────────────────────────────────────
+# Pre-create the section expanders in VISUAL (workflow) order — the user reads
+# the sidebar top-to-bottom as build → target → filter → search → tune →
+# export:
+#   Scenario (Build) → Quick Start → Choose area → Eligible land →
+#   Placement Strategy → Search goals → Cost assumptions →
+#   Advanced: model quality → Export / handoff.
+# Quick Start sits at position 2 (next to Build) because presets are the fast
+# way to *build* a scenario — onboarding, not an afterthought (this reverses
+# the earlier "Quick Start at the bottom" rationale). Carbon valuation is no
+# longer a standalone section: it's folded into Cost assumptions as an MN-only
+# subsection, so this is nine sections, not ten.
+#
+# The expander DEFINITION order below sets the visual order (Streamlit renders
+# each container where it's defined). The `with _sec_*:` population blocks are
+# UNMOVED and run in DEPENDENCY order (Scenario → Quick Start → Placement →
+# Cost → Where → Eligibility → Search goals → Advanced → Export), so the Search
+# goals block still reads the cost-slider / region-mask / ownership-mask state
+# the populate-earlier blocks set in the same rerun — no one-rerun lag, and the
+# Assertion-B button/mode-label pairings stay intact.
 _where_expanded = (
     st.session_state.get('selected_region_mask') is not None
 )
 _eligibility_available = _CURRENT_CITY_STATE.ownership_raster is not None
-
-# Un-bury the optimizer: extract Quick Start / Placement Strategy /
-# Implementation Costs / Carbon rates out of Scenario into sibling
-# expanders so Scenario stays compact (% converted + Conversion Mix only)
-# and Discover sits directly under it. Visual order: Scenario / Discover /
-# Where / Eligibility / Quick Start / Placement Strategy / Implementation
-# Costs / Carbon rates (MN only) / Export. Code-populate order is
-# different: Scenario → Quick Start → Placement Strategy → Implementation
-# Costs → Carbon rates → Where → Eligibility → Discover → Export, so the
-# Discover block reads the cost-slider / region-mask / ownership-mask
-# state set by the populate-earlier blocks — same one-rerun-no-lag
-# property the pre-created-container pattern was introduced for.
 _carbon_rates_available = not _CARBON_IS_STOCK
-# Relay 41 — sidebar reads top-to-bottom as setup → optimize → export. The
-# expander DEFINITION order sets the visual order (Streamlit renders each
-# container where it's defined); the `with _sec_*:` population blocks below are
-# UNMOVED, so data flow + the Assertion-B button/mode-label pairings are
-# untouched. Only Discover + Advanced model quality move down vs the old order.
 _sec_scenario          = st.sidebar.expander("Scenario", expanded=True)
+# Quick Start promoted next to Build — presets are the fast way to build.
+_sec_quick_start       = st.sidebar.expander("Quick Start", expanded=False)
 _sec_where             = st.sidebar.expander("Choose area",
                                               expanded=_where_expanded)
 _sec_eligibility       = (
@@ -5856,22 +5853,17 @@ _sec_eligibility       = (
 )
 _sec_placement         = st.sidebar.expander("Placement Strategy",
                                               expanded=False)
+# The capstone "find better options", in the search slot after the setup
+# sections. Calm default: collapsed like the others — only Scenario opens.
+_sec_discover          = st.sidebar.expander("Search goals",
+                                              expanded=False)
 _sec_costs             = st.sidebar.expander(
     "Cost assumptions", expanded=False,
 )
-# The capstone "find better options", below the setup sections. Calm default:
-# collapsed like the other setup sections — only Scenario opens by default.
-_sec_discover          = st.sidebar.expander("Search goals",
-                                              expanded=False)
-# Power-user detail, demoted beneath Discover.
+# Power-user detail, demoted beneath the search/tune sections.
 _sec_advanced_quality  = st.sidebar.expander("Advanced: model quality",
                                               expanded=False)
 _sec_export            = st.sidebar.expander("Export / handoff", expanded=False)
-# Quick Start moved to the bottom of the sidebar — it's a presets
-# shortcut, not a primary control; the user's relay says it belongs
-# below Export.
-_sec_quick_start       = st.sidebar.expander("Quick Start",
-                                              expanded=False)
 
 # ── Sidebar section: Scenario ──────────────────────────────────────────────
 # Base scenario controls — conversion mix, presets, placement strategy,
