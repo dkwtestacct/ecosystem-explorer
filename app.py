@@ -8171,9 +8171,9 @@ st.markdown("#### Cost Effectiveness")
 st.caption(
     "Screening ratios: implementation cost per unit of positive benefit, using "
     "the \\$/acre assumptions in the sidebar — for comparing scenarios, not "
-    "budgeting (lower is better). A ratio appears only where the scenario "
-    "meaningfully improves that metric; anything it doesn't improve, including "
-    "negative impacts, stays visible in the outcome cards above."
+    "budgeting (lower is better). Ratios appear only for metrics the scenario "
+    "meaningfully improves. Metrics that don't improve — including negative "
+    "impacts — stay visible in the outcome cards above."
 )
 # Render a ratio card only where the ratio is meaningful. compute_cost_effectiveness
 # returns None for zero/negative/below-epsilon denominators (incl. warming, which
