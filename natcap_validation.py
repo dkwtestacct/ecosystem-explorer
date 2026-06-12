@@ -49,7 +49,7 @@ _METRIC_TO_MODEL = {
 # is an additive/redundant channel; hex colors are unchanged. Keyed by badge state.
 _TIER_GLYPH = {
     "natcap_anchored":  "◆",   # NatCap published value
-    "invest_validated": "✓",   # InVEST-validated
+    "invest_validated": "■",   # InVEST-validated (neutral shape — ✓ over-read as "passed")
     "invest_aligned":   "○",   # InVEST-aligned
     "prototype":        "△",   # Prototype
 }
@@ -414,7 +414,7 @@ if __name__ == "__main__":
     # "InVEST-validated" in baseline / explorer / optimizer.
     for _b in (b_base, b_expl, b_opt):
         assert _b["state"] == "invest_validated" and _b["color"] == "teal", _b
-        assert badge_glyph(_b["text"]) == "✓" and "InVEST-validated" in _b["text"], _b
+        assert badge_glyph(_b["text"]) == "■" and "InVEST-validated" in _b["text"], _b
     # Tooltip still cites the measured HMI parity (bodies rewritten in Slice 3).
     assert "brief 28b" in b_base["tooltip"].lower(), b_base
     assert "hmi parity" in b_base["tooltip"].lower(), b_base
@@ -447,7 +447,7 @@ if __name__ == "__main__":
     # proxies (model not validated for that output) → InVEST-aligned.
     b_ret = render_validation_badge("runoff_retention_idx", SCENARIO_CONTEXT_EXPLORER,
                                     explicit_status="aligned_method")
-    assert b_ret["state"] == "invest_validated" and badge_glyph(b_ret["text"]) == "✓" and "InVEST-validated" in b_ret["text"], b_ret
+    assert b_ret["state"] == "invest_validated" and badge_glyph(b_ret["text"]) == "■" and "InVEST-validated" in b_ret["text"], b_ret
     assert "is measured" in b_ret["tooltip"].lower(), b_ret
     assert "ufrm" in b_ret["tooltip"].lower(), b_ret
     b_runoff = render_validation_badge("runoff_acre_feet", SCENARIO_CONTEXT_EXPLORER,

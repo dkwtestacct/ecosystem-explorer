@@ -3597,7 +3597,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         _tier_cases = {
             "natcap_anchored":  ("◆", "NatCap published value",
                 ("temp_change_f", _nvg.SCENARIO_CONTEXT_NATCAP_FIXED, {})),
-            "invest_validated": ("✓", "InVEST-validated",
+            "invest_validated": ("■", "InVEST-validated",
                 ("temp_change_f", _nvg.SCENARIO_CONTEXT_EXPLORER, {})),
             "invest_aligned":   ("○", "InVEST-aligned",
                 ("flood_reduction", _nvg.SCENARIO_CONTEXT_BASELINE, {})),
@@ -3623,7 +3623,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                       f"rendered text {_b['text']!r}")
                 glyph_diffs += 1
         if glyph_diffs == 0:
-            print("  OK   all 4 tiers carry their shape glyph (◆ ✓ ○ △) in the "
+            print("  OK   all 4 tiers carry their shape glyph (◆ ■ ○ △) in the "
                   "live rendered ['text']")
         # (2) Flip-test (non-vacuous): Prototype text must NOT carry the validated
         #     glyph, and the validated text must NOT carry the Prototype glyph.
@@ -3631,15 +3631,15 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             "food_mln_lbs", _nvg.SCENARIO_CONTEXT_EXPLORER)["text"]
         _val_t = _nvg.render_validation_badge(
             "temp_change_f", _nvg.SCENARIO_CONTEXT_EXPLORER)["text"]
-        if _nvg.badge_glyph(_proto_t) == "✓":
-            print("  FAIL flip-test: a Prototype badge carries the ✓ validated glyph")
+        if _nvg.badge_glyph(_proto_t) == "■":
+            print("  FAIL flip-test: a Prototype badge carries the ■ validated glyph")
             glyph_diffs += 1
         elif _nvg.badge_glyph(_val_t) == "△":
             print("  FAIL flip-test: an InVEST-validated badge carries the △ "
                   "Prototype glyph")
             glyph_diffs += 1
         else:
-            print("  OK   flip-test: Prototype text isn't glyphed ✓, validated "
+            print("  OK   flip-test: Prototype text isn't glyphed ■, validated "
                   "text isn't glyphed △")
         # (3) Legend↔render consistency: parse the 4 glyphs out of the live legend
         #     caption in app.py and assert each equals what the renderer emits for
@@ -3650,7 +3650,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                               ("invest_validated", "InVEST-validated"),
                               ("invest_aligned", "InVEST-aligned"),
                               ("prototype", "Prototype")):
-            _lm = _re_g.search(r"([◆✓○△])\s+" + _re_g.escape(_name), _app_src_g)
+            _lm = _re_g.search(r"([◆■○△])\s+" + _re_g.escape(_name), _app_src_g)
             if _lm is None:
                 print(f"  FAIL could not locate the legend glyph for {_name!r} "
                       "(legend caption moved/renamed — re-point the scan)")
@@ -3669,15 +3669,23 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print("  OK   legend caption's 4 glyphs match the renderer 1:1")
         # (4) Locate-guard flip-test: the legend regex has teeth (a wrong glyph
         #     in a seeded string is detected as a mismatch, not silently passed).
+        #     The ✓ seed is load-bearing AFTER the ✓→■ swap: it locks in that the
+        #     validated tier is no longer ✓, so a stray legacy "✓ InVEST-validated"
+        #     can't satisfy the parser.
         _seed = "✗ NatCap published value"
-        _sm = _re_g.search(r"([◆✓○△])\s+NatCap published value", _seed)
+        _sm = _re_g.search(r"([◆■○△])\s+NatCap published value", _seed)
+        _sm_tick = _re_g.search(r"([◆■○△])\s+InVEST-validated", "✓ InVEST-validated")
         if _sm is not None:
             print("  FAIL locate-guard: the glyph regex matched a non-tier glyph "
                   "(✗) — the character class is too loose")
             glyph_diffs += 1
+        elif _sm_tick is not None:
+            print("  FAIL locate-guard: a legacy '✓ InVEST-validated' still "
+                  "matches — the validated glyph wasn't fully migrated off ✓")
+            glyph_diffs += 1
         else:
             print("  OK   locate-guard: the glyph regex only matches the 4 real "
-                  "tier shapes")
+                  "tier shapes, and a legacy ✓ validated label no longer parses")
     except Exception as _e:
         print(f"  ERROR per-tier glyph render-path lock: {_e}")
         import traceback
@@ -4322,7 +4330,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "map, or the carbon city-split broke.")
         if glyph_diffs:
             print(f"{glyph_diffs} colorblind-glyph divergence(s) — a badge tier "
-                  "lost its shape glyph (◆ ✓ ○ △) on the live render path, the "
+                  "lost its shape glyph (◆ ■ ○ △) on the live render path, the "
                   "flip-test caught a cross-tier glyph, or the legend caption's "
                   "glyphs drifted from what render_validation_badge emits.")
         if fda_diffs:

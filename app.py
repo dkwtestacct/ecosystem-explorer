@@ -1112,7 +1112,7 @@ with st.expander("How this prototype works", expanded=False):
         "- **`◆ NatCap published value`** (green) — fires only in the fixed-scenario "
         "reference view for metrics with NatCap-published values. *Displays "
         "NatCap's number*; not a reproduction claim.  \n"
-        "- **`✓ InVEST-validated`** (teal) — the card's InVEST model has measured "
+        "- **`■ InVEST-validated`** (teal) — the card's InVEST model has measured "
         "per-pixel parity against canonical natcap.invest 3.19.0 via a committed "
         "comparison harness: Temperature/cooling (UCM), Nature Access (UNA), "
         "Preventable MH (UMH), Runoff Retention (UFR), and SA four-pool Carbon.  \n"
@@ -1123,7 +1123,7 @@ with st.expander("How this prototype works", expanded=False):
         "proxy, food yield benchmark, implementation-cost sliders, "
         "cost-effectiveness ratios, MN carbon proxy).  \n"
         "  \n"
-        "The leading glyph (◆ ✓ ○ △) is a shape-distinct, hue-independent marker so "
+        "The leading glyph (◆ ■ ○ △) is a shape-distinct, hue-independent marker so "
         "the tiers stay distinguishable when color alone doesn't.  \n"
         "  \n"
         "**Context-switch rule.** A `NatCap published value`-class metric shows "
@@ -7392,10 +7392,10 @@ st.markdown(
     "Runoff Volume and Implementation Cost."
 )
 st.caption(
-    "Badges show how each number was checked: ◆ NatCap published value · "
-    "✓ InVEST-validated (per-pixel parity with canonical InVEST) · ○ InVEST-aligned "
-    "(same method, parity not measured here) · △ Prototype (exploratory indicator). "
-    "Full definitions are in 'How this prototype works'."
+    "Badges show validation/provenance: ◆ NatCap published value = reference; "
+    "■ InVEST-validated = checked against canonical InVEST; ○ InVEST-aligned = "
+    "same method, not directly checked here; △ Prototype = exploratory. "
+    "Full definitions in 'How this prototype works'."
 )
 st.caption(
     "Details are available through metric badges, tooltips, and the Scenario audit."
