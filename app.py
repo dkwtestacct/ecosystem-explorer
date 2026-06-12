@@ -6169,7 +6169,9 @@ with _sec_where:
         help=(
             "Constrain conversions to inside selected polygons (council districts "
             "or census tracts), instead of citywide. The per-pixel InVEST-aligned evaluator is the "
-            "same validated math; the where is planner-chosen."
+            "same validated math; the where is planner-chosen. Conversions exclude "
+            "roads, buildings, and existing nature; the Selected-region impact "
+            "table compares in-region vs citywide."
         ),
         disabled=not _region_layers_available,
         key="region_apply_within",
@@ -6248,11 +6250,12 @@ with _sec_where:
                     f"(~{_eligible_acres:,.0f} acres) inside the selected "
                     f"{_display.lower()}{_plural}."
                 )
+                # One-line capability + the load-bearing caveat stays visible;
+                # exclusion mechanics + the in-region-vs-citywide table detail
+                # moved into the "Apply changes within" radio help above.
                 st.caption(
-                    "Conversions placed only inside the selected region "
-                    "(after excluding roads, buildings, existing nature). "
-                    "**Cards show citywide; the Selected-region impact "
-                    "table shows in-region vs citywide.**"
+                    "Conversions stay inside the selected area. "
+                    "**Main cards remain citywide.**"
                 )
             # Push to session_state for Commit 2's lookup bypass and Commit 1's
             # caller-stamping of results['region_selection']. Note: even with
