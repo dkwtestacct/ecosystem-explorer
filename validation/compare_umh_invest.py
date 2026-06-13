@@ -200,7 +200,7 @@ def _metrics(canon, proto, active):
 # kernel formula, radius, or per-pixel arithmetic must trip at least one.
 # Justification (measured values; see git log of this file for the run):
 #   MN dep/anx: MAE(active) ≤ 1.1e-9, r = 1.000000, |Δtotal|/total = 0
-#   SA dep/anx: MAE(active) ≤ 2.3e-6, r ≥ 0.99876,  |Δtotal|/total ≤ 0.15%
+#   SA dep/anx: MAE(active) ≤ 2.3e-6, r ≥ 0.99875,  |Δtotal|/total ≤ 0.15%
 # The SA residual is canonical's radius padding + edge-crop alignment +
 # pygeoprocessing FFT noise on the 1713×1984 grid, not a metric divergence
 # (DESIGN_NOTES §6.3). The thresholds sit ~3–5× looser than the measured
@@ -230,8 +230,13 @@ def _parity_check(city, oc, mae_act, r, proto_tot, canon_tot):
 
 
 def run_compare(fix_dir, cities, slug_fn, meta_test: bool = False) -> int:
+    import csv
     import tempfile
+    import natcap.invest as _ni
     from natcap.invest import urban_mental_health as umh
+
+    _inv_ver = getattr(_ni, "__version__", "unknown")
+    rows = []  # committed-artifact rows (one per city × outcome)
 
     print("=" * 70)
     print("UMH validation: prototype numpy reimpl vs canonical natcap.invest 3.19.0")
@@ -292,6 +297,54 @@ def run_compare(fix_dir, cities, slug_fn, meta_test: bool = False) -> int:
                 else:
                     print(f"       parity: FAIL — {'; '.join(fails)}")
                     rc = 1
+                if not meta_test:
+                    # Non-vacuous guard, computed inline (no separate run): a
+                    # +0.5% scaling of the prototype raster MUST trip the parity
+                    # check. guard_ok = the perturbation is correctly caught.
+                    _gp = proto.astype("float64") * _META_TEST_PROTO_SCALE
+                    _gm_all, _gm_act, _gr, _gpt, _gct = _metrics(canon, _gp, active)
+                    _g_ok, _ = _parity_check(city, oc, _gm_act, _gr, _gpt, ctot)
+                    guard_ok = not _g_ok
+                    rel_total = (abs(ptot - ctot) / abs(ctot)) if ctot != 0 else float("nan")
+                    rows.append({
+                        "comparison": f"UMH preventable cases ({oc})",
+                        "city": city, "outcome": oc, "invest_version": _inv_ver,
+                        "per_pixel_mae_active": f"{mae_act:.6e}",
+                        "per_pixel_mae_all": f"{mae_all:.6e}",
+                        "pearson_r": f"{r:.10f}",
+                        "aoi_sum_pct_diff": f"{rel_total * 100.0:.6f}",
+                        "proto_total_cases": f"{ptot:.4f}",
+                        "canon_total_cases": f"{ctot:.4f}",
+                        "n_active_px": int(active.sum()),
+                        "search_radius_m": f"{sr:.0f}",
+                        "guard_ok": guard_ok, "clean": ok,
+                        "notes": (
+                            "UMH preventable-cases per-pixel parity: prototype "
+                            "numpy NE (binary-disk edge-corrected buffer mean, "
+                            "_convolve_edge_corrected) vs canonical "
+                            "natcap.invest.urban_mental_health ndvi_*_buffer_mean, "
+                            "fed the IDENTICAL ndvi_base/ndvi_alt/pop fixtures + "
+                            "matched RR/BIR. Synthetic per-NLCD NDVI proxy "
+                            "(validates the algorithm, not the NDVI source). "
+                            "Non-vacuous guard: +0.5% proto scaling trips the "
+                            "parity check. SA residual is canonical's radius "
+                            "padding + edge-crop alignment + pygeoprocessing FFT "
+                            "noise on the 1713x1984 grid, not a kernel divergence."
+                        ),
+                    })
+    if not meta_test and rows:
+        _art = Path("comparisons/umh_parity.csv")
+        _art.parent.mkdir(exist_ok=True)
+        _cols = list(rows[0].keys())
+        with open(_art, "w", newline="") as _fh:
+            _w = csv.DictWriter(_fh, fieldnames=_cols)
+            _w.writeheader()
+            _w.writerows(rows)
+        _all_clean = all(r["clean"] for r in rows)
+        _all_guard = all(r["guard_ok"] for r in rows)
+        print(f"\nWrote {len(rows)} rows → {_art}  "
+              f"(clean={_all_clean}, guard_ok={_all_guard})")
+
     print("\n" + "=" * 70)
     if meta_test:
         print(f"META-TEST mode: proto rasters scaled by {_META_TEST_PROTO_SCALE} "
@@ -309,7 +362,7 @@ def run_compare(fix_dir, cities, slug_fn, meta_test: bool = False) -> int:
           "buffer mean, app._umh_neighborhood_exposure) matches canonical "
           "UMH 3.19's ndvi_*_buffer_mean to per-pixel parity: MN MAE(active) "
           "≤ 1.1e-9 cases/px and r = 1.000000 on both outcomes; SA MAE(active) "
-          "≤ 2.3e-6 cases/px, r ≥ 0.99876, totals diverge by ≤ 0.15% — a "
+          "≤ 2.3e-6 cases/px, r ≥ 0.99875, totals diverge by ≤ 0.15% — a "
           "residual from canonical's radius padding + edge-crop alignment + "
           "pygeoprocessing FFT noise on the 1713×1984 grid, not a kernel-"
           "formula divergence (DESIGN_NOTES §6.3). A defensible parity assert "

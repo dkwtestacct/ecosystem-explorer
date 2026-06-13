@@ -2165,7 +2165,7 @@ UMH_SEARCH_RADIUS_M          = 300   # Li et al. 2025; ~10 px at 30 m NLCD
 # correction, i.e. pygeoprocessing.convolve_2d(ignore_nodata_and_edges=True).
 # Validated to per-pixel parity against `natcap.invest.urban_mental_health.execute()`
 # via compare_umh_invest.py: MN MAE(active) ≤ 1.1e-9 cases/px, r = 1.000000 on
-# both outcomes; SA MAE(active) ≤ 2.3e-6 cases/px, r ≥ 0.99876, |Δtotal| ≤ 0.15%
+# both outcomes; SA MAE(active) ≤ 2.3e-6 cases/px, r ≥ 0.99875, |Δtotal| ≤ 0.15%
 # (SA residual is canonical's radius padding + edge-crop alignment + pygeoprocessing
 # FFT noise on the 1713×1984 grid, not a kernel divergence).
 # Locked by the harness's parity-assert pass criterion (MAE < 1e-5, r > 0.99,

@@ -4639,7 +4639,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
     # ── UMH parity doc-echo lock (one source of truth) ──────────────────────
     # The UMH parity figures live canonically in validation/compare_umh_invest.py.
     # Every doc surface that states SA UMH parity must echo the same SA tuple
-    # (MAE ≤ 2.3e-6, r ≥ 0.99876, |Δtotal| ≤ 0.15%); none may hedge SA as
+    # (MAE ≤ 2.3e-6, r ≥ 0.99875, |Δtotal| ≤ 0.15%); none may hedge SA as
     # MN-equivalent via the retired "aligned input" phrasing; and REFERENCE's
     # UMH §6 must name the edge-corrected DISK kernel (_convolve_edge_corrected),
     # never a uniform_filter box. Structurally enforces "no claim stronger than
@@ -4650,7 +4650,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
     print(f"{'=' * 60}")
     umh_doc_diffs = 0
     try:
-        _SA_TUPLE = ("2.3e-6", "0.99876", "0.15%")  # MAE(active), r, |Δtotal|
+        _SA_TUPLE = ("2.3e-6", "0.99875", "0.15%")  # MAE(active), r, |Δtotal|
         _umh_harness = Path("validation/compare_umh_invest.py").read_text(encoding="utf-8")
         # (0) Source of truth carries the canonical SA tuple.
         _h_missing = [t for t in _SA_TUPLE if t not in _umh_harness]
@@ -4660,7 +4660,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             umh_doc_diffs += 1
         else:
             print("  OK   harness carries the canonical SA tuple "
-                  "(2.3e-6 / 0.99876 / 0.15%)")
+                  "(2.3e-6 / 0.99875 / 0.15%)")
         # (1) Every doc/code surface that states SA UMH parity echoes the tuple
         #     and drops the "aligned input" overstatement.
         _UMH_DOCS = ["REFERENCE.md", "docs/internal/DESIGN_NOTES.md",
