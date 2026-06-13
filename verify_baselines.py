@@ -4625,6 +4625,75 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         tradeoff_axis_diffs += 1
 
+    # ── UMH parity doc-echo lock (one source of truth) ──────────────────────
+    # The UMH parity figures live canonically in validation/compare_umh_invest.py.
+    # Every doc surface that states SA UMH parity must echo the same SA tuple
+    # (MAE ≤ 2.3e-6, r ≥ 0.99876, |Δtotal| ≤ 0.15%); none may hedge SA as
+    # MN-equivalent via the retired "aligned input" phrasing; and REFERENCE's
+    # UMH §6 must name the edge-corrected DISK kernel (_convolve_edge_corrected),
+    # never a uniform_filter box. Structurally enforces "no claim stronger than
+    # the committed reproducer." Change a figure in one place without the others
+    # → fail; reintroduce uniform_filter / "aligned input" → fail. Flip-tested.
+    print(f"\n{'=' * 60}")
+    print("UMH parity doc-echo lock (one source of truth)")
+    print(f"{'=' * 60}")
+    umh_doc_diffs = 0
+    try:
+        _SA_TUPLE = ("2.3e-6", "0.99876", "0.15%")  # MAE(active), r, |Δtotal|
+        _umh_harness = Path("validation/compare_umh_invest.py").read_text(encoding="utf-8")
+        # (0) Source of truth carries the canonical SA tuple.
+        _h_missing = [t for t in _SA_TUPLE if t not in _umh_harness]
+        if _h_missing:
+            print(f"  FAIL harness compare_umh_invest.py missing canonical SA "
+                  f"tuple figures {_h_missing} — the source of truth drifted")
+            umh_doc_diffs += 1
+        else:
+            print("  OK   harness carries the canonical SA tuple "
+                  "(2.3e-6 / 0.99876 / 0.15%)")
+        # (1) Every doc/code surface that states SA UMH parity echoes the tuple
+        #     and drops the "aligned input" overstatement.
+        _UMH_DOCS = ["REFERENCE.md", "docs/internal/DESIGN_NOTES.md",
+                     "docs/internal/NATCAP_ALIGNMENT.md", "app.py"]
+        for _d in _UMH_DOCS:
+            _txt = Path(_d).read_text(encoding="utf-8")
+            _miss = [t for t in _SA_TUPLE if t not in _txt]
+            if _miss:
+                print(f"  FAIL {_d}: SA UMH parity not echoing the canonical "
+                      f"tuple — missing {_miss}")
+                umh_doc_diffs += 1
+            if "aligned input" in _txt:
+                print(f"  FAIL {_d}: still hedges SA UMH as 'aligned input' "
+                      "(overstates SA to MN-equivalent r)")
+                umh_doc_diffs += 1
+        # (2) REFERENCE UMH §6 kernel: edge-corrected disk, never uniform_filter.
+        _ref_txt = Path("REFERENCE.md").read_text(encoding="utf-8")
+        if "_convolve_edge_corrected" not in _ref_txt:
+            print("  FAIL REFERENCE.md UMH §6 no longer names "
+                  "`_convolve_edge_corrected` (the disk kernel)")
+            umh_doc_diffs += 1
+        if "uniform_filter" in _ref_txt:
+            print("  FAIL REFERENCE.md still names `uniform_filter` — wrong UMH "
+                  "kernel (it's an edge-corrected disk, not a square box)")
+            umh_doc_diffs += 1
+        if umh_doc_diffs == 0:
+            print("  OK   all UMH SA-parity surfaces echo the canonical tuple; "
+                  "REFERENCE §6 names the disk kernel, no uniform_filter")
+        # Flip-tests (non-vacuous): seeded drift / wrong kernel must be caught.
+        if not [t for t in _SA_TUPLE if t not in "no SA figures here"]:
+            print("  FAIL meta-test: SA-tuple echo detector is vacuous")
+            umh_doc_diffs += 1
+        elif "uniform_filter" not in "NE = scipy.ndimage.uniform_filter(x)":
+            print("  FAIL meta-test: uniform_filter detector is vacuous")
+            umh_doc_diffs += 1
+        else:
+            print("  OK   meta-test: seeded missing-figure + uniform_filter "
+                  "regressions are both caught")
+    except Exception as _e:
+        print(f"  ERROR UMH parity doc-echo lock: {_e}")
+        import traceback
+        traceback.print_exc()
+        umh_doc_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -4641,7 +4710,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
                    + glyph_diffs + carbon_unit_diffs + autoswitch_diffs
                    + ce_diffs + active_scn_diffs + fda_diffs
-                   + tradeoff_axis_diffs)
+                   + tradeoff_axis_diffs + umh_doc_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4771,6 +4840,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"{tradeoff_axis_diffs} tradeoff-plot flood-axis divergence(s) — "
                   "the region baseline reverted to a delta/zero pin or a plot's "
                   "flood/cooling axis source drifted from the absolute convention.")
+        if umh_doc_diffs:
+            print(f"{umh_doc_diffs} UMH parity doc-echo divergence(s) — a doc's SA "
+                  "UMH figures drifted from the harness tuple, an 'aligned input' "
+                  "overstatement returned, or REFERENCE's UMH kernel is mis-described.")
         if loader_diffs:
             print(f"{loader_diffs} calibration-loader divergence(s) — "
                   "_load_surrogate_calibration returned None/wrong shape on a "

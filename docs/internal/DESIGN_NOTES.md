@@ -431,7 +431,7 @@ The lookup table is only built in High resolution mode (opt-in checkbox), so the
 - Keep the Gaussian (`σ = search_radius / pixel`) the prototype originally used — defensible smoothing; aggregate preventable-cases total agreed to ~1.3–1.5 %, but per-pixel `r ≈ 0.95–0.98` rather than the MAE-0 of UCM/UNA. Aggregate-only validation undersells the per-pixel claim. Retired in favor of the buffer-mean (Brief B).
 - Document the Gaussian-vs-canonical divergence rather than fix it (the earlier Option A) — taken initially; superseded by Brief B's kernel switch when the buffer-mean was confirmed identical.
 
-**Consequences.** Per-pixel parity vs canonical: **MN MAE ≈ 1e-9, r = 1.000000** (both outcomes); **SA MAE ≈ 0** when the app kernel is fed canonical's own aligned input (the harness's 0.14 % residual on SA's 1713 × 1984 grid is large-grid feeding-alignment + FFT noise in the comparison, not a metric divergence). MH card confidence Medium → High. Schema bump 26 → 27.
+**Consequences.** Per-pixel parity vs canonical (`compare_umh_invest.py`): **MN MAE(active) ≤ 1.1e-9, r = 1.000000, |Δtotal| = 0** (both outcomes); **SA MAE(active) ≤ 2.3e-6, r ≥ 0.99876, |Δtotal| ≤ 0.15%** — a residual from canonical's radius padding + edge-crop alignment + pygeoprocessing FFT noise on the 1713 × 1984 grid, not a metric divergence. MH card confidence Medium → High. Schema bump 26 → 27.
 
 Two divergences remain documented rather than hidden:
 - The prototype uses a uniform national CDC prevalence vs InVEST's per-admin `risk_rate` vector — no per-tract MH-prevalence data available for MN/SA; the matched-input MAE = the default-input MAE.
