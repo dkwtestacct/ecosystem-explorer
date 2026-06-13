@@ -37,7 +37,10 @@ _CITY_CSV = {"SA": "data/sa/natcap_reference_outputs.csv"}
 # per-pixel stock output), as are the lumped Flood Index / Runoff Volume.
 _METRIC_TO_MODEL = {
     "temp_change_f":       "ucm",
-    "nature_access_pct":   "una",
+    # nature_access_pct (una) is methodology_aligned, NOT per-pixel-validated —
+    # its earlier 'validated' claim had no committed 3.19.0 reproducer. It renders
+    # InVEST-aligned (blue), so it is intentionally absent from this validated-
+    # capable map. Re-add when the supply_percapita reproducer lands.
     "preventable_mh_cases": "umh",
     "runoff_retention_idx": "ufr",
     "carbon_tons_co2":     "carbon",
@@ -454,11 +457,15 @@ if __name__ == "__main__":
                                        explicit_status="aligned_method")
     assert b_runoff["state"] == "invest_aligned" and badge_glyph(b_runoff["text"]) == "○" and "InVEST-aligned" in b_runoff["text"], b_runoff
     assert "is measured" not in b_runoff["tooltip"].lower(), b_runoff  # lumped proxy
-    # Nature Access (UNA) + Preventable MH (UMH) are in the validated set too.
-    for _m in ("nature_access_pct", "preventable_mh_cases"):
-        _bm = render_validation_badge(_m, SCENARIO_CONTEXT_EXPLORER,
-                                      explicit_status="aligned_method")
-        assert _bm["state"] == "invest_validated" and _bm["color"] == "teal", (_m, _bm)
+    # Preventable MH (UMH) is in the validated set → renders teal.
+    _bm = render_validation_badge("preventable_mh_cases", SCENARIO_CONTEXT_EXPLORER,
+                                  explicit_status="aligned_method")
+    assert _bm["state"] == "invest_validated" and _bm["color"] == "teal", _bm
+    # Nature Access (UNA) is methodology_aligned (per-pixel parity reproducer
+    # pending) → renders InVEST-aligned (blue ○), NOT teal.
+    _bn = render_validation_badge("nature_access_pct", SCENARIO_CONTEXT_EXPLORER,
+                                  explicit_status="aligned_method")
+    assert _bn["state"] == "invest_aligned" and badge_glyph(_bn["text"]) == "○", _bn
     # Flood Index is a lumped proxy (its model UFR is validated, but flood_reduction
     # isn't the per-pixel output) → InVEST-aligned, never validated.
     b_flood = render_validation_badge("flood_reduction", SCENARIO_CONTEXT_BASELINE)

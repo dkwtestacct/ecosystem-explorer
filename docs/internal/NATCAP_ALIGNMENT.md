@@ -59,7 +59,7 @@ How close each app metric is to its canonical InVEST implementation. Per-model g
 | Flood Damage Avoided | `total_potential_damage × runoff_reduction_fraction` | Urban Flood Risk Mitigation (`serv_blt` indicator) | Approximate | Medium |
 | Temperature Change | Canonical HMI = `max(CC_local, CC_park)`, `ΔHMI × UHI_MAX_C × 1.8` | Urban Cooling (HMI → T_air → anomaly) | Implemented | High |
 | Cooling Energy Savings | `consumption_rate × ΔHMI × UHI_MAX_C × pixel_area × $/kWh`, applied per pixel | Urban Cooling (energy module: `consumption × ΔT_air × $/kWh` per building) | Approximate | Medium |
-| Nature Access | Canonical InVEST UNA via 2SFCA — `urban_nature_supply_percapita ≥ urban_nature_demand`, share of modelable-extent population. Numpy implementation, validated against `natcap.invest.urban_nature_access.execute()` at MAE ≈ 0. Per-city parameters per CITY_PARITY UNA tables; rationale in DESIGN_NOTES §2.2. | Urban Nature Access (2SFCA supply/demand/balance) | Implemented | Medium |
+| Nature Access | Canonical InVEST UNA via 2SFCA — `urban_nature_supply_percapita ≥ urban_nature_demand`, share of modelable-extent population. Numpy implementation (`calculate_nature_access`), **methodology-aligned**; per-pixel parity reproducer pending (the prior "MAE ≈ 0" claim had no committed 3.19.0 reproducer — withdrawn). Per-city parameters per CITY_PARITY UNA tables; rationale in DESIGN_NOTES §2.2. | Urban Nature Access (2SFCA supply/demand/balance) | Implemented (method-aligned) | Medium |
 | Children's Nature Access | UNA 2SFCA access share reweighted by Census 2020 under-18 population; supply/demand stays on total pop, inherits UNA's canonical-method validation. | Urban Nature Access (child-disaggregated share) | Implemented | Medium |
 | Preventable MH Cases | `(1 − RR) × BIR × pop`; NE = edge-corrected **buffer-mean** of synthetic NDVI over a flat binary disk via `_convolve_edge_corrected` (the canonical InVEST UMH kernel). **Validated against `natcap.invest.urban_mental_health.execute()` v3.19.0** — **MN** MAE ≤ 1.1e-9 / r = 1.000000; **SA** MAE ≤ 2.3e-6 / r ≥ 0.99876 / |Δtotal| ≤ 0.15% (SA residual: canonical's radius padding + edge-crop alignment + pygeoprocessing FFT noise on the 1713 × 1984 grid). Validation is on the synthetic NDVI proxy, not satellite NDVI. | Urban Mental Health v3.19.0 (same PC formula + NE kernel) | Implemented | High |
 | Avoided MH Costs | Preventable cases × per-case cost-of-illness (inherits the Preventable MH Cases validation above — linear in cases) | Urban Mental Health (cost module) | Implemented | High |
@@ -119,7 +119,7 @@ The InVEST export bundle (DESIGN_NOTES §9; ARCHITECTURE §7) is the bridge for 
 
 | Bundle state | Meaning | Emitted for |
 |---|---|---|
-| **`validated`** | Per-pixel parity measured against canonical `natcap.invest.*.execute()` | UCM, UNA, UMH, Carbon, UFR† |
+| **`validated`** | Per-pixel parity measured against canonical `natcap.invest.*.execute()` | UCM, UMH, Carbon, UFR† (UNA pending — per-pixel reproducer in progress) |
 | **`methodology_aligned`** | Canonical method, no per-pixel parity check | (none currently) |
 
 **† UFR's `validated` is scoped to its per-pixel output.** The UFRM-equivalent per-pixel quantity — the **runoff-retention index** (`1 − Q/P`) — is validated to per-pixel parity (Relay 71, below). The dashboard's headline **Flood Index** (`100 − mean_CN`) and **Runoff Volume** are lumped mean-CN proxies, **not** per-pixel UFRM outputs, and remain aligned-method without a parity claim.

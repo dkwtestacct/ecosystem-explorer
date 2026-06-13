@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
-"""compare_una_invest.py — Phase 1 UNA comparison: app proxy vs canonical InVEST.
+"""compare_una_invest.py — HISTORICAL UNA reachability-proxy comparison (3.16.2).
 
-Runs the MN baseline through both the app's per-pixel
-`max(urban_nature × in_range)` Nature Access calculation and canonical
-`natcap.invest.urban_nature_access.execute()`, then writes a single-row
-comparison CSV with summary statistics.
+⚠️ This is NOT the UNA per-pixel-parity reproducer, and must not be cited as one.
+It runs the MN baseline through the app's per-pixel reachability proxy
+(`max(urban_nature × in_range)`, a 0 / 0.5 / 1.0 score) and canonical
+`natcap.invest.urban_nature_access.execute()` on **natcap.invest 3.16.2**, then
+writes a single-row comparison CSV. The two sides measure DIFFERENT statistics —
+the app's reachability score vs InVEST's `accessible_urban_nature` — so the
+committed artifact (`comparisons/una_baseline_mn.csv`) reports Pearson r ≈ 0.44 /
+normalized MAE on min-max-scaled values, NOT a `supply_percapita` per-pixel MAE.
+
+It CANNOT produce the per-pixel `supply_percapita` MAE / r figure that was once
+cited to it (that figure had no committed reproducer; the only r = 1.0 UNA artifact,
+`una_lulc_comparison_mn.csv`, was an InVEST-vs-itself run on byte-identical LULC,
+which doesn't put the numpy port under test). UNA is therefore `methodology_aligned`
+(model_validation.py), pending a Relay-69-grade reproducer that compares the app's
+`calculate_nature_access` supply_percapita against InVEST 3.19.0's
+`urban_nature_supply_percapita` on matched-but-independent inputs, with a
+perturbation guard. See NATCAP_ALIGNMENT.md / REFERENCE.md §6 (UNA).
 
 Phase 1 scope: one scenario (baseline), one model (UNA), one city (MN).
-
-NOTE (header refreshed, Relay 61): the "Proxy" gap this header once described
-(per-pixel 0 / 0.5 / 1.0 reachability vs canonical 2SFCA) is CLOSED. The app
-now implements the canonical InVEST UNA two-step floating catchment area
-(2SFCA) — `urban_nature_supply_percapita >= urban_nature_demand`, accounting
-for population competition — validated against
-`natcap.invest.urban_nature_access.execute()` at MAE ≈ 0 (REFERENCE.md
-"Official InVEST alignment — UNA"). The remaining note is aggregation-only: the
-citywide headline (`ntr_bal_avg`) is a different *statistic* than the prototype's
-pct-meeting-demand, so per-pixel parity holds but the headline aggregate is not
-directly comparable.
 
 Usage:
     python validation/compare_una_invest.py

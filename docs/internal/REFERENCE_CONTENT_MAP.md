@@ -147,7 +147,7 @@ The rewrite must retarget every ref below to the new §-based anchors. **Sub-anc
 | Conceptual Overview (15–21) | §1 + §7 | New one-paragraph framing replaces the "comparative exploration / not precise prediction" line. Multi-city paragraph → §7 intro. |
 | Division of labor (25–39) | §8 + §7 | Component-source table → §8. Per-city LULC-fidelity implications → §7. |
 | Land-use alignment: MN / SA / fallback / closing (43–117) | §5 + §7 | Scenario-conversion mechanics (proxy mapping, fallback logic) → §5. Per-city baseline-LULC/code-system detail → §7. |
-| Official InVEST alignment: UFR/UCM/UNA/UMH/Carbon/Crop (121–175) | §4 + §6 + §8 | Per-model **validation status + MAE evidence → §6 (per metric)** (keep the actual numbers — MAE=0 UCM, 0.0234 UNA, ≈0 UMH). §4 documents only what the badges *mean*. "Placement-agnostic / prototype heuristic" framing → §8. |
+| Official InVEST alignment: UFR/UCM/UNA/UMH/Carbon/Crop (121–175) | §4 + §6 + §8 | Per-model **validation status + MAE evidence → §6 (per metric)** (keep the actual numbers — MAE=0 UCM, ≈0 UMH; UNA is method-aligned, per-pixel reproducer pending — no parity figure). §4 documents only what the badges *mean*. "Placement-agnostic / prototype heuristic" framing → §8. |
 | Intended Use (179–190) | §1 + §10 | "Designed for" → §1. "Not intended for" → §10. |
 | Key Terms (194–202) | §6 / appendix | Fold into first-use in §6, or a short glossary appendix. Don't lose the definitions. |
 | Methodology Notes (206–242) | §6 + §5 | CN formulas → §6 Flood; temp calibration → §6 Temperature; carbon rates → §6 Carbon; food yield → §6 Food. Placement strategies → §5 (and the "no InVEST parity" point → §8). |

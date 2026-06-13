@@ -29,11 +29,15 @@ MODEL_VALIDATION = {
             "notes": "HMI = max(CC_local, CC_park) validated to per-pixel parity "
                      "(compare_ucm_invest.py). Export is biophysical-cooling-only "
                      "(do_energy_valuation=False)."},
-    "una": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
+    "una": {"status": "methodology_aligned", "mae": None, "pearson_r": None,
             "reference": "natcap.invest.urban_nature_access 3.19.0",
-            "notes": "2SFCA re-implementation validated per-pixel. Per-block-group "
-                     "aggregation differs from a citywide mean — see "
-                     "NATCAP_ALIGNMENT.md."},
+            "notes": "Canonical 2SFCA method; per-pixel parity reproducer pending. "
+                     "The earlier 'validated per-pixel' claim was ungrounded — no "
+                     "committed harness reproduced it on 3.19.0 (the only UNA "
+                     "comparison was a 3.16.2 reachability proxy measuring a "
+                     "different statistic). Re-promote to 'validated' when a "
+                     "matched-but-independent supply_percapita reproducer + "
+                     "comparisons artifact land. See NATCAP_ALIGNMENT.md."},
     "ufr": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
             "reference": "natcap.invest.urban_flood_risk_mitigation 3.19.0",
             "notes": "The per-pixel runoff-retention index (1 − Q/P, "

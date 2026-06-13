@@ -3452,7 +3452,12 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         if not hasattr(_mv, "MODEL_VALIDATION"):
             raise AttributeError("model_validation.MODEL_VALIDATION not found "
                                  "(canonical source moved?)")
-        _EXPECTED_VALIDATED = {"ucm", "una", "umh", "carbon", "ufr"}
+        # UNA demoted validated → methodology_aligned: its earlier per-pixel-parity
+        # claim had no committed 3.19.0 reproducer (the only UNA harness was a
+        # 3.16.2 reachability proxy on a different statistic). Re-promote to
+        # validated when the supply_percapita reproducer + artifact land.
+        _EXPECTED_VALIDATED = {"ucm", "umh", "carbon", "ufr"}
+        _EXPECTED_ALIGNED = {"una"}
 
         def _validated_of(d):
             return {k for k, v in d.items() if v.get("status") == "validated"}
@@ -3469,13 +3474,16 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             src_diffs += 1
         else:
             print(f"  OK   canonical validated set = {sorted(_validated)}")
-        if _aligned:
-            print(f"  FAIL methodology_aligned must be empty, got {sorted(_aligned)}")
+        if _aligned != _EXPECTED_ALIGNED:
+            print(f"  FAIL methodology_aligned set {sorted(_aligned)} != expected "
+                  f"{sorted(_EXPECTED_ALIGNED)} — if intentional, update "
+                  "_EXPECTED_ALIGNED on purpose")
             src_diffs += 1
         else:
-            print("  OK   methodology_aligned empty (all five models measured)")
+            print(f"  OK   methodology_aligned set = {sorted(_aligned)} "
+                  "(UNA: per-pixel reproducer pending)")
         # Parity metadata present on every validated model (reference + notes; the
-        # four numeric ones also carry pearson_r — UMH's parity is kernel-based).
+        # three numeric ones also carry pearson_r — UMH's parity is kernel-based).
         _meta_missing = [k for k in _validated
                          if not _mv.MODEL_VALIDATION[k].get("reference")
                          or not _mv.MODEL_VALIDATION[k].get("notes")]
@@ -3491,13 +3499,16 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             src_diffs += 1
         else:
             print("  OK   eib._VALIDATION IS the canonical object (sourced, not copied)")
-        # Bundle content unchanged — every model's status is 'validated'.
+        # Bundle status dict — every validated model 'validated', UNA 'aligned'.
         _actual_status = {k: v.get("status") for k, v in _eib._VALIDATION.items()}
-        if _actual_status != {k: "validated" for k in _EXPECTED_VALIDATED}:
-            print(f"  FAIL bundle status dict changed: {_actual_status}")
+        _expected_status = {**{k: "validated" for k in _EXPECTED_VALIDATED},
+                            **{k: "methodology_aligned" for k in _EXPECTED_ALIGNED}}
+        if _actual_status != _expected_status:
+            print(f"  FAIL bundle status dict changed: {_actual_status} "
+                  f"(expected {_expected_status})")
             src_diffs += 1
         else:
-            print("  OK   bundle status dict unchanged (all validated)")
+            print("  OK   bundle status dict matches (4 validated + UNA aligned)")
         # Flip-test (non-vacuous): the predicates actually catch seeded drift.
         _poison_drop = {k: v for k, v in _mv.MODEL_VALIDATION.items() if k != "carbon"}
         _poison_align = dict(_mv.MODEL_VALIDATION)
