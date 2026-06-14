@@ -4706,6 +4706,94 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         umh_doc_diffs += 1
 
+    # ── Validated-model reproducer conformance lock (generalized) ───────────
+    # Every model in VALIDATED_MODELS must be backed by a COMMITTED
+    # comparisons/*.csv artifact whose every row is a CLEAN, GUARDED run on
+    # InVEST 3.19.0. This generalizes the per-model doc-echo into one universal
+    # rule — "no InVEST-validated badge without a conforming reproducer" — with
+    # NO 3.16.2 carve-out (all five sit on one InVEST version). Had this existed,
+    # it would have caught UNA on its own: a validated badge whose only artifact
+    # was a 3.16.2 reachability proxy (different statistic, no guard) fails here.
+    print(f"\n{'=' * 60}")
+    print("Validated-model reproducer conformance lock (3.19.0 + clean + guard)")
+    print(f"{'=' * 60}")
+    reproducer_diffs = 0
+    try:
+        import csv as _csv_r
+        import model_validation as _mv_r
+        _ARTIFACT = {
+            "ucm":    "comparisons/ucm_baseline_mn.csv",
+            "una":    "comparisons/una_supply_parity_mn.csv",
+            "umh":    "comparisons/umh_parity.csv",
+            "ufr":    "comparisons/ufr_sa_retention_parity.csv",
+            "carbon": "comparisons/carbon_sa_fourpool_parity.csv",
+        }
+
+        def _conforms(_path):
+            """Return (ok, reason). Every row: invest_version 3.19.x, clean True,
+            guard_ok True."""
+            _p = Path(_path)
+            if not _p.exists():
+                return False, f"artifact missing: {_path}"
+            _rows = list(_csv_r.DictReader(open(_p)))
+            if not _rows:
+                return False, f"artifact empty: {_path}"
+            for _row in _rows:
+                _ver = (_row.get("invest_version") or "")
+                if not _ver.startswith("3.19"):
+                    return False, f"{_path}: invest_version={_ver!r} (not 3.19.x)"
+                if (_row.get("clean") or "").strip() != "True":
+                    return False, f"{_path}: a row is not clean ({_row.get('clean')!r})"
+                if (_row.get("guard_ok") or "").strip() != "True":
+                    return False, f"{_path}: a row lacks a passing guard ({_row.get('guard_ok')!r})"
+            return True, f"{_path} ({len(_rows)} row(s))"
+
+        for _model in sorted(_mv_r.VALIDATED_MODELS):
+            _path = _ARTIFACT.get(_model)
+            if _path is None:
+                print(f"  FAIL validated model {_model!r} has no mapped "
+                      "comparisons/*.csv reproducer — a validated badge with no "
+                      "conforming artifact (the UNA failure mode)")
+                reproducer_diffs += 1
+                continue
+            _ok, _why = _conforms(_path)
+            if _ok:
+                print(f"  OK   {_model}: {_why} — 3.19.0, clean, guarded")
+            else:
+                print(f"  FAIL {_model}: {_why}")
+                reproducer_diffs += 1
+        # Flip-test (non-vacuous): a validated model with no artifact, a 3.16.2
+        # run, an unclean row, or a missing guard must each be caught.
+        _seed_dir = Path("comparisons")
+        _bad_cases = [
+            ("no-artifact", None),
+            ("3.16.2", [{"invest_version": "3.16.2", "clean": "True", "guard_ok": "True"}]),
+            ("unclean", [{"invest_version": "3.19.0", "clean": "False", "guard_ok": "True"}]),
+            ("no-guard", [{"invest_version": "3.19.0", "clean": "True", "guard_ok": "False"}]),
+        ]
+        _meta_ok = True
+        for _label, _rows in _bad_cases:
+            if _rows is None:
+                _caught = not _conforms("comparisons/_nonexistent_repro.csv")[0]
+            else:
+                _tmpf = _seed_dir / "_repro_lock_selftest.csv"
+                with open(_tmpf, "w", newline="") as _fh:
+                    _w = _csv_r.DictWriter(_fh, fieldnames=list(_rows[0].keys()))
+                    _w.writeheader(); _w.writerows(_rows)
+                _caught = not _conforms(str(_tmpf))[0]
+                _tmpf.unlink()
+            if not _caught:
+                print(f"  FAIL meta-test: seeded {_label} reproducer NOT caught")
+                reproducer_diffs += 1; _meta_ok = False
+        if _meta_ok:
+            print("  OK   meta-test: missing / 3.16.2 / unclean / unguarded "
+                  "reproducers are all caught (non-vacuous)")
+    except Exception as _e:
+        print(f"  ERROR reproducer conformance lock: {_e}")
+        import traceback
+        traceback.print_exc()
+        reproducer_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -4722,7 +4810,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
                    + glyph_diffs + carbon_unit_diffs + autoswitch_diffs
                    + ce_diffs + active_scn_diffs + fda_diffs
-                   + tradeoff_axis_diffs + umh_doc_diffs)
+                   + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4856,6 +4944,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"{umh_doc_diffs} UMH parity doc-echo divergence(s) — a doc's SA "
                   "UMH figures drifted from the harness tuple, an 'aligned input' "
                   "overstatement returned, or REFERENCE's UMH kernel is mis-described.")
+        if reproducer_diffs:
+            print(f"{reproducer_diffs} validated-model reproducer divergence(s) — a "
+                  "validated badge lacks a committed comparisons/*.csv on InVEST "
+                  "3.19.0 that is clean + guarded (the UNA failure mode).")
         if loader_diffs:
             print(f"{loader_diffs} calibration-loader divergence(s) — "
                   "_load_surrogate_calibration returned None/wrong shape on a "
