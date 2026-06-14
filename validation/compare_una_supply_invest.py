@@ -274,6 +274,33 @@ def run_compare() -> int:
               f"variant): rel_MAE={grel_mae:.3g}, r={gr:.6f} → "
               f"{'tripped (good)' if guard_ok else 'DID NOT TRIP (vacuous!)'}")
 
+        # ── Residual diagnostic: linear fit + edge concentration ────────────
+        # Characterize the per-pixel MAE that sits beside r=1.0. Fit
+        # app = a·invest + b over the matched pixels: a≈1 / b≈0 ⇒ no scale or
+        # offset (the residual is noise, not a systematic divergence). Then split
+        # |diff| into grid-interior vs boundary pixels (a valid pixel touching an
+        # invalid pixel or the grid border, 4-connectivity) — same idea as UCM's
+        # large-divergence breakdown — to confirm whether it's an edge artifact.
+        _av, _iv = app_clean[valid], inv[valid]
+        _a, _b = np.polyfit(_iv, _av, 1)
+        _resid_std = float((_av - (_a * _iv + _b)).std())
+        _diff_full = np.abs(inv - app_clean)
+        _pad = np.pad(valid, 1, constant_values=False)
+        _all_nbr_valid = (_pad[:-2, 1:-1] & _pad[2:, 1:-1]
+                          & _pad[1:-1, :-2] & _pad[1:-1, 2:])
+        _interior = valid & _all_nbr_valid
+        _edge = valid & ~_all_nbr_valid
+        _mae_int = float(_diff_full[_interior].mean()) if _interior.any() else float("nan")
+        _mae_edge = float(_diff_full[_edge].mean()) if _edge.any() else float("nan")
+        _diff_tot = float(_diff_full[valid].sum())
+        _edge_frac = (float(_diff_full[_edge].sum()) / _diff_tot
+                      if _diff_tot > 0 else float("nan"))
+        print(f"  residual fit: app = {_a:.8f}·invest + {_b:+.4g}  "
+              f"(resid std {_resid_std:.4g})")
+        print(f"  |diff| interior={_mae_int:.4g}  edge={_mae_edge:.4g}  → "
+              f"{int(_edge.sum()):,}/{int(valid.sum()):,} boundary px carry "
+              f"{_edge_frac:.1%} of total |diff|")
+
         clean = ok and guard_ok
         art = Path("comparisons/una_supply_parity_mn.csv")
         art.parent.mkdir(exist_ok=True)
@@ -285,6 +312,10 @@ def run_compare() -> int:
             "aoi_sum_pct_diff": f"{rel * 100.0:.6f}",
             "app_total_m2_percapita": f"{atot:.4f}",
             "invest_total_m2_percapita": f"{itot:.4f}",
+            "fit_slope_a": f"{_a:.8f}", "fit_intercept_b": f"{_b:.6e}",
+            "resid_std": f"{_resid_std:.6e}",
+            "mae_interior": f"{_mae_int:.6e}", "mae_edge": f"{_mae_edge:.6e}",
+            "edge_diff_fraction": f"{_edge_frac:.6f}",
             "guard_mae": f"{gmae:.6e}", "guard_ok": guard_ok,
             "n_pixels_compared": int(valid.sum()),
             "search_radius_m": f"{p['search_radius_m']:.0f}",
