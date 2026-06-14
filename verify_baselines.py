@@ -4899,6 +4899,54 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         placement_priority_diffs += 1
 
+    # ── Flood-focused placement non-degeneracy lock (CN-path regression guard) ─
+    # The flood-focused suitability surface derives per-pixel CN. A CN-path
+    # regression that returns 0 on the convertible pool (the SA bug: a bare
+    # 2-digit lookup against the 3-digit nlcd_tree table) silently collapses the
+    # weights to all-zero → the strategy falls back to uniform random. Assert the
+    # weights are non-degenerate (sum > 0 AND spatial variance > 0) on BOTH
+    # cities — the compound-table city is the regression, the plain-NLCD city the
+    # passing control. Catches "focused knob silently goes random" for ANY future
+    # CN-path regression, not just this instance. Runs last: it rebinds cities,
+    # and nothing downstream but the pure grand_total tally follows.
+    print(f"\n{'=' * 60}")
+    print("Flood-focused placement non-degeneracy lock (CN-path regression guard)")
+    print(f"{'=' * 60}")
+    flood_signal_diffs = 0
+    try:
+        import numpy as _np_fs
+        for _city in active_cities:
+            _rebind_city(app, _city)
+            _w = app._compute_suitability_weights(app.CONVERTIBLE_PIXELS, 'flood-focused')
+            _sum, _var = float(_w.sum()), float(_w.var())
+            if _sum > 0 and _var > 0:
+                print(f"  OK   {_city}: flood-focused weights non-degenerate "
+                      f"(sum={_sum:.4g}, variance>0)")
+            else:
+                print(f"  FAIL {_city}: flood-focused weights DEGENERATE "
+                      f"(sum={_sum:.4g}, var={_var:.4g}) — placement silently random")
+                flood_signal_diffs += 1
+            # Flip-test on the compound (3-digit-table) city: the OLD bare
+            # 2-digit CN lookup must collapse to all-zero, proving the reduction
+            # in _per_pixel_cn is load-bearing (non-vacuous).
+            if app.cooling_lulc_compound is not None:
+                _r, _c = app.CONVERTIBLE_PIXELS[:, 0], app.CONVERTIBLE_PIXELS[:, 1]
+                _bare_lulc = _np_fs.clip(app.cooling_lulc[_r, _c], 0, len(app.lucode_idx_arr) - 1)
+                _bare_soil = _np_fs.clip(app.soil_resized[_r, _c].astype(int), 1, app.cn_table.shape[1] - 1)
+                _bare_cn = app.cn_table[app.lucode_idx_arr[_bare_lulc], _bare_soil]
+                if float(_bare_cn.sum()) == 0.0:
+                    print(f"  OK   {_city} flip-test: the old bare-2-digit CN lookup "
+                          "is all-zero (the reduction fix is non-vacuous)")
+                else:
+                    print(f"  FAIL {_city} flip-test: bare-2-digit lookup not "
+                          "all-zero — degeneracy reproducer broke")
+                    flood_signal_diffs += 1
+    except Exception as _e_fs:
+        print(f"  ERROR flood-focused non-degeneracy lock: {_e_fs}")
+        import traceback
+        traceback.print_exc()
+        flood_signal_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -4916,7 +4964,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + glyph_diffs + carbon_unit_diffs + autoswitch_diffs
                    + ce_diffs + active_scn_diffs + fda_diffs
                    + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs
-                   + placement_priority_diffs)
+                   + placement_priority_diffs + flood_signal_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5098,6 +5146,13 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "above). Replace it with the canonical term from REFERENCE.md "
                   "§ \"Vocabulary (canonical terms)\", or mark a deliberate "
                   "historical mention with the 'vocab-allow' marker.")
+        if flood_signal_diffs:
+            print(f"{flood_signal_diffs} flood-focused non-degeneracy "
+                  "divergence(s) — flood-focused suitability weights collapsed "
+                  "to all-zero (or zero-variance) on a city's convertible pool, "
+                  "so the strategy silently falls back to random. A CN-path "
+                  "regression (e.g. reverting the _per_pixel_cn reduction) "
+                  "drives the compound-table city back to all-zero.")
         if placement_priority_diffs:
             print(f"{placement_priority_diffs} placement-priority overlay "
                   "honesty divergence(s) — the rendered surface drifted from "

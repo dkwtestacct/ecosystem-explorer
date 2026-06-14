@@ -1350,6 +1350,31 @@ def reduce_compound_to_nlcd_tree(compound_raster, compound_to_nlcd_tree):
                     compound_to_nlcd_tree[safe]).astype(np.int16)
 
 
+def _per_pixel_cn(lulc_nlcd, lulc_compound, compound_to_nlcd_tree,
+                  lucode_idx_arr, cn_table, soil_resized):
+    """Canonical per-pixel curve-number raster — the ONE place CN is read from
+    the table.
+
+    Shared by every CN consumer: the load-time baseline scalar, the per-scenario
+    flood outcome, the region-local baseline, and the flood-focused placement
+    surface. SA's CN table is keyed by 3-digit NLCD×tree-canopy codes, so when a
+    compound view is present it is reduced to that key space first; MN's plain
+    2-digit NLCD is already the key space. Querying the SA table with bare
+    2-digit codes misses every key (→ unmapped index-0 row → CN 0) — the bug
+    this single source exists to make unrepeatable.
+
+    Pure: all dependencies explicit so the loader (module aliases not yet bound)
+    calls it identically to every runtime path.
+    """
+    if lulc_compound is not None:
+        cn_lookup = reduce_compound_to_nlcd_tree(lulc_compound, compound_to_nlcd_tree)
+    else:
+        cn_lookup = lulc_nlcd
+    lulc_safe = np.clip(cn_lookup, 0, len(lucode_idx_arr) - 1)
+    soil_clamped = np.clip(soil_resized, 1, 4)
+    return cn_table[lucode_idx_arr[lulc_safe], soil_clamped]
+
+
 def _assert_raster_crs(src, expected_crs, file_path):
     """Assert that a loaded raster's CRS matches the city's canonical CRS.
 
@@ -2448,9 +2473,15 @@ def _compute_suitability_weights(convertible_pixels, strategy):
         # canonical signal for "this pixel produces a lot of runoff."
         # Higher runoff = more potential benefit from greening (greening
         # lowers CN, which lowers Q). See InVEST UFR user guide eq. 127.
-        lulc_vals = np.clip(cooling_lulc[rows, cols], 0, len(lucode_idx_arr) - 1)
-        soil_vals = np.clip(soil_resized[rows, cols].astype(int), 1, cn_table.shape[1] - 1)
-        pixel_cn = cn_table[lucode_idx_arr[lulc_vals], soil_vals].astype(np.float64)
+        # Per-pixel BASELINE CN via the shared canonical derivation — the SAME
+        # CN the flood outcome uses. For SA this reduces the compound view to
+        # the 3-digit nlcd_tree key space; the bare 2-digit lookup that lived
+        # here silently missed SA's table (→ CN 0 → all-zero weights → silent
+        # random fallback).
+        cn_grid = _per_pixel_cn(
+            cooling_lulc, cooling_lulc_compound, COMPOUND_TO_NLCD_TREE,
+            lucode_idx_arr, cn_table, soil_resized)
+        pixel_cn = cn_grid[rows, cols].astype(np.float64)
         # SCS-CN runoff equation. CN is dimensionless; output Q is in mm.
         s_max = 25400.0 / np.maximum(pixel_cn, 1e-6) - 254.0  # mm
         p_mm = DESIGN_STORM_INCHES * 25.4  # mm
@@ -2785,20 +2816,13 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         scenario_lulc_una = scenario_lulc
         scenario_lulc_carbon = scenario_lulc
 
-    soil_clamped = np.clip(soil_resized, 1, 4)
-    # CN lookup key: SA's flood CN table is keyed by NLCD × tree-canopy 3-digit
-    # codes (NatCap NLCD×tree-canopy compound framework, see Ben NDR and Flood
-    # Mar_2023.pptx). Reduce the compound raster to that space.
-    # MN's table is plain 2-digit NLCD, so use scenario_lulc directly. Only
-    # this CN lookup uses the tree-reduced view; every other SA metric continues
-    # to use scenario_lulc / the compound views as before.
-    if scenario_lulc_compound is not None:
-        cn_lookup_lulc = reduce_compound_to_nlcd_tree(scenario_lulc_compound, COMPOUND_TO_NLCD_TREE)
-    else:
-        cn_lookup_lulc = scenario_lulc
-    lulc_safe    = np.clip(cn_lookup_lulc, 0, len(lucode_idx_arr) - 1)
-    lulc_idx     = lucode_idx_arr[lulc_safe]
-    cn_scenario  = cn_table[lulc_idx, soil_clamped]
+    # Per-scenario per-pixel CN via the shared canonical derivation. For SA this
+    # reduces the compound view to the table's 3-digit nlcd_tree key space; MN
+    # uses plain 2-digit NLCD. Only this CN lookup uses the tree-reduced view;
+    # every other SA metric continues to use scenario_lulc / the compound views.
+    cn_scenario  = _per_pixel_cn(
+        scenario_lulc, scenario_lulc_compound, COMPOUND_TO_NLCD_TREE,
+        lucode_idx_arr, cn_table, soil_resized)
     mean_cn      = float(cn_scenario[cn_scenario > 0].mean().round(2))
 
     # Canonical InVEST UCM Heat Mitigation Index — HMI = max(CC_local,
@@ -2929,16 +2953,13 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
         # region mask). Same absolute convention as `_rl_flood_reduction`
         # (scenario) and the citywide plot's Baseline ref — lets the tradeoff
         # plot place the region baseline marker at its REAL position instead of
-        # pinning it to 0. Mirrors the load-time baseline-CN derivation
-        # (reduce_compound_to_nlcd_tree → cn_table lookup) but from the baseline
-        # LULC (`cooling_lulc` / its compound view) and masked to the region.
-        if cooling_lulc_compound is not None:
-            _rl_base_cn_lookup_lulc = reduce_compound_to_nlcd_tree(
-                cooling_lulc_compound, COMPOUND_TO_NLCD_TREE)
-        else:
-            _rl_base_cn_lookup_lulc = cooling_lulc
-        _rl_base_lulc_safe = np.clip(_rl_base_cn_lookup_lulc, 0, len(lucode_idx_arr) - 1)
-        _rl_base_cn_grid = cn_table[lucode_idx_arr[_rl_base_lulc_safe], soil_clamped]
+        # pinning it to 0. Baseline CN via the shared canonical derivation (the
+        # same one the load-time scalar and the flood outcome use), from the
+        # baseline LULC (`cooling_lulc` / its compound view), masked to the
+        # region below.
+        _rl_base_cn_grid = _per_pixel_cn(
+            cooling_lulc, cooling_lulc_compound, COMPOUND_TO_NLCD_TREE,
+            lucode_idx_arr, cn_table, soil_resized)
         _rl_base_cn_valid = (_rl_base_cn_grid > 0) & rm
         _rl_base_mean_cn = (
             float(_rl_base_cn_grid[_rl_base_cn_valid].mean().round(2))
@@ -4004,17 +4025,13 @@ def _load_city_runtime_state(city_key: str) -> CityState:
         float(valid_base_cc.mean().round(4))
         if valid_base_cc.size > 0 else float(cfg['baseline_hm'] or 0.0)
     )
-    # Baseline CN must use the same lookup key as evaluate_scenario: SA's CN
-    # table is NLCD × tree-canopy keyed (NatCap framework), so reduce the
-    # compound baseline LULC to that space; MN uses plain 2-digit NLCD.
-    if l_cooling_lulc_compound is not None:
-        baseline_cn_lulc = reduce_compound_to_nlcd_tree(l_cooling_lulc_compound, l_compound_to_nlcd_tree)
-    else:
-        baseline_cn_lulc = l_cooling_lulc
-    baseline_lulc_safe = np.clip(baseline_cn_lulc, 0, len(l_lucode_idx_arr) - 1)
-    baseline_lulc_idx  = l_lucode_idx_arr[baseline_lulc_safe]
-    baseline_soil      = np.clip(l_soil_resized, 1, 4)
-    baseline_cn_grid   = l_cn_table[baseline_lulc_idx, baseline_soil]
+    # Baseline CN must use the same lookup key as evaluate_scenario: the shared
+    # canonical derivation (SA reduces the compound view to the NLCD×tree-canopy
+    # key space; MN uses plain 2-digit NLCD). Pure-variant call — module aliases
+    # aren't bound yet at load time, so deps are passed explicitly.
+    baseline_cn_grid   = _per_pixel_cn(
+        l_cooling_lulc, l_cooling_lulc_compound, l_compound_to_nlcd_tree,
+        l_lucode_idx_arr, l_cn_table, l_soil_resized)
     valid_base_cn      = baseline_cn_grid[baseline_cn_grid > 0]
     baseline_cn = (
         float(valid_base_cn.mean().round(2))
