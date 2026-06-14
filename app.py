@@ -4795,7 +4795,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
         alpha_f[changed] = 0.0
         overlay_rgba[..., 3] = (alpha_f * 255).astype(np.uint8)
         ax.imshow(overlay_rgba)
-        legend_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Urban intensity overlay'))
+        legend_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Developed-area intensity'))
 
     # Optional tract-level improvement overlay. tract_value is a per-pixel
     # float raster (NaN outside any tract); colormap is RdYlGn so positive
@@ -10004,7 +10004,7 @@ if _main_tab == 'Map View':
                 help=(
                     "Developed-area intensity from land cover, used as a proxy "
                     "for urban heat vulnerability. Visual context only — it does "
-                    "not change the scenario."
+                    "not change the scenario or represent modeled cooling."
                 ),
             )
 
@@ -10044,7 +10044,7 @@ if _main_tab == 'Map View':
         )
         st.caption(
             "Gray = unchanged developed land. Scenario colors show conversions. "
-            "White = outside city boundary. Orange shading shows developed urban "
+            "White = outside city boundary. Orange shading shows developed-area "
             "intensity for context; darker orange = more intense development."
         )
 
