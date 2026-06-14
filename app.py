@@ -538,22 +538,18 @@ if 'entry_city' not in st.session_state:
     with st.container(border=True):
         st.markdown(
             "**What you can do**  \n"
-            "• **Build a land-use scenario** — convert developed land into green "
-            "infrastructure, food forest, or higher-density development.  \n"
-            "• **Target where it happens** — citywide, in selected council "
-            "districts, or on eligible public, vacant, school, or other land.  \n"
-            # "five" is sourced from model_validation.VALIDATED_MODELS (UCM, UNA,
-            # UMH, UFR, Carbon). If that set changes, update this copy — the
-            # verify_baselines validated-set check pins the count at 5.
-            "• **Evaluate impacts** — flood, cooling, carbon, greenness, nature "
-            "access, mental health, food, and cost, built around five InVEST "
-            "model pathways. Five InVEST model pathways provide the core "
-            "ecological and social outcomes; prototype food and cost modules add "
-            "planning-screening context.  \n"
-            "• **Optimize & compare** — find promising citywide mixes or "
-            "best-tested mixes for a selected area, then compare tradeoffs.  \n"
-            "• **Trust the results** — each result shows where it came from "
-            "and how it was checked, with audit detail underneath."
+            "• **Build a scenario** — change land-use assumptions and see "
+            "modeled outcomes.  \n"
+            "• **Target where changes happen** — citywide or within selected "
+            "regions and eligible land.  \n"
+            "• **Evaluate tradeoffs** — flood, cooling, carbon, greenness, "
+            "nature access, mental health, food, and cost.  \n"
+            "• **Search alternatives** — screen promising mixes or "
+            "selected-area options.  \n"
+            "• **Make trust visible** — show each result's source, validation "
+            "status, assumptions, audit detail.  \n"
+            "• **Support handoff** — export scenario details for deeper model "
+            "review or partner reporting."
         )
     st.stop()
 
@@ -1097,6 +1093,10 @@ with st.expander("How this prototype works", expanded=False):
         "  \n"
         "This is an exploratory tool — numbers are directional, not precise. "
         "Use them to compare strategies, not as final answers.  \n"
+        "  \n"
+        "Results are intended for exploration and prioritization, not final "
+        "decision claims. The prototype makes assumptions and validation status "
+        "visible so promising scenarios can be reviewed more deeply.  \n"
         "  \n"
         "Flood Index is derived from curve number, cooling from a heat "
         "mitigation index, and food production from a food-forest yield "
