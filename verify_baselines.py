@@ -4794,6 +4794,111 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         reproducer_diffs += 1
 
+    # ── Placement-priority overlay honesty lock (no-drift + gated) ─────────
+    # The "Placement priority (active strategy)" map overlay renders a focused
+    # strategy's per-pixel suitability surface so focused placements are
+    # explainable. Two honesty guards, both machine-locked here:
+    #   (1) no-drift — the rendered raster's convertible-pixel values are
+    #       *exactly* _compute_suitability_weights output for that strategy
+    #       (can't drift to a different surface), painted only on the
+    #       convertible pool; and the focused surfaces are strategy-distinct,
+    #       so the identity check would catch a wrong-strategy raster.
+    #   (2) gated — enabled ONLY for Explorer provenance + focused strategy;
+    #       suppressed for random + optimizer-applied + region-optimized +
+    #       baseline (all ranked under random placement), so the surface never
+    #       manufactures a 'why' beside a placement it didn't drive.
+    print(f"\n{'=' * 60}")
+    print("Placement-priority overlay honesty lock (no-drift + gated)")
+    print(f"{'=' * 60}")
+    placement_priority_diffs = 0
+    try:
+        import numpy as _np_pp
+        _cp = app.CONVERTIBLE_PIXELS
+        _shape = app.cooling_lulc.shape
+        # (1) No-drift: rendered raster == _compute_suitability_weights, exactly.
+        for _strat in sorted(app.FOCUSED_PLACEMENT_STRATEGIES):
+            _w = app._compute_suitability_weights(_cp, _strat)
+            _r = app._placement_priority_raster(_strat, _cp, _shape)
+            _vals = _r[_cp[:, 0], _cp[:, 1]]
+            _nonnan = int(_np_pp.count_nonzero(~_np_pp.isnan(_r)))
+            if not _np_pp.array_equal(_vals, _w):
+                print(f"  FAIL {_strat}: rendered surface != _compute_suitability_weights")
+                placement_priority_diffs += 1
+            elif _nonnan != len(_cp):
+                print(f"  FAIL {_strat}: raster paints {_nonnan} pixels, "
+                      f"expected {len(_cp)} convertible (leak outside the pool)")
+                placement_priority_diffs += 1
+            else:
+                print(f"  OK   {_strat}: rendered surface == suitability weights, "
+                      f"NaN outside the {len(_cp)}-pixel convertible pool")
+        # Non-vacuous: focused surfaces are strategy-distinct, so the identity
+        # check above would catch a raster swapped to a different strategy.
+        _wf = app._compute_suitability_weights(_cp, 'flood-focused')
+        _wc = app._compute_suitability_weights(_cp, 'cooling-focused')
+        if _np_pp.array_equal(_wf, _wc):
+            print("  FAIL flood-focused and cooling-focused surfaces identical "
+                  "(identity check would be vacuous)")
+            placement_priority_diffs += 1
+        else:
+            print("  OK   focused surfaces are strategy-distinct "
+                  "(identity check is non-vacuous)")
+        # 'random' has no surface — the raster builder must refuse it.
+        try:
+            app._placement_priority_raster('random', _cp, _shape)
+            print("  FAIL _placement_priority_raster('random') did not raise")
+            placement_priority_diffs += 1
+        except ValueError:
+            print("  OK   _placement_priority_raster refuses 'random' (no surface)")
+        # Degenerate-surface guard: a focused strategy with no positive weight
+        # placed at random (the weight_sum==0 fallback), so its surface carries
+        # no signal and must not render. _priority_surface_has_signal flags that
+        # case (observed live: flood-focused on San Antonio → CN 0 → Q 0).
+        _allzero = _np_pp.full((3, 3), _np_pp.nan); _allzero[0, 0] = 0.0; _allzero[1, 1] = 0.0
+        _hassig = _np_pp.full((3, 3), _np_pp.nan); _hassig[0, 0] = 0.0; _hassig[1, 1] = 2.0
+        if app._priority_surface_has_signal(_allzero) or \
+                not app._priority_surface_has_signal(_hassig):
+            print("  FAIL _priority_surface_has_signal mis-classifies "
+                  "zero-signal vs real-signal surfaces")
+            placement_priority_diffs += 1
+        else:
+            print("  OK   all-zero surface flagged no-signal; positive-weight "
+                  "surface flagged has-signal (random fallback won't render)")
+        # (2) Gate matrix — enabled only for Explorer + focused placement.
+        _e_pp_mod = app.eib
+        _gate_cases = [
+            (_e_pp_mod.PROVENANCE_EXPLORER,         'flood-focused',       True),
+            (_e_pp_mod.PROVENANCE_EXPLORER,         'cooling-focused',     True),
+            (_e_pp_mod.PROVENANCE_EXPLORER,         'undersupply-focused', True),
+            (_e_pp_mod.PROVENANCE_EXPLORER,         'balanced',            True),
+            (_e_pp_mod.PROVENANCE_EXPLORER,         'random',              False),
+            (_e_pp_mod.PROVENANCE_OPTIMIZER,        'flood-focused',       False),
+            (_e_pp_mod.PROVENANCE_REGION_OPTIMIZED, 'flood-focused',       False),
+            (_e_pp_mod.PROVENANCE_BASELINE,         'flood-focused',       False),
+        ]
+        _gate_ok = True
+        for _prov, _strat, _want in _gate_cases:
+            _got = app._should_show_placement_priority(_prov, _strat)
+            if bool(_got) != _want:
+                print(f"  FAIL gate({_prov!r}, {_strat!r})={_got}, expected {_want}")
+                placement_priority_diffs += 1
+                _gate_ok = False
+        if _gate_ok:
+            print("  OK   gate enables only Explorer+focused; suppresses random, "
+                  "optimizer-applied, region-optimized, baseline")
+        # Non-vacuous: a focused radio while viewing an optimizer result must
+        # stay suppressed — the exact misattribution the gate exists to prevent.
+        if app._should_show_placement_priority(_e_pp_mod.PROVENANCE_OPTIMIZER, 'flood-focused'):
+            print("  FAIL focused radio + optimizer result would expose the surface")
+            placement_priority_diffs += 1
+        else:
+            print("  OK   focused radio + optimizer result stays suppressed "
+                  "(no manufactured 'why')")
+    except Exception as _e_pp:
+        print(f"  ERROR placement-priority honesty lock: {_e_pp}")
+        import traceback
+        traceback.print_exc()
+        placement_priority_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -4810,7 +4915,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + loader_diffs + delta_dir_diffs + src_diffs + badge_src_diffs
                    + glyph_diffs + carbon_unit_diffs + autoswitch_diffs
                    + ce_diffs + active_scn_diffs + fda_diffs
-                   + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs)
+                   + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs
+                   + placement_priority_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -4992,6 +5098,13 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "above). Replace it with the canonical term from REFERENCE.md "
                   "§ \"Vocabulary (canonical terms)\", or mark a deliberate "
                   "historical mention with the 'vocab-allow' marker.")
+        if placement_priority_diffs:
+            print(f"{placement_priority_diffs} placement-priority overlay "
+                  "honesty divergence(s) — the rendered surface drifted from "
+                  "_compute_suitability_weights, leaked outside the convertible "
+                  "pool, or the gate exposed it on random / optimizer-applied / "
+                  "region-optimized / baseline placement (it must render only "
+                  "for Explorer provenance + a focused strategy).")
         return 1
 
 

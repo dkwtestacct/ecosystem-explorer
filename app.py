@@ -2506,6 +2506,124 @@ def _compute_suitability_weights(convertible_pixels, strategy):
     return weights
 
 
+# Focused placement strategies = everything except uniform 'random'. The
+# placement-priority map overlay (which explains WHERE a focused strategy put
+# conversions) renders only for these; 'random' has no priority surface.
+FOCUSED_PLACEMENT_STRATEGIES = frozenset(PLACEMENT_STRATEGIES) - {'random'}
+
+
+def _region_convertible_pixels(selected_region_mask):
+    """The convertible pool, optionally restricted to a region∩ownership mask.
+
+    Single source of truth for the candidate pixel set, shared by sampling
+    (`evaluate_scenario`) and the placement-priority overlay so the two can
+    never rank/render different pixel sets (which would let the displayed
+    priority surface drift from what actually placed the conversions —
+    critical for 'balanced', whose per-component normalization depends on the
+    exact pixel set). `selected_region_mask=None` returns the full pool.
+    """
+    if selected_region_mask is None:
+        return CONVERTIBLE_PIXELS
+    rows = CONVERTIBLE_PIXELS[:, 0]
+    cols = CONVERTIBLE_PIXELS[:, 1]
+    return CONVERTIBLE_PIXELS[selected_region_mask[rows, cols]]
+
+
+def _placement_priority_raster(strategy, convertible_pixels, shape):
+    """Scatter a focused strategy's per-pixel suitability weights onto a
+    full-frame raster for display.
+
+    Values at convertible-pixel coordinates are *exactly*
+    `_compute_suitability_weights(convertible_pixels, strategy)` — the same
+    surface `_select_pixels_for_conversion` ranks against, recomputed (not
+    re-derived) from the one shared function so the rendered raster can't drift
+    to a different surface. Every non-convertible pixel is NaN.
+
+    `strategy` must be focused; 'random' has no priority surface.
+    """
+    if strategy not in FOCUSED_PLACEMENT_STRATEGIES:
+        raise ValueError(
+            f"{strategy!r} has no placement-priority surface "
+            f"(focused strategies only: {sorted(FOCUSED_PLACEMENT_STRATEGIES)})"
+        )
+    weights = _compute_suitability_weights(convertible_pixels, strategy)
+    raster = np.full(shape, np.nan, dtype=np.float64)
+    raster[convertible_pixels[:, 0], convertible_pixels[:, 1]] = weights
+    return raster
+
+
+def _priority_surface_has_signal(priority_raster):
+    """True when a placement-priority surface carries a real ranking signal.
+
+    A focused strategy whose weights are all non-positive placed uniformly at
+    random — `_select_pixels_for_conversion` hits its `weight_sum == 0`
+    fallback — so the surface explains nothing and must not be rendered as if
+    it did. (Observed live: flood-focused on San Antonio, whose convertible
+    pixels resolve to CN 0 → runoff Q 0 everywhere.)
+    """
+    finite = priority_raster[~np.isnan(priority_raster)]
+    return bool(finite.size) and bool(np.any(finite > 0))
+
+
+def _should_show_placement_priority(provenance, strategy):
+    """Honesty gate for the placement-priority overlay.
+
+    True only when the DISPLAYED scenario was actually placed by a focused
+    strategy the surface can honestly explain: Explorer provenance (the
+    standard compute path honors the placement radio, so the displayed raster
+    was placed with `strategy`) AND a focused strategy.
+
+    Suppressed for random placement (no priority surface) and for
+    optimizer-applied / region-optimized / baseline provenance: both optimizers
+    rank recipes under *random* placement, so a priority surface beside an
+    optimizer result would manufacture a 'why' the optimizer never used. Keys
+    on provenance, NOT the sidebar radio — a focused radio selected while
+    viewing an optimizer result can't expose the surface.
+    """
+    return (
+        provenance == eib.PROVENANCE_EXPLORER
+        and strategy in FOCUSED_PLACEMENT_STRATEGIES
+    )
+
+
+def _placement_priority_note(provenance, strategy):
+    """Disabled-state caption explaining why no priority surface is shown.
+    Returns None when the overlay should be ENABLED (focused Explorer)."""
+    if _should_show_placement_priority(provenance, strategy):
+        return None
+    if provenance in (eib.PROVENANCE_OPTIMIZER, eib.PROVENANCE_REGION_OPTIMIZED):
+        return ("Optimizer-suggested mixes are ranked under random placement — "
+                "no targeted priority surface to show.")
+    if provenance == eib.PROVENANCE_BASELINE:
+        return "No conversions in this scenario — nothing was placed."
+    return "Placement was random within eligible land — no priority surface."
+
+
+# Per-strategy captions for the enabled overlay — names the strategy and the
+# exact per-pixel signal it ranked, flagged a placement INPUT (not a modeled
+# outcome) so it can't be misread as a result.
+_PLACEMENT_PRIORITY_CAPTIONS = {
+    'flood-focused': (
+        "Placement priority — flood-focused: per-pixel runoff Q for the design "
+        "storm (InVEST UFR). A placement input, not a modeled outcome."
+    ),
+    'cooling-focused': (
+        "Placement priority — cooling-focused: per-pixel heat exposure (1−HMI) × "
+        "proximity to buildings (InVEST UCM). A placement input, not a modeled "
+        "outcome."
+    ),
+    'undersupply-focused': (
+        "Placement priority — undersupply-focused: per-pixel unmet per-capita "
+        "nature demand (InVEST UNA). A placement input, not a modeled outcome."
+    ),
+    'balanced': (
+        "Placement priority — balanced: equal-weight blend of the flood, "
+        "cooling, and nature-demand surfaces. A placement input, not a modeled "
+        "outcome."
+    ),
+}
+
+
 def _select_pixels_for_conversion(convertible_pixels, n_to_convert, strategy, rng):
     """Select which convertible pixels to convert based on the placement strategy.
 
@@ -2598,13 +2716,7 @@ def evaluate_scenario(pct_converted, green_infrastructure_pct, food_forest_pct,
     # (row, col) pairs it's given, so swapping in `region_convertible_pixels`
     # ranks within the masked set with no changes to the strategy code.
     # `selected_region_mask=None` is byte-identical to prior behavior.
-    if selected_region_mask is not None:
-        _cp_rows = CONVERTIBLE_PIXELS[:, 0]
-        _cp_cols = CONVERTIBLE_PIXELS[:, 1]
-        _in_region = selected_region_mask[_cp_rows, _cp_cols]
-        region_convertible_pixels = CONVERTIBLE_PIXELS[_in_region]
-    else:
-        region_convertible_pixels = CONVERTIBLE_PIXELS
+    region_convertible_pixels = _region_convertible_pixels(selected_region_mask)
 
     n_convert = int(len(region_convertible_pixels) * pct_converted / 100)
 
@@ -4743,6 +4855,7 @@ def _downsample_for_plot(arr, order):
 def plot_spatial_map(scenario_lulc, baseline_lulc,
                      heat_overlay=None, overlay_alpha=0.0,
                      tract_value=None, tract_alpha=0.0,
+                     priority_overlay=None, priority_alpha=0.0,
                      selected_region_mask=None):
     # Downsample once, then build all layers from the downsampled rasters.
     # Doing this after layer construction would defeat the memory savings.
@@ -4796,6 +4909,35 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
         overlay_rgba[..., 3] = (alpha_f * 255).astype(np.uint8)
         ax.imshow(overlay_rgba)
         legend_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Developed-area intensity'))
+
+    # Optional placement-priority overlay — the active focused strategy's
+    # per-pixel suitability surface (purple, deliberately distinct from the
+    # orange developed-area-intensity overlay and the RdYlGn neighborhood
+    # layer). NaN outside the convertible pool; per-pixel alpha encodes
+    # priority normalized to the surface's own max. Zeroed on changed pixels so
+    # the conversions — drawn preferentially from the highest-priority pixels —
+    # show through cleanly, leaving the surrounding purple gradient to reveal
+    # the priority field the placements concentrated on.
+    if priority_overlay is not None and priority_alpha > 0:
+        valid_full = (~np.isnan(priority_overlay)).astype(np.uint8)
+        prio_ds = _downsample_for_plot(np.nan_to_num(priority_overlay, nan=0.0), order=1)
+        valid_ds = _downsample_for_plot(valid_full, order=0).astype(bool)
+        if valid_ds.any():
+            pmax = float(prio_ds[valid_ds].max())
+            norm = np.zeros_like(prio_ds, dtype=np.float32)
+            if pmax > 0:
+                norm[valid_ds] = np.clip(prio_ds[valid_ds] / pmax, 0.0, 1.0)
+            prio_rgba = np.zeros((h, w, 4), dtype=np.uint8)
+            prio_rgba[..., 0] = 148  # purple R — distinct from HD red + overlay orange
+            prio_rgba[..., 1] = 0    # G
+            prio_rgba[..., 2] = 211  # B
+            alpha_p = priority_alpha * norm
+            alpha_p[changed] = 0.0
+            prio_rgba[..., 3] = (alpha_p * 255).astype(np.uint8)
+            ax.imshow(prio_rgba)
+            legend_handles.append(
+                Patch(facecolor=(148/255, 0.0, 211/255, 0.6),
+                      label='Placement priority (active strategy)'))
 
     # Optional tract-level improvement overlay. tract_value is a per-pixel
     # float raster (NaN outside any tract); colormap is RdYlGn so positive
@@ -10007,6 +10149,35 @@ if _main_tab == 'Map View':
                     "not change the scenario or represent modeled cooling."
                 ),
             )
+            # Placement-priority overlay — renders the active focused strategy's
+            # actual per-pixel suitability surface so focused placements are
+            # visually explainable. Honesty-gated: only when the displayed
+            # scenario was placed by a focused strategy (Explorer provenance +
+            # focused strategy). Suppressed for random placement and for
+            # optimizer-applied / region-optimized results (ranked under random
+            # placement) so the surface never sits beside a placement it didn't
+            # drive. Distinct layer/meaning from the developed-area-intensity
+            # context overlay above.
+            _priority_note = _placement_priority_note(_scen_provenance, placement_strategy)
+            if _priority_note is None:
+                show_placement_priority = st.checkbox(
+                    "Placement priority (active strategy)",
+                    value=False,
+                    help=(
+                        "Renders the per-pixel suitability surface this focused "
+                        "strategy ranked against — a placement input, not a "
+                        "modeled outcome. Conversions are drawn preferentially "
+                        "from the highest-priority pixels."
+                    ),
+                )
+                st.caption(_PLACEMENT_PRIORITY_CAPTIONS[placement_strategy])
+            else:
+                show_placement_priority = False
+                st.checkbox(
+                    "Placement priority (active strategy)",
+                    value=False, disabled=True,
+                )
+                st.caption(_priority_note)
 
         # Normalize an all-False selected_region_mask to None — semantically
         # the same as no region selected, and protects downstream consumers
@@ -10028,9 +10199,27 @@ if _main_tab == 'Map View':
         import io
         import base64
         from streamlit.components.v1 import html as _components_html
+        # Build the placement-priority surface from the SAME candidate pixel
+        # set evaluate_scenario sampled (region∩ownership via _combined_mask)
+        # so the rendered surface is byte-for-byte what placement ranked
+        # against. Only when the gated toggle is on. A focused surface with no
+        # positive weight placed at random (the weight_sum==0 fallback) — drop
+        # it and flag the honest fallback rather than draw a blank layer.
+        _priority_overlay = None
+        _priority_no_signal = False
+        if show_placement_priority:
+            _priority_overlay = _placement_priority_raster(
+                placement_strategy,
+                _region_convertible_pixels(_combined_mask),
+                cooling_lulc.shape,
+            )
+            if not _priority_surface_has_signal(_priority_overlay):
+                _priority_overlay = None
+                _priority_no_signal = True
         _spatial_fig = plot_spatial_map(
             results['scenario_lulc'], cooling_lulc,
             heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
+            priority_overlay=_priority_overlay, priority_alpha=0.55,
             selected_region_mask=_spatial_mask,
         )
         _png_buf = io.BytesIO()
@@ -10047,6 +10236,13 @@ if _main_tab == 'Map View':
             "White = outside city boundary. Orange shading shows developed-area "
             "intensity for context; darker orange = more intense development."
         )
+        if _priority_no_signal:
+            st.caption(
+                f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** produced no "
+                "priority signal for this area — every eligible pixel scored "
+                "equally, so placement fell back to random within eligible land. "
+                "No priority surface to show."
+            )
 
         with st.expander("Assumptions and limitations", expanded=False):
             st.caption("Detailed modeling assumptions, caveats, and method notes.")
