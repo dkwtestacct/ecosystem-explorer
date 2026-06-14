@@ -3,7 +3,7 @@
 the app's numpy `calculate_nature_access` (`_una_supply_percapita`) vs canonical
 `natcap.invest.urban_nature_access` 3.19.0.
 
-This is the Relay-69/71-grade UNA reproducer the prior "MAE 0.0234" claim lacked.
+This is the Relay-69/71-grade UNA reproducer the prior ungrounded per-pixel claim lacked.
 It puts the app's numpy 2SFCA port UNDER TEST against an INDEPENDENT InVEST
 computation on MATCHED inputs — NOT InVEST-vs-itself (the flaw in the retired
 `una_lulc_comparison_mn.csv`, which compared InVEST's output to a run on its own

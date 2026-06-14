@@ -38,7 +38,7 @@ MODEL_VALIDATION = {
                      "~99,000 m²/person field), |Δtotal| ≈ 0 over 70,868 MN px. "
                      "Matched-but-independent (InVEST computes its own supply from "
                      "the same LULC/pop/table/params) + non-vacuous +2%-pop guard. "
-                     "Supersedes the withdrawn ungrounded 0.0234 claim and the "
+                     "Supersedes the withdrawn ungrounded per-pixel claim and the "
                      "3.16.2 reachability proxy."},
     "ufr": {"status": "validated", "mae": 0.0, "pearson_r": 1.0,
             "reference": "natcap.invest.urban_flood_risk_mitigation 3.19.0",
