@@ -42,6 +42,8 @@ cache/
 # UMH validation fixtures (~67 MB of GeoTIFFs) — regenerable via
 # `compare_umh_invest.py export`. See CONTRIBUTING.md "Canonical-InVEST validation".
 tests/umh_fixtures/
+# UNA supply-parity fixtures — regenerable via `compare_una_supply_invest.py export`.
+tests/una_fixtures/
 
 # Minneapolis Full inputs — the runtime-needed files (LULC, soil, pop, tracts,
 # roads, buildings.gpkg) ARE tracked. The bulky regenerable source data is not.
