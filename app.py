@@ -1079,15 +1079,19 @@ with st.expander("How this prototype works", expanded=False):
         "prototype food and cost modules add planning-screening context."
     )
     st.markdown(
-        '- **Green Infrastructure (wetlands)** — strongest per-pixel improvement in the runoff / curve-number indicators; citywide changes may be small  \n'
-        '- **Food Forest** — best for cooling + food  \n'
+        '- **Green Infrastructure (wetlands)** — strongest co-benefits are carbon and nature access, with cooling and greenness gains; its flood effect is curve-number-table dependent and not a reliable GI benefit  \n'
+        '- **Food Forest** — best for food, plus a real runoff benefit via forest infiltration  \n'
         '- **High Density** — worst for ecological and nature-access outcomes  \n'
     )
     st.markdown(
         "**Green Infrastructure** converts developed land to woody wetlands "
-        "(NLCD code 90) — strongest for Flood Index and runoff-volume indicators.  \n"
+        "(NLCD code 90) — its strongest outcomes are carbon and nature access, "
+        "with cooling and greenness gains. Its effect on the Flood Index is "
+        "curve-number-table dependent and is not a reliable GI benefit (the "
+        "per-city wetland CN differs — see below).  \n"
         "**Food Forest** is modeled as deciduous forest (NLCD code 41) with a "
-        "food-yield benchmark — best for cooling and food.  \n"
+        "food-yield benchmark — best for food, with a real runoff benefit via "
+        "forest infiltration (low curve number).  \n"
         "**High Density** is modeled as developed, high-intensity / impervious "
         "land (NLCD code 24) — worst for ecological and nature-access outcomes.  \n"
         "  \n"
@@ -1100,7 +1104,11 @@ with st.expander("How this prototype works", expanded=False):
         "  \n"
         "Flood Index is derived from curve number, cooling from a heat "
         "mitigation index, and food production from a food-forest yield "
-        "benchmark — use these as comparative indicators.  \n"
+        "benchmark — use these as comparative indicators. The wetland curve "
+        "number behind Green Infrastructure differs between the per-city NatCap "
+        "tables, so GI's modeled flood effect is not comparable across cities "
+        "and is not claimed as a GI benefit (documented in the project design "
+        "notes; under review with NatCap).  \n"
         f"Cooling °F is approximate (±2°F). Runoff uses a city-specific design "
         f"storm ({DESIGN_STORM_MM:.0f} mm / {DESIGN_STORM_INCHES:.2f} inches for "
         f"{selected_city}; NatCap per-city canonical). Cost is order-of-magnitude — "

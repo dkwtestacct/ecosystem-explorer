@@ -544,6 +544,23 @@ The 4.71 % SA public/institutional figure is **dominated by city-owned land (~3 
 
 **Code touchpoints.** Population side: `load_population_data` (bilinear resample); `pop_count_raster` on `CityState`; consumed by `calculate_nature_access` / `_invest_una_pct_pop_supply_ge_demand` / `calculate_mental_health_impact`; in-app caveat in the `app.py` Selected-region impact block (ownership-filter-gated expander). Ownership-rasterize side: `_rasterize_two_band` (sub-pixel area-majority) in `scripts/data/download_bexar_parcels.py`; the re-snapshotted `_RASTER_EXPECTED_AC` lock in `verify_baselines.py`; `data/sa/sa_ownership_2band_30m.tif`; provenance in `DATA_INVENTORY.md`.
 
+### 6.9 GI flood claim removed — wetland CN disagrees between the per-city tables
+
+**Decision.** The methodology copy no longer claims Green Infrastructure is "strongest for Flood Index / runoff" (removed from `app.py` and `REFERENCE.md` §"Flood is ~scenario-invariant"). GI's modeled flood effect is **routed around, not relocated** to another city: the visible copy frames GI's robust strengths as **carbon, nature access, and cooling/greenness**, attributes a real runoff benefit to **food forest** (forest infiltration → low CN), and states that **GI's flood effect is curve-number-table dependent and not a reliable GI benefit**.
+
+**Why.** GI converts developed land to woody wetlands (NLCD 90 — the documented intentional proxy, see §3 / `REFERENCE.md` §5). But the two cities load different NatCap CN tables, and they disagree starkly on the wetland curve number:
+
+| Source table | Woody Wetlands (90) CN_A/B/C/D | Effect on GI→flood |
+|---|---|---|
+| MN — `UFR_biophysical_table_MN.csv` (InVEST UFR **sample data**) | **1 / 1 / 1 / 1** (same as Open Water 11 and Emergent Wetlands 95 — a blanket "water/wetland = infiltration sink" convention) | GI strongly **improves** flood (artifact of the sink convention) |
+| SA — `biophys_floodmitig_sa.csv` (NatCap **SA project**) | **88 / 89 / 90 / 91** (saturated wetland → high runoff; hydrologically defensible) | GI **worsens** flood (wetland CN ≥ developed) |
+
+So GI's MN flood "lead" rests on a sample-data placeholder, and on SA GI worsens flood while **food forest** (deciduous forest, CN ~36–84) is the real runoff lever. Restating "GI leads flood on MN" would launder the placeholder; hence the claim is dropped, not moved. Verified per-indicator (pct=30): GI's robust co-benefits are carbon (SA ~2× FF; large positive both cities), nature access (ties FF top), and cooling (marginally leads); FF leads food and gives a real, modest-to-moderate runoff benefit on both cities.
+
+**Revisit if.** NatCap confirms whether SA's saturated wetland CN (88–91) is the intended SA value, whether MN's CN=1 is a sample-data placeholder not to be relied on, or whether the app's "Green Infrastructure" should proxy an engineered low-CN infiltration class rather than natural woody wetland. Any of those is a **behavior-changing** fix (CN table edit or GI-proxy remap → schema bump + re-snapshot) and gets its own brief — explicitly **not** "correct SA's CN downward," since the evidence points at MN's CN=1 as the soft value. Logged as an open NatCap-source question.
+
+**Code touchpoints.** Claim copy in `app.py` methodology expander (the GI/FF bullets + the GI/FF paragraph + the Flood-Index-derivation line) and `REFERENCE.md` §"Flood is ~scenario-invariant"; CN tables `data/flood/UFR_biophysical_table_MN.csv` and `data/sa/flood/biophys_floodmitig_sa.csv`; the shared CN derivation `_per_pixel_cn`. Copy/docs only — no model, schema, or baseline change.
+
 ---
 
 ## 7. Lookup table and surrogate optimizer
