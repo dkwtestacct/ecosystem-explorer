@@ -22,14 +22,20 @@ every InVEST model the prototype reimplements:
 
 | Env | Python | natcap.invest | Has | Used by |
 |-----|--------|---------------|-----|---------|
-| anaconda **base** | 3.13 | 3.16.2 | UCM, UFR, UNA, Carbon | `validation/compare_ucm_invest.py`, `validation/compare_una_invest.py`, `validation/compare_carbon_invest.py` |
-| **`natcap_umh_validation`** (conda) | 3.12 | 3.19.0 | + Urban Mental Health | `validation/compare_umh_invest.py` |
+| anaconda **base** | 3.13 | 3.16.2 | (legacy) UCM/UFR/UNA/Carbon modules | **historical / aux only:** `compare_una_invest.py` (retired reachability proxy — superseded), `compare_carbon_invest.py` (MN single-pool AOI-sum check, not a parity test) |
+| **`natcap_umh_validation`** (conda) | 3.12 | 3.19.0 | all reimplemented models incl. Urban Mental Health | **the per-pixel parity reproducers** (two-env: EXPORT in `.venv`, COMPARE here): `compare_ucm_invest.py`, `compare_una_supply_invest.py`, `compare_umh_invest.py`, `compare_ufr_invest.py`, `compare_carbon_sa_fourpool_invest.py` |
 
-Urban Mental Health was added in InVEST **3.18/3.19**, which require **Python
-≥ 3.10** — the app's `.venv` (Python 3.9) cannot host it, and anaconda base's
-3.16.2 has no `urban_mental_health` module. So UMH validation lives in its own
-isolated env. **Do not upgrade anaconda base or the app `.venv`** for this — it
-would risk the other (MAE≈0) harnesses and the app's own runtime stack.
+The **3.19.0 conda env is the canonical validation env** — every committed
+per-pixel parity reproducer (the `comparisons/*_parity.csv` / `*_baseline_mn.csv`
+artifacts that back the `validated` badges) runs InVEST there, so the validated
+set sits on one InVEST version with no 3.16.2 carve-out. Urban Mental Health
+forced the split (added in InVEST **3.18/3.19**, which need **Python ≥ 3.10** —
+the app's `.venv` Python 3.9 can't host it, and base 3.16.2 has no
+`urban_mental_health` module); UCM / UNA / UFR / Carbon four-pool then moved onto
+the same 3.19.0 env so all five validated models are grounded on one version.
+The two-env harnesses EXPORT the app's rasters in `.venv`, then COMPARE against
+canonical InVEST here. **Do not upgrade anaconda base or the app `.venv`** — base
+3.16.2 still hosts the legacy/aux harnesses and `.venv` is the app's runtime stack.
 
 ### Recreate the UMH validation env
 

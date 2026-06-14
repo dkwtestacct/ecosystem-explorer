@@ -110,3 +110,5 @@ data/schools/edge_*/
 # repo. Re-pull from BCAD + classify via `scripts/data/download_bexar_parcels.py`
 # (~12 min wall + the classify/rasterize step).
 data/sa/sa_ownership.gpkg
+# UCM HMI-parity fixtures — regenerable via `compare_ucm_invest.py export`.
+tests/ucm_fixtures/
