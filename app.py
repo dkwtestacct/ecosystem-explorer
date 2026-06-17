@@ -2415,11 +2415,13 @@ def _fmt_sig(x, sig=3):
 
 
 def _fmt_ce(val):
+    """Cost-effectiveness ratio formatter. Routes through _fmt_usd (3-sig-fig
+    floating-magnitude, k/M/B branches) so billion-scale ratios read as '$1.86B'
+    instead of the old bare-4-digit '$1864.6M'. None → 'N/A' for stable table
+    columns. _fmt_usd is defined just below; resolved at call time."""
     if val is None:
         return "N/A"
-    if val >= 1_000_000:
-        return f"${val / 1_000_000:.1f}M"
-    return f"${val:,.0f}"
+    return _fmt_usd(val)
 
 
 def _fmt_usd(v):
@@ -8425,45 +8427,47 @@ if st.session_state.get('main_tab', 'Scenario') == 'Scenario' and _region_local:
 st.divider()
 
 ce = compute_cost_effectiveness(results, BASELINE_RUNOFF_ACRE_FEET)
-st.markdown("#### Cost Effectiveness")
-st.caption(
-    "Screening ratios: implementation cost per unit of positive benefit, using "
-    "the \\$/acre assumptions in the sidebar — for comparing scenarios, not "
-    "budgeting (lower is better). Ratios appear only for metrics the scenario "
-    "meaningfully improves. Metrics that don't improve — including negative "
-    "impacts — stay visible in the outcome cards above."
-)
-# Render a ratio card only where the ratio is meaningful. compute_cost_effectiveness
-# returns None for zero/negative/below-epsilon denominators (incl. warming, which
-# yields no cooling ratio); an "N/A" card on the dashboard reads as broken, so we
-# hide it instead. The outcome cards above are a separate, unconditional section
-# that still shows good/zero/negative impacts — so hiding a ratio never hides bad
-# news. Tables/CSV/audit/optimizer keep _fmt_ce → "N/A" for stable columns.
-_CE_CARD_SPECS = [
-    ("Cost / ac-ft runoff", "cost_per_acft",
-     "Implementation cost divided by acre-feet of runoff reduced versus "
-     "baseline. Lower is better. See 'How this prototype works'."),
-    ("Cost / °F cooling", "cost_per_degf",
-     "Implementation cost divided by city-average °F cooling versus baseline. "
-     "Lower is better. See 'How this prototype works'."),
-    ("Cost / 1k people fed", "cost_per_1k_people",
-     "Implementation cost divided by estimated people fed, in thousands. "
-     "Lower is better. See 'How this prototype works'."),
-]
-_ce_cards = [(lbl, ce[key], hlp, key) for (lbl, key, hlp) in _CE_CARD_SPECS
-             if ce[key] is not None]
-if _ce_cards:
-    _ce_cols = st.columns(len(_ce_cards))
-    for _col, (_lbl, _val, _hlp, _key) in zip(_ce_cols, _ce_cards):
-        _col.metric(_lbl, _fmt_ce(_val), delta=None, help=_hlp)
-        _render_validation_caption(_col, _key, _validation_scenario_context,
-                                   explicit_status="prototype")
-else:
+# All three cost-effectiveness ratios are Prototype-tier screening numbers, so
+# the block sits in a collapsed expander rather than prime dashboard space.
+with st.expander("Cost effectiveness", expanded=False):
     st.caption(
-        "No cost-effectiveness ratios for this scenario — it doesn't meaningfully "
-        "improve runoff, cooling, or food production. Its impacts are in the "
-        "outcome cards above."
+        "Screening ratios: implementation cost per unit of positive benefit, using "
+        "the \\$/acre assumptions in the sidebar — for comparing scenarios, not "
+        "budgeting (lower is better). Ratios appear only for metrics the scenario "
+        "meaningfully improves. Metrics that don't improve — including negative "
+        "impacts — stay visible in the outcome cards above."
     )
+    # Render a ratio card only where the ratio is meaningful. compute_cost_effectiveness
+    # returns None for zero/negative/below-epsilon denominators (incl. warming, which
+    # yields no cooling ratio); an "N/A" card on the dashboard reads as broken, so we
+    # hide it instead. The outcome cards above are a separate, unconditional section
+    # that still shows good/zero/negative impacts — so hiding a ratio never hides bad
+    # news. Tables/CSV/audit/optimizer keep _fmt_ce → "N/A" for stable columns.
+    _CE_CARD_SPECS = [
+        ("Cost / ac-ft runoff", "cost_per_acft",
+         "Implementation cost divided by acre-feet of runoff reduced versus "
+         "baseline. Lower is better. See 'How this prototype works'."),
+        ("Cost / °F cooling", "cost_per_degf",
+         "Implementation cost divided by city-average °F cooling versus baseline. "
+         "Lower is better. See 'How this prototype works'."),
+        ("Cost / 1k people fed", "cost_per_1k_people",
+         "Implementation cost divided by estimated people fed, in thousands. "
+         "Lower is better. See 'How this prototype works'."),
+    ]
+    _ce_cards = [(lbl, ce[key], hlp, key) for (lbl, key, hlp) in _CE_CARD_SPECS
+                 if ce[key] is not None]
+    if _ce_cards:
+        _ce_cols = st.columns(len(_ce_cards))
+        for _col, (_lbl, _val, _hlp, _key) in zip(_ce_cols, _ce_cards):
+            _col.metric(_lbl, _fmt_ce(_val), delta=None, help=_hlp)
+            _render_validation_caption(_col, _key, _validation_scenario_context,
+                                       explicit_status="prototype")
+    else:
+        st.caption(
+            "No cost-effectiveness ratios for this scenario — it doesn't meaningfully "
+            "improve runoff, cooling, or food production. Its impacts are in the "
+            "outcome cards above."
+        )
 
 with st.expander("Baseline vs Scenario Comparison", expanded=False):
     # read from state to avoid silent-staleness if city switches
