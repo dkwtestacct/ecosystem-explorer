@@ -6150,7 +6150,7 @@ with _sec_scenario:
     st.subheader("Conversion Mix")
     st.caption(
         "Allocate converted land across three uses — must sum to 100%. "
-        "High Density auto-fills as the remainder, but it can also be explicitly adjusted."
+        "High Density is auto-filled as the remainder so the mix always sums to 100%."
     )
 
     green_infrastructure_pct = st.number_input(
@@ -6164,13 +6164,14 @@ with _sec_scenario:
         help="Share of converted land allocated to food forest (deciduous forest, NLCD 41)."
     )
 
+    # High density is the auto-filled remainder so the mix sums to 100%. It is
+    # NOT an editable widget: the prior st.number_input had no key and reset to
+    # the remainder on every rerun, so manual edits never held — a dead control.
+    # Render it read-only; the math (pct_highdensity = max(0, remainder)) is
+    # unchanged and still feeds mix_sum / evaluate_scenario.
     auto_hd = 100 - green_infrastructure_pct - food_forest_pct
-    pct_highdensity = st.number_input(
-        "High Density %", 0, 100,
-        value=max(0, auto_hd),
-        step=5,
-        help="Share of converted land allocated to high-density development (NLCD 24). Auto-fills as remainder."
-    )
+    pct_highdensity = max(0, auto_hd)
+    st.markdown(f"**High density (remainder):** {pct_highdensity}%")
 
     mix_sum = green_infrastructure_pct + food_forest_pct + pct_highdensity
 
