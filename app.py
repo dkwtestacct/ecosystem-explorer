@@ -5049,9 +5049,9 @@ def _map_layers_caption(intensity_on, priority_on, region_active):
     intensity/priority/region clauses can be flip-tested in isolation. Each
     optional clause appears IFF its layer is on."""
     parts = [
-        "This map shows where the current scenario changes land cover: "
-        "green = green infrastructure, dark green = food forest, "
-        "red = high-density development; gray = unchanged developed land."
+        "Each colored pixel is developed land converted by the current "
+        "scenario; gray is land left unchanged. Green = green infrastructure · "
+        "dark green = food forest · red = high-density development."
     ]
     if intensity_on:
         parts.append(
@@ -5070,6 +5070,21 @@ def _map_layers_caption(intensity_on, priority_on, region_active):
             "inside it."
         )
     return "".join(parts)
+
+
+def _map_status_layers(intensity_on, priority_on):
+    """Layers field for the map status line. 'Scenario changes only' when both
+    optional overlays are off; otherwise names the active overlays. Pure, so the
+    on/off branches flip-test in isolation. The status line — not the caption —
+    owns the layer-state wording."""
+    names = []
+    if intensity_on:
+        names.append("developed-area intensity")
+    if priority_on:
+        names.append("placement priority")
+    if not names:
+        return "Scenario changes only"
+    return "Scenario changes + " + ", ".join(names)
 
 
 # ── Plotly tradeoff plot ───────────────────────────────────────────────────────
@@ -10215,11 +10230,10 @@ if _main_tab == 'Map View':
 
         if placement_strategy != 'random':
             st.info(
-            f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** — conversions are "
-            "drawn preferentially toward higher-suitability pixels. Open the "
-            "**Map layers** panel and turn on the placement-priority layer to see "
-            "the surface that drove the placement — a placement input, not a "
-            "modeled outcome."
+            f"**Placement strategy: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}.** "
+            "Conversions are drawn toward higher-suitability pixels. Turn on the "
+            "placement-priority layer below to see the input surface that guided "
+            "placement — a placement input, not a modeled outcome."
             )
 
         with st.expander("Map layers", expanded=False):
@@ -10242,7 +10256,7 @@ if _main_tab == 'Map View':
             )
             if show_intensity:
                 overlay_alpha = st.slider(
-                    "Intensity layer strength", 0.0, 0.5, 0.15, 0.05,
+                    "Developed-area intensity visibility", 0.0, 0.5, 0.15, 0.05,
                 )
             else:
                 overlay_alpha = 0.0
@@ -10273,7 +10287,7 @@ if _main_tab == 'Map View':
                 st.caption(_PLACEMENT_PRIORITY_CAPTIONS[placement_strategy])
                 if show_placement_priority:
                     priority_alpha = st.slider(
-                        "Priority layer strength", 0.0, 1.0, 0.55, 0.05,
+                        "Priority layer visibility", 0.0, 1.0, 0.55, 0.05,
                     )
                 else:
                     priority_alpha = 0.0
@@ -10329,13 +10343,24 @@ if _main_tab == 'Map View':
             priority_overlay=_priority_overlay, priority_alpha=priority_alpha,
             selected_region_mask=_spatial_mask,
         )
+        # Status line, ABOVE the image and AFTER the Map layers expander (so it
+        # reads live toggle state). Placement / Area REUSE the same _setup_place
+        # / _setup_region the Active-scenario "Scope:" line is built from, so the
+        # map line can never drift from the scenario header. The status line owns
+        # layer-state wording; the caption below stays state-agnostic.
+        _map_intensity_on = overlay_alpha > 0
+        _map_priority_on = (_priority_overlay is not None and priority_alpha > 0)
+        st.markdown(
+            f"**Showing:** {_map_status_layers(_map_intensity_on, _map_priority_on)}"
+            f" · **Placement:** {_setup_place} · **Area:** {_setup_region}"
+        )
         # Always-visible "what this map shows" caption, ABOVE the image and
         # OUTSIDE the Map layers expander. Composed from live layer state:
         # intensity drawn iff overlay_alpha > 0; priority drawn iff the surface
         # resolved (not no-signal) and its slider > 0; region iff a mask is set.
         st.caption(_map_layers_caption(
-            intensity_on=overlay_alpha > 0,
-            priority_on=(_priority_overlay is not None and priority_alpha > 0),
+            intensity_on=_map_intensity_on,
+            priority_on=_map_priority_on,
             region_active=_spatial_mask is not None,
         ))
         _png_buf = io.BytesIO()
