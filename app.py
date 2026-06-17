@@ -4906,12 +4906,16 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.imshow(rgb)
 
-    legend_handles = [
+    # Two distinct handle groups (Relay — layer legibility): the scenario-change
+    # legend is always present; optional context/input/scope layers collect into
+    # a separate group rendered only when at least one is active.
+    _scenario_handles = [
         Patch(facecolor=CHANGE_COLORS['Unchanged'],            label='Unchanged'),
         Patch(facecolor=CHANGE_COLORS['Green Infrastructure'], label='→ Green Infrastructure'),
         Patch(facecolor=CHANGE_COLORS['Food Forest'],          label='→ Food Forest'),
         Patch(facecolor=CHANGE_COLORS['High Density'],         label='→ High Density'),
     ]
+    _layer_handles = []
 
     # Optional heat-vulnerability overlay (orange, was red — see commit
     # notes). Per-pixel alpha = overlay_alpha × heat_overlay value (which is
@@ -4933,7 +4937,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
         alpha_f[changed] = 0.0
         overlay_rgba[..., 3] = (alpha_f * 255).astype(np.uint8)
         ax.imshow(overlay_rgba)
-        legend_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Developed-area intensity'))
+        _layer_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Developed-area intensity'))
 
     # Optional placement-priority overlay — the active focused strategy's
     # per-pixel suitability surface (purple, deliberately distinct from the
@@ -4960,7 +4964,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
             alpha_p[changed] = 0.0
             prio_rgba[..., 3] = (alpha_p * 255).astype(np.uint8)
             ax.imshow(prio_rgba)
-            legend_handles.append(
+            _layer_handles.append(
                 Patch(facecolor=(148/255, 0.0, 211/255, 0.6),
                       label='Placement priority (active strategy)'))
 
@@ -4982,7 +4986,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
             cmap_rgba = plt.get_cmap("RdYlGn")(np.clip(norm_val, 0.0, 1.0)).astype(np.float32)
             cmap_rgba[..., 3] = tract_alpha * valid_ds.astype(np.float32)
             ax.imshow(cmap_rgba)
-            legend_handles.append(
+            _layer_handles.append(
                 Patch(facecolor=(0.0, 0.6, 0.0, 0.6),
                       label="Neighborhood improvement (green = better)")
             )
@@ -5003,7 +5007,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
                 colors=['#1f77b4'],
                 linewidths=1.8,
             )
-            legend_handles.append(
+            _layer_handles.append(
                 Patch(facecolor='none', edgecolor='#1f77b4', linewidth=1.8,
                       label="Selected region")
             )
@@ -5019,9 +5023,51 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
 
     ax.axis('off')
     # Title removed — section H2 "Where land-cover changes happen" already provides context
-    ax.legend(handles=legend_handles, loc='lower right', fontsize=9, framealpha=0.9)
+    # Two legends: scenario changes (lower-right, always) + optional layers
+    # (upper-right, only when any context/input/scope layer is active). add_artist
+    # keeps the first legend on the axes when the second legend is set, so both
+    # persist. Enlarged for readability at the 820px iframe render.
+    _scenario_legend = ax.legend(
+        handles=_scenario_handles, title="Scenario changes",
+        loc='lower right', fontsize=11, title_fontsize=11, framealpha=0.9,
+    )
+    if _layer_handles:
+        ax.add_artist(_scenario_legend)
+        ax.legend(
+            handles=_layer_handles, title="Optional layers",
+            loc='upper right', fontsize=11, title_fontsize=11, framealpha=0.9,
+        )
     plt.tight_layout()
     return fig
+
+
+def _map_layers_caption(intensity_on, priority_on, region_active):
+    """Compose the always-visible "what this map shows" caption from independent
+    clauses keyed to live layer state. Pure (no Streamlit / module state) so the
+    intensity/priority/region clauses can be flip-tested in isolation. Each
+    optional clause appears IFF its layer is on."""
+    parts = [
+        "This map shows where the current scenario changes land cover: "
+        "green = green infrastructure, dark green = food forest, "
+        "red = high-density development; gray = unchanged developed land."
+    ]
+    if intensity_on:
+        parts.append(
+            " Tan shading is developed-area intensity — a heat-vulnerability "
+            "proxy shown for context, not a result."
+        )
+    if priority_on:
+        parts.append(
+            " Purple is the placement-priority surface the active strategy "
+            "ranked against — it explains where conversions go; it is a "
+            "placement input, not a modeled outcome."
+        )
+    if region_active:
+        parts.append(
+            " The outline marks the selected area; changes are placed only "
+            "inside it."
+        )
+    return "".join(parts)
 
 
 # ── Plotly tradeoff plot ───────────────────────────────────────────────────────
@@ -10160,33 +10206,51 @@ if _main_tab == 'Map View':
 
         if placement_strategy != 'random':
             st.info(
-            f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** — conversions weighted "
-            "toward higher-suitability pixels. Notice the spatial pattern shift vs. random allocation."
+            f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** — conversions are "
+            "drawn preferentially toward higher-suitability pixels. Open the "
+            "**Map layers** panel and turn on the placement-priority layer to see "
+            "the surface that drove the placement — a placement input, not a "
+            "modeled outcome."
             )
 
-        with st.expander("Map display options", expanded=False):
-            overlay_opacity = st.slider(
-                "Overlay opacity",
-                0.0, 0.5, 0.15, 0.05,
+        with st.expander("Map layers", expanded=False):
+            # Two INDEPENDENT layer toggles, each revealing its own strength
+            # slider only when ON. Both default OFF so the default view is clean
+            # changes-on-gray (no orange wash, no priority surface).
+            #
+            # Layer 1 — developed-area intensity (context wash). OFF ⇒
+            # overlay_alpha = 0.0, which trips plot_spatial_map's
+            # `overlay_alpha > 0` guard and drops both the wash and its legend
+            # entry.
+            show_intensity = st.checkbox(
+                "Show developed-area intensity",
+                value=False,
                 help=(
                     "Developed-area intensity from land cover, used as a proxy "
                     "for urban heat vulnerability. Visual context only — it does "
                     "not change the scenario or represent modeled cooling."
                 ),
             )
-            # Placement-priority overlay — renders the active focused strategy's
-            # actual per-pixel suitability surface so focused placements are
-            # visually explainable. Honesty-gated: only when the displayed
-            # scenario was placed by a focused strategy (Explorer provenance +
-            # focused strategy). Suppressed for random placement and for
+            if show_intensity:
+                overlay_alpha = st.slider(
+                    "Intensity layer strength", 0.0, 0.5, 0.15, 0.05,
+                )
+            else:
+                overlay_alpha = 0.0
+
+            # Layer 2 — placement-priority surface (a placement INPUT, not a
+            # modeled outcome). Renders the active focused strategy's actual
+            # per-pixel suitability surface so focused placements are visually
+            # explainable. Honesty-gated: only when the displayed scenario was
+            # placed by a focused strategy (Explorer provenance + focused
+            # strategy). Suppressed for random placement and for
             # optimizer-applied / region-optimized results (ranked under random
             # placement) so the surface never sits beside a placement it didn't
-            # drive. Distinct layer/meaning from the developed-area-intensity
-            # context overlay above.
+            # drive. Distinct layer/meaning from the intensity context wash above.
             _priority_note = _placement_priority_note(_scen_provenance, placement_strategy)
             if _priority_note is None:
                 show_placement_priority = st.checkbox(
-                    "Placement priority (active strategy)",
+                    "Show placement-priority layer",
                     value=False,
                     help=(
                         "Renders the per-pixel suitability surface this focused "
@@ -10195,11 +10259,20 @@ if _main_tab == 'Map View':
                         "from the highest-priority pixels."
                     ),
                 )
+                # Visible caption keeps the "placement input, not a modeled
+                # outcome" caveat (each per-strategy caption ends with it).
                 st.caption(_PLACEMENT_PRIORITY_CAPTIONS[placement_strategy])
+                if show_placement_priority:
+                    priority_alpha = st.slider(
+                        "Priority layer strength", 0.0, 1.0, 0.55, 0.05,
+                    )
+                else:
+                    priority_alpha = 0.0
             else:
                 show_placement_priority = False
+                priority_alpha = 0.0
                 st.checkbox(
-                    "Placement priority (active strategy)",
+                    "Show placement-priority layer",
                     value=False, disabled=True,
                 )
                 st.caption(_priority_note)
@@ -10243,10 +10316,19 @@ if _main_tab == 'Map View':
                 _priority_no_signal = True
         _spatial_fig = plot_spatial_map(
             results['scenario_lulc'], cooling_lulc,
-            heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_opacity,
-            priority_overlay=_priority_overlay, priority_alpha=0.55,
+            heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_alpha,
+            priority_overlay=_priority_overlay, priority_alpha=priority_alpha,
             selected_region_mask=_spatial_mask,
         )
+        # Always-visible "what this map shows" caption, ABOVE the image and
+        # OUTSIDE the Map layers expander. Composed from live layer state:
+        # intensity drawn iff overlay_alpha > 0; priority drawn iff the surface
+        # resolved (not no-signal) and its slider > 0; region iff a mask is set.
+        st.caption(_map_layers_caption(
+            intensity_on=overlay_alpha > 0,
+            priority_on=(_priority_overlay is not None and priority_alpha > 0),
+            region_active=_spatial_mask is not None,
+        ))
         _png_buf = io.BytesIO()
         _spatial_fig.savefig(_png_buf, format='png')
         plt.close(_spatial_fig)
@@ -10255,11 +10337,6 @@ if _main_tab == 'Map View':
             f'<img src="data:image/png;base64,{_png_b64}" '
             f'style="width:100%">',
             height=820,
-        )
-        st.caption(
-            "Gray = unchanged developed land. Scenario colors show conversions. "
-            "White = outside city boundary. Orange shading shows developed-area "
-            "intensity for context; darker orange = more intense development."
         )
         if _priority_no_signal:
             st.caption(
