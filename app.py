@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from matplotlib.patches import Patch
 import plotly.graph_objects as go
 import os
 import json
@@ -394,6 +393,14 @@ CHANGE_COLORS = {
     'Food Forest':          '#4caf50',
     'High Density':         '#e53935',
 }
+
+# Map-overlay colors — single-sourced so the figure's imshow blocks and the
+# HTML legend swatch builder can't drift (the prior in-figure legend hardcoded
+# its own copies, which is how the legend-orange-vs-map-tan mismatch arose).
+# RGB 0–255 triples; the selected-region outline is a hex (used by ax.contour).
+_INTENSITY_OVERLAY_RGB = (255, 140, 0)   # orange — developed-area intensity wash
+_PRIORITY_OVERLAY_RGB  = (148, 0, 211)   # purple — placement-priority surface
+_SELECTED_REGION_COLOR = '#1f77b4'       # blue outline — selected region
 
 # ── "What's new" in-app changelog ──────────────────────────────────────────────
 # A small changelog for returning visitors. Each entry clears a strict bar:
@@ -4908,16 +4915,9 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.imshow(rgb)
 
-    # Two distinct handle groups (Relay — layer legibility): the scenario-change
-    # legend is always present; optional context/input/scope layers collect into
-    # a separate group rendered only when at least one is active.
-    _scenario_handles = [
-        Patch(facecolor=CHANGE_COLORS['Unchanged'],            label='Unchanged'),
-        Patch(facecolor=CHANGE_COLORS['Green Infrastructure'], label='→ Green Infrastructure'),
-        Patch(facecolor=CHANGE_COLORS['Food Forest'],          label='→ Food Forest'),
-        Patch(facecolor=CHANGE_COLORS['High Density'],         label='→ High Density'),
-    ]
-    _layer_handles = []
+    # Legend lives OUTSIDE the figure now (Relay 7): the Map View caller renders
+    # a larger, grouped HTML legend below the image. This function only draws the
+    # data layers — no ax.legend(), no handle bookkeeping.
 
     # Optional heat-vulnerability overlay (orange, was red — see commit
     # notes). Per-pixel alpha = overlay_alpha × heat_overlay value (which is
@@ -4926,11 +4926,9 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
     if heat_overlay is not None and overlay_alpha > 0:
         heat_overlay_ds = _downsample_for_plot(heat_overlay, order=1)
         overlay_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-        # Orange channel mix (R=255, G=140, B=0) — avoids collision with the
-        # "→ High Density" red. Alpha still encodes the HV gradient per pixel.
-        overlay_rgba[..., 0] = 255  # red
-        overlay_rgba[..., 1] = 140  # green
-        overlay_rgba[..., 2] = 0    # blue (explicit even though default is 0)
+        # Orange wash — avoids collision with the "→ High Density" red. Alpha
+        # still encodes the HV gradient per pixel. Color from the shared constant.
+        overlay_rgba[..., :3] = _INTENSITY_OVERLAY_RGB
         alpha_f = overlay_alpha * np.clip(heat_overlay_ds, 0.0, 1.0)
         # Relay 38 — conversions always show through: zero the overlay alpha on
         # changed pixels so the orange tints only unchanged land. `changed` is
@@ -4939,7 +4937,6 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
         alpha_f[changed] = 0.0
         overlay_rgba[..., 3] = (alpha_f * 255).astype(np.uint8)
         ax.imshow(overlay_rgba)
-        _layer_handles.append(Patch(facecolor=(1.0, 140/255, 0.0, 0.6), label='Developed-area intensity'))
 
     # Optional placement-priority overlay — the active focused strategy's
     # per-pixel suitability surface (purple, deliberately distinct from the
@@ -4959,16 +4956,12 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
             if pmax > 0:
                 norm[valid_ds] = np.clip(prio_ds[valid_ds] / pmax, 0.0, 1.0)
             prio_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-            prio_rgba[..., 0] = 148  # purple R — distinct from HD red + overlay orange
-            prio_rgba[..., 1] = 0    # G
-            prio_rgba[..., 2] = 211  # B
+            # Purple — distinct from HD red + overlay orange. Shared constant.
+            prio_rgba[..., :3] = _PRIORITY_OVERLAY_RGB
             alpha_p = priority_alpha * norm
             alpha_p[changed] = 0.0
             prio_rgba[..., 3] = (alpha_p * 255).astype(np.uint8)
             ax.imshow(prio_rgba)
-            _layer_handles.append(
-                Patch(facecolor=(148/255, 0.0, 211/255, 0.6),
-                      label='Placement priority (active strategy)'))
 
     # Optional tract-level improvement overlay. tract_value is a per-pixel
     # float raster (NaN outside any tract); colormap is RdYlGn so positive
@@ -4988,10 +4981,6 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
             cmap_rgba = plt.get_cmap("RdYlGn")(np.clip(norm_val, 0.0, 1.0)).astype(np.float32)
             cmap_rgba[..., 3] = tract_alpha * valid_ds.astype(np.float32)
             ax.imshow(cmap_rgba)
-            _layer_handles.append(
-                Patch(facecolor=(0.0, 0.6, 0.0, 0.6),
-                      label="Neighborhood improvement (green = better)")
-            )
 
     # Region Selection Phase 1 (Commit 4) — display-only outline of the
     # selected region(s) on the existing map. Read-only highlight; no click
@@ -5006,12 +4995,8 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
             ax.contour(
                 region_mask_ds.astype(np.uint8),
                 levels=[0.5],
-                colors=['#1f77b4'],
+                colors=[_SELECTED_REGION_COLOR],
                 linewidths=1.8,
-            )
-            _layer_handles.append(
-                Patch(facecolor='none', edgecolor='#1f77b4', linewidth=1.8,
-                      label="Selected region")
             )
             # Relay 38 — auto-fit the view to the selected region (+~12% pad) so
             # its conversions fill the frame. y inverted for image origin.
@@ -5025,20 +5010,8 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
 
     ax.axis('off')
     # Title removed — section H2 "Where land-cover changes happen" already provides context
-    # Two legends: scenario changes (lower-right, always) + optional layers
-    # (upper-right, only when any context/input/scope layer is active). add_artist
-    # keeps the first legend on the axes when the second legend is set, so both
-    # persist. Enlarged for readability at the 820px iframe render.
-    _scenario_legend = ax.legend(
-        handles=_scenario_handles, title="Scenario changes",
-        loc='lower right', fontsize=11, title_fontsize=11, framealpha=0.9,
-    )
-    if _layer_handles:
-        ax.add_artist(_scenario_legend)
-        ax.legend(
-            handles=_layer_handles, title="Optional layers",
-            loc='upper right', fontsize=11, title_fontsize=11, framealpha=0.9,
-        )
+    # No in-figure legend (Relay 7) — the grouped HTML legend below the map owns
+    # it; here we'd only crowd the data.
     plt.tight_layout()
     return fig
 
@@ -5085,6 +5058,64 @@ def _map_status_layers(intensity_on, priority_on):
     if not names:
         return "Scenario changes only"
     return "Scenario changes + " + ", ".join(names)
+
+
+# Representative blend strength for the overlay legend swatches — a mid-strength
+# alpha so the swatch reads like the on-map tint rather than the pure overlay
+# color (the old in-figure legend showed pure orange while the map showed tan).
+_LEGEND_OVERLAY_ALPHA = 0.5
+
+
+def _blend_over_unchanged(rgb, alpha):
+    """Blend an RGB 0–255 triple over the unchanged-gray at `alpha`, returning a
+    #rrggbb hex. Mirrors the map's per-pixel composite so a legend swatch matches
+    the on-map blended appearance. Gray sourced from CHANGE_COLORS (no drift)."""
+    gray = tuple(int(round(c * 255)) for c in mcolors.to_rgb(CHANGE_COLORS['Unchanged']))
+    blended = tuple(int(round(alpha * c + (1 - alpha) * g)) for c, g in zip(rgb, gray))
+    return "#{:02x}{:02x}{:02x}".format(*blended)
+
+
+def _map_legend_html(intensity_on, priority_on, region_active):
+    """Grouped HTML legend rendered below the map (Relay 7 — replaces the
+    in-figure matplotlib legend). Pure / flip-testable. Every swatch color
+    derives from CHANGE_COLORS or the shared overlay constants — NO duplicated
+    literal layer hex — so the palette (incl. any later tune) flows through
+    automatically. The 'Optional layers' group is omitted entirely when no
+    optional layer is active; each optional entry appears IFF its layer is on."""
+    def _swatch(css):
+        return (f'<span style="display:inline-block;width:18px;height:18px;'
+                f'margin-right:8px;vertical-align:middle;{css}"></span>')
+
+    def _fill_row(hex_color, label):
+        sw = _swatch(f'background:{hex_color};border:1px solid #888;')
+        return (f'<div style="margin:3px 0;font-size:14px;">{sw}'
+                f'<span style="vertical-align:middle;">{label}</span></div>')
+
+    rows = [
+        '<div style="font-weight:600;margin-bottom:3px;">Scenario changes</div>',
+        _fill_row(CHANGE_COLORS['Unchanged'],            'Unchanged'),
+        _fill_row(CHANGE_COLORS['Green Infrastructure'], '→ Green Infrastructure'),
+        _fill_row(CHANGE_COLORS['Food Forest'],          '→ Food Forest'),
+        _fill_row(CHANGE_COLORS['High Density'],         '→ High Density'),
+    ]
+    optional = []
+    if intensity_on:
+        optional.append(_fill_row(
+            _blend_over_unchanged(_INTENSITY_OVERLAY_RGB, _LEGEND_OVERLAY_ALPHA),
+            'Developed-area intensity'))
+    if priority_on:
+        optional.append(_fill_row(
+            _blend_over_unchanged(_PRIORITY_OVERLAY_RGB, _LEGEND_OVERLAY_ALPHA),
+            'Placement priority'))
+    if region_active:
+        outline = _swatch(f'background:transparent;'
+                          f'border:2px solid {_SELECTED_REGION_COLOR};')
+        optional.append(f'<div style="margin:3px 0;font-size:14px;">{outline}'
+                        f'<span style="vertical-align:middle;">Selected region</span></div>')
+    if optional:
+        rows.append('<div style="font-weight:600;margin:8px 0 3px;">Optional layers</div>')
+        rows.extend(optional)
+    return '<div style="line-height:1.4;">' + "".join(rows) + '</div>'
 
 
 # ── Plotly tradeoff plot ───────────────────────────────────────────────────────
@@ -10371,6 +10402,17 @@ if _main_tab == 'Map View':
             f'<img src="data:image/png;base64,{_png_b64}" '
             f'style="width:100%">',
             height=820,
+        )
+        # Grouped HTML legend BELOW the map (Relay 7) — larger than the old
+        # in-figure 9pt legend and off the data. Swatches track the live layer
+        # state and the shared color constants.
+        st.markdown(
+            _map_legend_html(
+                intensity_on=_map_intensity_on,
+                priority_on=_map_priority_on,
+                region_active=_spatial_mask is not None,
+            ),
+            unsafe_allow_html=True,
         )
         if _priority_no_signal:
             st.caption(
