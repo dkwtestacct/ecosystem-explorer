@@ -7455,28 +7455,28 @@ def _fmt_carbon(tons):
 # annual sequestration flow is always ≥ 0, so it keeps the shared `_delta_pill`
 # path and the "Carbon Sequestration" label. Lifting only the SA branch out of
 # `_delta_pill` leaves the other three callers (flood, runoff, NDVI) untouched.
-# Units live in the card LABEL ("… (t CO2e)") and the value/delta carry just the
-# abbreviated magnitude, so nothing ellipsizes at 1/3 width.
+# Units no longer ride in the card LABEL (Relay — labels truncate); the unit
+# (t CO2e) is surfaced in the card help instead, so the short label never
+# ellipsizes at 1/3 width.
 _CARBON_PILL_EPSILON = 1.0
-_carbon_unit_label = f"({_carbon_unit_suffix})"
 if _CARBON_IS_STOCK:
     if _carbon_value < -_CARBON_PILL_EPSILON:
-        _carbon_card_label = f"Carbon Storage Loss {_carbon_unit_label}"
+        _carbon_card_label = "Carbon Storage Loss"
         _carbon_value_str = _fmt_carbon(abs(_carbon_value))
         _carbon_delta_str = f"+{_fmt_carbon(abs(_carbon_value))} lost"
         _carbon_delta_color = "inverse"
     elif _carbon_value > _CARBON_PILL_EPSILON:
-        _carbon_card_label = f"Carbon Storage Change {_carbon_unit_label}"
+        _carbon_card_label = "Carbon Storage Change"
         _carbon_value_str = _fmt_carbon(_carbon_value)
         _carbon_delta_str = f"+{_fmt_carbon(_carbon_value)} stock change"
         _carbon_delta_color = "normal"
     else:
-        _carbon_card_label = f"Carbon Storage Change {_carbon_unit_label}"
+        _carbon_card_label = "Carbon Storage Change"
         _carbon_value_str = _fmt_carbon(_carbon_value)
         _carbon_delta_str = None
         _carbon_delta_color = "off"
 else:
-    _carbon_card_label = f"Carbon Sequestration {_carbon_unit_label}"
+    _carbon_card_label = "Carbon Sequestration"
     _carbon_value_str = _fmt_carbon(_carbon_value)
     if _carbon_value > _CARBON_PILL_EPSILON:
         _carbon_delta_str = f"+{_fmt_carbon(_carbon_value)} from conversions"
@@ -7762,14 +7762,14 @@ eco2.metric(
 )
 _render_validation_caption(eco2, "runoff_retention_idx", _validation_scenario_context, explicit_status="aligned_method")
 eco3.metric(
-    "Runoff Volume (ac-ft)",
+    "Runoff Volume",
     _fmt_runoff_value(results['runoff_acre_feet']),
     delta=_runoff_delta_str,
     delta_color=_runoff_delta_color,
     help=(
         "Lower is better. Modeled runoff volume for the city-specific design "
-        "storm. Values are shown in acre-feet; the delta shows reduction versus "
-        "baseline. See 'How this prototype works'."
+        "storm. Values are shown in acre-feet (ac-ft); the delta shows reduction "
+        "versus baseline. See 'How this prototype works'."
     )
 )
 _render_validation_caption(eco3, "runoff_acre_feet", _validation_scenario_context, explicit_status="aligned_method")
@@ -7824,7 +7824,7 @@ _carbon_card_help = (
         "pixels, using provisional regional rates. An annual flow, not a stock "
         "change. Treat as directional. See 'How this prototype works'."
     )
-)
+) + f" Values are in {_carbon_unit_suffix}."
 eco5.metric(
     _carbon_card_label,
     _carbon_value_str,

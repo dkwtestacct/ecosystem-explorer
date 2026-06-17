@@ -2886,7 +2886,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
     # ── Metric-label char budget — regression guard for FIX BUNDLE #77 ───────
     # The Fix Bundle shortened three Explorer metric labels:
     #   "Temperature Change"          → "Temp change"
-    #   "Runoff Volume"               → "Runoff Volume (ac-ft)"
+    #   "Runoff Volume (ac-ft)"       → "Runoff Volume"   (Relay — units to help)
     #   "Cost / Citywide °F Cooling"  → "Cost / °F cooling"
     # The honesty qualifier "Citywide" was dropped from the cost label's
     # surface but is preserved in that metric's help= tooltip ("the °F is
@@ -2908,12 +2908,12 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         # any long-form text reappears as an st.metric label literal, fail.
         _LABEL_REGRESSIONS = {
             "Temperature Change":         "Temp change",
-            # Units moved into the label ("(ac-ft)") so the card value doesn't
-            # ellipsize at 1/3 width — the short form is the unit-suffixed label.
-            # Title-cased to match the locked Runoff Volume / Runoff Retention
-            # vocab (same char count, so the budget intent is unchanged); the
-            # bare un-suffixed "Runoff Volume" stays banned as the truncation guard.
-            "Runoff Volume":              "Runoff Volume (ac-ft)",
+            # Relay (units to caption): the unit no longer rides in the label —
+            # it lives in the card help ("Values are shown in acre-feet (ac-ft)").
+            # The unit-suffixed "Runoff Volume (ac-ft)" is now the banned long
+            # form (it truncated at 1/3 width); the bare "Runoff Volume" is the
+            # budget. This reverses the earlier units-in-label decision.
+            "Runoff Volume (ac-ft)":      "Runoff Volume",
             "Cost / Citywide °F Cooling": "Cost / °F cooling",
             # Relay 31 — ceff1/ceff3 de-truncated to short forms.
             "Cost / Acre-Foot Runoff Prevented": "Cost / ac-ft runoff",
@@ -3003,7 +3003,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                       if lab in _LABEL_REGRESSIONS]
         _seed_short = {lab for (_ln, lab) in _seed_labels}
         # Meta seed reintroduces "Temperature Change" (should flag) and
-        # omits "Temp change" + "Runoff Volume (ac-ft)" (should both flag as missing).
+        # omits "Temp change" + "Runoff Volume" (should both flag as missing).
         _seed_missing = [s for s in _LABEL_REGRESSIONS.values()
                          if s not in _seed_short]
         if not _seed_regs:
