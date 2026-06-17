@@ -7585,49 +7585,6 @@ _render_scenario_provenance_header(_scen_provenance, scenario_label=_scen_label,
                                     source_suffix=_source_suffix,
                                     show_scenario_label=False)
 
-# ── Optimizer Promotion — main-panel CTA (centerpiece) ──────────────────────
-# Two-RELAY lock structure: card title "Discover scenarios" (constant) +
-# promoted mode label (visible markdown, NOT a faint caption) + honesty
-# caption + short "Optimize" button at full container width. The mode
-# label + caption + button co-render in the same st.container — Assertion
-# B in verify_baselines machine-locks this pairing so the big button can
-# never detach from its honesty framing. Both the sidebar Discover button
-# and this CTA route through the same _fire_*_optimize helpers; the
-# shared-fire assertion locks that contract. NatCap mode never reaches
-# here (st.stop() short-circuits the scenario-source selector).
-with st.container(border=True):
-    st.markdown("### Discover scenarios")
-    if _filter_active:
-        st.markdown("**Selected-area search**")
-        st.caption(
-            "Searches candidate mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not model predictions."
-        )
-    else:
-        st.markdown("**Citywide machine-learning search**")
-        st.caption("Fast estimates suggest promising mixes; apply one to recompute with the InVEST-aligned evaluator.")
-    # No help= on the main CTA button: the card already explains itself (mode
-    # label + caption above), and a help tooltip here floats over the card. The
-    # sidebar Optimize buttons keep their help (_OPTIMIZE_HELP_*), where there's
-    # less overlap.
-    if st.button("Optimize", type="primary",
-                  key="main_cta_optimize_button",
-                  width="stretch"):
-        if _filter_active:
-            _fire_region_optimize(
-                _CURRENT_CITY_STATE, selected_city,
-                DATA_DIR_FLOOD, DATA_DIR_COOLING,
-                st.session_state.get('selected_region_mask'),
-                st.session_state.get('selected_ownership_mask'),
-                cost_gi, cost_ff, cost_hd,
-                _region_opt_weights,
-            )
-        else:
-            _fire_citywide_optimize(
-                surrogate, min_flood, min_cool, min_food,
-                max_runoff, min_carbon,
-                MAX_FOOD, MAX_FLOOD, MAX_COOL,
-            )
-
 # ── Scenario audit expander ───────────────────────────────────────────────────
 # Single-place view of the current scenario's record. Every field reads the
 # record directly — no recomputation, no parallel truth. Inapplicable fields
@@ -8468,6 +8425,53 @@ with st.expander("Cost effectiveness", expanded=False):
             "improve runoff, cooling, or food production. Its impacts are in the "
             "outcome cards above."
         )
+
+# ── Optimizer Promotion — main-panel CTA (centerpiece) ──────────────────────
+# Relocated below the first outcome metrics (after the Cost-effectiveness block)
+# so the demo reads scenario → outcomes → discover, front-loading the payoff
+# before the capability. All vars it consumes (_filter_active, surrogate,
+# min_*/max_*, cost_*, _region_opt_weights, _fire_* helpers) are defined far
+# earlier in this top-level script, so later placement is variable-safe.
+# Two-RELAY lock structure: card title "Discover scenarios" (constant) +
+# promoted mode label (visible markdown, NOT a faint caption) + honesty
+# caption + short "Optimize" button at full container width. The mode
+# label + caption + button co-render in the same st.container — Assertion
+# B in verify_baselines machine-locks this pairing so the big button can
+# never detach from its honesty framing. Both the sidebar Discover button
+# and this CTA route through the same _fire_*_optimize helpers; the
+# shared-fire assertion locks that contract.
+with st.container(border=True):
+    st.markdown("### Discover scenarios")
+    if _filter_active:
+        st.markdown("**Selected-area search**")
+        st.caption(
+            "Searches candidate mixes under the current area and filters. Displayed values are computed by the InVEST-aligned evaluator, not model predictions."
+        )
+    else:
+        st.markdown("**Citywide machine-learning search**")
+        st.caption("Fast estimates suggest promising mixes; apply one to recompute with the InVEST-aligned evaluator.")
+    # No help= on the main CTA button: the card already explains itself (mode
+    # label + caption above), and a help tooltip here floats over the card. The
+    # sidebar Optimize buttons keep their help (_OPTIMIZE_HELP_*), where there's
+    # less overlap.
+    if st.button("Optimize", type="primary",
+                  key="main_cta_optimize_button",
+                  width="stretch"):
+        if _filter_active:
+            _fire_region_optimize(
+                _CURRENT_CITY_STATE, selected_city,
+                DATA_DIR_FLOOD, DATA_DIR_COOLING,
+                st.session_state.get('selected_region_mask'),
+                st.session_state.get('selected_ownership_mask'),
+                cost_gi, cost_ff, cost_hd,
+                _region_opt_weights,
+            )
+        else:
+            _fire_citywide_optimize(
+                surrogate, min_flood, min_cool, min_food,
+                max_runoff, min_carbon,
+                MAX_FOOD, MAX_FLOOD, MAX_COOL,
+            )
 
 with st.expander("Baseline vs Scenario Comparison", expanded=False):
     # read from state to avoid silent-staleness if city switches
