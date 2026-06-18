@@ -10,7 +10,7 @@
 
 A Streamlit tool for exploring tradeoffs in urban land-use scenarios — how reallocating developed land across green infrastructure, food forests, and high-density development affects flood risk, cooling, food production, mental health, carbon, and cost.
 
-It is built on a model engine validated against canonical InVEST (the core urban models match per-pixel), displays NatCap's published San Antonio project values as labeled reference points, lets you explore new scenarios beyond the fixed project set, and exports promising candidates back to canonical InVEST for a full run. Built in collaboration with NatCap (Stanford). Currently supports Minneapolis (downtown) and San Antonio.
+It is built on a model engine validated against canonical InVEST (the core urban models match per-pixel), displays NatCap's published San Antonio project values as labeled reference points, lets you explore new scenarios beyond the fixed project set, and exports promising candidates back to canonical InVEST for a full run. Currently supports Minneapolis (downtown) and San Antonio.
 
 For what each number means — and what's *validated* vs *displayed* vs *exploratory* — see **REFERENCE.md**.
 
