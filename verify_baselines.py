@@ -4947,6 +4947,106 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         flood_signal_diffs += 1
 
+    # ── Map change-palette distinctness floor — Relay 8 guard ────────────────
+    # The scenario-change colors were deepened for contrast against the light
+    # unchanged background. Lock two NO-REGRESSION floors so a later tune can't
+    # quietly push any pair below the PRE-TUNE worst case:
+    #   (1) full-set perceptual floor — min CIE76 ΔE over {Unchanged, GI, FF, HD,
+    #       intensity-orange, priority-purple, nodata-white} ≥ 15.44 (the
+    #       pre-tune Unchanged↔white pair, the tightest);
+    #   (2) colorblind floor — min ΔE among GI/FF/HD under deuteranopia +
+    #       protanopia (Machado 2009 severity 1.0) ≥ 14.33 (pre-tune deut FF↔HD).
+    # Colors are sourced from app (CHANGE_COLORS + the overlay constants) so the
+    # guard tracks the real palette. Meta-tests seed a too-close full-set pair
+    # and a deut-collapsing pair (distinct in normal vision) and confirm each
+    # check flags it — non-vacuous.
+    print(f"\n{'=' * 60}")
+    print("Map change-palette distinctness floor — Relay 8 guard")
+    print(f"{'=' * 60}")
+    palette_diffs = 0
+    try:
+        import itertools as _it
+        _PAL_FLOOR_FULL, _PAL_FLOOR_CVD, _EPS = 15.44, 14.33, 1e-2
+        _DEUT = [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]]
+        _PROT = [[0.152286, 1.052583, -0.204868], [0.114503, 0.786281, 0.099216], [-0.003882, -0.048116, 1.051998]]
+        def _hx(h):
+            h = h.lstrip('#'); return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+        def _ln(c):
+            c /= 255.0; return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+        def _lab(rgb):
+            r, g, b = [_ln(c) for c in rgb]
+            X = r * 0.4124 + g * 0.3576 + b * 0.1805
+            Y = r * 0.2126 + g * 0.7152 + b * 0.0722
+            Z = r * 0.0193 + g * 0.1192 + b * 0.9505
+            def f(t): return t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
+            fx, fy, fz = f(X / 0.95047), f(Y / 1.0), f(Z / 1.08883)
+            return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
+        def _de(a, b):
+            la, lb = _lab(a), _lab(b)
+            return sum((x - y) ** 2 for x, y in zip(la, lb)) ** 0.5
+        def _cvd(rgb, M):
+            lin = [_ln(c) for c in rgb]
+            o = [sum(M[i][j] * lin[j] for j in range(3)) for i in range(3)]
+            def e(c):
+                c = max(0.0, min(1.0, c))
+                c = 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+                return c * 255
+            return tuple(e(c) for c in o)
+        def _dec(a, b, M):
+            return _de(_cvd(a, M), _cvd(b, M))
+        def _full_min(pal):
+            return min(_de(pal[a], pal[b]) for a, b in _it.combinations(pal, 2))
+        def _cvd_min(ch):
+            return min(_dec(ch[a], ch[b], M)
+                       for M in (_DEUT, _PROT) for a, b in _it.combinations(ch, 2))
+
+        _cc = app.CHANGE_COLORS
+        _live = {
+            'Unchanged': _hx(_cc['Unchanged']),
+            'GI': _hx(_cc['Green Infrastructure']),
+            'FF': _hx(_cc['Food Forest']),
+            'HD': _hx(_cc['High Density']),
+            'orange': tuple(app._INTENSITY_OVERLAY_RGB),
+            'purple': tuple(app._PRIORITY_OVERLAY_RGB),
+            'white': (255, 255, 255),
+        }
+        _ch = {k: _live[k] for k in ('GI', 'FF', 'HD')}
+        _fm, _cm = _full_min(_live), _cvd_min(_ch)
+        if _fm + _EPS < _PAL_FLOOR_FULL:
+            print(f"  FAIL full-set perceptual floor: min ΔE {_fm:.2f} < {_PAL_FLOOR_FULL} "
+                  "(a palette pair is closer than the pre-tune worst case)")
+            palette_diffs += 1
+        else:
+            print(f"  OK   full-set perceptual floor: min ΔE {_fm:.2f} ≥ {_PAL_FLOOR_FULL}")
+        if _cm + _EPS < _PAL_FLOOR_CVD:
+            print(f"  FAIL colorblind floor: min GI/FF/HD ΔE {_cm:.2f} < {_PAL_FLOOR_CVD} "
+                  "(deuteranopia/protanopia collapses a change-color pair)")
+            palette_diffs += 1
+        else:
+            print(f"  OK   colorblind floor: min GI/FF/HD ΔE {_cm:.2f} ≥ {_PAL_FLOOR_CVD}")
+
+        # Meta-test (a): seed GI == intensity-orange → full-set floor must trip.
+        _bad = dict(_live); _bad['GI'] = _bad['orange']
+        if _full_min(_bad) + _EPS < _PAL_FLOOR_FULL:
+            print("  OK   meta-test (a): seeded GI==intensity-orange correctly trips the full-set floor")
+        else:
+            print("  FAIL meta-test (a): seeded too-close pair NOT flagged — full-set guard is blind")
+            palette_diffs += 1
+        # Meta-test (b): FF/HD distinct in normal vision but collapse under deut.
+        _badch = {'GI': _ch['GI'], 'FF': _hx('#3c9e3c'), 'HD': _hx('#9e6a2a')}
+        _bad_normal = _de(_badch['FF'], _badch['HD'])
+        if _cvd_min(_badch) + _EPS < _PAL_FLOOR_CVD and _bad_normal > _PAL_FLOOR_FULL:
+            print(f"  OK   meta-test (b): seeded deut-collapse pair (normal ΔE {_bad_normal:.0f}) "
+                  "correctly trips the colorblind floor")
+        else:
+            print("  FAIL meta-test (b): seeded colorblind-collapse pair NOT flagged — CVD guard is blind")
+            palette_diffs += 1
+    except Exception as _e_pal:
+        print(f"  ERROR palette distinctness guard: {_e_pal}")
+        import traceback
+        traceback.print_exc()
+        palette_diffs += 1
+
     print(f"\n{'=' * 60}")
     grand_total = (total_diffs + region_diffs + ownership_diffs
                    + region_local_diffs + smoke_diffs + disclosure_diffs
@@ -4964,7 +5064,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + glyph_diffs + carbon_unit_diffs + autoswitch_diffs
                    + ce_diffs + active_scn_diffs + fda_diffs
                    + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs
-                   + placement_priority_diffs + flood_signal_diffs)
+                   + placement_priority_diffs + flood_signal_diffs
+                   + palette_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5035,6 +5136,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"{label_budget_diffs} metric-label budget divergence(s) "
                   "— FIX BUNDLE #77 shortened labels reverted (long form "
                   "reappeared) or short form disappeared from st.metric.")
+        if palette_diffs:
+            print(f"{palette_diffs} change-palette distinctness divergence(s) "
+                  "— a CHANGE_COLORS / overlay tune pushed a pair below the "
+                  "pre-tune perceptual or colorblind floor (Relay 8 guard).")
         if dense_freshness_diffs:
             print(f"{dense_freshness_diffs} dense-CSV freshness "
                   "divergence(s) — re-run precompute_scenarios.py for the "

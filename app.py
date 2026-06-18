@@ -387,11 +387,20 @@ def _explorer_audit_sentence(resolved, area_phrase, ownership_clause,
 # Food: average American consumes ~2,000 lbs of food per year
 LBS_PER_PERSON_YEAR   = 2_000
 
+# Scenario-change palette. The three change colors are deepened toward higher
+# chroma + medium value (HUE PRESERVED) so they separate from the light-gray
+# unchanged background — at ~10% conversion downsampled to the plot cap, the
+# changes are genuinely sparse, so contrast (not footprint) is the honest lever.
+# FOOTPRINT-NEUTRAL BY DESIGN: do NOT dilate changed pixels or switch to a
+# change-preserving downsample to "fix" paleness — both overstate converted
+# area, which this app is careful not to do. Unchanged stays #d3d3d3 (NOT
+# lightened toward white, or the AOI shape stops reading against #ffffff nodata).
+# The distinctness + colorblind floors are locked in verify_baselines.
 CHANGE_COLORS = {
     'Unchanged':            '#d3d3d3',
-    'Green Infrastructure': '#2196a0',
-    'Food Forest':          '#4caf50',
-    'High Density':         '#e53935',
+    'Green Infrastructure': '#0b7c87',
+    'Food Forest':          '#2e9e3f',
+    'High Density':         '#cc1f1a',
 }
 
 # Map-overlay colors — single-sourced so the figure's imshow blocks and the
