@@ -435,7 +435,18 @@ def _assemble_scenario_audit(results, resolved_scenario, provenance,
             ("Caveats",           caveats),
         ]),
     ]
-    return {"sentence": sentence, "groups": groups}
+    return {
+        "sentence": sentence,
+        "groups": groups,
+        # Raw numbers behind the formatted fields, so callers (e.g. the Map View
+        # acre-summary line) reuse the SAME converted_acres + mix the audit shows
+        # — no parallel recompute. converted_acres matches the "Converted acres"
+        # field; the acre splits derive from it × the mix pcts.
+        "raw": {
+            "converted_acres": converted_acres,
+            "gi_pct": gi_pct, "ff_pct": ff_pct, "hd_pct": hd_pct,
+        },
+    }
 
 
 def _build_scenario_summary_html(*, city, generated_at, app_url, sentence,
@@ -10446,9 +10457,9 @@ if _main_tab == 'Map View':
         if placement_strategy != 'random':
             st.info(
             f"**Placement strategy: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}.** "
-            "Conversions are drawn toward higher-suitability pixels. Turn on the "
-            "placement-priority layer below to see the input surface that guided "
-            "placement — a placement input, not a modeled outcome."
+            "Conversions are drawn toward higher-suitability pixels. The "
+            "placement-priority layer shows the input surface that guided "
+            "placement; it is not a modeled outcome."
             )
 
         with st.expander("Map layers", expanded=False):
@@ -10570,6 +10581,25 @@ if _main_tab == 'Map View':
             f"**Showing:** {_map_status_layers(_map_intensity_on, _map_priority_on)}"
             f" · **Placement:** {_setup_place} · **Area:** {_setup_region}"
         )
+        # Acre summary — ties the faint pixels to real quantities. conv and the
+        # mix pcts come from the SAME audit record the Scenario audit shows
+        # (no recompute); GI/FF/HD acres are conv × each mix share.
+        _map_conv_ac = _audit["raw"]["converted_acres"]
+        _map_gi_ac = _map_conv_ac * _audit["raw"]["gi_pct"] / 100
+        _map_ff_ac = _map_conv_ac * _audit["raw"]["ff_pct"] / 100
+        _map_hd_ac = _map_conv_ac * _audit["raw"]["hd_pct"] / 100
+        st.markdown(
+            f"Converted: {_map_conv_ac:,.0f} acres · GI: {_map_gi_ac:,.0f} · "
+            f"Food forest: {_map_ff_ac:,.0f} · HD: {_map_hd_ac:,.0f} acres"
+        )
+        # Sparsity hint — only in full-region mode (no region mask). When a
+        # region IS selected the view is already zoomed/constrained, so suppress.
+        if _spatial_mask is None:
+            st.caption(
+                "Regional view shows the full scenario footprint. Fine-grained "
+                "changes may be easier to interpret by selecting a council "
+                "district or other area."
+            )
         # Always-visible "what this map shows" caption, ABOVE the image and
         # OUTSIDE the Map layers expander. Composed from live layer state:
         # intensity drawn iff overlay_alpha > 0; priority drawn iff the surface
