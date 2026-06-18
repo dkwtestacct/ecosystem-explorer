@@ -5038,6 +5038,19 @@ def _downsample_for_plot(arr, order, max_dim=_PLOT_MAX_DIM):
     return _zoom(arr, scale, order=order)
 
 
+def _region_spotlight_rgba(region_mask_ds, alpha=0.55):
+    """Translucent white wash over OUT-of-region pixels so the selected region
+    pops: alpha where `region_mask_ds` is False, 0 inside. DISPLAY SPOTLIGHT
+    ONLY — it hides no data, because conversions exist only inside the selected
+    region, so every changed pixel is in-region and stays unwashed (alpha 0)."""
+    h, w = region_mask_ds.shape
+    rgba = np.zeros((h, w, 4), dtype=np.uint8)
+    rgba[..., :3] = 255  # white — fade out-of-region land toward the background
+    rgba[..., 3] = np.where(region_mask_ds, 0,
+                            int(round(alpha * 255))).astype(np.uint8)
+    return rgba
+
+
 def plot_spatial_map(scenario_lulc, baseline_lulc,
                      heat_overlay=None, overlay_alpha=0.0,
                      tract_value=None, tract_alpha=0.0,
@@ -5146,6 +5159,12 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
             selected_region_mask.astype(np.uint8), order=0, max_dim=max_dim
         ).astype(bool)
         if region_mask_ds.any():
+            # Spotlight the selected region: fade out-of-region land toward the
+            # background so the active geography pops. Drawn BEFORE the contour,
+            # over the base + overlay layers. Display spotlight only — hides
+            # nothing (out-of-region land has no conversions; every changed pixel
+            # is in-region and untouched, alpha 0).
+            ax.imshow(_region_spotlight_rgba(region_mask_ds))
             ax.contour(
                 region_mask_ds.astype(np.uint8),
                 levels=[0.5],
