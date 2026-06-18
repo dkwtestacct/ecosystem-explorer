@@ -5189,6 +5189,54 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
     return fig
 
 
+def _change_density_grid(scenario_lulc, baseline_lulc, region_mask=None, n_cells=40):
+    """Coarse grid of conversion density computed at FULL resolution (recovers
+    the density the detail-map downsample drops). Returns a (rows, cols) float
+    array where each cell = changed_pixels / in-AOI_pixels (the share of the
+    cell's mapped land that converted, in [0, 1]); NaN for cells with no in-AOI
+    pixels. AGGREGATION, not interpolation — no smoothing that would imply spread.
+    `changed` is intersected with the AOI (and the region_mask when set) so a
+    cell's numerator can never exceed its denominator."""
+    in_aoi = (baseline_lulc != NODATA)
+    changed = (baseline_lulc != scenario_lulc) & in_aoi
+    if region_mask is not None:
+        in_aoi = in_aoi & region_mask
+        changed = changed & region_mask
+    h, w = scenario_lulc.shape
+    cell = max(1, int(round(max(h, w) / n_cells)))   # ~n_cells across longer axis
+    rows = -(-h // cell)   # ceil division
+    cols = -(-w // cell)
+    dens = np.full((rows, cols), np.nan, dtype=np.float32)
+    for r in range(rows):
+        r0, r1 = r * cell, min((r + 1) * cell, h)
+        for c in range(cols):
+            c0, c1 = c * cell, min((c + 1) * cell, w)
+            denom = int(in_aoi[r0:r1, c0:c1].sum())
+            if denom > 0:
+                dens[r, c] = float(changed[r0:r1, c0:c1].sum()) / denom
+    return dens
+
+
+def plot_change_density(scenario_lulc, baseline_lulc, region_mask=None, n_cells=40):
+    """Coarse grid-aggregated view of WHERE conversions concentrate — a
+    readability aid for the sparse detail map. Aggregation (per-cell share), NOT
+    interpolation (imshow with nearest, no smoothing). Returns a matplotlib
+    figure; the caller savefigs + closes it."""
+    dens = _change_density_grid(scenario_lulc, baseline_lulc, region_mask, n_cells)
+    fig, ax = plt.subplots(figsize=(8, 8))
+    masked = np.ma.masked_invalid(dens)
+    cmap = plt.get_cmap("YlOrRd").copy()
+    cmap.set_bad(color=(1, 1, 1, 0))   # NaN (out-of-AOI) cells transparent
+    _valid = dens[np.isfinite(dens)]
+    _vmax = float(_valid.max()) if _valid.size and _valid.max() > 0 else 1.0
+    im = ax.imshow(masked, cmap=cmap, vmin=0.0, vmax=_vmax, interpolation='nearest')
+    ax.axis('off')
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label("share of cell converted", fontsize=10)
+    plt.tight_layout()
+    return fig
+
+
 def _map_layers_caption(intensity_on, priority_on, region_active):
     """Compose the always-visible "what this map shows" caption from independent
     clauses keyed to live layer state. Pure (no Streamlit / module state) so the
@@ -10554,6 +10602,18 @@ if _main_tab == 'Map View':
                 )
                 st.caption(_priority_note)
 
+            # Change-density companion map — coarse grid aggregation rendered
+            # BELOW the detail map when on (Relay 21). Default OFF.
+            show_change_density = st.checkbox(
+                "Show change-density map (where conversions concentrate)",
+                value=False,
+                help=(
+                    "A coarse grid-aggregated view of where conversions "
+                    "concentrate — a readability aid for the sparse detail map. "
+                    "Aggregation of the same conversions, not a modeled outcome."
+                ),
+            )
+
         # Normalize an all-False selected_region_mask to None — semantically
         # the same as no region selected, and protects downstream consumers
         # from treating a bare zero-mask as a real selection.
@@ -10663,6 +10723,30 @@ if _main_tab == 'Map View':
                 "priority signal for this area — every eligible pixel scored "
                 "equally, so placement fell back to random within eligible land. "
                 "No priority surface to show."
+            )
+
+        # Change-density companion map (Relay 21) — rendered BELOW the detail map
+        # when toggled on. Full-resolution aggregation into a coarse grid; works
+        # citywide or within the selected region. PNG via the same base64 / iframe
+        # transport as the detail map; figure closed after savefig.
+        if show_change_density:
+            _dens_fig = plot_change_density(
+                results['scenario_lulc'], cooling_lulc, region_mask=_spatial_mask,
+            )
+            _dens_buf = io.BytesIO()
+            _dens_fig.savefig(_dens_buf, format='png')
+            plt.close(_dens_fig)
+            _dens_b64 = base64.b64encode(_dens_buf.getvalue()).decode()
+            _components_html(
+                f'<img src="data:image/png;base64,{_dens_b64}" '
+                f'style="width:100%">',
+                height=820,
+            )
+            st.caption(
+                "Scenario conversions aggregated into grid cells — a readability "
+                "aid for the sparse detail map above. Each cell shows the share of "
+                "it that converted; it is an aggregation of the same conversions, "
+                "not a modeled outcome."
             )
 
         with st.expander("Assumptions and limitations", expanded=False):
