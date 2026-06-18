@@ -409,7 +409,9 @@ def _assemble_scenario_audit(results, resolved_scenario, provenance,
         priority_descriptor = "none — random placement"
     caveats = (
         "Planning-screen scenario — some metrics are Prototype-tier estimates "
-        "(marked △); see 'Assumptions and limitations' for the full caveat list."
+        "(marked △); see 'Assumptions and limitations' for the full caveat list. "
+        "Map rendering is downsampled for display; scenario metrics are computed "
+        "on the full-resolution raster."
     )
     sentence = _explorer_audit_sentence(
         resolved_scenario, area_inline, own_clause, strategy_label)
