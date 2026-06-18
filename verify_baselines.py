@@ -3110,6 +3110,65 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         traceback.print_exc()
         unit_survival_diffs += 1
 
+    # ── Figure-close hygiene — no leaked matplotlib figures ──────────────────
+    # Streamlit reruns the whole script every interaction, so every figure
+    # rendered (st.pyplot(...) + the Map View .savefig(...)) must be paired with
+    # a plt.close(...) or figures accumulate. Mechanism: plt.close count >=
+    # render count over app.py (AST, so comments/strings don't count; closes are
+    # matched to `plt.close` specifically so unrelated `.close()` calls — file /
+    # buffer handles — don't inflate the tally). A new render without a matching
+    # close trips it. Meta-test seeds an unpaired render and confirms the
+    # predicate flags it.
+    print(f"\n{'=' * 60}")
+    print("Figure-close hygiene — st.pyplot / savefig paired with plt.close")
+    print(f"{'=' * 60}")
+    fig_close_diffs = 0
+    try:
+        import ast as _ast4
+        with open("app.py", "r") as _f16:
+            _src16 = _f16.read()
+
+        def _render_close_counts(source):
+            tree = _ast4.parse(source)
+            renders = closes = 0
+            for _n in _ast4.walk(tree):
+                if not (isinstance(_n, _ast4.Call)
+                        and isinstance(_n.func, _ast4.Attribute)):
+                    continue
+                _attr = _n.func.attr
+                if _attr in ("pyplot", "savefig"):
+                    renders += 1
+                elif (_attr == "close"
+                      and isinstance(_n.func.value, _ast4.Name)
+                      and _n.func.value.id == "plt"):
+                    closes += 1
+            return renders, closes
+
+        _r, _c = _render_close_counts(_src16)
+        if _r > 0 and _c >= _r:
+            print(f"  OK   figure-close hygiene: {_c} plt.close >= {_r} render(s) "
+                  "(st.pyplot + savefig)")
+        else:
+            print(f"  FAIL figure-close hygiene: {_c} plt.close < {_r} render(s) "
+                  "— a plot is rendered without a paired plt.close (leaked figure)")
+            fig_close_diffs += 1
+
+        # Meta-test: an unpaired render must flag; a paired one must pass.
+        _r1, _c1 = _render_close_counts("import streamlit as st\nst.pyplot(fig)\n")
+        _r2, _c2 = _render_close_counts(
+            "import streamlit as st\nimport matplotlib.pyplot as plt\n"
+            "st.pyplot(fig)\nplt.close(fig)\n")
+        if _c1 < _r1 and _c2 >= _r2:
+            print("  OK   meta-test: unpaired st.pyplot flagged; paired st.pyplot passes")
+        else:
+            print("  FAIL meta-test: figure-close predicate is vacuous")
+            fig_close_diffs += 1
+    except Exception as _e_fig:
+        print(f"  ERROR figure-close hygiene check: {_e_fig}")
+        import traceback
+        traceback.print_exc()
+        fig_close_diffs += 1
+
     # ── Dense-CSV freshness — SA cold-start Lever 1 guard ────────────────────
     # Lever 1 wires Fast mode to read data/scenarios_dense_<city>.csv instead
     # of recomputing 91 scenarios live at module import (~130 s saved on SA).
@@ -5150,7 +5209,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + ce_diffs + active_scn_diffs + fda_diffs
                    + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs
                    + placement_priority_diffs + flood_signal_diffs
-                   + palette_diffs + unit_survival_diffs)
+                   + palette_diffs + unit_survival_diffs + fig_close_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5229,6 +5288,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"{unit_survival_diffs} relocated-unit survival divergence(s) "
                   "— a bare-label card (Runoff Volume / Carbon) dropped its unit "
                   "from the help too; move it back into help/caption (Relay 2/13).")
+        if fig_close_diffs:
+            print(f"{fig_close_diffs} figure-close hygiene divergence(s) — a "
+                  "st.pyplot/savefig render lacks a paired plt.close (leaked "
+                  "matplotlib figure across reruns; Relay 16 guard).")
         if dense_freshness_diffs:
             print(f"{dense_freshness_diffs} dense-CSV freshness "
                   "divergence(s) — re-run precompute_scenarios.py for the "
