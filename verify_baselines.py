@@ -3025,6 +3025,91 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
         import traceback; traceback.print_exc()
         label_budget_diffs += 1
 
+    # ── Relocated-unit survival — completes Relay 2's caption half ───────────
+    # The #77 guard keeps the Runoff Volume + Carbon labels BARE (the unit was
+    # moved out of the label). That's only honest if the shed unit SURVIVES in
+    # the card help — this cell locks that predicate, so a future edit that drops
+    # the unit from the card entirely fails the gate:
+    #   - the Runoff Volume card's help must still mention "acre-feet" / "ac-ft";
+    #   - the Carbon card's help must still carry "t CO2e" (it pulls the unit via
+    #     `_carbon_unit_suffix`, so we verify the help references the suffix AND
+    #     the suffix value carries the token).
+    # Meta-test seeds a unit-stripped help and confirms the predicate flags it.
+    print(f"\n{'=' * 60}")
+    print("Relocated-unit survival — Runoff / Carbon card help (Relay 2/13)")
+    print(f"{'=' * 60}")
+    unit_survival_diffs = 0
+    try:
+        import ast as _ast3
+        with open("app.py", "r") as _f13:
+            _src13 = _f13.read()
+        _tree13 = _ast3.parse(_src13)
+
+        def _has_unit(text, tokens):
+            return any(tok in text for tok in tokens)
+
+        def _concat_str_consts(node):
+            return "".join(
+                n.value for n in _ast3.walk(node)
+                if isinstance(n, _ast3.Constant) and isinstance(n.value, str)
+            )
+
+        # Runoff Volume card — st.metric("Runoff Volume", value, help=(...)).
+        _runoff_help = None
+        for _n in _ast3.walk(_tree13):
+            if (isinstance(_n, _ast3.Call) and isinstance(_n.func, _ast3.Attribute)
+                    and _n.func.attr == "metric" and _n.args
+                    and isinstance(_n.args[0], _ast3.Constant)
+                    and _n.args[0].value == "Runoff Volume"):
+                for _kw in _n.keywords:
+                    if _kw.arg == "help":
+                        _runoff_help = _concat_str_consts(_kw.value)
+                break
+        if _runoff_help is None:
+            print("  FAIL Runoff Volume card help not found (label/help structure changed?)")
+            unit_survival_diffs += 1
+        elif not _has_unit(_runoff_help, ("acre-feet", "ac-ft")):
+            print("  FAIL Runoff Volume help dropped the unit — no 'acre-feet' / 'ac-ft'")
+            unit_survival_diffs += 1
+        else:
+            print("  OK   Runoff Volume help still carries the unit (acre-feet / ac-ft)")
+
+        # Carbon card — _carbon_card_help is variable-built; the unit reaches it
+        # via _carbon_unit_suffix. Verify the help references the suffix AND the
+        # suffix value carries 't CO2e'.
+        _carbon_help_src = None
+        _carbon_suffix_val = ""
+        for _n in _ast3.walk(_tree13):
+            if isinstance(_n, _ast3.Assign) and _n.targets:
+                _tgt = _n.targets[0]
+                if isinstance(_tgt, _ast3.Name) and _tgt.id == "_carbon_card_help":
+                    _carbon_help_src = _ast3.get_source_segment(_src13, _n.value) or ""
+                if isinstance(_tgt, _ast3.Name) and _tgt.id == "_carbon_unit_suffix":
+                    _carbon_suffix_val = _concat_str_consts(_n.value)
+        if (_carbon_help_src and "_carbon_unit_suffix" in _carbon_help_src
+                and "t CO2e" in _carbon_suffix_val):
+            print("  OK   Carbon card help still carries the unit (t CO2e via _carbon_unit_suffix)")
+        else:
+            print("  FAIL Carbon card help dropped the unit — help no longer pulls "
+                  "_carbon_unit_suffix, or the suffix lost 't CO2e'")
+            unit_survival_diffs += 1
+
+        # Meta-test: the predicate must flag a unit-stripped help and pass a
+        # unit-bearing one (non-vacuous both ways).
+        _seed_stripped = "Lower is better. Modeled runoff volume for the design storm."
+        _seed_present = "Values are shown in acre-feet (ac-ft)."
+        if (not _has_unit(_seed_stripped, ("acre-feet", "ac-ft"))
+                and _has_unit(_seed_present, ("acre-feet", "ac-ft"))):
+            print("  OK   meta-test: unit-survival predicate flags a stripped help, passes a unit-bearing one")
+        else:
+            print("  FAIL meta-test: unit-survival predicate is vacuous")
+            unit_survival_diffs += 1
+    except Exception as _e_unit:
+        print(f"  ERROR relocated-unit survival check: {_e_unit}")
+        import traceback
+        traceback.print_exc()
+        unit_survival_diffs += 1
+
     # ── Dense-CSV freshness — SA cold-start Lever 1 guard ────────────────────
     # Lever 1 wires Fast mode to read data/scenarios_dense_<city>.csv instead
     # of recomputing 91 scenarios live at module import (~130 s saved on SA).
@@ -5065,7 +5150,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + ce_diffs + active_scn_diffs + fda_diffs
                    + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs
                    + placement_priority_diffs + flood_signal_diffs
-                   + palette_diffs)
+                   + palette_diffs + unit_survival_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5140,6 +5225,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
             print(f"{palette_diffs} change-palette distinctness divergence(s) "
                   "— a CHANGE_COLORS / overlay tune pushed a pair below the "
                   "pre-tune perceptual or colorblind floor (Relay 8 guard).")
+        if unit_survival_diffs:
+            print(f"{unit_survival_diffs} relocated-unit survival divergence(s) "
+                  "— a bare-label card (Runoff Volume / Carbon) dropped its unit "
+                  "from the help too; move it back into help/caption (Relay 2/13).")
         if dense_freshness_diffs:
             print(f"{dense_freshness_diffs} dense-CSV freshness "
                   "divergence(s) — re-run precompute_scenarios.py for the "
