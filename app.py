@@ -436,6 +436,59 @@ def _assemble_scenario_audit(results, resolved_scenario, provenance,
     return {"sentence": sentence, "groups": groups}
 
 
+def _build_scenario_summary_html(*, city, generated_at, app_url, sentence,
+                                 groups, outcomes, use_line):
+    """Self-contained one-page HTML scenario summary (inline CSS, no external
+    assets). PURE: every value arrives via args — `groups` is the audit's
+    three-section assembly (single source) and `outcomes` is a list of
+    (label, value, badge_text, badge_hex) — so the summary carries no parallel
+    recompute and is unit-testable. Opens in any browser; print-to-PDF friendly."""
+    import re as _re
+
+    def esc(s):
+        return (str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+
+    def md_bold(s):  # escape first, then promote **…** to <strong>
+        return _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', esc(s))
+
+    _groups_html = []
+    for _title, _fields in groups:
+        _rows = "".join(
+            f'<tr><th>{esc(_l)}</th><td>{esc(_v)}</td></tr>' for _l, _v in _fields
+        )
+        _groups_html.append(f'<h2>{esc(_title)}</h2><table>{_rows}</table>')
+
+    _outcome_rows = "".join(
+        f'<tr><th>{esc(_l)}</th><td>{esc(_v)}</td>'
+        f'<td><span class="pill" style="background:{esc(_hex)};">{esc(_b)}</span></td></tr>'
+        for _l, _v, _b, _hex in outcomes
+    )
+
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ecosystem Explorer — Scenario Summary</title>
+<style>
+ body{{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+   max-width:760px;margin:24px auto;padding:0 16px;color:#1a1a1a;line-height:1.5;}}
+ h1{{font-size:20px;margin:0 0 2px;}}
+ h2{{font-size:15px;margin:18px 0 6px;border-bottom:1px solid #ddd;padding-bottom:3px;}}
+ .meta{{color:#555;font-size:13px;margin-bottom:12px;}}
+ .lead{{font-size:14px;margin:10px 0 4px;}}
+ table{{border-collapse:collapse;width:100%;font-size:13px;}}
+ th{{text-align:left;width:38%;padding:3px 8px 3px 0;vertical-align:top;color:#333;font-weight:600;}}
+ td{{padding:3px 0;vertical-align:top;}}
+ .pill{{color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;white-space:nowrap;}}
+ footer{{margin-top:20px;color:#555;font-size:12px;border-top:1px solid #ddd;padding-top:8px;}}
+</style></head><body>
+<h1>Ecosystem Explorer — Scenario Summary</h1>
+<div class="meta">{esc(city)} · generated {esc(generated_at)} · <a href="{esc(app_url)}">{esc(app_url)}</a></div>
+<div class="lead">{md_bold(sentence)}</div>
+{"".join(_groups_html)}
+<h2>Outcomes</h2><table>{_outcome_rows}</table>
+<footer>{esc(use_line)}</footer>
+</body></html>"""
+
+
 # _REGION_LOCAL_METRICS — per-metric treatment table (data-only) — lives
 # in `region_local_metrics.py` (Constants Refactor / Task #52). The
 # reconciliation invariant (region_local over the entire AOI ==
@@ -7433,33 +7486,12 @@ def _build_invest_bundle_for_current_scenario():
 
 
 # ── Sidebar section: Export (Sidebar Reorg) ──────────────────────────────────
-with _sec_export:
-    if not selected_city.startswith("San Antonio"):
-        st.caption(
-            "InVEST export is currently SA-only (the bundle is built around NatCap's "
-            "compound LULC framework). MN export is future work."
-        )
-    else:
-        st.caption(
-            "Download the current scenario as a runnable canonical-InVEST 3.19.0 "
-            "input bundle — rasters + AOIs + biophysical tables + per-model "
-            "`args.json` (UCM / UNA / UFR / Carbon / UMH). ~20 MB; for technical "
-            "users with InVEST installed."
-        )
-        if st.button("Prepare InVEST bundle"):
-            with st.spinner("Building InVEST bundle (10–30 s)…"):
-                _data, _fname = _build_invest_bundle_for_current_scenario()
-                st.session_state["_invest_bundle"] = (_data, _fname)
-        if "_invest_bundle" in st.session_state:
-            _data, _fname = st.session_state["_invest_bundle"]
-            st.download_button(
-                f"⬇ Download bundle ({len(_data) / 1e6:.1f} MB)",
-                data=_data, file_name=_fname, mime="application/zip",
-            )
-            st.caption(f"`{_fname}`")
-            if st.button("Clear prepared bundle"):
-                del st.session_state["_invest_bundle"]
-                st.rerun()
+# NOTE: the Export / handoff sidebar expander is POPULATED later in the script
+# (after the audit assembly + provenance + validation context are computed), so
+# its Tier-1 summary can reuse the SAME _assemble_scenario_audit fields the
+# Scenario audit expander shows. Streamlit fixes the expander's sidebar position
+# at its st.sidebar.expander(...) creation point, so populating it later keeps it
+# in place. See the `with _sec_export:` block below the Scenario audit expander.
 
 
 # ── Top metric cards ───────────────────────────────────────────────────────────
@@ -7740,6 +7772,103 @@ with st.expander("Scenario audit", expanded=False):
         "Use: this audit is intended to make the scenario reproducible and "
         f"handoff-ready; it is {_NOT_PUBLISHED_PHRASE}."
     )
+
+# ── Export / handoff (sidebar expander, populated here) ──────────────────────
+# Populated AFTER the audit assembly + provenance + validation context exist so
+# Tier 1 can reuse the SAME _assemble_scenario_audit fields (`_audit`, computed
+# in the Scenario audit expander above) — single source, no parallel recompute.
+with _sec_export:
+    # Tier 1 — one-page human scenario summary, BOTH cities.
+    st.caption(
+        "A one-page summary of this scenario: settings, outcomes with their "
+        "validation badges, and assumptions. Opens in any browser; print to PDF "
+        "if you need one."
+    )
+    # Outcomes: core dashboard metrics, each carrying the SAME validation badge
+    # the card renders (nv.render_validation_badge with that card's metric key +
+    # explicit_status + validated_path — the badge source the cards use).
+    _summary_metric_spec = [
+        ("Flood Index",              _fmt_sig(results['flood_reduction']),
+         "flood_reduction",      None,                                     True),
+        ("Runoff Retention",         f"{_fmt_sig(results['runoff_retention_idx'] * 100)}%",
+         "runoff_retention_idx", "aligned_method",                         True),
+        ("Runoff Volume",            f"{_fmt_runoff_value(results['runoff_acre_feet'])} ac-ft",
+         "runoff_acre_feet",     "aligned_method",                         True),
+        ("Temp change",              _fmt_temp_change(results['temp_change_f']),
+         "temp_change_f",        None,                                     True),
+        ("Carbon",                   f"{_fmt_carbon(results['carbon_tons_co2'])} {_carbon_unit_suffix}",
+         "carbon_tons_co2",      (None if _CARBON_IS_STOCK else "prototype"), _CARBON_IS_STOCK),
+        ("NDVI",                     f"{results['mean_ndvi']:.3f}",
+         "ndvi",                 "prototype",                              True),
+        ("Nature access",            f"{results['nature_access_pct']:.0f}%",
+         "nature_access_pct",    None,                                     True),
+        ("Food production",          _fmt_food(results['food_mln_lbs']),
+         "food_mln_lbs",         None,                                     True),
+        ("Est. implementation cost", _fmt_usd(results['total_cost_mln'] * 1e6),
+         "total_cost_mln",       "prototype",                              True),
+    ]
+    import re as _summary_re
+    _summary_outcomes = []
+    for _lbl, _val, _key, _es, _vp in _summary_metric_spec:
+        _b = nv.render_validation_badge(
+            _key, _validation_scenario_context,
+            explicit_status=_es, validated_path=_vp)
+        if _b["text"] is None:
+            continue
+        # Badge text carries a colorblind glyph span (e.g. "<span…>○</span>
+        # InVEST-aligned"); strip the HTML tags but KEEP the glyph char so the
+        # pill stays accessible and esc()-safe in the builder.
+        _btext = _summary_re.sub(r'<[^>]+>', '', _b["text"]).strip()
+        _summary_outcomes.append(
+            (_lbl, _val, _btext,
+             _VALIDATION_BADGE_COLOR_HEX.get(_b["color"], "#6e7681")))
+    from datetime import datetime as _summary_dt, timezone as _summary_tz
+    _summary_html = _build_scenario_summary_html(
+        city=selected_city,
+        generated_at=_summary_dt.now(_summary_tz.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        app_url="https://ecosystem-explorer.streamlit.app/",
+        sentence=_audit["sentence"],
+        groups=_audit["groups"],
+        outcomes=_summary_outcomes,
+        use_line=f"This summary is reproducible and handoff-ready; it is {_NOT_PUBLISHED_PHRASE}.",
+    )
+    _summary_slug = selected_city.split(',')[0].lower().replace(' ', '_')
+    st.download_button(
+        "Download scenario summary",
+        data=_summary_html,
+        file_name=f"scenario_summary_{_summary_slug}_schema{SCENARIO_SCHEMA_VERSION}.html",
+        mime="text/html",
+    )
+
+    st.divider()
+    # Tier 2 — technical InVEST bundle (advanced tier), San-Antonio-only.
+    if selected_city.startswith("San Antonio"):
+        st.caption(
+            "**For technical handoff:** a complete, runnable InVEST 3.19.0 input "
+            "bundle (rasters, AOIs, biophysical tables, per-model `args.json`) so "
+            "a modeler can reproduce this scenario in canonical InVEST. ~20 MB; "
+            "requires InVEST installed."
+        )
+        if st.button("Prepare InVEST bundle"):
+            with st.spinner("Building InVEST bundle (10–30 s)…"):
+                _data, _fname = _build_invest_bundle_for_current_scenario()
+                st.session_state["_invest_bundle"] = (_data, _fname)
+        if "_invest_bundle" in st.session_state:
+            _data, _fname = st.session_state["_invest_bundle"]
+            st.download_button(
+                f"⬇ Download bundle ({len(_data) / 1e6:.1f} MB)",
+                data=_data, file_name=_fname, mime="application/zip",
+            )
+            st.caption(f"`{_fname}`")
+            if st.button("Clear prepared bundle"):
+                del st.session_state["_invest_bundle"]
+                st.rerun()
+    else:
+        st.caption(
+            "The technical InVEST bundle is currently San Antonio-only (built "
+            "around NatCap's compound LULC framework). Minneapolis bundle is "
+            "future work."
+        )
 
 if placement_strategy != 'random':
     st.caption(f"Placement: {PLACEMENT_STRATEGY_LABELS[placement_strategy]}")
