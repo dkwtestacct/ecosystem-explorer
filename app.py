@@ -5149,9 +5149,11 @@ def _map_layers_caption(intensity_on, priority_on, region_active):
     intensity/priority/region clauses can be flip-tested in isolation. Each
     optional clause appears IFF its layer is on."""
     parts = [
+        # No color-word key here — the HTML legend below the map (real swatches
+        # from CHANGE_COLORS) is the authoritative, drift-proof key. Naming colors
+        # in prose mislabels the palette whenever it's tuned (e.g. GI is teal).
         "Each colored pixel is developed land converted by the current "
-        "scenario; gray is land left unchanged. Green = green infrastructure · "
-        "dark green = food forest · red = high-density development."
+        "scenario; gray is land left unchanged."
     ]
     if intensity_on:
         parts.append(
