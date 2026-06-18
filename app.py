@@ -371,6 +371,71 @@ def _explorer_audit_sentence(resolved, area_phrase, ownership_clause,
     )
 
 
+# Locked handoff phrasing — both the Scenario audit use-line and the export
+# summary footer embed it, so the "not a NatCap-published result" honesty claim
+# is single-sourced (never drifts between the two surfaces).
+_NOT_PUBLISHED_PHRASE = "not a NatCap-published result"
+
+
+def _assemble_scenario_audit(results, resolved_scenario, provenance,
+                             source_suffix, placement_strategy,
+                             gi_pct, ff_pct, hd_pct):
+    """SINGLE SOURCE for the scenario's audit fields — consumed by BOTH the
+    Scenario audit expander and the export scenario summary so neither carries a
+    parallel recompute. Returns {'sentence', 'groups'} where `groups` is the
+    three labeled sections (each a list of (label, value) pairs). Reads module
+    constants/helpers (_PROVENANCE_HEADER_INFO, _PLACEMENT_PRIORITY_CAPTIONS,
+    PLACEMENT_STRATEGY_LABELS, PIXEL_AREA_ACRES, SCENARIO_SCHEMA_VERSION) as
+    globals — request-specific values come in as args so it stays unit-testable
+    with a synthetic record."""
+    area_inline = _cs_area_for_row(results)
+    own_inline = _cs_ownership_for_row(results)
+    own_clause = ("" if own_inline == "None"
+                  else f" restricted to {own_inline.lower()}")
+    strategy_label = PLACEMENT_STRATEGY_LABELS.get(placement_strategy, placement_strategy)
+    rs = results.get('region_selection') or {}
+    eligible_acres = (rs.get('eligible_pixels_in_region') or 0) * PIXEL_AREA_ACRES
+    converted_acres = rs.get('converted_acres') or 0.0
+    info = _PROVENANCE_HEADER_INFO.get(
+        provenance, ("Unknown", "provenance not recorded", "gray"))
+    source = info[0] + source_suffix
+    validation = info[1]
+    # Priority-layer descriptor — derived from the single-source overlay caption
+    # (strip to the per-pixel signal phrase) so it can't drift; "none" for random.
+    if placement_strategy in _PLACEMENT_PRIORITY_CAPTIONS:
+        _cap = _PLACEMENT_PRIORITY_CAPTIONS[placement_strategy]
+        priority_descriptor = _cap.split(': ', 1)[1].split('. A placement input')[0]
+    else:
+        priority_descriptor = "none — random placement"
+    caveats = (
+        "Planning-screen scenario — some metrics are Prototype-tier estimates "
+        "(marked △); see 'Assumptions and limitations' for the full caveat list."
+    )
+    sentence = _explorer_audit_sentence(
+        resolved_scenario, area_inline, own_clause, strategy_label)
+    groups = [
+        ("Scenario definition", [
+            ("Source",           source),
+            ("Area",             area_inline),
+            ("Ownership filter", own_inline),
+            ("Conversion mix",   f"GI {gi_pct}% / FF {ff_pct}% / HD {hd_pct}%"),
+            ("Eligible acres",   f"{eligible_acres:,.0f} acres"),
+            ("Converted acres",  f"{converted_acres:,.0f} acres"),
+        ]),
+        ("Placement", [
+            ("Placement strategy", strategy_label),
+            ("Random seed",        "42"),
+            ("Priority layer",     priority_descriptor),
+        ]),
+        ("Trust & handoff", [
+            ("Validation status", validation),
+            ("Export schema",     str(SCENARIO_SCHEMA_VERSION)),
+            ("Caveats",           caveats),
+        ]),
+    ]
+    return {"sentence": sentence, "groups": groups}
+
+
 # _REGION_LOCAL_METRICS — per-metric treatment table (data-only) — lives
 # in `region_local_metrics.py` (Constants Refactor / Task #52). The
 # reconciliation invariant (region_local over the entire AOI ==
@@ -7654,54 +7719,26 @@ with st.expander("Scenario audit", expanded=False):
     # human description first, then the structured fields. None of the
     # interpolated values carry `$`, so no escape needed; if that ever
     # changes (e.g. cost is interpolated into the sentence), escape.
-    _audit_area_inline = _cs_area_for_row(results)
-    _audit_own_inline  = _cs_ownership_for_row(results)
-    _audit_strategy    = PLACEMENT_STRATEGY_LABELS.get(
-        placement_strategy, placement_strategy)
-    _audit_own_clause  = (
-        "" if _audit_own_inline == "None"
-        else f" restricted to {_audit_own_inline.lower()}"
-    )
     # Relay A — audit sentence reads from the same _resolved_scenario the
-    # banner title + main-panel sentence use, branching on pct=0.
-    st.write(_explorer_audit_sentence(
-        _resolved_scenario, _audit_area_inline, _audit_own_clause,
-        _audit_strategy,
-    ))
-    _audit_rs = results.get('region_selection') or {}
-    _audit_eligible_acres = (
-        (_audit_rs.get('eligible_pixels_in_region') or 0) * PIXEL_AREA_ACRES
+    # banner title + main-panel sentence use, branching on pct=0. Fields come
+    # from the SINGLE-SOURCE assembly (_assemble_scenario_audit) the export
+    # summary also consumes — no parallel recompute.
+    _audit = _assemble_scenario_audit(
+        results, _resolved_scenario, _scen_provenance, _source_suffix,
+        placement_strategy, green_infrastructure_pct, food_forest_pct,
+        pct_highdensity,
     )
-    _audit_converted_acres = _audit_rs.get('converted_acres') or 0.0
-    # Validation label = locked badge vocab from _PROVENANCE_HEADER_INFO
-    # (the same mapping the provenance header renders). Tuple shape:
-    # (Source, Validation, color).
-    _audit_validation = _PROVENANCE_HEADER_INFO.get(
-        _scen_provenance, ("Unknown", "provenance not recorded", "gray")
-    )[1]
-    # Source = the augmented Source-line text the header just rendered
-    # (provenance label + selected-region / ownership suffixes when active).
-    _audit_source = _PROVENANCE_HEADER_INFO.get(
-        _scen_provenance, ("Unknown",))[0] + _source_suffix
-    _audit_rows = [
-        ("Source",          _audit_source),
-        ("Area",            _cs_area_for_row(results)),
-        ("Ownership",       _cs_ownership_for_row(results)),
-        ("Placement",       PLACEMENT_STRATEGY_LABELS.get(
-                                placement_strategy, placement_strategy)),
-        ("Seed",            "42"),
-        ("Eligible acres",  f"{_audit_eligible_acres:,.0f} acres"),
-        ("Converted acres", f"{_audit_converted_acres:,.0f} acres"),
-        ("Validation",      _audit_validation),
-        ("Export schema",   str(SCENARIO_SCHEMA_VERSION)),
-    ]
-    _audit_df = pd.DataFrame(_audit_rows, columns=["Field", "Value"])
-    st.dataframe(
-        _audit_df, hide_index=True, width="stretch",
-        column_config={
-            "Field": st.column_config.TextColumn("Field", width="small"),
-            "Value": st.column_config.TextColumn("Value", width="large"),
-        },
+    st.write(_audit["sentence"])
+    # Three labeled key-value sections (bold sub-header + wrapping
+    # "**Field:** value" lines — no dataframe, so the Value never clips).
+    for _grp_title, _grp_fields in _audit["groups"]:
+        st.markdown(f"**{_grp_title}**")
+        st.markdown("  \n".join(
+            f"**{_label}:** {_value}" for _label, _value in _grp_fields
+        ))
+    st.caption(
+        "Use: this audit is intended to make the scenario reproducible and "
+        f"handoff-ready; it is {_NOT_PUBLISHED_PHRASE}."
     )
 
 if placement_strategy != 'random':
