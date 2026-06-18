@@ -5051,6 +5051,52 @@ def _region_spotlight_rgba(region_mask_ds, alpha=0.55):
     return rgba
 
 
+# Assumed wide-layout main-content width (px) for the INITIAL map-iframe height
+# (Relay 22). The postMessage auto-fit refines it to the true rendered width on
+# image load; this just sets a close starting height so there's no fixed-820 gap.
+_MAP_IFRAME_WIDTH_PX = 1000
+
+
+def _iframe_height_for_aspect(png_w, png_h, width=_MAP_IFRAME_WIDTH_PX, margin=8):
+    """Iframe height matching a width:100% image of the given PNG aspect at an
+    assumed render width — replaces the hardcoded height so there's no blank gap
+    below the map. Square PNG → ≈ width; a 2:1 (w:h) PNG → ≈ width/2."""
+    return int(round(width * png_h / png_w)) + margin
+
+
+def _png_pixel_dims(png_bytes):
+    """(width, height) from a PNG's IHDR header — no PIL dependency. Bytes 16:24
+    are the big-endian width/height of the IHDR chunk."""
+    import struct
+    return struct.unpack('>II', png_bytes[16:24])
+
+
+def _map_image_iframe(png_bytes):
+    """(html, initial_height) for a base64 PNG in a components.html iframe that
+    AUTO-FITS its height to the image (Relay 22): an onload script posts the
+    rendered image height via streamlit:setFrameHeight (preferred — adapts to any
+    width), and the initial height is computed from the PNG's true aspect so a
+    fixed iframe height never leaves a blank gap, even if the postMessage bridge
+    is a no-op in this Streamlit version."""
+    import base64 as _b64
+    _pw, _ph = _png_pixel_dims(png_bytes)
+    height = _iframe_height_for_aspect(_pw, _ph)
+    b64 = _b64.b64encode(png_bytes).decode()
+    html = (
+        f'<img id="m" src="data:image/png;base64,{b64}" '
+        f'style="width:100%;display:block">'
+        '<script>'
+        'var _m=document.getElementById("m");'
+        'function _fit(){var h=_m.offsetHeight;'
+        'if(h)window.parent.postMessage('
+        '{type:"streamlit:setFrameHeight",height:h},"*");}'
+        'if(_m.complete)_fit();else _m.onload=_fit;'
+        'window.addEventListener("resize",_fit);'
+        '</script>'
+    )
+    return html, height
+
+
 def plot_spatial_map(scenario_lulc, baseline_lulc,
                      heat_overlay=None, overlay_alpha=0.0,
                      tract_value=None, tract_alpha=0.0,
@@ -10698,14 +10744,14 @@ if _main_tab == 'Map View':
             region_active=_spatial_mask is not None,
         ))
         _png_buf = io.BytesIO()
-        _spatial_fig.savefig(_png_buf, format='png')
+        # bbox_inches='tight' crops the figsize=(8,8) square letterbox bands so
+        # the PNG carries the map's TRUE aspect; the iframe then fits that aspect
+        # (no fixed-height gap, no white bands).
+        _spatial_fig.savefig(_png_buf, format='png',
+                             bbox_inches='tight', pad_inches=0.02)
         plt.close(_spatial_fig)
-        _png_b64 = base64.b64encode(_png_buf.getvalue()).decode()
-        _components_html(
-            f'<img src="data:image/png;base64,{_png_b64}" '
-            f'style="width:100%">',
-            height=820,
-        )
+        _map_html, _map_iframe_h = _map_image_iframe(_png_buf.getvalue())
+        _components_html(_map_html, height=_map_iframe_h)
         # Grouped HTML legend BELOW the map (Relay 7) — larger than the old
         # in-figure 9pt legend and off the data. Swatches track the live layer
         # state and the shared color constants.
@@ -10734,14 +10780,11 @@ if _main_tab == 'Map View':
                 results['scenario_lulc'], cooling_lulc, region_mask=_spatial_mask,
             )
             _dens_buf = io.BytesIO()
-            _dens_fig.savefig(_dens_buf, format='png')
+            _dens_fig.savefig(_dens_buf, format='png',
+                              bbox_inches='tight', pad_inches=0.02)
             plt.close(_dens_fig)
-            _dens_b64 = base64.b64encode(_dens_buf.getvalue()).decode()
-            _components_html(
-                f'<img src="data:image/png;base64,{_dens_b64}" '
-                f'style="width:100%">',
-                height=820,
-            )
+            _dens_html, _dens_iframe_h = _map_image_iframe(_dens_buf.getvalue())
+            _components_html(_dens_html, height=_dens_iframe_h)
             st.caption(
                 "Scenario conversions aggregated into grid cells — a readability "
                 "aid for the sparse detail map above. Each cell shows the share of "
