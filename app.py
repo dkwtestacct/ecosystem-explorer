@@ -4996,20 +4996,23 @@ def _load_region_polygons_for_plotly(path: str, label_field: str):
 # under the previous float64 RGBA layers) is wasted work. Aspect ratio is
 # preserved by `scale = _PLOT_MAX_DIM / max(h, w)`.
 _PLOT_MAX_DIM = 1024
+_MAP_VIEW_MAX_DIM = 1536   # Map View only — 2.25x the pixels of _PLOT_MAX_DIM;
+                           # 2048 (4x) deliberately NOT the default (memory).
 
 
-def _downsample_for_plot(arr, order):
+def _downsample_for_plot(arr, order, max_dim=_PLOT_MAX_DIM):
     """Aspect-preserving downsample for the spatial-map renderer.
 
     `order=0` (nearest neighbor) for the integer LULC raster — category
     integrity must be preserved, no averaging across lucodes. `order=1`
     (bilinear) for continuous overlays (heat alpha, tract score). Returns
-    the input unchanged when both dimensions are already within
-    `_PLOT_MAX_DIM`."""
+    the input unchanged when both dimensions are already within `max_dim`.
+    `max_dim` defaults to `_PLOT_MAX_DIM` (1024) for every existing caller; the
+    Map View passes `_MAP_VIEW_MAX_DIM` for a denser render of sparse changes."""
     h, w = arr.shape[:2]
-    if max(h, w) <= _PLOT_MAX_DIM:
+    if max(h, w) <= max_dim:
         return arr
-    scale = _PLOT_MAX_DIM / max(h, w)
+    scale = max_dim / max(h, w)
     return _zoom(arr, scale, order=order)
 
 
@@ -5017,11 +5020,13 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
                      heat_overlay=None, overlay_alpha=0.0,
                      tract_value=None, tract_alpha=0.0,
                      priority_overlay=None, priority_alpha=0.0,
-                     selected_region_mask=None):
+                     selected_region_mask=None, max_dim=_PLOT_MAX_DIM):
     # Downsample once, then build all layers from the downsampled rasters.
     # Doing this after layer construction would defeat the memory savings.
-    scenario_lulc = _downsample_for_plot(scenario_lulc, order=0)
-    baseline_lulc = _downsample_for_plot(baseline_lulc, order=0)
+    # EVERY layer must downsample to the SAME max_dim or the layers misalign,
+    # so max_dim is threaded into all _downsample_for_plot calls below.
+    scenario_lulc = _downsample_for_plot(scenario_lulc, order=0, max_dim=max_dim)
+    baseline_lulc = _downsample_for_plot(baseline_lulc, order=0, max_dim=max_dim)
     h, w = scenario_lulc.shape
 
     # uint8 RGB triples in [0,255]. matplotlib imshow accepts uint8 natively
@@ -5051,7 +5056,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
     # 0–1), so low-vulnerability pixels stay transparent and high-vulnerability
     # ones tint orange. With overlay_alpha=0 the overlay is fully invisible.
     if heat_overlay is not None and overlay_alpha > 0:
-        heat_overlay_ds = _downsample_for_plot(heat_overlay, order=1)
+        heat_overlay_ds = _downsample_for_plot(heat_overlay, order=1, max_dim=max_dim)
         overlay_rgba = np.zeros((h, w, 4), dtype=np.uint8)
         # Orange wash — avoids collision with the "→ High Density" red. Alpha
         # still encodes the HV gradient per pixel. Color from the shared constant.
@@ -5075,8 +5080,8 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
     # the priority field the placements concentrated on.
     if priority_overlay is not None and priority_alpha > 0:
         valid_full = (~np.isnan(priority_overlay)).astype(np.uint8)
-        prio_ds = _downsample_for_plot(np.nan_to_num(priority_overlay, nan=0.0), order=1)
-        valid_ds = _downsample_for_plot(valid_full, order=0).astype(bool)
+        prio_ds = _downsample_for_plot(np.nan_to_num(priority_overlay, nan=0.0), order=1, max_dim=max_dim)
+        valid_ds = _downsample_for_plot(valid_full, order=0, max_dim=max_dim).astype(bool)
         if valid_ds.any():
             pmax = float(prio_ds[valid_ds].max())
             norm = np.zeros_like(prio_ds, dtype=np.float32)
@@ -5098,9 +5103,9 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
         # NaNs don't survive bilinear interpolation, so downsample the
         # validity mask separately (nearest-neighbor) and use it to gate the
         # cmap alpha.
-        tract_value_ds = _downsample_for_plot(np.nan_to_num(tract_value, nan=0.0), order=1)
+        tract_value_ds = _downsample_for_plot(np.nan_to_num(tract_value, nan=0.0), order=1, max_dim=max_dim)
         valid_full = (~np.isnan(tract_value)).astype(np.uint8)
-        valid_ds = _downsample_for_plot(valid_full, order=0).astype(bool)
+        valid_ds = _downsample_for_plot(valid_full, order=0, max_dim=max_dim).astype(bool)
         if valid_ds.any():
             vmax = max(float(np.abs(tract_value_ds[valid_ds]).max()), 0.1)
             norm_val = np.zeros_like(tract_value_ds, dtype=np.float32)
@@ -5116,7 +5121,7 @@ def plot_spatial_map(scenario_lulc, baseline_lulc,
     # GI/FF green, HD red, or the heat-overlay orange.
     if selected_region_mask is not None:
         region_mask_ds = _downsample_for_plot(
-            selected_region_mask.astype(np.uint8), order=0
+            selected_region_mask.astype(np.uint8), order=0, max_dim=max_dim
         ).astype(bool)
         if region_mask_ds.any():
             ax.contour(
@@ -10550,6 +10555,7 @@ if _main_tab == 'Map View':
             heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_alpha,
             priority_overlay=_priority_overlay, priority_alpha=priority_alpha,
             selected_region_mask=_spatial_mask,
+            max_dim=_MAP_VIEW_MAX_DIM,
         )
         # Status line, ABOVE the image and AFTER the Map layers expander (so it
         # reads live toggle state). Placement / Area REUSE the same _setup_place
