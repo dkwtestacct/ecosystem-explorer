@@ -10752,6 +10752,27 @@ if _main_tab == 'Map View':
         plt.close(_spatial_fig)
         _map_html, _map_iframe_h = _map_image_iframe(_png_buf.getvalue())
         _components_html(_map_html, height=_map_iframe_h)
+        # Change-density companion map (Relay 21/23) — rendered directly UNDER the
+        # detail map and ABOVE the legend when toggled on, so it appears where the
+        # toggle implies and reads as the companion it is. Full-resolution
+        # aggregation into a coarse grid; works citywide or within the selected
+        # region. Same base64/iframe transport; figure closed after savefig.
+        if show_change_density:
+            _dens_fig = plot_change_density(
+                results['scenario_lulc'], cooling_lulc, region_mask=_spatial_mask,
+            )
+            _dens_buf = io.BytesIO()
+            _dens_fig.savefig(_dens_buf, format='png',
+                              bbox_inches='tight', pad_inches=0.02)
+            plt.close(_dens_fig)
+            _dens_html, _dens_iframe_h = _map_image_iframe(_dens_buf.getvalue())
+            _components_html(_dens_html, height=_dens_iframe_h)
+            st.caption(
+                "Scenario conversions aggregated into grid cells — a readability "
+                "aid for the sparse detail map above. Each cell shows the share of "
+                "it that converted; it is an aggregation of the same conversions, "
+                "not a modeled outcome."
+            )
         # Grouped HTML legend BELOW the map (Relay 7) — larger than the old
         # in-figure 9pt legend and off the data. Swatches track the live layer
         # state and the shared color constants.
@@ -10769,27 +10790,6 @@ if _main_tab == 'Map View':
                 "priority signal for this area — every eligible pixel scored "
                 "equally, so placement fell back to random within eligible land. "
                 "No priority surface to show."
-            )
-
-        # Change-density companion map (Relay 21) — rendered BELOW the detail map
-        # when toggled on. Full-resolution aggregation into a coarse grid; works
-        # citywide or within the selected region. PNG via the same base64 / iframe
-        # transport as the detail map; figure closed after savefig.
-        if show_change_density:
-            _dens_fig = plot_change_density(
-                results['scenario_lulc'], cooling_lulc, region_mask=_spatial_mask,
-            )
-            _dens_buf = io.BytesIO()
-            _dens_fig.savefig(_dens_buf, format='png',
-                              bbox_inches='tight', pad_inches=0.02)
-            plt.close(_dens_fig)
-            _dens_html, _dens_iframe_h = _map_image_iframe(_dens_buf.getvalue())
-            _components_html(_dens_html, height=_dens_iframe_h)
-            st.caption(
-                "Scenario conversions aggregated into grid cells — a readability "
-                "aid for the sparse detail map above. Each cell shows the share of "
-                "it that converted; it is an aggregation of the same conversions, "
-                "not a modeled outcome."
             )
 
         with st.expander("Assumptions and limitations", expanded=False):
