@@ -527,6 +527,15 @@ LBS_PER_PERSON_YEAR   = 2_000
 # area, which this app is careful not to do. Unchanged stays #d3d3d3 (NOT
 # lightened toward white, or the AOI shape stops reading against #ffffff nodata).
 # The distinctness + colorblind floors are locked in verify_baselines.
+#
+# Relay 19 (closed, no-op): lightening Unchanged was evaluated and rejected. The
+# change colors already sit 51–116 ΔE from the unchanged gray (near-maximal
+# contrast), so the regional map's paleness is size/sparsity, NOT contrast —
+# lightening gains negligible change-contrast while halving the AOI-boundary pair
+# (Unchanged↔nodata-white, 15.4→9.4 ΔE; #d3d3d3 is already the lightest gray that
+# clears the 15.44 full-set floor). Don't re-attempt. Readability is addressed by
+# the Relay 18 aids + the Relay 21 change-density map instead. No per-pair floor
+# was introduced; the Relay 8 full-set floor stays intact.
 CHANGE_COLORS = {
     'Unchanged':            '#d3d3d3',
     'Green Infrastructure': '#0b7c87',
