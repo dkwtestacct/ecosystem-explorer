@@ -5051,50 +5051,20 @@ def _region_spotlight_rgba(region_mask_ds, alpha=0.55):
     return rgba
 
 
-# Assumed wide-layout main-content width (px) for the INITIAL map-iframe height
-# (Relay 22). The postMessage auto-fit refines it to the true rendered width on
-# image load; this just sets a close starting height so there's no fixed-820 gap.
-_MAP_IFRAME_WIDTH_PX = 1000
-
-
-def _iframe_height_for_aspect(png_w, png_h, width=_MAP_IFRAME_WIDTH_PX, margin=8):
-    """Iframe height matching a width:100% image of the given PNG aspect at an
-    assumed render width — replaces the hardcoded height so there's no blank gap
-    below the map. Square PNG → ≈ width; a 2:1 (w:h) PNG → ≈ width/2."""
-    return int(round(width * png_h / png_w)) + margin
-
-
-def _png_pixel_dims(png_bytes):
-    """(width, height) from a PNG's IHDR header — no PIL dependency. Bytes 16:24
-    are the big-endian width/height of the IHDR chunk."""
-    import struct
-    return struct.unpack('>II', png_bytes[16:24])
-
-
-def _map_image_iframe(png_bytes):
-    """(html, initial_height) for a base64 PNG in a components.html iframe that
-    AUTO-FITS its height to the image (Relay 22): an onload script posts the
-    rendered image height via streamlit:setFrameHeight (preferred — adapts to any
-    width), and the initial height is computed from the PNG's true aspect so a
-    fixed iframe height never leaves a blank gap, even if the postMessage bridge
-    is a no-op in this Streamlit version."""
+# Map images render INLINE via st.markdown(unsafe_allow_html=True) — a base64
+# data-URI <img> in the Streamlit DOM (Relay 24), NOT a components.html iframe.
+# An iframe has a fixed height that can't track a width:100% image, which left a
+# blank gap below each map; an inline img flows at its true displayed height and
+# the next element sits directly below it at any width. The data URI still embeds
+# the bytes directly, so it keeps sidestepping MediaFileManager (the reason
+# base64 was used; st.image stays ruled out). No height math needed.
+def _map_image_html(png_bytes):
+    """Inline <img> markup (base64 data URI) for a map PNG — width:100%, natural
+    height. Pure; rendered via st.markdown(unsafe_allow_html=True)."""
     import base64 as _b64
-    _pw, _ph = _png_pixel_dims(png_bytes)
-    height = _iframe_height_for_aspect(_pw, _ph)
     b64 = _b64.b64encode(png_bytes).decode()
-    html = (
-        f'<img id="m" src="data:image/png;base64,{b64}" '
-        f'style="width:100%;display:block">'
-        '<script>'
-        'var _m=document.getElementById("m");'
-        'function _fit(){var h=_m.offsetHeight;'
-        'if(h)window.parent.postMessage('
-        '{type:"streamlit:setFrameHeight",height:h},"*");}'
-        'if(_m.complete)_fit();else _m.onload=_fit;'
-        'window.addEventListener("resize",_fit);'
-        '</script>'
-    )
-    return html, height
+    return (f'<img src="data:image/png;base64,{b64}" '
+            f'style="width:100%;height:auto;display:block">')
 
 
 def plot_spatial_map(scenario_lulc, baseline_lulc,
@@ -10678,8 +10648,6 @@ if _main_tab == 'Map View':
         # above and _PLOT_MAX_DIM cap inside plot_spatial_map are the
         # structural pieces; this is a transport swap.
         import io
-        import base64
-        from streamlit.components.v1 import html as _components_html
         # Build the placement-priority surface from the SAME candidate pixel
         # set evaluate_scenario sampled (region∩ownership via _combined_mask)
         # so the rendered surface is byte-for-byte what placement ranked
@@ -10750,8 +10718,7 @@ if _main_tab == 'Map View':
         _spatial_fig.savefig(_png_buf, format='png',
                              bbox_inches='tight', pad_inches=0.02)
         plt.close(_spatial_fig)
-        _map_html, _map_iframe_h = _map_image_iframe(_png_buf.getvalue())
-        _components_html(_map_html, height=_map_iframe_h)
+        st.markdown(_map_image_html(_png_buf.getvalue()), unsafe_allow_html=True)
         # Change-density companion map (Relay 21/23) — rendered directly UNDER the
         # detail map and ABOVE the legend when toggled on, so it appears where the
         # toggle implies and reads as the companion it is. Full-resolution
@@ -10765,8 +10732,7 @@ if _main_tab == 'Map View':
             _dens_fig.savefig(_dens_buf, format='png',
                               bbox_inches='tight', pad_inches=0.02)
             plt.close(_dens_fig)
-            _dens_html, _dens_iframe_h = _map_image_iframe(_dens_buf.getvalue())
-            _components_html(_dens_html, height=_dens_iframe_h)
+            st.markdown(_map_image_html(_dens_buf.getvalue()), unsafe_allow_html=True)
             st.caption(
                 "Scenario conversions aggregated into grid cells — a readability "
                 "aid for the sparse detail map above. Each cell shows the share of "
