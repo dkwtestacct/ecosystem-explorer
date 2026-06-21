@@ -10491,7 +10491,7 @@ if _main_tab == 'Map View':
                 # clicks in this Plotly version, which compounded the bug.
                 clickmode='event+select',
             )
-            _t3_picker_col, _t3_clear_col = st.columns([6, 1])
+            _t3_picker_col, _t3_clear_col = st.columns([6, 2])
             with _t3_picker_col:
                 # Stash the current layer key so the top-of-script handler knows
                 # which multiselect key to sync the event into.
@@ -10562,7 +10562,8 @@ if _main_tab == 'Map View':
             with _t3_clear_col:
                 st.write("")
                 st.write("")
-                if st.button("Clear", key='region_map_clear_btn',
+                if st.button("Clear selection", key='region_map_clear_btn',
+                             width="stretch",
                              help="Deselect all selected areas."):
                     st.session_state[f"region_labels_{_t3_layer}"] = []
                     st.session_state['region_map_picker_event'] = None
