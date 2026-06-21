@@ -5233,21 +5233,115 @@ def _change_density_grid(scenario_lulc, baseline_lulc, region_mask=None, n_cells
     return dens
 
 
-def plot_change_density(scenario_lulc, baseline_lulc, region_mask=None, n_cells=40):
+# Faint, neutral boundary color for the concentration-map context lines — grounds
+# the aggregated cells in real geography without reading as a data/result layer.
+_DENSITY_BOUNDARY_COLOR = '#9aa0a6'
+
+
+def _district_edge_mask(district_raster):
+    """Boolean mask of region-boundary pixels: True where a region-id raster
+    value differs from its right or lower neighbor (both sides marked so the
+    seam is continuous). The -1 fill makes district↔outside transitions the
+    outer boundary and id↔id transitions the internal seams — exactly the faint
+    geographic context the concentration map wants. Pure."""
+    idr = np.asarray(district_raster)
+    edge = np.zeros(idr.shape, dtype=bool)
+    _h_diff = idr[:, :-1] != idr[:, 1:]
+    edge[:, :-1] |= _h_diff
+    edge[:, 1:]  |= _h_diff
+    _v_diff = idr[:-1, :] != idr[1:, :]
+    edge[:-1, :] |= _v_diff
+    edge[1:, :]  |= _v_diff
+    return edge
+
+
+def _density_boundary_layers(in_aoi, region_mask, district_raster):
+    """Resolve the faint boundary overlays that ground the concentration map in
+    real geography. Selected-region scope → the selected outline alone; citywide
+    scope → the AOI outline plus (when a region-id raster is supplied) faint
+    district seams. Returns a list of (kind, mask) layers — empty ONLY when
+    there's no geometry to draw (a degenerate all-NODATA AOI with no selection).
+    Pure so the with/without-geometry render path flip-tests both ways."""
+    layers = []
+    if region_mask is not None and bool(np.asarray(region_mask).any()):
+        layers.append(('region', np.asarray(region_mask).astype(bool)))
+        return layers
+    if bool(np.asarray(in_aoi).any()):
+        layers.append(('aoi', np.asarray(in_aoi).astype(bool)))
+        if district_raster is not None:
+            edges = _district_edge_mask(district_raster)
+            if edges.any():
+                layers.append(('districts', edges))
+    return layers
+
+
+def plot_change_density(scenario_lulc, baseline_lulc, region_mask=None, n_cells=40,
+                        district_raster=None, boundary_max_dim=700):
     """Coarse grid-aggregated view of WHERE conversions concentrate — a
     readability aid for the sparse detail map. Aggregation (per-cell share), NOT
-    interpolation (imshow with nearest, no smoothing). Returns a matplotlib
+    interpolation (imshow with nearest, no smoothing). Grounded with faint
+    boundary context (AOI / selected-region outline, plus optional district
+    seams) and a modest horizontal colorbar so the GRID — not the bar — owns the
+    figure width; at district scale the view auto-fits the selection so it reads
+    as a full-width summary, not a small floating blob. Returns a matplotlib
     figure; the caller savefigs + closes it."""
     dens = _change_density_grid(scenario_lulc, baseline_lulc, region_mask, n_cells)
+    h, w = scenario_lulc.shape
     fig, ax = plt.subplots(figsize=(8, 8))
     masked = np.ma.masked_invalid(dens)
     cmap = plt.get_cmap("YlOrRd").copy()
     cmap.set_bad(color=(1, 1, 1, 0))   # NaN (out-of-AOI) cells transparent
     _valid = dens[np.isfinite(dens)]
     _vmax = float(_valid.max()) if _valid.size and _valid.max() > 0 else 1.0
-    im = ax.imshow(masked, cmap=cmap, vmin=0.0, vmax=_vmax, interpolation='nearest')
+    # Stretch the coarse grid onto full-resolution pixel coordinates so the
+    # boundary contours below (drawn in the same coords) line up with the cells.
+    im = ax.imshow(masked, cmap=cmap, vmin=0.0, vmax=_vmax, interpolation='nearest',
+                   extent=[0, w, h, 0], aspect='equal')
+
+    # Faint boundary context — thin, neutral, drawn in the SAME [0,w]×[0,h]
+    # coords. Selected region → the selected outline; citywide → AOI outline
+    # (+ district seams when a region-id raster is supplied). Context, not
+    # clutter: low linewidth/alpha so it never reads as a modeled result.
+    in_aoi = (baseline_lulc != NODATA)
+    for _kind, _mask in _density_boundary_layers(in_aoi, region_mask, district_raster):
+        _m = _downsample_for_plot(_mask.astype(np.uint8), order=0,
+                                  max_dim=boundary_max_dim)
+        _H2, _W2 = _m.shape
+        if _kind == 'districts':
+            # Edge mask is already a 1px line raster — paint it faintly rather
+            # than contour it.
+            _r, _g, _b = (int(round(c * 255))
+                          for c in mcolors.to_rgb(_DENSITY_BOUNDARY_COLOR))
+            _rgba = np.zeros((_H2, _W2, 4), dtype=np.uint8)
+            _rgba[..., 0], _rgba[..., 1], _rgba[..., 2] = _r, _g, _b
+            _rgba[..., 3] = np.where(_m.astype(bool), 90, 0).astype(np.uint8)
+            ax.imshow(_rgba, extent=[0, w, h, 0], aspect='equal',
+                      interpolation='nearest')
+        else:
+            _xs = np.linspace(0, w, _W2)
+            _ys = np.linspace(0, h, _H2)
+            _X, _Y = np.meshgrid(_xs, _ys)
+            _lw = 1.5 if _kind == 'region' else 1.0
+            ax.contour(_X, _Y, _m.astype(float), levels=[0.5],
+                       colors=[_DENSITY_BOUNDARY_COLOR], linewidths=_lw, alpha=0.8)
+
+    # Auto-fit to the selected region (+~12% pad) so its cells fill the frame
+    # instead of floating in a mostly-empty citywide extent; citywide stays full.
+    if region_mask is not None and bool(np.asarray(region_mask).any()):
+        _rows, _cols = np.where(np.asarray(region_mask))
+        _rmin, _rmax = int(_rows.min()), int(_rows.max())
+        _cmin, _cmax = int(_cols.min()), int(_cols.max())
+        _pad = max(2.0, 0.12 * max(_rmax - _rmin, _cmax - _cmin))
+        ax.set_xlim(_cmin - _pad, _cmax + _pad)
+        ax.set_ylim(_rmax + _pad, _rmin - _pad)
+    else:
+        ax.set_xlim(0, w)
+        ax.set_ylim(h, 0)
     ax.axis('off')
-    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    # Modest colorbar — a slim HORIZONTAL scale below the map so the grid owns
+    # the width (no full-height dominant bar). shrink/aspect keep it compact.
+    cbar = fig.colorbar(im, ax=ax, orientation='horizontal',
+                        fraction=0.046, pad=0.04, shrink=0.6, aspect=40)
     cbar.set_label("Warmer = larger share of the grid cell converted", fontsize=10)
     plt.tight_layout()
     return fig
@@ -10813,8 +10907,18 @@ if _main_tab == 'Map View':
                 "concentrate. A readability aid, not a modeled outcome."
             )
             st.markdown(_map_acre_line)
+            # Citywide scope grounds the map with faint district seams when a
+            # region-id raster is configured (prefer council districts); the
+            # selected-region scope needs only its own outline, so skip it there.
+            _density_district_raster = None
+            if _spatial_mask is None and _CURRENT_CITY_STATE.region_rasters:
+                _dr_keys = list(_CURRENT_CITY_STATE.region_rasters.keys())
+                _dr_key = ('council_districts' if 'council_districts' in _dr_keys
+                           else _dr_keys[0])
+                _density_district_raster = _CURRENT_CITY_STATE.region_rasters[_dr_key]
             _dens_fig = plot_change_density(
                 results['scenario_lulc'], cooling_lulc, region_mask=_spatial_mask,
+                district_raster=_density_district_raster,
             )
             _dens_buf = io.BytesIO()
             _dens_fig.savefig(_dens_buf, format='png',

@@ -1948,6 +1948,104 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         map_view_diffs += 1
 
+    # ── Relay 26 — Concentration map: boundary context + grid sanity ─────────
+    # The change-density map is grounded with faint boundary geometry and its
+    # per-cell shares stay correctness-bounded. Three pure surfaces:
+    #   _density_boundary_layers(in_aoi, region_mask, district_raster) — draws a
+    #     boundary when geometry is available; empty when it isn't (flip-tested).
+    #   _district_edge_mask(raster) — marks the region-id seams (flip-tested
+    #     against a uniform raster, which must produce no edges).
+    #   _change_density_grid — per-cell share stays in [0,1] and finite exactly
+    #     where the AOI has pixels.
+    print(f"\n{'=' * 60}")
+    print("Relay 26 — Concentration map boundary context + grid sanity")
+    print(f"{'=' * 60}")
+    density_diffs = 0
+    try:
+        import numpy as _np
+        _aoi_all = _np.ones((4, 4), dtype=bool)
+        _aoi_none = _np.zeros((4, 4), dtype=bool)
+        _region = _np.array([[True, True, False, False]] * 4)
+        _distr = _np.array([[0, 0, 1, 1]] * 4, dtype=_np.int32)
+
+        # (a) boundary layers — geometry present → drawn; absent → empty.
+        def _kinds(layers):
+            return [k for k, _m in layers]
+        _bl_aoi = app._density_boundary_layers(_aoi_all, None, None)
+        _bl_aoi_d = app._density_boundary_layers(_aoi_all, None, _distr)
+        _bl_region = app._density_boundary_layers(_aoi_all, _region, _distr)
+        _bl_empty = app._density_boundary_layers(_aoi_none, None, _distr)
+        _bl_checks = [
+            ("citywide AOI → ['aoi']",            _kinds(_bl_aoi), ['aoi']),
+            ("citywide AOI + raster → aoi+districts",
+                sorted(_kinds(_bl_aoi_d)), ['aoi', 'districts']),
+            ("selected region wins → ['region']", _kinds(_bl_region), ['region']),
+            ("no geometry → [] (empty)",          _kinds(_bl_empty), []),
+        ]
+        for name, got, want in _bl_checks:
+            if got == want:
+                print(f"  OK   {name}")
+            else:
+                print(f"  FAIL {name}: got {got!r}, want {want!r}")
+                density_diffs += 1
+        # Meta-test: a degenerate AOI with no selection draws NOTHING — proves
+        # the "drawn only when geometry available" gate is real, not always-on.
+        if app._density_boundary_layers(_aoi_none, None, None):
+            print("  FAIL meta-test: boundary drawn with NO geometry available")
+            density_diffs += 1
+        else:
+            print("  OK   meta-test: no boundary without geometry")
+
+        # (b) district edge mask — seam present; uniform raster → no edges.
+        _edges = app._district_edge_mask(_distr)
+        if (_edges[:, 1].all() and _edges[:, 2].all()
+                and not _edges[:, 0].any() and not _edges[:, 3].any()):
+            print("  OK   district edge mask marks the seam columns only")
+        else:
+            print(f"  FAIL district edge mask wrong: {_edges.tolist()}")
+            density_diffs += 1
+        if app._district_edge_mask(_np.zeros((4, 4), dtype=_np.int32)).any():
+            print("  FAIL meta-test: uniform raster produced phantom edges")
+            density_diffs += 1
+        else:
+            print("  OK   meta-test: uniform raster → no edges")
+
+        # (c) density grid — per-cell share in [0,1], finite ⇔ in-AOI.
+        _NA = app.NODATA
+        _b = _np.array([[1, 1, 2, _NA],
+                        [1, 1, 2,  2],
+                        [_NA, 1, 2, 2],
+                        [1, 1, 2,  2]])
+        _s = _b.copy()
+        _s[0, 0] = 9
+        _s[1, 1] = 9
+        _grid = app._change_density_grid(_b, _s, region_mask=None, n_cells=4)
+        _finite = _np.isfinite(_grid)
+        _in_aoi = (_b != _NA)
+        _ok_range = (_np.nanmin(_grid) >= 0.0 - 1e-9
+                     and _np.nanmax(_grid) <= 1.0 + 1e-9)
+        if _ok_range:
+            print(f"  OK   density grid in [0,1] (min {_np.nanmin(_grid):.2f}, "
+                  f"max {_np.nanmax(_grid):.2f})")
+        else:
+            print(f"  FAIL density grid out of [0,1]: {_grid.tolist()}")
+            density_diffs += 1
+        if _np.array_equal(_finite, _in_aoi):
+            print("  OK   density grid finite exactly where AOI has pixels")
+        else:
+            print("  FAIL density grid finite-mask ≠ AOI mask")
+            density_diffs += 1
+        if int((_grid == 1.0).sum()) == 2:
+            print("  OK   density grid: 2 fully-converted cells (cell=1px)")
+        else:
+            print(f"  FAIL density grid converted-cell count: "
+                  f"{int((_grid == 1.0).sum())}, want 2")
+            density_diffs += 1
+    except Exception as e:
+        print(f"  ERROR concentration-map boundary/grid test: {e}")
+        import traceback; traceback.print_exc()
+        density_diffs += 1
+
     # ── Default-scenario state consistency (Relay A) ─────────────────────────
     # Title, line-1 summary, and audit are all rendered from the same
     # `_resolved_scenario` dict via three display helpers
@@ -5279,7 +5377,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs
                    + placement_priority_diffs + flood_signal_diffs
                    + palette_diffs + unit_survival_diffs + fig_close_diffs
-                   + map_view_diffs)
+                   + map_view_diffs + density_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5325,6 +5423,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "— wiring broke during a layout refactor; the "
                   "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
                   "the contract.")
+        if density_diffs:
+            print(f"{density_diffs} concentration-map divergence(s) — boundary "
+                  "context stopped drawing when geometry was available, the "
+                  "district edge mask drifted, or per-cell shares left [0,1] / "
+                  "the AOI (Relay 26).")
         if map_view_diffs:
             print(f"{map_view_diffs} Map-view divergence(s) — the "
                   "scope→default mapping collapsed, or the render plan stopped "
