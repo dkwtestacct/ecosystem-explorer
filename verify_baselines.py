@@ -1879,6 +1879,75 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         guard_diffs += 1
 
+    # ── Relay 25 — Map view is a VIEW, not a layer ───────────────────────────
+    # Two pure helpers drive the Map View tab's "render exactly one map + only
+    # its key" contract:
+    #   _map_view_default_for_scope(region_selected) — the scope→default mapping,
+    #     flip-tested both ways (citywide → density summary, region → detailed).
+    #   _map_view_render_plan(view_choice) — resolves the active view into
+    #     exactly-one-map decisions; the categorical "Scenario changes" legend
+    #     rides ONLY with the detailed map (it would mislabel concentration as
+    #     GI/FF/HD under the change-density view).
+    # Plus the load-bearing meta-tests: a collapsed scope→default mapping and a
+    # both-maps-or-neither render plan MUST trip the check.
+    print(f"\n{'=' * 60}")
+    print("Relay 25 — Map view scope-default + one-map render plan")
+    print(f"{'=' * 60}")
+    map_view_diffs = 0
+    try:
+        # (a) scope→default both ways.
+        _d_region = app._map_view_default_for_scope(True)
+        _d_city = app._map_view_default_for_scope(False)
+        if _d_region == app._MAP_VIEW_DETAILED:
+            print(f"  OK   region scope → {_d_region!r}")
+        else:
+            print(f"  FAIL region scope → {_d_region!r}, "
+                  f"want {app._MAP_VIEW_DETAILED!r}")
+            map_view_diffs += 1
+        if _d_city == app._MAP_VIEW_DENSITY:
+            print(f"  OK   citywide scope → {_d_city!r}")
+        else:
+            print(f"  FAIL citywide scope → {_d_city!r}, "
+                  f"want {app._MAP_VIEW_DENSITY!r}")
+            map_view_diffs += 1
+        # Meta-test: the two scopes must map to DIFFERENT defaults — a collapsed
+        # mapping defeats the context-sensitive default.
+        if _d_region == _d_city:
+            print(f"  FAIL meta-test: both scopes map to {_d_region!r} (collapsed)")
+            map_view_diffs += 1
+        else:
+            print("  OK   meta-test: scopes map to distinct defaults")
+
+        # (b) render plan — exactly one map per view; categorical legend rides
+        # the detailed view ONLY.
+        _plan_det = app._map_view_render_plan(app._MAP_VIEW_DETAILED)
+        _plan_den = app._map_view_render_plan(app._MAP_VIEW_DENSITY)
+        _plan_checks = [
+            ("detailed: detail map on",          _plan_det['show_detail_map'], True),
+            ("detailed: density map off",         _plan_det['show_density_map'], False),
+            ("detailed: categorical legend on",   _plan_det['show_categorical_legend'], True),
+            ("density: detail map off",           _plan_den['show_detail_map'], False),
+            ("density: density map on",           _plan_den['show_density_map'], True),
+            ("density: categorical legend off",   _plan_den['show_categorical_legend'], False),
+        ]
+        for name, got, want in _plan_checks:
+            if got == want:
+                print(f"  OK   {name}")
+            else:
+                print(f"  FAIL {name}: got {got!r}, want {want!r}")
+                map_view_diffs += 1
+        # Meta-test: exactly one map renders in each view (detail XOR density).
+        for _vname, _plan in (("detailed", _plan_det), ("density", _plan_den)):
+            if _plan['show_detail_map'] != _plan['show_density_map']:
+                print(f"  OK   {_vname}: exactly one map (detail XOR density)")
+            else:
+                print(f"  FAIL {_vname}: not exactly one map: {_plan}")
+                map_view_diffs += 1
+    except Exception as e:
+        print(f"  ERROR map-view render-plan test: {e}")
+        import traceback; traceback.print_exc()
+        map_view_diffs += 1
+
     # ── Default-scenario state consistency (Relay A) ─────────────────────────
     # Title, line-1 summary, and audit are all rendered from the same
     # `_resolved_scenario` dict via three display helpers
@@ -5209,7 +5278,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + ce_diffs + active_scn_diffs + fda_diffs
                    + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs
                    + placement_priority_diffs + flood_signal_diffs
-                   + palette_diffs + unit_survival_diffs + fig_close_diffs)
+                   + palette_diffs + unit_survival_diffs + fig_close_diffs
+                   + map_view_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5255,6 +5325,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "— wiring broke during a layout refactor; the "
                   "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
                   "the contract.")
+        if map_view_diffs:
+            print(f"{map_view_diffs} Map-view divergence(s) — the "
+                  "scope→default mapping collapsed, or the render plan stopped "
+                  "rendering exactly one map / moved the categorical legend off "
+                  "the detailed view (Relay 25).")
         if scenario_state_diffs:
             print(f"{scenario_state_diffs} default-scenario state "
                   "divergence(s) — title, sentence, or audit drifted from "

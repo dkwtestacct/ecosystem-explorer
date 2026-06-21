@@ -5248,7 +5248,7 @@ def plot_change_density(scenario_lulc, baseline_lulc, region_mask=None, n_cells=
     im = ax.imshow(masked, cmap=cmap, vmin=0.0, vmax=_vmax, interpolation='nearest')
     ax.axis('off')
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label("share of cell converted", fontsize=10)
+    cbar.set_label("Warmer = larger share of the grid cell converted", fontsize=10)
     plt.tight_layout()
     return fig
 
@@ -5297,6 +5297,36 @@ def _map_status_layers(intensity_on, priority_on):
     if not names:
         return "Scenario changes only"
     return "Scenario changes + " + ", ".join(names)
+
+
+# Map view labels — single-sourced so the radio options, the scope-default
+# mapping, and the render-plan resolution can never drift from one another.
+_MAP_VIEW_DETAILED = "Detailed pixels"
+_MAP_VIEW_DENSITY = "Change-density summary"
+
+
+def _map_view_default_for_scope(region_selected: bool) -> str:
+    """Context-sensitive default for the Map view picker, re-asserted whenever
+    the scope flips. Citywide (no region) has nothing to zoom into, so the
+    change-density summary reads better; a selected region is already
+    constrained, so the detailed pixel map is the natural default. Pure so the
+    scope→default mapping flip-tests both ways."""
+    return _MAP_VIEW_DETAILED if region_selected else _MAP_VIEW_DENSITY
+
+
+def _map_view_render_plan(view_choice: str) -> dict:
+    """Resolve the active Map view into exactly-one-map render decisions. The
+    detailed view draws the pixel map + the categorical 'Scenario changes'
+    legend; the change-density summary draws the density map + its colorbar ONLY
+    (the categorical legend would mislabel concentration as GI/FF/HD). Pure so
+    'one map per view' and 'categorical legend under Detailed, not under
+    Change-density' flip-test in isolation."""
+    detailed = (view_choice != _MAP_VIEW_DENSITY)
+    return {
+        'show_detail_map':         detailed,
+        'show_density_map':        not detailed,
+        'show_categorical_legend': detailed,
+    }
 
 
 # Representative blend strength for the overlay legend swatches — a mid-strength
@@ -10554,32 +10584,70 @@ if _main_tab == 'Map View':
             "placement; it is not a modeled outcome."
             )
 
-        with st.expander("Map layers", expanded=False):
-            # Two INDEPENDENT layer toggles, each revealing its own strength
-            # slider only when ON. Both default OFF so the default view is clean
-            # changes-on-gray (no orange wash, no priority surface).
-            #
-            # Layer 1 — developed-area intensity (context wash). OFF ⇒
+        # Map view is a VIEW, not a layer — pick WHICH map to render (radio),
+        # separately from the OVERLAYS that decorate the detailed map (toggles).
+        # Normalize an all-False selected_region_mask to None FIRST: scope
+        # (region-selected vs citywide) drives the view default and must be
+        # known before the radio renders.
+        _spatial_mask = st.session_state.get('selected_region_mask')
+        if _spatial_mask is not None and not bool(_spatial_mask.any()):
+            _spatial_mask = None
+        # Context-sensitive default, re-asserted when the scope flips: citywide →
+        # change-density summary, region → detailed pixels. Free switching within
+        # a scope is preserved (we only overwrite the choice on a scope change).
+        _map_scope = 'region' if _spatial_mask is not None else 'citywide'
+        if st.session_state.get('_map_view_scope') != _map_scope:
+            st.session_state['_map_view_scope'] = _map_scope
+            st.session_state['map_view_choice'] = _map_view_default_for_scope(
+                _spatial_mask is not None
+            )
+
+        with st.expander("Map view & overlays", expanded=False):
+            # Group 1 — Map view. Renders exactly one map (detailed pixels OR
+            # change-density summary). The choice is scope-keyed (see above).
+            map_view = st.radio(
+                "Map view",
+                options=[_MAP_VIEW_DETAILED, _MAP_VIEW_DENSITY],
+                horizontal=True,
+                key='map_view_choice',
+                help=(
+                    "Detailed pixels shows the actual converted pixels. "
+                    "Change-density summary aggregates the same conversions into "
+                    "grid cells to show where they concentrate — a readability "
+                    "aid, not a modeled outcome."
+                ),
+            )
+            _render = _map_view_render_plan(map_view)
+            _density_view = _render['show_density_map']
+
+            # Group 2 — Overlays. These decorate the DETAILED view only; under
+            # the change-density summary they're grayed out / N/A (same pattern
+            # as priority graying under random placement).
+            st.markdown("**Overlays**")
+            if _density_view:
+                st.caption("Overlays apply to the detailed pixel view.")
+            # Overlay 1 — developed-area intensity (context wash). OFF ⇒
             # overlay_alpha = 0.0, which trips plot_spatial_map's
             # `overlay_alpha > 0` guard and drops both the wash and its legend
             # entry.
             show_intensity = st.checkbox(
                 "Show developed-area intensity",
                 value=False,
+                disabled=_density_view,
                 help=(
                     "Developed-area intensity from land cover, used as a proxy "
                     "for urban heat vulnerability. Visual context only — it does "
                     "not change the scenario or represent modeled cooling."
                 ),
             )
-            if show_intensity:
+            if show_intensity and not _density_view:
                 overlay_alpha = st.slider(
                     "Developed-area intensity visibility", 0.0, 0.5, 0.15, 0.05,
                 )
             else:
                 overlay_alpha = 0.0
 
-            # Layer 2 — placement-priority surface (a placement INPUT, not a
+            # Overlay 2 — placement-priority surface (a placement INPUT, not a
             # modeled outcome). Renders the active focused strategy's actual
             # per-pixel suitability surface so focused placements are visually
             # explainable. Honesty-gated: only when the displayed scenario was
@@ -10587,9 +10655,10 @@ if _main_tab == 'Map View':
             # strategy). Suppressed for random placement and for
             # optimizer-applied / region-optimized results (ranked under random
             # placement) so the surface never sits beside a placement it didn't
-            # drive. Distinct layer/meaning from the intensity context wash above.
+            # drive. Also N/A under the change-density view.
             _priority_note = _placement_priority_note(_scen_provenance, placement_strategy)
-            if _priority_note is None:
+            _priority_enabled = (_priority_note is None) and not _density_view
+            if _priority_enabled:
                 show_placement_priority = st.checkbox(
                     "Show placement-priority layer",
                     value=False,
@@ -10616,26 +10685,12 @@ if _main_tab == 'Map View':
                     "Show placement-priority layer",
                     value=False, disabled=True,
                 )
-                st.caption(_priority_note)
+                # Under density the Overlays caption already marks the group N/A;
+                # otherwise surface the honesty gate's reason (random / optimizer
+                # / baseline placement).
+                if not _density_view and _priority_note is not None:
+                    st.caption(_priority_note)
 
-            # Change-density companion map — coarse grid aggregation rendered
-            # BELOW the detail map when on (Relay 21). Default OFF.
-            show_change_density = st.checkbox(
-                "Show change-density map (where conversions concentrate)",
-                value=False,
-                help=(
-                    "A coarse grid-aggregated view of where conversions "
-                    "concentrate — a readability aid for the sparse detail map. "
-                    "Aggregation of the same conversions, not a modeled outcome."
-                ),
-            )
-
-        # Normalize an all-False selected_region_mask to None — semantically
-        # the same as no region selected, and protects downstream consumers
-        # from treating a bare zero-mask as a real selection.
-        _spatial_mask = st.session_state.get('selected_region_mask')
-        if _spatial_mask is not None and not bool(_spatial_mask.any()):
-            _spatial_mask = None
         # Render via components.html + base64 data-URI img instead of
         # st.image / st.pyplot. Both Streamlit display surfaces routed
         # through MediaFileManager and BOTH dropped the cold-citywide
@@ -10648,83 +10703,116 @@ if _main_tab == 'Map View':
         # above and _PLOT_MAX_DIM cap inside plot_spatial_map are the
         # structural pieces; this is a transport swap.
         import io
-        # Build the placement-priority surface from the SAME candidate pixel
-        # set evaluate_scenario sampled (region∩ownership via _combined_mask)
-        # so the rendered surface is byte-for-byte what placement ranked
-        # against. Only when the gated toggle is on. A focused surface with no
-        # positive weight placed at random (the weight_sum==0 fallback) — drop
-        # it and flag the honest fallback rather than draw a blank layer.
-        _priority_overlay = None
-        _priority_no_signal = False
-        if show_placement_priority:
-            _priority_overlay = _placement_priority_raster(
-                placement_strategy,
-                _region_convertible_pixels(_combined_mask),
-                cooling_lulc.shape,
-            )
-            if not _priority_surface_has_signal(_priority_overlay):
-                _priority_overlay = None
-                _priority_no_signal = True
-        _spatial_fig = plot_spatial_map(
-            results['scenario_lulc'], cooling_lulc,
-            heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_alpha,
-            priority_overlay=_priority_overlay, priority_alpha=priority_alpha,
-            selected_region_mask=_spatial_mask,
-            max_dim=_MAP_VIEW_MAX_DIM,
-        )
-        # Status line, ABOVE the image and AFTER the Map layers expander (so it
-        # reads live toggle state). Placement / Area REUSE the same _setup_place
-        # / _setup_region the Active-scenario "Scope:" line is built from, so the
-        # map line can never drift from the scenario header. The status line owns
-        # layer-state wording; the caption below stays state-agnostic.
-        _map_intensity_on = overlay_alpha > 0
-        _map_priority_on = (_priority_overlay is not None and priority_alpha > 0)
-        st.markdown(
-            f"**Showing:** {_map_status_layers(_map_intensity_on, _map_priority_on)}"
-            f" · **Placement:** {_setup_place} · **Area:** {_setup_region}"
-        )
         # Acre summary — ties the faint pixels to real quantities. conv and the
         # mix pcts come from the SAME audit record the Scenario audit shows
-        # (no recompute); GI/FF/HD acres are conv × each mix share.
+        # (no recompute); GI/FF/HD acres are conv × each mix share. Shared by
+        # both views (the quantities don't depend on which map is showing).
         _map_conv_ac = _audit["raw"]["converted_acres"]
         _map_gi_ac = _map_conv_ac * _audit["raw"]["gi_pct"] / 100
         _map_ff_ac = _map_conv_ac * _audit["raw"]["ff_pct"] / 100
         _map_hd_ac = _map_conv_ac * _audit["raw"]["hd_pct"] / 100
-        st.markdown(
+        _map_acre_line = (
             f"Converted: {_map_conv_ac:,.0f} acres · GI: {_map_gi_ac:,.0f} · "
             f"Food forest: {_map_ff_ac:,.0f} · HD: {_map_hd_ac:,.0f} acres"
         )
-        # Sparsity hint — only in full-region mode (no region mask). When a
-        # region IS selected the view is already zoomed/constrained, so suppress.
-        if _spatial_mask is None:
-            st.caption(
-                "Regional view shows the full scenario footprint. Fine-grained "
-                "changes may be easier to interpret by selecting a council "
-                "district or other area."
+
+        if _render['show_detail_map']:
+            # ===== Detailed pixels view — pixel map + categorical legend =====
+            st.markdown(
+                "**Detailed conversion map** — the actual converted pixels in "
+                "the scenario."
             )
-        # Always-visible "what this map shows" caption, ABOVE the image and
-        # OUTSIDE the Map layers expander. Composed from live layer state:
-        # intensity drawn iff overlay_alpha > 0; priority drawn iff the surface
-        # resolved (not no-signal) and its slider > 0; region iff a mask is set.
-        st.caption(_map_layers_caption(
-            intensity_on=_map_intensity_on,
-            priority_on=_map_priority_on,
-            region_active=_spatial_mask is not None,
-        ))
-        _png_buf = io.BytesIO()
-        # bbox_inches='tight' crops the figsize=(8,8) square letterbox bands so
-        # the PNG carries the map's TRUE aspect; the iframe then fits that aspect
-        # (no fixed-height gap, no white bands).
-        _spatial_fig.savefig(_png_buf, format='png',
-                             bbox_inches='tight', pad_inches=0.02)
-        plt.close(_spatial_fig)
-        st.markdown(_map_image_html(_png_buf.getvalue()), unsafe_allow_html=True)
-        # Change-density companion map (Relay 21/23) — rendered directly UNDER the
-        # detail map and ABOVE the legend when toggled on, so it appears where the
-        # toggle implies and reads as the companion it is. Full-resolution
-        # aggregation into a coarse grid; works citywide or within the selected
-        # region. Same base64/iframe transport; figure closed after savefig.
-        if show_change_density:
+            # Build the placement-priority surface from the SAME candidate pixel
+            # set evaluate_scenario sampled (region∩ownership via _combined_mask)
+            # so the rendered surface is byte-for-byte what placement ranked
+            # against. Only when the gated toggle is on. A focused surface with no
+            # positive weight placed at random (the weight_sum==0 fallback) — drop
+            # it and flag the honest fallback rather than draw a blank layer.
+            _priority_overlay = None
+            _priority_no_signal = False
+            if show_placement_priority:
+                _priority_overlay = _placement_priority_raster(
+                    placement_strategy,
+                    _region_convertible_pixels(_combined_mask),
+                    cooling_lulc.shape,
+                )
+                if not _priority_surface_has_signal(_priority_overlay):
+                    _priority_overlay = None
+                    _priority_no_signal = True
+            _spatial_fig = plot_spatial_map(
+                results['scenario_lulc'], cooling_lulc,
+                heat_overlay=nlcd_intensity_weights, overlay_alpha=overlay_alpha,
+                priority_overlay=_priority_overlay, priority_alpha=priority_alpha,
+                selected_region_mask=_spatial_mask,
+                max_dim=_MAP_VIEW_MAX_DIM,
+            )
+            # Status line, ABOVE the image (reads live toggle state). Placement /
+            # Area REUSE the same _setup_place / _setup_region the Active-scenario
+            # "Scope:" line is built from, so the map line can never drift from
+            # the scenario header. The status line owns layer-state wording; the
+            # caption below stays state-agnostic.
+            _map_intensity_on = overlay_alpha > 0
+            _map_priority_on = (_priority_overlay is not None and priority_alpha > 0)
+            st.markdown(
+                f"**Showing:** {_map_status_layers(_map_intensity_on, _map_priority_on)}"
+                f" · **Placement:** {_setup_place} · **Area:** {_setup_region}"
+            )
+            st.markdown(_map_acre_line)
+            # Sparsity hint — only in full-region mode (no region mask). When a
+            # region IS selected the view is already zoomed/constrained.
+            if _spatial_mask is None:
+                st.caption(
+                    "Regional view shows the full scenario footprint. "
+                    "Fine-grained changes may be easier to interpret by "
+                    "selecting a council district or other area."
+                )
+            # Always-visible "what this map shows" caption, ABOVE the image.
+            # Composed from live layer state: intensity drawn iff overlay_alpha >
+            # 0; priority drawn iff the surface resolved (not no-signal) and its
+            # slider > 0; region iff a mask is set.
+            st.caption(_map_layers_caption(
+                intensity_on=_map_intensity_on,
+                priority_on=_map_priority_on,
+                region_active=_spatial_mask is not None,
+            ))
+            _png_buf = io.BytesIO()
+            # bbox_inches='tight' crops the figsize=(8,8) square letterbox bands
+            # so the PNG carries the map's TRUE aspect; the iframe then fits that
+            # aspect (no fixed-height gap, no white bands).
+            _spatial_fig.savefig(_png_buf, format='png',
+                                 bbox_inches='tight', pad_inches=0.02)
+            plt.close(_spatial_fig)
+            st.markdown(_map_image_html(_png_buf.getvalue()), unsafe_allow_html=True)
+            # Categorical legend BELOW the detail map (Relay 7) — the detailed
+            # view's key. The render plan gates it so it never appears under the
+            # change-density view (where it would mislabel concentration).
+            if _render['show_categorical_legend']:
+                st.markdown(
+                    _map_legend_html(
+                        intensity_on=_map_intensity_on,
+                        priority_on=_map_priority_on,
+                        region_active=_spatial_mask is not None,
+                    ),
+                    unsafe_allow_html=True,
+                )
+            if _priority_no_signal:
+                st.caption(
+                    f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** produced "
+                    "no priority signal for this area — every eligible pixel "
+                    "scored equally, so placement fell back to random within "
+                    "eligible land. No priority surface to show."
+                )
+        else:
+            # ===== Change-density summary view — density map + colorbar ONLY =====
+            # Title + caveat ABOVE the map (not below): names what it is and that
+            # it's a readability aid, not a modeled outcome. No categorical
+            # legend here — the colorbar is the only key.
+            st.markdown(
+                "**Change-density summary** — the same converted pixels "
+                "aggregated into grid cells to show where conversions "
+                "concentrate. A readability aid, not a modeled outcome."
+            )
+            st.markdown(_map_acre_line)
             _dens_fig = plot_change_density(
                 results['scenario_lulc'], cooling_lulc, region_mask=_spatial_mask,
             )
@@ -10733,30 +10821,6 @@ if _main_tab == 'Map View':
                               bbox_inches='tight', pad_inches=0.02)
             plt.close(_dens_fig)
             st.markdown(_map_image_html(_dens_buf.getvalue()), unsafe_allow_html=True)
-            st.caption(
-                "Scenario conversions aggregated into grid cells — a readability "
-                "aid for the sparse detail map above. Each cell shows the share of "
-                "it that converted; it is an aggregation of the same conversions, "
-                "not a modeled outcome."
-            )
-        # Grouped HTML legend BELOW the map (Relay 7) — larger than the old
-        # in-figure 9pt legend and off the data. Swatches track the live layer
-        # state and the shared color constants.
-        st.markdown(
-            _map_legend_html(
-                intensity_on=_map_intensity_on,
-                priority_on=_map_priority_on,
-                region_active=_spatial_mask is not None,
-            ),
-            unsafe_allow_html=True,
-        )
-        if _priority_no_signal:
-            st.caption(
-                f"**{PLACEMENT_STRATEGY_LABELS[placement_strategy]}** produced no "
-                "priority signal for this area — every eligible pixel scored "
-                "equally, so placement fell back to random within eligible land. "
-                "No priority surface to show."
-            )
 
         with st.expander("Assumptions and limitations", expanded=False):
             st.caption("Detailed modeling assumptions, caveats, and method notes.")
