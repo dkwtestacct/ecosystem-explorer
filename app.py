@@ -5237,6 +5237,16 @@ def _change_density_grid(scenario_lulc, baseline_lulc, region_mask=None, n_cells
 # the aggregated cells in real geography without reading as a data/result layer.
 _DENSITY_BOUNDARY_COLOR = '#9aa0a6'
 
+# Single-hue TEAL sequential ramp (light → dark) for the concentration map —
+# replaces the old warm YlOrRd. Teal isn't warm, so the colorbar reads "share"
+# via the light→dark gradient + ticks, not warm/cool temperature language.
+# set_bad transparent so out-of-AOI (NaN) cells show the figure background.
+_DENSITY_CMAP = mcolors.LinearSegmentedColormap.from_list(
+    "concentration_teal",
+    ["#e6f5f3", "#9bd9d0", "#46b3a6", "#0d6b60"],
+)
+_DENSITY_CMAP.set_bad(color=(1, 1, 1, 0))
+
 
 def _district_edge_mask(district_raster):
     """Boolean mask of region-boundary pixels: True where a region-id raster
@@ -5289,8 +5299,7 @@ def plot_change_density(scenario_lulc, baseline_lulc, region_mask=None, n_cells=
     h, w = scenario_lulc.shape
     fig, ax = plt.subplots(figsize=(8, 8))
     masked = np.ma.masked_invalid(dens)
-    cmap = plt.get_cmap("YlOrRd").copy()
-    cmap.set_bad(color=(1, 1, 1, 0))   # NaN (out-of-AOI) cells transparent
+    cmap = _DENSITY_CMAP   # single-hue teal ramp; NaN cells already transparent
     _valid = dens[np.isfinite(dens)]
     _vmax = float(_valid.max()) if _valid.size and _valid.max() > 0 else 1.0
     # Stretch the coarse grid onto full-resolution pixel coordinates so the
@@ -5342,7 +5351,7 @@ def plot_change_density(scenario_lulc, baseline_lulc, region_mask=None, n_cells=
     # the width (no full-height dominant bar). shrink/aspect keep it compact.
     cbar = fig.colorbar(im, ax=ax, orientation='horizontal',
                         fraction=0.046, pad=0.04, shrink=0.6, aspect=40)
-    cbar.set_label("Warmer = larger share of the grid cell converted", fontsize=10)
+    cbar.set_label("Share of grid cell converted", fontsize=10)
     plt.tight_layout()
     return fig
 
@@ -5396,7 +5405,14 @@ def _map_status_layers(intensity_on, priority_on):
 # Map view labels — single-sourced so the radio options, the scope-default
 # mapping, and the render-plan resolution can never drift from one another.
 _MAP_VIEW_DETAILED = "Detailed pixels"
-_MAP_VIEW_DENSITY = "Change-density summary"
+_MAP_VIEW_DENSITY = "Conversion concentration summary"
+# Exact caption rendered ABOVE the concentration map (Relay 28) — module-level
+# so verify_baselines can assert the final copy verbatim without source-wrap drift.
+_CONCENTRATION_CAPTION = (
+    "Conversions aggregated into grid cells to show where the scenario is "
+    "concentrated. This is a readability aid based on the same converted "
+    "pixels, not a modeled outcome."
+)
 
 
 def _map_view_default_for_scope(region_selected: bool) -> str:
@@ -10707,9 +10723,9 @@ if _main_tab == 'Map View':
                 key='map_view_choice',
                 help=(
                     "Detailed pixels shows the actual converted pixels. "
-                    "Change-density summary aggregates the same conversions into "
-                    "grid cells to show where they concentrate — a readability "
-                    "aid, not a modeled outcome."
+                    "Conversion concentration summary aggregates the same "
+                    "conversions into grid cells to show where they concentrate "
+                    "— a readability aid, not a modeled outcome."
                 ),
             )
             _render = _map_view_render_plan(map_view)
@@ -10898,15 +10914,12 @@ if _main_tab == 'Map View':
                     "eligible land. No priority surface to show."
                 )
         else:
-            # ===== Change-density summary view — density map + colorbar ONLY =====
-            # Title + caveat ABOVE the map (not below): names what it is and that
+            # ===== Conversion concentration summary — map + colorbar ONLY =====
+            # Title + caption ABOVE the map (not below): names what it is and that
             # it's a readability aid, not a modeled outcome. No categorical
             # legend here — the colorbar is the only key.
-            st.markdown(
-                "**Change-density summary** — the same converted pixels "
-                "aggregated into grid cells to show where conversions "
-                "concentrate. A readability aid, not a modeled outcome."
-            )
+            st.markdown("**Conversion concentration summary**")
+            st.caption(_CONCENTRATION_CAPTION)
             st.markdown(_map_acre_line)
             # Citywide scope grounds the map with faint district seams when a
             # region-id raster is configured (prefer council districts); the

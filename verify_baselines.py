@@ -2046,6 +2046,96 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         density_diffs += 1
 
+    # ── Relay 28 — Concentration view: final copy + teal palette ─────────────
+    # The shipped view used pre-decision names/palette; the final copy renames it
+    # to "Conversion concentration summary" with a single-hue teal ramp. Assert:
+    #   - the palette is teal (low red, high green+blue at the top), NOT YlOrRd;
+    #   - the view option + title + exact caption carry the new wording, the warm
+    #     "Warmer = ..." label and the YlOrRd palette are gone;
+    #   - GUARD: the "High Density" land-use category survives the rename — an
+    #     over-eager density→concentration replace must NOT clobber it.
+    print(f"\n{'=' * 60}")
+    print("Relay 28 — Concentration view final copy + teal palette")
+    print(f"{'=' * 60}")
+    concentration_diffs = 0
+    try:
+        # (a) palette teal at the top, NOT warm.
+        _r, _g, _b, _a = app._DENSITY_CMAP(1.0)
+        if _g > _r and _b > _r:
+            print(f"  OK   density palette top is teal "
+                  f"(r={_r:.2f}, g={_g:.2f}, b={_b:.2f})")
+        else:
+            print(f"  FAIL density palette not teal: "
+                  f"r={_r:.2f}, g={_g:.2f}, b={_b:.2f}")
+            concentration_diffs += 1
+        # Meta-test: the OLD YlOrRd top is red-dominant → fails the teal check,
+        # proving the check discriminates rather than passing everything.
+        import matplotlib.pyplot as _plt28
+        _yr, _yg, _yb, _ya = _plt28.get_cmap("YlOrRd")(1.0)
+        if not (_yg > _yr and _yb > _yr):
+            print("  OK   meta-test: YlOrRd top fails the teal check (red-dominant)")
+        else:
+            print("  FAIL meta-test: YlOrRd unexpectedly passed the teal check")
+            concentration_diffs += 1
+
+        # (b) view option carries the new wording.
+        if app._MAP_VIEW_DENSITY == "Conversion concentration summary":
+            print(f"  OK   view option = {app._MAP_VIEW_DENSITY!r}")
+        else:
+            print(f"  FAIL view option = {app._MAP_VIEW_DENSITY!r}, "
+                  "want 'Conversion concentration summary'")
+            concentration_diffs += 1
+
+        # (c) exact caption — assert the module-level constant verbatim (the live
+        #     copy, immune to source line-wrap drift).
+        _want_caption = (
+            "Conversions aggregated into grid cells to show where the scenario "
+            "is concentrated. This is a readability aid based on the same "
+            "converted pixels, not a modeled outcome."
+        )
+        if app._CONCENTRATION_CAPTION == _want_caption:
+            print("  OK   concentration caption matches final copy verbatim")
+        else:
+            print(f"  FAIL concentration caption drifted: "
+                  f"{app._CONCENTRATION_CAPTION!r}")
+            concentration_diffs += 1
+
+        # title + colorbar label present in source; old warm wording + YlOrRd gone.
+        with open("app.py", encoding="utf-8") as _f28:
+            _src28 = _f28.read()
+        _present = [
+            ("title '**Conversion concentration summary**'",
+             "**Conversion concentration summary**", True),
+            ("colorbar label 'Share of grid cell converted'",
+             "Share of grid cell converted", True),
+            ("old 'Warmer = larger share' wording gone",
+             "Warmer = larger share", False),
+            ("YlOrRd palette gone from app.py",
+             'get_cmap("YlOrRd")', False),
+        ]
+        for name, needle, want_present in _present:
+            got = needle in _src28
+            if got == want_present:
+                print(f"  OK   {name}")
+            else:
+                print(f"  FAIL {name}: present={got}, want_present={want_present}")
+                concentration_diffs += 1
+
+        # (d) GUARD — 'High Density' land-use category survives the rename.
+        _hd_count = _src28.count("High Density")
+        _hd_key = "High Density" in app.CHANGE_COLORS
+        if _hd_count >= 3 and _hd_key:
+            print(f"  OK   'High Density' land-use category intact "
+                  f"({_hd_count}× in source, CHANGE_COLORS key present)")
+        else:
+            print(f"  FAIL 'High Density' clobbered: {_hd_count}× in source, "
+                  f"CHANGE_COLORS key present={_hd_key}")
+            concentration_diffs += 1
+    except Exception as e:
+        print(f"  ERROR concentration final-copy test: {e}")
+        import traceback; traceback.print_exc()
+        concentration_diffs += 1
+
     # ── Default-scenario state consistency (Relay A) ─────────────────────────
     # Title, line-1 summary, and audit are all rendered from the same
     # `_resolved_scenario` dict via three display helpers
@@ -5377,7 +5467,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs
                    + placement_priority_diffs + flood_signal_diffs
                    + palette_diffs + unit_survival_diffs + fig_close_diffs
-                   + map_view_diffs + density_diffs)
+                   + map_view_diffs + density_diffs + concentration_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5423,6 +5513,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "— wiring broke during a layout refactor; the "
                   "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
                   "the contract.")
+        if concentration_diffs:
+            print(f"{concentration_diffs} concentration-view final-copy "
+                  "divergence(s) — palette is no longer teal, the new "
+                  "'concentration' wording / caption drifted, or the rename "
+                  "clobbered the 'High Density' land-use category (Relay 28).")
         if density_diffs:
             print(f"{density_diffs} concentration-map divergence(s) — boundary "
                   "context stopped drawing when geometry was available, the "
