@@ -10787,7 +10787,7 @@ if _main_tab == 'Map View':
             )
             if show_intensity and not _density_view:
                 overlay_alpha = st.slider(
-                    "Developed-area intensity visibility", 0.0, 0.5, 0.15, 0.05,
+                    "Overlay opacity", 0.0, 0.5, 0.15, 0.05,
                 )
             else:
                 overlay_alpha = 0.0

@@ -2283,6 +2283,35 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         locator_diffs += 1
 
+    # ── Relay 31 — Overlay slider label ──────────────────────────────────────
+    # The intensity slider label is simplified to 'Overlay opacity'. (Relay 31's
+    # part A — trimming the detailed-map subtitle — was already satisfied by the
+    # Relay 29 scope-aware title, which removed the verbose subtitle entirely;
+    # re-adding it would regress Relay 29, so only part B applies here.)
+    print(f"\n{'=' * 60}")
+    print("Relay 31 — Overlay slider label")
+    print(f"{'=' * 60}")
+    copy31_diffs = 0
+    try:
+        with open("app.py", encoding="utf-8") as _f31:
+            _src31 = _f31.read()
+        _c31_checks = [
+            ("new 'Overlay opacity' label present", '"Overlay opacity"', True),
+            ("old 'Developed-area intensity visibility' label gone",
+             "Developed-area intensity visibility", False),
+        ]
+        for name, needle, want_present in _c31_checks:
+            got = needle in _src31
+            if got == want_present:
+                print(f"  OK   {name}")
+            else:
+                print(f"  FAIL {name}: present={got}, want_present={want_present}")
+                copy31_diffs += 1
+    except Exception as e:
+        print(f"  ERROR overlay-slider-label test: {e}")
+        import traceback; traceback.print_exc()
+        copy31_diffs += 1
+
     # ── Default-scenario state consistency (Relay A) ─────────────────────────
     # Title, line-1 summary, and audit are all rendered from the same
     # `_resolved_scenario` dict via three display helpers
@@ -5615,7 +5644,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + placement_priority_diffs + flood_signal_diffs
                    + palette_diffs + unit_survival_diffs + fig_close_diffs
                    + map_view_diffs + density_diffs + concentration_diffs
-                   + self_describe_diffs + locator_diffs)
+                   + self_describe_diffs + locator_diffs + copy31_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5661,6 +5690,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "— wiring broke during a layout refactor; the "
                   "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
                   "the contract.")
+        if copy31_diffs:
+            print(f"{copy31_diffs} overlay-slider-label divergence(s) — the "
+                  "'Overlay opacity' label reverted to the old long form "
+                  "(Relay 31).")
         if locator_diffs:
             print(f"{locator_diffs} selected-area locator divergence(s) — the "
                   "'Selected area' heading or tightened instruction drifted, or "
