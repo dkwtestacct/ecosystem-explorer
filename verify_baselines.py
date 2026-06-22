@@ -2100,12 +2100,19 @@ def main(update: bool) -> int:
                   f"{app._CONCENTRATION_CAPTION!r}")
             concentration_diffs += 1
 
-        # title + colorbar label present in source; old warm wording + YlOrRd gone.
+        # title carries the new 'concentration' wording (helper-generated since
+        # Relay 29; the per-scope literals are flip-tested in the Relay 29 block).
+        _title_cw = app._map_view_title(app._MAP_VIEW_DENSITY, "citywide")
+        if "conversion concentration summary" in _title_cw.lower():
+            print(f"  OK   title carries 'concentration' wording: {_title_cw!r}")
+        else:
+            print(f"  FAIL title missing 'concentration' wording: {_title_cw!r}")
+            concentration_diffs += 1
+
+        # colorbar label present in source; old warm wording + YlOrRd gone.
         with open("app.py", encoding="utf-8") as _f28:
             _src28 = _f28.read()
         _present = [
-            ("title '**Conversion concentration summary**'",
-             "**Conversion concentration summary**", True),
             ("colorbar label 'Share of grid cell converted'",
              "Share of grid cell converted", True),
             ("old 'Warmer = larger share' wording gone",
@@ -2135,6 +2142,105 @@ def main(update: bool) -> int:
         print(f"  ERROR concentration final-copy test: {e}")
         import traceback; traceback.print_exc()
         concentration_diffs += 1
+
+    # ── Relay 29 — Self-describing map views ─────────────────────────────────
+    # Three always-visible labels: the active-view indicator (names the view
+    # actually rendered, points to the other), scope-aware titles (citywide vs
+    # the region's own label), and the teal key under the concentration map.
+    # Pure helpers carry all three; assert:
+    #   - the indicator names the rendered view and flips with it;
+    #   - scope-aware titles match the rendered scope (citywide ≠ region);
+    #   - the teal key is the agreed string AND the ramp runs light(low) →
+    #     dark(high) so "darker = larger" isn't backwards.
+    print(f"\n{'=' * 60}")
+    print("Relay 29 — Self-describing map views")
+    print(f"{'=' * 60}")
+    self_describe_diffs = 0
+    try:
+        # (a) active-view indicator — flips with the rendered view.
+        _exp_det = (f"Map view: {app._MAP_VIEW_DETAILED} — switch to "
+                    f"{app._MAP_VIEW_DENSITY} in Map view & overlays.")
+        _exp_den = (f"Map view: {app._MAP_VIEW_DENSITY} — switch to "
+                    f"{app._MAP_VIEW_DETAILED} in Map view & overlays.")
+        _ind_det = app._map_view_indicator(app._MAP_VIEW_DETAILED)
+        _ind_den = app._map_view_indicator(app._MAP_VIEW_DENSITY)
+        _ind_checks = [
+            ("indicator (detailed) names detailed view", _ind_det, _exp_det),
+            ("indicator (concentration) names that view", _ind_den, _exp_den),
+        ]
+        for name, got, want in _ind_checks:
+            if got == want:
+                print(f"  OK   {name}")
+            else:
+                print(f"  FAIL {name}: got {got!r}, want {want!r}")
+                self_describe_diffs += 1
+        # Meta-test: the indicator actually FLIPS (names the rendered view, not a
+        # constant string) — the two views must produce different indicators.
+        if _ind_det != _ind_den:
+            print("  OK   meta-test: indicator flips with the rendered view")
+        else:
+            print("  FAIL meta-test: indicator identical across views (no flip)")
+            self_describe_diffs += 1
+
+        # (b) scope-aware titles — match the rendered scope (citywide ≠ region).
+        _title_checks = [
+            ("detailed citywide",
+             app._map_view_title(app._MAP_VIEW_DETAILED, "citywide"),
+             "Detailed conversion map — citywide"),
+            ("detailed region",
+             app._map_view_title(app._MAP_VIEW_DETAILED, "Council District 5"),
+             "Detailed conversion map — Council District 5"),
+            ("concentration citywide",
+             app._map_view_title(app._MAP_VIEW_DENSITY, "citywide"),
+             "Citywide conversion concentration summary"),
+            ("concentration region",
+             app._map_view_title(app._MAP_VIEW_DENSITY, "Council District 5"),
+             "Council District 5 conversion concentration summary"),
+        ]
+        for name, got, want in _title_checks:
+            if got == want:
+                print(f"  OK   title {name}: {got!r}")
+            else:
+                print(f"  FAIL title {name}: got {got!r}, want {want!r}")
+                self_describe_diffs += 1
+        # Meta-test: the scope label is actually reflected — citywide vs region
+        # titles must differ for both views (not a fixed string).
+        for _v, _vn in ((app._MAP_VIEW_DETAILED, "detailed"),
+                        (app._MAP_VIEW_DENSITY, "concentration")):
+            if (app._map_view_title(_v, "citywide")
+                    != app._map_view_title(_v, "Council District 5")):
+                print(f"  OK   meta-test: {_vn} title reflects scope")
+            else:
+                print(f"  FAIL meta-test: {_vn} title ignores scope")
+                self_describe_diffs += 1
+
+        # (c) teal key string + ramp direction (light=low → dark=high).
+        _want_key = "Darker teal = larger share of grid cell converted."
+        if app._CONCENTRATION_TEAL_KEY == _want_key:
+            print("  OK   teal key matches the agreed string")
+        else:
+            print(f"  FAIL teal key drifted: {app._CONCENTRATION_TEAL_KEY!r}")
+            self_describe_diffs += 1
+        with open("app.py", encoding="utf-8") as _f29:
+            _src29 = _f29.read()
+        if "_CONCENTRATION_TEAL_KEY" in _src29 and "Darker teal" in _src29:
+            print("  OK   teal key rendered in app.py")
+        else:
+            print("  FAIL teal key not referenced in app.py")
+            self_describe_diffs += 1
+        _lo = sum(app._DENSITY_CMAP(0.0)[:3])   # low share → light (high sum)
+        _hi = sum(app._DENSITY_CMAP(1.0)[:3])   # high share → dark (low sum)
+        if _lo > _hi:
+            print(f"  OK   ramp light→dark (low sum {_hi:.2f} < high-light "
+                  f"sum {_lo:.2f}) — 'darker = larger' agrees")
+        else:
+            print(f"  FAIL ramp backwards: low-share sum {_lo:.2f}, "
+                  f"high-share sum {_hi:.2f} — teal key would be reversed")
+            self_describe_diffs += 1
+    except Exception as e:
+        print(f"  ERROR self-describing map-views test: {e}")
+        import traceback; traceback.print_exc()
+        self_describe_diffs += 1
 
     # ── Default-scenario state consistency (Relay A) ─────────────────────────
     # Title, line-1 summary, and audit are all rendered from the same
@@ -5467,7 +5573,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + tradeoff_axis_diffs + umh_doc_diffs + reproducer_diffs
                    + placement_priority_diffs + flood_signal_diffs
                    + palette_diffs + unit_survival_diffs + fig_close_diffs
-                   + map_view_diffs + density_diffs + concentration_diffs)
+                   + map_view_diffs + density_diffs + concentration_diffs
+                   + self_describe_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5513,6 +5620,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "— wiring broke during a layout refactor; the "
                   "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
                   "the contract.")
+        if self_describe_diffs:
+            print(f"{self_describe_diffs} self-describing map-view "
+                  "divergence(s) — the active-view indicator stopped naming the "
+                  "rendered view, a scope-aware title stopped reflecting scope, "
+                  "or the teal key / ramp direction drifted (Relay 29).")
         if concentration_diffs:
             print(f"{concentration_diffs} concentration-view final-copy "
                   "divergence(s) — palette is no longer teal, the new "

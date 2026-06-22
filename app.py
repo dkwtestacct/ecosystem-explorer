@@ -5439,6 +5439,34 @@ def _map_view_render_plan(view_choice: str) -> dict:
     }
 
 
+# One-line teal key under the concentration map (Relay 29) — module-level so the
+# live UI and verify_baselines share one source. The ramp runs light(low) →
+# dark(high), so "darker = larger" agrees with the gradient (confirmed by a
+# luminance assertion in verify_baselines).
+_CONCENTRATION_TEAL_KEY = "Darker teal = larger share of grid cell converted."
+
+
+def _map_view_indicator(active_view: str) -> str:
+    """Always-visible active-view indicator (Relay 29): names the view actually
+    rendered and points to the other one in the Map view & overlays expander.
+    Pure so 'indicator names the rendered view' flips with the view."""
+    other = (_MAP_VIEW_DETAILED if active_view == _MAP_VIEW_DENSITY
+             else _MAP_VIEW_DENSITY)
+    return (f"Map view: {active_view} — switch to {other} in "
+            "Map view & overlays.")
+
+
+def _map_view_title(view_choice: str, scope_label: str) -> str:
+    """Scope-aware title for the active map view (Relay 29). `scope_label` is
+    'citywide' or the selected region's OWN label (never a person's name). Pure
+    so the title↔scope match flip-tests citywide vs region for both views."""
+    if view_choice == _MAP_VIEW_DENSITY:
+        _scoped = (scope_label[:1].upper() + scope_label[1:]
+                   if scope_label else scope_label)
+        return f"{_scoped} conversion concentration summary"
+    return f"Detailed conversion map — {scope_label}"
+
+
 # Representative blend strength for the overlay legend swatches — a mid-strength
 # alpha so the swatch reads like the on-map tint rather than the pure overlay
 # color (the old in-figure legend showed pure orange while the map showed tan).
@@ -10826,13 +10854,17 @@ if _main_tab == 'Map View':
             f"Converted: {_map_conv_ac:,.0f} acres · GI: {_map_gi_ac:,.0f} · "
             f"Food forest: {_map_ff_ac:,.0f} · HD: {_map_hd_ac:,.0f} acres"
         )
+        # Scope label for the scope-aware titles (Relay 29): 'citywide' with no
+        # selection, else the region's OWN label (the same _scope_area the status
+        # line / Active-scenario scope reuse — never a person's name).
+        _map_scope_label = "citywide" if _spatial_mask is None else _scope_area
+        # Always-visible active-view indicator — renders here (outside the
+        # expander) so it shows whether or not "Map view & overlays" is open.
+        st.caption(_map_view_indicator(map_view))
 
         if _render['show_detail_map']:
             # ===== Detailed pixels view — pixel map + categorical legend =====
-            st.markdown(
-                "**Detailed conversion map** — the actual converted pixels in "
-                "the scenario."
-            )
+            st.markdown(f"**{_map_view_title(map_view, _map_scope_label)}**")
             # Build the placement-priority surface from the SAME candidate pixel
             # set evaluate_scenario sampled (region∩ownership via _combined_mask)
             # so the rendered surface is byte-for-byte what placement ranked
@@ -10918,7 +10950,7 @@ if _main_tab == 'Map View':
             # Title + caption ABOVE the map (not below): names what it is and that
             # it's a readability aid, not a modeled outcome. No categorical
             # legend here — the colorbar is the only key.
-            st.markdown("**Conversion concentration summary**")
+            st.markdown(f"**{_map_view_title(map_view, _map_scope_label)}**")
             st.caption(_CONCENTRATION_CAPTION)
             st.markdown(_map_acre_line)
             # Citywide scope grounds the map with faint district seams when a
@@ -10939,6 +10971,10 @@ if _main_tab == 'Map View':
                               bbox_inches='tight', pad_inches=0.02)
             plt.close(_dens_fig)
             st.markdown(_map_image_html(_dens_buf.getvalue()), unsafe_allow_html=True)
+            # One-glance teal key UNDER the map — small/muted, separate from the
+            # honest caption above. Ramp is light(low) → dark(high), so the key
+            # ("darker = larger") agrees with the gradient.
+            st.caption(_CONCENTRATION_TEAL_KEY)
 
         with st.expander("Assumptions and limitations", expanded=False):
             st.caption("Detailed modeling assumptions, caveats, and method notes.")
