@@ -10525,7 +10525,10 @@ if _main_tab == 'Map View':
                 xaxis=dict(visible=False, scaleanchor='y', scaleratio=1),
                 yaxis=dict(visible=False),
                 plot_bgcolor='white', paper_bgcolor='white',
-                height=360,
+                # ~25% shorter than the prior 360 — district numbers stay
+                # readable but the locator yields vertical space so the actual
+                # conversion map surfaces sooner (Relay 30).
+                height=270,
                 margin=dict(l=0, r=0, t=10, b=10),
                 # clickmode='event+select' makes a single click fire the
                 # point-select event. Without it, even with selection_mode=
@@ -10535,6 +10538,9 @@ if _main_tab == 'Map View':
                 # clicks in this Plotly version, which compounded the bug.
                 clickmode='event+select',
             )
+            # Small heading so the locator reads as a secondary "where" picker,
+            # not the main output (Relay 30).
+            st.markdown("**Selected area**")
             _t3_picker_col, _t3_clear_col = st.columns([6, 2])
             with _t3_picker_col:
                 # Stash the current layer key so the top-of-script handler knows
@@ -10616,13 +10622,13 @@ if _main_tab == 'Map View':
                     # last-forwarded signature would be filtered out).
                     st.session_state['region_map_picker_last_sig'] = None
                     st.rerun()
+            # Tightened instruction (Relay 30). Layer label stays dynamic
+            # (`_t3_display`) so it reads "council district" for SA and "census
+            # tract" for MN — the config-driven invariant, not a hardcoded name.
             st.caption(
-                f"Click a {_t3_display.lower()} number to toggle its selection — "
-                f"click another to add, click again (after picking a different "
-                f"{_t3_display.lower()}) to remove. The sidebar dropdown is the "
-                "same source of truth. Land-use changes will be placed only "
-                "inside the selected area; the Scenario tab shows both "
-                "citywide and region-local results."
+                f"Click a {_t3_display.lower()} to toggle selection. Changes are "
+                "placed only inside the selected area. The Scenario tab reports "
+                "both citywide and selected-area results."
             )
             # Eligibility Funnel (Interactive Region Map Spec #3 — extended).
             # Shows where pixels drop out at each placement-pool step:

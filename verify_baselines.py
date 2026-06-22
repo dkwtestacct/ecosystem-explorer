@@ -2242,6 +2242,47 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         self_describe_diffs += 1
 
+    # ── Relay 30 — Selected-area locator: heading + tightened instruction ─────
+    # The region picker gets a 'Selected area' heading and a shorter instruction
+    # so it reads as a secondary locator, not the main output. Light source
+    # check: heading + new instruction present, old long form gone. The layer
+    # label stays dynamic (_t3_display), so the instruction is checked on the
+    # scope-independent tail only.
+    print(f"\n{'=' * 60}")
+    print("Relay 30 — Selected-area locator heading + instruction")
+    print(f"{'=' * 60}")
+    locator_diffs = 0
+    try:
+        with open("app.py", encoding="utf-8") as _f30:
+            _src30 = _f30.read()
+        # The instruction wraps across string literals in source, so check
+        # contiguous sub-phrases (each within one literal) rather than the full
+        # concatenated string.
+        _loc_checks = [
+            ("'Selected area' heading present",
+             '"**Selected area**"', True),
+            ("tightened instruction head present",
+             "to toggle selection. Changes are", True),
+            ("tightened instruction mid present",
+             "placed only inside the selected area. The Scenario tab reports",
+             True),
+            ("tightened instruction tail present",
+             "both citywide and selected-area results.", True),
+            ("old long instruction gone",
+             "toggle its selection — click another to add", False),
+        ]
+        for name, needle, want_present in _loc_checks:
+            got = needle in _src30
+            if got == want_present:
+                print(f"  OK   {name}")
+            else:
+                print(f"  FAIL {name}: present={got}, want_present={want_present}")
+                locator_diffs += 1
+    except Exception as e:
+        print(f"  ERROR selected-area locator test: {e}")
+        import traceback; traceback.print_exc()
+        locator_diffs += 1
+
     # ── Default-scenario state consistency (Relay A) ─────────────────────────
     # Title, line-1 summary, and audit are all rendered from the same
     # `_resolved_scenario` dict via three display helpers
@@ -5574,7 +5615,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + placement_priority_diffs + flood_signal_diffs
                    + palette_diffs + unit_survival_diffs + fig_close_diffs
                    + map_view_diffs + density_diffs + concentration_diffs
-                   + self_describe_diffs)
+                   + self_describe_diffs + locator_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5620,6 +5661,10 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "— wiring broke during a layout refactor; the "
                   "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
                   "the contract.")
+        if locator_diffs:
+            print(f"{locator_diffs} selected-area locator divergence(s) — the "
+                  "'Selected area' heading or tightened instruction drifted, or "
+                  "the old long instruction reappeared (Relay 30).")
         if self_describe_diffs:
             print(f"{self_describe_diffs} self-describing map-view "
                   "divergence(s) — the active-view indicator stopped naming the "
