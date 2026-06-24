@@ -1,0 +1,8 @@
+# Pin the default theme to light (Relay 32). The entire palette, the ΔE contrast
+# floors, the "gray = unchanged" map copy, and the matplotlib map backgrounds were
+# all tuned against a light background. base = "light" inherits Streamlit's default
+# light theme — the exact look everything was designed against — and makes it the
+# default for every visitor regardless of their OS light/dark preference, so the
+# theme is no longer a per-visitor coin-flip.
+[theme]
+base = "light"

@@ -2312,6 +2312,52 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         copy31_diffs += 1
 
+    # ── Relay 32 — Light-mode theme pin ──────────────────────────────────────
+    # The whole palette / ΔE floors / map copy / matplotlib backgrounds were
+    # tuned for a light background, so .streamlit/config.toml must pin
+    # [theme] base = "light". Source-scan (no tomllib on 3.9): the file exists,
+    # has a [theme] table, and that table sets base = "light". Flip: missing file
+    # / missing base → fail, so the pin can't be silently dropped later.
+    print(f"\n{'=' * 60}")
+    print("Relay 32 — Light-mode theme pin (.streamlit/config.toml)")
+    print(f"{'=' * 60}")
+    theme_diffs = 0
+    try:
+        import os as _os32, re as _re32
+        _cfg_path = ".streamlit/config.toml"
+        if not _os32.path.exists(_cfg_path):
+            print(f"  FAIL {_cfg_path} missing — light-mode pin not present")
+            theme_diffs += 1
+        else:
+            with open(_cfg_path, encoding="utf-8") as _f32:
+                _cfg_text = _f32.read()
+            # Isolate the [theme] table body (up to the next [section] or EOF).
+            _theme_m = _re32.search(
+                r'(?ms)^\[theme\]\s*$(.*?)(?=^\[|\Z)', _cfg_text)
+            if _theme_m is None:
+                print("  FAIL config.toml has no [theme] table")
+                theme_diffs += 1
+            elif _re32.search(r'(?mi)^\s*base\s*=\s*["\']light["\']\s*$',
+                              _theme_m.group(1)):
+                print('  OK   [theme] base = "light" pinned')
+            else:
+                print("  FAIL [theme] table does not set base = \"light\"")
+                theme_diffs += 1
+            # Meta-test: the scanner actually checks the [theme] body, not the
+            # whole file — a base line outside [theme] must NOT count.
+            _seed_bad = '[server]\nbase = "light"\n[theme]\nprimaryColor = "#abc"\n'
+            _seed_m = _re32.search(r'(?ms)^\[theme\]\s*$(.*?)(?=^\[|\Z)', _seed_bad)
+            if _seed_m is not None and _re32.search(
+                    r'(?mi)^\s*base\s*=\s*["\']light["\']\s*$', _seed_m.group(1)):
+                print("  FAIL meta-test: base outside [theme] wrongly counted")
+                theme_diffs += 1
+            else:
+                print("  OK   meta-test: base outside [theme] correctly ignored")
+    except Exception as e:
+        print(f"  ERROR light-mode theme-pin test: {e}")
+        import traceback; traceback.print_exc()
+        theme_diffs += 1
+
     # ── Default-scenario state consistency (Relay A) ─────────────────────────
     # Title, line-1 summary, and audit are all rendered from the same
     # `_resolved_scenario` dict via three display helpers
@@ -5644,7 +5690,8 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + placement_priority_diffs + flood_signal_diffs
                    + palette_diffs + unit_survival_diffs + fig_close_diffs
                    + map_view_diffs + density_diffs + concentration_diffs
-                   + self_describe_diffs + locator_diffs + copy31_diffs)
+                   + self_describe_diffs + locator_diffs + copy31_diffs
+                   + theme_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5690,6 +5737,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "— wiring broke during a layout refactor; the "
                   "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
                   "the contract.")
+        if theme_diffs:
+            print(f"{theme_diffs} light-mode theme-pin divergence(s) — "
+                  ".streamlit/config.toml lost its [theme] base = \"light\" "
+                  "pin, so the theme falls back to per-visitor OS preference "
+                  "(Relay 32).")
         if copy31_diffs:
             print(f"{copy31_diffs} overlay-slider-label divergence(s) — the "
                   "'Overlay opacity' label reverted to the old long form "
