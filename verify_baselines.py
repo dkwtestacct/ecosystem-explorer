@@ -2358,6 +2358,59 @@ def main(update: bool) -> int:
         import traceback; traceback.print_exc()
         theme_diffs += 1
 
+    # ── Relay 33 — Clear-selection routes through on_click (no late write) ────
+    # `region_labels_<layer>` backs the sidebar multiselect, so writing it in the
+    # Clear button's inline `if st.button(...):` body — after that widget
+    # instantiated this run — throws StreamlitAPIException. The clear must route
+    # through an on_click callback (pre-instantiation). Static guard (the gate
+    # can't click the button): the callback exists and clears region_labels, the
+    # button wires on_click, and there's NO inline `if st.button("Clear
+    # selection"...)` conditional (the bug form). Flip: re-introducing the inline
+    # conditional write trips the no-inline check.
+    print(f"\n{'=' * 60}")
+    print("Relay 33 — Clear-selection on_click (no post-instantiation write)")
+    print(f"{'=' * 60}")
+    clear_cb_diffs = 0
+    try:
+        import re as _re33
+        with open("app.py", encoding="utf-8") as _f33:
+            _src33 = _f33.read()
+        # (a) callback exists and clears region_labels.
+        _cb_m = _re33.search(
+            r'(?ms)def _clear_region_selection\(layer\):(.*?)st\.button\(', _src33)
+        if _cb_m and 'region_labels_' in _cb_m.group(1):
+            print("  OK   _clear_region_selection callback clears region_labels")
+        else:
+            print("  FAIL _clear_region_selection callback missing / "
+                  "doesn't clear region_labels")
+            clear_cb_diffs += 1
+        # (b) the Clear button wires the callback via on_click.
+        if "on_click=_clear_region_selection" in _src33:
+            print("  OK   Clear button wires on_click=_clear_region_selection")
+        else:
+            print("  FAIL Clear button does not wire the on_click callback")
+            clear_cb_diffs += 1
+        # (c) NO inline conditional Clear button (the post-instantiation bug form).
+        _inline_bug = 'if st.button("Clear selection"' in _src33
+        if not _inline_bug:
+            print("  OK   no inline `if st.button(\"Clear selection\"...)` body")
+        else:
+            print("  FAIL inline Clear-button conditional present — "
+                  "post-instantiation region_labels write would crash")
+            clear_cb_diffs += 1
+        # Meta-test: the no-inline scan actually flags the bug form.
+        _seed33 = ('if st.button("Clear selection", key=\'region_map_clear_btn\'):'
+                   '\n    st.session_state[f"region_labels_{x}"] = []')
+        if 'if st.button("Clear selection"' in _seed33:
+            print("  OK   meta-test: seeded inline Clear conditional is detectable")
+        else:
+            print("  FAIL meta-test: scan can't detect the inline bug form")
+            clear_cb_diffs += 1
+    except Exception as e:
+        print(f"  ERROR clear-selection on_click test: {e}")
+        import traceback; traceback.print_exc()
+        clear_cb_diffs += 1
+
     # ── Default-scenario state consistency (Relay A) ─────────────────────────
     # Title, line-1 summary, and audit are all rendered from the same
     # `_resolved_scenario` dict via three display helpers
@@ -5691,7 +5744,7 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                    + palette_diffs + unit_survival_diffs + fig_close_diffs
                    + map_view_diffs + density_diffs + concentration_diffs
                    + self_describe_diffs + locator_diffs + copy31_diffs
-                   + theme_diffs)
+                   + theme_diffs + clear_cb_diffs)
     if grand_total == 0:
         print("All baselines match.")
         return 0
@@ -5737,6 +5790,11 @@ st.metric("Test", "\\$100M", delta="@\\$190/t")
                   "— wiring broke during a layout refactor; the "
                   "_SIDEBAR_STATIC_KEYS_EXPECTED set in verify_baselines is "
                   "the contract.")
+        if clear_cb_diffs:
+            print(f"{clear_cb_diffs} Clear-selection callback divergence(s) — "
+                  "the clear stopped routing through on_click (inline "
+                  "post-instantiation region_labels write returns, which crashes "
+                  "with StreamlitAPIException) (Relay 33).")
         if theme_diffs:
             print(f"{theme_diffs} light-mode theme-pin divergence(s) — "
                   ".streamlit/config.toml lost its [theme] base = \"light\" "

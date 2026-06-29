@@ -10612,16 +10612,24 @@ if _main_tab == 'Map View':
             with _t3_clear_col:
                 st.write("")
                 st.write("")
-                if st.button("Clear selection", key='region_map_clear_btn',
-                             width="stretch",
-                             help="Deselect all selected areas."):
-                    st.session_state[f"region_labels_{_t3_layer}"] = []
+                # Clear via an on_click CALLBACK, not an inline post-click body.
+                # `region_labels_<layer>` backs the sidebar multiselect, which has
+                # already instantiated this run — writing it inline (after the
+                # button's `if`) throws StreamlitAPIException. The callback fires
+                # at the START of the click rerun, BEFORE any widget instantiates,
+                # so the write is legal (same pre-instantiation rule the
+                # top-of-script toggle handler obeys). on_click reruns
+                # automatically, so no explicit st.rerun().
+                def _clear_region_selection(layer):
+                    st.session_state[f"region_labels_{layer}"] = []
                     st.session_state['region_map_picker_event'] = None
-                    # Reset the new-click signature too so the next genuine
-                    # click fires (without this, a click matching the
-                    # last-forwarded signature would be filtered out).
+                    # Reset the new-click signature too so the next genuine click
+                    # fires (a click matching the last-forwarded signature would
+                    # otherwise be filtered out).
                     st.session_state['region_map_picker_last_sig'] = None
-                    st.rerun()
+                st.button("Clear selection", key='region_map_clear_btn',
+                          width="stretch", help="Deselect all selected areas.",
+                          on_click=_clear_region_selection, args=(_t3_layer,))
             # Tightened instruction (Relay 30). Layer label stays dynamic
             # (`_t3_display`) so it reads "council district" for SA and "census
             # tract" for MN — the config-driven invariant, not a hardcoded name.
